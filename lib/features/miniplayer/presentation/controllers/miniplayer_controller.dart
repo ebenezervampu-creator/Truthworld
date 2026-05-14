@@ -77,6 +77,16 @@ class MiniplayerController extends GetxController
   /// Whether the player is currently buffering.
   final RxBool isBuffering = false.obs;
 
+  /// Free-form drag offset of the collapsed miniplayer card.
+  ///
+  /// `null` means: dock to bottom-right (default). When the user drags the
+  /// card, this becomes the explicit top-left position in viewport pixels.
+  final Rxn<Offset> dragOffset = Rxn<Offset>();
+
+  /// Whether the pointer is currently hovering the miniplayer (web/desktop).
+  /// Used to fade controls in/out like YouTube.
+  final RxBool isHovering = false.obs;
+
   // ═══════════════════════════════════════════════════════════════════════════
   // NON-REACTIVE STATE
   // ═══════════════════════════════════════════════════════════════════════════
@@ -233,6 +243,8 @@ class MiniplayerController extends GetxController
     totalDuration.value = Duration.zero;
     error.value = '';
     dragProgress.value = 0.0;
+    dragOffset.value = null;
+    isHovering.value = false;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -307,6 +319,52 @@ class MiniplayerController extends GetxController
     } else {
       collapse();
     }
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Free-positioning drag (YouTube-style: card can be moved anywhere)
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /// Translate the floating card by [delta] pixels, keeping it on-screen.
+  /// [cardSize] is the card's logical size and [screenSize] the viewport.
+  void onPanCard(Offset delta, Size cardSize, Size screenSize) {
+    if (mode.value != MiniplayerMode.collapsed &&
+        mode.value != MiniplayerMode.dragging) {
+      return;
+    }
+    final current = dragOffset.value ?? _defaultDockOffset(cardSize, screenSize);
+    final maxX = (screenSize.width - cardSize.width).clamp(0.0, double.infinity);
+    final maxY = (screenSize.height - cardSize.height).clamp(0.0, double.infinity);
+    dragOffset.value = Offset(
+      (current.dx + delta.dx).clamp(0.0, maxX),
+      (current.dy + delta.dy).clamp(0.0, maxY),
+    );
+  }
+
+  /// Resolve the effective top-left position of the card given the viewport.
+  /// Falls back to bottom-right docking when the user hasn't moved it yet.
+  Offset effectiveOffset(Size cardSize, Size screenSize) {
+    final stored = dragOffset.value;
+    if (stored == null) return _defaultDockOffset(cardSize, screenSize);
+    final maxX = (screenSize.width - cardSize.width).clamp(0.0, double.infinity);
+    final maxY = (screenSize.height - cardSize.height).clamp(0.0, double.infinity);
+    return Offset(
+      stored.dx.clamp(0.0, maxX),
+      stored.dy.clamp(0.0, maxY),
+    );
+  }
+
+  Offset _defaultDockOffset(Size cardSize, Size screenSize) {
+    final inset = MiniplayerConfig.dockInset;
+    return Offset(
+      (screenSize.width - cardSize.width - inset).clamp(0.0, double.infinity),
+      (screenSize.height - cardSize.height - inset).clamp(0.0, double.infinity),
+    );
+  }
+
+  /// Hover state — used to fade overlay controls in and out.
+  void setHovering(bool value) {
+    if (isHovering.value != value) isHovering.value = value;
   }
 
   /// Navigate to full video screen and close miniplayer.

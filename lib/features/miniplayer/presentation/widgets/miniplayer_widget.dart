@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:video_player/video_player.dart';
@@ -7,267 +8,112 @@ import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 
-/// Production-grade, YouTube-style miniplayer widget.
+/// Production-grade YouTube-style floating miniplayer.
 ///
-/// Architecture:
-///  - Uses `GetView<MiniplayerController>` with tag 'miniplayer'.
-///  - Each UI section wraps only the *specific* Rx variable it depends on
-///    in its own `Obx`, so a position update doesn't rebuild the title bar,
-///    and a mode change doesn't rebuild the progress bar.
-///  - Fully responsive: adapts width and layout for mobile / tablet / desktop.
-///  - Supports drag-to-expand/collapse gestures.
+/// Mirrors YouTube web's miniplayer:
+///   • A 16:9 video frame (~400px wide) plus a compact info row beneath.
+///   • Overlay controls fade in on hover: expand (top-left), close (top-right),
+///     center play/pause.
+///   • Thin progress bar at the bottom of the video frame.
+///   • The whole card is draggable anywhere in the viewport (pointer-drag on
+///     the header strip or the title row).
+///   • Keyboard shortcut: `I` to expand to the full video screen, `Esc` to
+///     close the expanded mode.
+///   • A separate full-screen expanded mode is used for one-tap dive in.
 class MiniplayerWidget extends GetView<MiniplayerController> {
   const MiniplayerWidget({super.key});
 
   @override
   String? get tag => 'miniplayer';
 
-  // ── Theme shortcuts ──
-  static const _bg = AppColors.bgPage;
-  static const _card = AppColors.bgSurface;
-  static const _crimson = AppColors.brand;
-  static const _textPrimary = AppColors.textPrimary;
-  static const _textSecondary = AppColors.textSecondary;
-  static const _border = AppColors.bgDivider;
+  // Theme tokens
+  static const Color _bg = AppColors.bgPage;
+  static const Color _card = AppColors.bgSurface;
+  static const Color _brand = AppColors.brand;
+  static const Color _textPrimary = AppColors.textPrimary;
+  static const Color _textSecondary = AppColors.textSecondary;
+  static const Color _border = AppColors.bgDivider;
 
   @override
   Widget build(BuildContext context) {
-    // Check if controller is registered - if not, render nothing
     if (!Get.isRegistered<MiniplayerController>(tag: 'miniplayer')) {
       return const SizedBox.shrink();
     }
 
     return Obx(() {
-      final currentMode = controller.mode.value;
-      if (currentMode == MiniplayerMode.dismissed) {
-        return const SizedBox.shrink();
-      }
-
-      return _MiniplayerPanel(controller: controller);
-    });
-  }
-}
-
-/// The actual floating panel. This is a separate StatelessWidget so
-/// the top-level `Obx` only pays for mode changes.
-class _MiniplayerPanel extends StatelessWidget {
-  final MiniplayerController controller;
-  const _MiniplayerPanel({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
-
-    return Obx(() {
-      final progress = controller.dragProgress.value;
       final mode = controller.mode.value;
       if (mode == MiniplayerMode.dismissed) return const SizedBox.shrink();
 
-      // ── Layout interpolation ──
-      final collapsedW = _collapsedWidth(screenSize.width);
-      final collapsedH = MiniplayerConfig.collapsedHeight;
-      final expandedW = screenSize.width;
-      final expandedH = screenSize.height;
-
-      final width = _lerp(collapsedW, expandedW, progress);
-      final height = _lerp(collapsedH, expandedH, progress);
-      final bottom = _lerp(16.0 + bottomPadding, 0.0, progress);
-      final right = _lerp(16.0, 0.0, progress);
-      final radius = _lerp(MiniplayerConfig.borderRadius, 0.0, progress);
-
-      return Positioned(
-        bottom: bottom,
-        right: right,
-        width: width,
-        height: height,
-        child: SafeArea(
-          // Material provides InkWell/Theme context, Overlay provides Tooltip/Popup context
-          child: Material(
-            type: MaterialType.transparency,
-            child: SizedBox(
-              width: width,
-              height: height,
-              child: Overlay(
-                initialEntries: [
-                  OverlayEntry(
-                    builder: (context) => GestureDetector(
-                      onVerticalDragUpdate: (d) =>
-                          controller.onDragUpdate(d.delta.dy, screenSize.height),
-                      onVerticalDragEnd: (_) => controller.onDragEnd(),
-                      child: AnimatedContainer(
-                        duration: mode == MiniplayerMode.dragging
-                            ? Duration.zero
-                            : MiniplayerConfig.animationDuration,
-                        curve: MiniplayerConfig.animationCurve,
-                        width: width,
-                        height: height,
-                        decoration: BoxDecoration(
-                          color: MiniplayerWidget._bg,
-                          borderRadius: BorderRadius.circular(radius),
-                          border: progress < 0.5
-                              ? Border.all(
-                                  color: MiniplayerWidget._border
-                                      .withValues(alpha: 0.4),
-                                  width: 1.0,
-                                )
-                              : null,
-                          boxShadow: progress < 1.0
-                              ? [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.5),
-                                    blurRadius: MiniplayerConfig.elevation,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ]
-                              : null,
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: progress < 0.15
-                            ? _CollapsedLayout(controller: controller)
-                            : _ExpandedLayout(
-                                controller: controller, progress: progress),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    });
-  }
-
-  double _collapsedWidth(double screenWidth) {
-    // Simple responsive width: 30% of screen width, clamped to reasonable range
-    final targetWidth = screenWidth * MiniplayerConfig.collapsedWidthFraction;
-    return targetWidth.clamp(
-      MiniplayerConfig.minCollapsedWidth,
-      MiniplayerConfig.maxCollapsedWidth,
-    ).toDouble();
-  }
-
-  double _lerp(double a, double b, double t) => a + (b - a) * t;
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// COLLAPSED LAYOUT — slim bar with thumbnail, title, play/close
-// ═════════════════════════════════════════════════════════════════════════════
-
-class _CollapsedLayout extends StatelessWidget {
-  final MiniplayerController controller;
-  const _CollapsedLayout({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // ── Progress bar (top edge) ──
-        _MiniProgressBar(controller: controller),
-
-        // ── Content row ──
-        Expanded(
-          child: InkWell(
-            onTap: controller.expand,
-            child: Row(
-              children: [
-                // Thumbnail (tap to expand)
-                _CollapsedThumbnail(controller: controller),
-
-                const SizedBox(width: 10),
-
-                // Title + channel (tap to expand)
-                Expanded(child: _CollapsedInfo(controller: controller)),
-
-                // Play / Pause
-                _PlayPauseButton(controller: controller, size: 20),
-
-                const SizedBox(width: 4),
-
-                // Close
-                _IconBtn(
-                  icon: Icons.close_rounded,
-                  size: 18,
-                  onTap: controller.dismiss,
-                  tooltip: 'Close',
-                ),
-
-                const SizedBox(width: 8),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CollapsedThumbnail extends StatelessWidget {
-  final MiniplayerController controller;
-  const _CollapsedThumbnail({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final info = controller.videoInfo.value;
-      final url = info?.thumbnailUrl ?? '';
-      return SizedBox(
-        width: MiniplayerConfig.collapsedHeight * 16 / 9,
-        height: MiniplayerConfig.collapsedHeight,
-        child: url.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: url.replaceAll(' ', '%20'),
-                fit: BoxFit.cover,
-                placeholder: (_, _) =>
-                    Container(color: MiniplayerWidget._card),
-                errorWidget: (_, _, _) => Container(
-                  color: MiniplayerWidget._card,
-                  child: const Icon(Icons.video_library_outlined,
-                      color: MiniplayerWidget._textSecondary, size: 20),
-                ),
-              )
-            : Container(
-                color: MiniplayerWidget._card,
-                child: const Icon(Icons.video_library_outlined,
-                    color: MiniplayerWidget._textSecondary, size: 20),
-              ),
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final size = Size(constraints.maxWidth, constraints.maxHeight);
+          if (mode == MiniplayerMode.expanded) {
+            return _ExpandedView(controller: controller, screenSize: size);
+          }
+          return _FloatingCard(controller: controller, screenSize: size);
+        },
       );
     });
   }
 }
 
-class _CollapsedInfo extends StatelessWidget {
+// ═════════════════════════════════════════════════════════════════════════════
+// FLOATING CARD — the YouTube-style miniplayer
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _FloatingCard extends StatelessWidget {
   final MiniplayerController controller;
-  const _CollapsedInfo({required this.controller});
+  final Size screenSize;
+  const _FloatingCard({required this.controller, required this.screenSize});
 
   @override
   Widget build(BuildContext context) {
+    final width = MiniplayerConfig.widthForScreen(screenSize.width);
+    final height = MiniplayerConfig.heightForWidth(width);
+    final cardSize = Size(width, height);
+
     return Obx(() {
-      final info = controller.videoInfo.value;
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
+      final pos = controller.effectiveOffset(cardSize, screenSize);
+      return Stack(
+        clipBehavior: Clip.none,
         children: [
-          Text(
-            info?.title ?? '',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.roboto(
-              color: MiniplayerWidget._textPrimary,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            info?.channelName ?? '',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.roboto(
-              color: MiniplayerWidget._textSecondary,
-              fontSize: 11,
+          Positioned(
+            left: pos.dx,
+            top: pos.dy,
+            width: width,
+            height: height,
+            child: FocusableActionDetector(
+              autofocus: false,
+              shortcuts: <ShortcutActivator, Intent>{
+                LogicalKeySet(LogicalKeyboardKey.keyI):
+                    const _ExpandIntent(),
+                LogicalKeySet(LogicalKeyboardKey.escape):
+                    const _DismissIntent(),
+              },
+              actions: <Type, Action<Intent>>{
+                _ExpandIntent: CallbackAction<_ExpandIntent>(
+                  onInvoke: (_) {
+                    controller.openFullScreen();
+                    return null;
+                  },
+                ),
+                _DismissIntent: CallbackAction<_DismissIntent>(
+                  onInvoke: (_) {
+                    controller.dismiss();
+                    return null;
+                  },
+                ),
+              },
+              child: MouseRegion(
+                cursor: SystemMouseCursors.grab,
+                onEnter: (_) => controller.setHovering(true),
+                onExit: (_) => controller.setHovering(false),
+                child: _CardBody(
+                  controller: controller,
+                  cardSize: cardSize,
+                  screenSize: screenSize,
+                ),
+              ),
             ),
           ),
         ],
@@ -276,149 +122,262 @@ class _CollapsedInfo extends StatelessWidget {
   }
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// EXPANDED LAYOUT — full player with controls
-// ═════════════════════════════════════════════════════════════════════════════
-
-class _ExpandedLayout extends StatelessWidget {
+class _CardBody extends StatelessWidget {
   final MiniplayerController controller;
-  final double progress;
-  const _ExpandedLayout({required this.controller, required this.progress});
+  final Size cardSize;
+  final Size screenSize;
+  const _CardBody({
+    required this.controller,
+    required this.cardSize,
+    required this.screenSize,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // ── Top bar (collapse handle + title) ──
-        _ExpandedTopBar(controller: controller),
+    final videoHeight =
+        cardSize.width / MiniplayerConfig.videoAspectRatio;
 
-        // ── Video area ──
-        Expanded(
-          flex: 5,
-          child: InkWell(
-            onTap: controller.togglePlayPause,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                // Thumbnail fallback
-                _ExpandedThumbnail(controller: controller),
-
-                // Actual video
-                Obx(() {
-                  if (controller.chewieController == null) {
-                    return const Center(
-                      child: CircularProgressIndicator(
-                        color: MiniplayerWidget._crimson,
-                        strokeWidth: 2.5,
-                      ),
-                    );
-                  }
-                  return AspectRatio(
-                    aspectRatio:
-                        controller.videoPlayerController!.value.aspectRatio,
-                    child: VideoPlayer(controller.videoPlayerController!),
-                  );
-                }),
-
-                // Play/Pause overlay
-                _CenterPlayOverlay(controller: controller),
-
-                // Buffering indicator
-                Obx(() {
-                  if (!controller.isBuffering.value) {
-                    return const SizedBox.shrink();
-                  }
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      color: MiniplayerWidget._crimson,
-                      strokeWidth: 2.5,
-                    ),
-                  );
-                }),
-
-                // Error state overlay
-                Obx(() {
-                  final errorMsg = controller.error.value;
-                  if (errorMsg.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
-                  return Container(
-                    color: Colors.black.withValues(alpha: 0.8),
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.error_outline_rounded,
-                            color: MiniplayerWidget._crimson,
-                            size: 48,
-                          ),
-                          const SizedBox(height: 16),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Text(
-                              errorMsg,
-                              textAlign: TextAlign.center,
-                              style: GoogleFonts.roboto(
-                                color: MiniplayerWidget._textPrimary,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }),
-              ],
-            ),
+    return Material(
+      type: MaterialType.transparency,
+      child: Container(
+        decoration: BoxDecoration(
+          color: MiniplayerWidget._bg,
+          borderRadius:
+              BorderRadius.circular(MiniplayerConfig.borderRadius),
+          border: Border.all(
+            color: MiniplayerWidget._border.withValues(alpha: 0.4),
+            width: 1.0,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.55),
+              blurRadius: MiniplayerConfig.elevation,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: cardSize.width,
+              height: videoHeight,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onPanUpdate: (d) =>
+                    controller.onPanCard(d.delta, cardSize, screenSize),
+                onTap: controller.openFullScreen,
+                child: _VideoFrame(controller: controller),
+              ),
+            ),
+            _InfoBar(
+              controller: controller,
+              cardSize: cardSize,
+              screenSize: screenSize,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-        // ── Controls section ──
-        Expanded(
-          flex: 4,
-          child: Container(
-            color: MiniplayerWidget._bg,
-            child: Column(
+// ─────────────────────────────────────────────────────────────────────────────
+// Video frame with overlay controls + progress bar
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _VideoFrame extends StatelessWidget {
+  final MiniplayerController controller;
+  const _VideoFrame({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Thumbnail fallback (always behind the video).
+        Obx(() {
+          final url = controller.videoInfo.value?.thumbnailUrl ?? '';
+          if (url.isEmpty) {
+            return Container(color: MiniplayerWidget._card);
+          }
+          return CachedNetworkImage(
+            imageUrl: url.replaceAll(' ', '%20'),
+            fit: BoxFit.cover,
+            placeholder: (_, _) =>
+                Container(color: MiniplayerWidget._card),
+            errorWidget: (_, _, _) =>
+                Container(color: MiniplayerWidget._card),
+          );
+        }),
+
+        // Actual video.
+        Obx(() {
+          final vpc = controller.videoPlayerController;
+          if (vpc == null || !controller.isVideoReady.value) {
+            return const SizedBox.shrink();
+          }
+          return FittedBox(
+            fit: BoxFit.cover,
+            clipBehavior: Clip.hardEdge,
+            child: SizedBox(
+              width: vpc.value.size.width,
+              height: vpc.value.size.height,
+              child: VideoPlayer(vpc),
+            ),
+          );
+        }),
+
+        // Buffering spinner.
+        Obx(() {
+          if (!controller.isBuffering.value) return const SizedBox.shrink();
+          return const Center(
+            child: SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                color: MiniplayerWidget._brand,
+                strokeWidth: 2.5,
+              ),
+            ),
+          );
+        }),
+
+        // Error state.
+        Obx(() {
+          final msg = controller.error.value;
+          if (msg.isEmpty) return const SizedBox.shrink();
+          return Container(
+            color: Colors.black.withValues(alpha: 0.7),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Center(
+              child: Text(
+                msg,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.roboto(
+                  color: MiniplayerWidget._textPrimary,
+                  fontSize: 12,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          );
+        }),
+
+        // Overlay controls — fade in on hover or when paused.
+        Obx(() {
+          final showOverlay =
+              controller.isHovering.value || !controller.isPlaying.value;
+          return AnimatedOpacity(
+            opacity: showOverlay ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 180),
+            child: IgnorePointer(
+              ignoring: !showOverlay,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // Subtle vignette so icons stay legible.
+                  IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: 0.35),
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.25),
+                          ],
+                          stops: const [0.0, 0.45, 1.0],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Top-left: Expand button + "I" hotkey hint.
+                  Positioned(
+                    top: 6,
+                    left: 6,
+                    child: _ExpandButton(controller: controller),
+                  ),
+
+                  // Top-right: Close button.
+                  Positioned(
+                    top: 6,
+                    right: 6,
+                    child: _OverlayIconButton(
+                      icon: Icons.close_rounded,
+                      tooltip: 'Close (Esc)',
+                      onTap: controller.dismiss,
+                    ),
+                  ),
+
+                  // Center: Play / Pause.
+                  Center(
+                    child: _CenterPlayButton(controller: controller),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+
+        // Thin progress bar at the bottom of the video.
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: _VideoProgressBar(controller: controller),
+        ),
+      ],
+    );
+  }
+}
+
+class _ExpandButton extends StatelessWidget {
+  final MiniplayerController controller;
+  const _ExpandButton({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Expand (I)',
+      child: Material(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(6),
+        child: InkWell(
+          onTap: controller.openFullScreen,
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Seek bar
-                _SeekBar(controller: controller),
-
-                const SizedBox(height: 8),
-
-                // Playback controls
-                _PlaybackControls(controller: controller),
-
-                const SizedBox(height: 16),
-
-                // Video info
-                _ExpandedVideoInfo(controller: controller),
-
-                const Spacer(),
-
-                // Open full screen button
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: controller.openFullScreen,
-                      icon: const Icon(Icons.open_in_full_rounded, size: 18),
-                      label: Text(
-                        'Open Full Player',
-                        style: GoogleFonts.roboto(fontWeight: FontWeight.w500),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        side: BorderSide(
-                          color: MiniplayerWidget._crimson.withValues(alpha: 0.6),
-                        ),
-                        foregroundColor: MiniplayerWidget._crimson,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
+                const Icon(Icons.open_in_full_rounded,
+                    size: 14, color: Colors.white),
+                const SizedBox(width: 6),
+                Text(
+                  'Expand',
+                  style: GoogleFonts.roboto(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: Text(
+                    'I',
+                    style: GoogleFonts.robotoMono(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -426,7 +385,243 @@ class _ExpandedLayout extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _OverlayIconButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final double size;
+  const _OverlayIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.size = 18,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.black.withValues(alpha: 0.55),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(7),
+            child: Icon(icon, size: size, color: Colors.white),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CenterPlayButton extends StatelessWidget {
+  final MiniplayerController controller;
+  const _CenterPlayButton({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final playing = controller.isPlaying.value;
+      return Material(
+        color: Colors.black.withValues(alpha: 0.55),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: controller.togglePlayPause,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Icon(
+              playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+              size: 32,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      );
+    });
+  }
+}
+
+class _VideoProgressBar extends StatelessWidget {
+  final MiniplayerController controller;
+  const _VideoProgressBar({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final pos = controller.currentPosition.value.inMilliseconds;
+      final dur = controller.totalDuration.value.inMilliseconds;
+      final value = dur > 0 ? (pos / dur).clamp(0.0, 1.0) : 0.0;
+      return SizedBox(
+        height: 3,
+        child: LinearProgressIndicator(
+          value: value,
+          minHeight: 3,
+          backgroundColor: Colors.white.withValues(alpha: 0.18),
+          valueColor:
+              const AlwaysStoppedAnimation<Color>(MiniplayerWidget._brand),
+        ),
+      );
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Info bar beneath the video (title, channel + time, expand chevron)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _InfoBar extends StatelessWidget {
+  final MiniplayerController controller;
+  final Size cardSize;
+  final Size screenSize;
+  const _InfoBar({
+    required this.controller,
+    required this.cardSize,
+    required this.screenSize,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: MiniplayerConfig.infoBarHeight,
+      child: Material(
+        color: MiniplayerWidget._bg,
+        child: InkWell(
+          onTap: controller.openFullScreen,
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onPanUpdate: (d) =>
+                controller.onPanCard(d.delta, cardSize, screenSize),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _TitleAndMeta(controller: controller),
+                  ),
+                  _OverlayIconButton(
+                    icon: Icons.keyboard_arrow_up_rounded,
+                    tooltip: 'Show more',
+                    size: 20,
+                    onTap: controller.expand,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TitleAndMeta extends StatelessWidget {
+  final MiniplayerController controller;
+  const _TitleAndMeta({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Obx(() {
+          final info = controller.videoInfo.value;
+          return Text(
+            info?.title ?? '',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.roboto(
+              color: MiniplayerWidget._textPrimary,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              height: 1.2,
+            ),
+          );
+        }),
+        const SizedBox(height: 2),
+        Obx(() {
+          final info = controller.videoInfo.value;
+          final pos =
+              controller.formatDuration(controller.currentPosition.value);
+          final dur =
+              controller.formatDuration(controller.totalDuration.value);
+          return Text(
+            '${info?.channelName ?? ''}  •  $pos / $dur',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.roboto(
+              color: MiniplayerWidget._textSecondary,
+              fontSize: 11,
+              height: 1.2,
+            ),
+          );
+        }),
       ],
+    );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// EXPANDED VIEW — full-screen player surface with controls
+// ═════════════════════════════════════════════════════════════════════════════
+
+class _ExpandedView extends StatelessWidget {
+  final MiniplayerController controller;
+  final Size screenSize;
+  const _ExpandedView({required this.controller, required this.screenSize});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: FocusableActionDetector(
+        autofocus: true,
+        shortcuts: <ShortcutActivator, Intent>{
+          LogicalKeySet(LogicalKeyboardKey.escape): const _CollapseIntent(),
+          LogicalKeySet(LogicalKeyboardKey.space):
+              const _TogglePlayIntent(),
+        },
+        actions: <Type, Action<Intent>>{
+          _CollapseIntent: CallbackAction<_CollapseIntent>(
+            onInvoke: (_) {
+              controller.collapse();
+              return null;
+            },
+          ),
+          _TogglePlayIntent: CallbackAction<_TogglePlayIntent>(
+            onInvoke: (_) {
+              controller.togglePlayPause();
+              return null;
+            },
+          ),
+        },
+        child: Material(
+          color: Colors.black,
+          child: SafeArea(
+            child: Column(
+              children: [
+                _ExpandedTopBar(controller: controller),
+                Expanded(
+                  flex: 5,
+                  child: _ExpandedVideo(controller: controller),
+                ),
+                Expanded(
+                  flex: 3,
+                  child: _ExpandedDetails(controller: controller),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -439,22 +634,34 @@ class _ExpandedTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       color: MiniplayerWidget._bg,
       child: Row(
         children: [
-          _IconBtn(
-            icon: Icons.keyboard_arrow_down_rounded,
-            size: 28,
-            onTap: controller.collapse,
-            tooltip: 'Minimize',
+          Tooltip(
+            message: 'Minimize',
+            child: IconButton(
+              icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                  color: MiniplayerWidget._textPrimary),
+              onPressed: controller.collapse,
+            ),
           ),
           const Spacer(),
-          _IconBtn(
-            icon: Icons.close_rounded,
-            size: 22,
-            onTap: controller.dismiss,
-            tooltip: 'Close',
+          Tooltip(
+            message: 'Open full screen',
+            child: IconButton(
+              icon: const Icon(Icons.open_in_full_rounded,
+                  color: MiniplayerWidget._textPrimary, size: 20),
+              onPressed: controller.openFullScreen,
+            ),
+          ),
+          Tooltip(
+            message: 'Close',
+            child: IconButton(
+              icon: const Icon(Icons.close_rounded,
+                  color: MiniplayerWidget._textPrimary),
+              onPressed: controller.dismiss,
+            ),
           ),
         ],
       ),
@@ -462,309 +669,216 @@ class _ExpandedTopBar extends StatelessWidget {
   }
 }
 
-class _ExpandedThumbnail extends StatelessWidget {
+class _ExpandedVideo extends StatelessWidget {
   final MiniplayerController controller;
-  const _ExpandedThumbnail({required this.controller});
+  const _ExpandedVideo({required this.controller});
 
   @override
   Widget build(BuildContext context) {
-    return Obx(() {
-      final url = controller.videoInfo.value?.thumbnailUrl ?? '';
-      if (url.isEmpty) {
-        return Container(color: MiniplayerWidget._card);
-      }
-      return CachedNetworkImage(
-        imageUrl: url.replaceAll(' ', '%20'),
-        fit: BoxFit.cover,
-        placeholder: (_, _) => Container(color: MiniplayerWidget._card),
-        errorWidget: (_, _, _) => Container(color: MiniplayerWidget._card),
-      );
-    });
-  }
-}
-
-class _CenterPlayOverlay extends StatelessWidget {
-  final MiniplayerController controller;
-  const _CenterPlayOverlay({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final playing = controller.isPlaying.value;
-      return AnimatedOpacity(
-        opacity: playing ? 0.0 : 1.0,
-        duration: const Duration(milliseconds: 200),
-        child: Center(
-          child: Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.6),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              color: Colors.white,
-              size: 36,
-            ),
-          ),
-        ),
-      );
-    });
-  }
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// SHARED COMPONENTS
-// ═════════════════════════════════════════════════════════════════════════════
-
-/// Thin progress bar shown at the top of the collapsed miniplayer.
-class _MiniProgressBar extends StatelessWidget {
-  final MiniplayerController controller;
-  const _MiniProgressBar({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final pos = controller.currentPosition.value.inMilliseconds;
-      final dur = controller.totalDuration.value.inMilliseconds;
-      final progress = dur > 0 ? (pos / dur).clamp(0.0, 1.0) : 0.0;
-      return SizedBox(
-        height: 2.5,
-        child: LinearProgressIndicator(
-          value: progress,
-          backgroundColor: MiniplayerWidget._border.withValues(alpha: 0.3),
-          valueColor:
-              const AlwaysStoppedAnimation<Color>(MiniplayerWidget._crimson),
-          minHeight: 2.5,
-        ),
-      );
-    });
-  }
-}
-
-/// Full seek bar for expanded mode.
-class _SeekBar extends StatelessWidget {
-  final MiniplayerController controller;
-  const _SeekBar({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final pos = controller.currentPosition.value;
-      final dur = controller.totalDuration.value;
-      final posMs = pos.inMilliseconds.toDouble();
-      final durMs = dur.inMilliseconds.toDouble();
-
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Column(
+    return GestureDetector(
+      onTap: controller.togglePlayPause,
+      child: Container(
+        color: Colors.black,
+        alignment: Alignment.center,
+        child: Stack(
+          fit: StackFit.expand,
           children: [
-            SliderTheme(
-              data: SliderThemeData(
-                trackHeight: 3,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                activeTrackColor: MiniplayerWidget._crimson,
-                inactiveTrackColor:
-                    MiniplayerWidget._border.withValues(alpha: 0.3),
-                thumbColor: MiniplayerWidget._crimson,
-                overlayColor: MiniplayerWidget._crimson.withValues(alpha: 0.15),
-              ),
-              child: Slider(
-                value: durMs > 0 ? posMs.clamp(0.0, durMs) : 0.0,
-                max: durMs > 0 ? durMs : 1.0,
-                onChanged: (val) {
-                  controller.seekTo(Duration(milliseconds: val.toInt()));
-                },
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    controller.formatDuration(pos),
-                    style: GoogleFonts.robotoMono(
-                      color: MiniplayerWidget._textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w400,
-                    ),
+            Obx(() {
+              final url = controller.videoInfo.value?.thumbnailUrl ?? '';
+              if (url.isEmpty) return const SizedBox.shrink();
+              return CachedNetworkImage(
+                imageUrl: url.replaceAll(' ', '%20'),
+                fit: BoxFit.contain,
+                placeholder: (_, _) => const SizedBox.shrink(),
+                errorWidget: (_, _, _) => const SizedBox.shrink(),
+              );
+            }),
+            Obx(() {
+              final vpc = controller.videoPlayerController;
+              if (vpc == null || !controller.isVideoReady.value) {
+                return const Center(
+                  child: CircularProgressIndicator(
+                    color: MiniplayerWidget._brand,
+                    strokeWidth: 2.5,
                   ),
-                  Text(
-                    controller.formatDuration(dur),
-                    style: GoogleFonts.robotoMono(
-                      color: MiniplayerWidget._textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    });
-  }
-}
-
-/// Center playback controls row for expanded mode.
-class _PlaybackControls extends StatelessWidget {
-  final MiniplayerController controller;
-  const _PlaybackControls({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _IconBtn(
-          icon: Icons.replay_10_rounded,
-          size: 28,
-          onTap: controller.seekBackward,
-          tooltip: 'Rewind 10s',
-        ),
-        const SizedBox(width: 24),
-        _PlayPauseButton(controller: controller, size: 40, showBg: true),
-        const SizedBox(width: 24),
-        _IconBtn(
-          icon: Icons.forward_10_rounded,
-          size: 28,
-          onTap: controller.seekForward,
-          tooltip: 'Forward 10s',
-        ),
-      ],
-    );
-  }
-}
-
-class _ExpandedVideoInfo extends StatelessWidget {
-  final MiniplayerController controller;
-  const _ExpandedVideoInfo({required this.controller});
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final info = controller.videoInfo.value;
-      if (info == null) return const SizedBox.shrink();
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              info.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.roboto(
-                color: MiniplayerWidget._textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                height: 1.3,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              info.channelName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.roboto(
-                color: MiniplayerWidget._textSecondary,
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
-      );
-    });
-  }
-}
-
-/// Play / Pause toggle button.
-class _PlayPauseButton extends StatelessWidget {
-  final MiniplayerController controller;
-  final double size;
-  final bool showBg;
-  const _PlayPauseButton({
-    required this.controller,
-    this.size = 24,
-    this.showBg = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Obx(() {
-      final playing = controller.isPlaying.value;
-      final icon = playing ? Icons.pause_rounded : Icons.play_arrow_rounded;
-
-      if (showBg) {
-        return InkWell(
-          onTap: controller.togglePlayPause,
-          child: Container(
-            width: size + 20,
-            height: size + 20,
-            decoration: BoxDecoration(
-              color: MiniplayerWidget._crimson,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: MiniplayerWidget._crimson.withValues(alpha: 0.35),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
+                );
+              }
+              return Center(
+                child: AspectRatio(
+                  aspectRatio: vpc.value.aspectRatio,
+                  child: VideoPlayer(vpc),
                 ),
-              ],
-            ),
-            child: Icon(icon, color: Colors.white, size: size),
-          ),
-        );
-      }
-
-      return _IconBtn(
-        icon: icon,
-        size: size,
-        onTap: controller.togglePlayPause,
-        tooltip: playing ? 'Pause' : 'Play',
-      );
-    });
-  }
-}
-
-/// Minimal icon button with ink splash.
-class _IconBtn extends StatelessWidget {
-  final IconData icon;
-  final double size;
-  final VoidCallback onTap;
-  final String tooltip;
-  const _IconBtn({
-    required this.icon,
-    required this.size,
-    required this.onTap,
-    this.tooltip = '',
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: Padding(
-            padding: const EdgeInsets.all(8),
-            child: Icon(icon, color: MiniplayerWidget._textPrimary, size: size),
-          ),
+              );
+            }),
+            Obx(() {
+              if (controller.isPlaying.value) return const SizedBox.shrink();
+              return const Center(
+                child: Icon(Icons.play_circle_rounded,
+                    color: Colors.white70, size: 72),
+              );
+            }),
+          ],
         ),
       ),
     );
   }
 }
 
+class _ExpandedDetails extends StatelessWidget {
+  final MiniplayerController controller;
+  const _ExpandedDetails({required this.controller});
 
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: MiniplayerWidget._bg,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Obx(() {
+            final pos = controller.currentPosition.value;
+            final dur = controller.totalDuration.value;
+            final posMs = pos.inMilliseconds.toDouble();
+            final durMs = dur.inMilliseconds.toDouble();
+            return SliderTheme(
+              data: SliderThemeData(
+                trackHeight: 3,
+                thumbShape:
+                    const RoundSliderThumbShape(enabledThumbRadius: 6),
+                overlayShape:
+                    const RoundSliderOverlayShape(overlayRadius: 14),
+                activeTrackColor: MiniplayerWidget._brand,
+                inactiveTrackColor:
+                    MiniplayerWidget._border.withValues(alpha: 0.3),
+                thumbColor: MiniplayerWidget._brand,
+                overlayColor:
+                    MiniplayerWidget._brand.withValues(alpha: 0.15),
+              ),
+              child: Slider(
+                value: durMs > 0 ? posMs.clamp(0.0, durMs) : 0.0,
+                max: durMs > 0 ? durMs : 1.0,
+                onChanged: (val) =>
+                    controller.seekTo(Duration(milliseconds: val.toInt())),
+              ),
+            );
+          }),
+          Obx(() {
+            final pos =
+                controller.formatDuration(controller.currentPosition.value);
+            final dur =
+                controller.formatDuration(controller.totalDuration.value);
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(pos,
+                      style: GoogleFonts.robotoMono(
+                          color: MiniplayerWidget._textSecondary,
+                          fontSize: 11)),
+                  Text(dur,
+                      style: GoogleFonts.robotoMono(
+                          color: MiniplayerWidget._textSecondary,
+                          fontSize: 11)),
+                ],
+              ),
+            );
+          }),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                tooltip: 'Rewind 10s',
+                icon: const Icon(Icons.replay_10_rounded,
+                    color: MiniplayerWidget._textPrimary, size: 28),
+                onPressed: controller.seekBackward,
+              ),
+              const SizedBox(width: 16),
+              Obx(() {
+                final playing = controller.isPlaying.value;
+                return Material(
+                  color: MiniplayerWidget._brand,
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: controller.togglePlayPause,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Icon(
+                        playing
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(width: 16),
+              IconButton(
+                tooltip: 'Forward 10s',
+                icon: const Icon(Icons.forward_10_rounded,
+                    color: MiniplayerWidget._textPrimary, size: 28),
+                onPressed: controller.seekForward,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Obx(() {
+            final info = controller.videoInfo.value;
+            if (info == null) return const SizedBox.shrink();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  info.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.roboto(
+                    color: MiniplayerWidget._textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  info.channelName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.roboto(
+                    color: MiniplayerWidget._textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+}
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Keyboard intents
+// ─────────────────────────────────────────────────────────────────────────────
 
+class _ExpandIntent extends Intent {
+  const _ExpandIntent();
+}
 
+class _DismissIntent extends Intent {
+  const _DismissIntent();
+}
 
+class _CollapseIntent extends Intent {
+  const _CollapseIntent();
+}
+
+class _TogglePlayIntent extends Intent {
+  const _TogglePlayIntent();
+}

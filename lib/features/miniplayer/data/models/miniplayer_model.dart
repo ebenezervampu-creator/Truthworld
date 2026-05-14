@@ -49,7 +49,7 @@ class MiniplayerVideoInfo {
 
 /// Enum representing the visual state of the miniplayer panel.
 enum MiniplayerMode {
-  /// Collapsed bar at the bottom (default).
+  /// Floating YouTube-style miniplayer (default).
   collapsed,
 
   /// Dragging between collapsed and expanded.
@@ -70,7 +70,10 @@ enum MiniplayerMode {
 // ═════════════════════════════════════════════════════════════════════════════
 
 /// Immutable configuration for the miniplayer.
-/// Uses static const values wherever possible for zero-allocation access.
+///
+/// Sizing matches YouTube's web miniplayer: a 16:9 video frame approximately
+/// 400px wide with a compact info row beneath. The whole panel is draggable
+/// around the viewport, dismissable, and expandable to fullscreen.
 @immutable
 class MiniplayerConfig {
   // ── Feature Toggles ──
@@ -79,36 +82,66 @@ class MiniplayerConfig {
   final bool pauseOnClose;
   final bool enableDrag;
 
-  // ── Layout Constants ──
-  /// Collapsed bar height in logical pixels (72.0 for better touch targets)
+  // ── YouTube-style sizing (logical pixels) ──
+  /// Default width of the floating miniplayer card.
+  static const double defaultWidth = 400.0;
+
+  /// Minimum width on small viewports.
+  static const double minWidth = 280.0;
+
+  /// Maximum width on large viewports.
+  static const double maxWidth = 480.0;
+
+  /// Height of the info row beneath the 16:9 video frame.
+  static const double infoBarHeight = 56.0;
+
+  /// Aspect ratio of the video portion.
+  static const double videoAspectRatio = 16.0 / 9.0;
+
+  /// Edge inset from viewport when docked.
+  static const double dockInset = 16.0;
+
+  /// Legacy alias — kept for backwards-compat with code that read the old
+  /// "collapsed bar" height. New layout computes height from width.
   static const double collapsedHeight = 72.0;
 
-  /// Expanded panel reserved fraction of screen height (0.0–1.0)
+  /// Expanded panel reserved fraction of screen height (0.0–1.0).
   static const double expandedHeightFraction = 1.0;
 
-  /// Width fraction of screen when collapsed (web-only: bottom-right)
+  /// Width fraction of screen when collapsed (legacy).
   static const double collapsedWidthFraction = 0.30;
 
-  /// Minimum collapsed width in px (for very small screens)
-  static const double minCollapsedWidth = 320.0;
+  /// Minimum collapsed width in px (legacy alias of [minWidth]).
+  static const double minCollapsedWidth = minWidth;
 
-  /// Maximum collapsed width in px (for ultra-wide screens)
-  static const double maxCollapsedWidth = 480.0;
+  /// Maximum collapsed width in px (legacy alias of [maxWidth]).
+  static const double maxCollapsedWidth = maxWidth;
 
   // ── Animation ──
-  static const Duration animationDuration = Duration(milliseconds: 300);
+  static const Duration animationDuration = Duration(milliseconds: 260);
   static const Curve animationCurve = Curves.easeOutCubic;
 
   // ── Thresholds ──
-  /// Drag distance (fraction of screen) to commit expand/collapse
+  /// Drag distance (fraction of screen) to commit expand/collapse.
   static const double snapThreshold = 0.3;
 
-  /// Drag distance (fraction of screen height) to dismiss when already collapsed
+  /// Drag distance (fraction of screen height) to dismiss when already collapsed.
   static const double dismissThreshold = 0.15;
 
   // ── Styling ──
   static const double borderRadius = 12.0;
-  static const double elevation = 16.0;
+  static const double elevation = 24.0;
+
+  /// Compute the total panel height for a given width (16:9 video + info row).
+  static double heightForWidth(double width) =>
+      width / videoAspectRatio + infoBarHeight;
+
+  /// Compute a responsive miniplayer width clamped between [minWidth]/[maxWidth].
+  static double widthForScreen(double screenWidth) {
+    if (screenWidth <= 0) return defaultWidth;
+    final target = screenWidth * 0.30;
+    return target.clamp(minWidth, maxWidth);
+  }
 
   const MiniplayerConfig({
     this.enabled = true,
@@ -131,8 +164,3 @@ class MiniplayerConfig {
     );
   }
 }
-
-
-
-
-
