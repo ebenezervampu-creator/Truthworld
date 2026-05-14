@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # truthworld
 
 A new Flutter project.
@@ -15,3 +16,7 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+=======
+# Truthworld
+Truthworld is a next-generation video sharing platform where creators, communities, and audiences connect through authentic content and real stories. Built for seamless discovery, engagement, and expression, Truthworld empowers users to upload, watch, share, and monetize videos in a trusted digital environment.
+>>>>>>> f70d7cf2a16ebeede1749190bbf1d57e5941bb03
