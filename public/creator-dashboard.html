@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Truthworld | Creator Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f1a;
+            --card-bg: rgba(21, 27, 45, 0.8);
+            --primary: #38bdf8;
+            --accent: #818cf8;
+            --text: #f1f5f9;
+            --text-dim: #94a3b8;
+            --trust-high: #22c55e;
+            --revenue: #fbbf24;
+            --glass-border: rgba(255, 255, 255, 0.08);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text);
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Nav */
+        .sidebar {
+            width: 260px;
+            background: rgba(15, 23, 42, 0.5);
+            border-right: 1px solid var(--glass-border);
+            padding: 40px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+        }
+
+        .logo { font-family: 'Outfit', sans-serif; font-size: 24px; font-weight: 700; }
+        .logo span { color: var(--primary); }
+
+        .nav-links { display: flex; flex-direction: column; gap: 12px; }
+        .nav-item {
+            padding: 12px 16px;
+            border-radius: 12px;
+            text-decoration: none;
+            color: var(--text-dim);
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        .nav-item.active { background: var(--primary); color: #0f172a; }
+        .nav-item:hover:not(.active) { background: rgba(255,255,255,0.05); color: var(--text); }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 60px 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header { margin-bottom: 40px; }
+        .header h1 { font-family: 'Outfit', sans-serif; font-size: 32px; font-weight: 700; margin-bottom: 8px; }
+        .header p { color: var(--text-dim); }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 24px;
+            backdrop-filter: blur(10px);
+        }
+
+        .stat-card h3 { font-size: 14px; color: var(--text-dim); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
+        .stat-card .value { font-family: 'Outfit', sans-serif; font-size: 32px; font-weight: 700; }
+        .stat-card .trend { font-size: 12px; margin-top: 8px; font-weight: 600; }
+        .trend.up { color: var(--trust-high); }
+        .trend.down { color: #ef4444; }
+
+        /* Charts / Tables */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 1100px) { .dashboard-grid { grid-template-columns: 1fr; } }
+
+        .module {
+            background: var(--card-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 30px;
+        }
+
+        .module h2 { font-family: 'Outfit', sans-serif; font-size: 20px; margin-bottom: 24px; }
+
+        /* Table */
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 12px; border-bottom: 1px solid var(--glass-border); color: var(--text-dim); font-size: 13px; }
+        td { padding: 16px 12px; border-bottom: 1px solid var(--glass-border); font-size: 14px; }
+        
+        .trust-pill {
+            padding: 4px 10px;
+            border-radius: 8px;
+            background: rgba(34, 197, 94, 0.1);
+            color: var(--trust-high);
+            font-weight: 700;
+            font-size: 12px;
+        }
+
+        /* Performance Module */
+        .performance-item { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+        .perf-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .perf-icon.good { background: rgba(34, 197, 94, 0.1); color: var(--trust-high); }
+        .perf-icon.bad { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+        .perf-text h4 { font-size: 14px; margin-bottom: 4px; }
+        .perf-text p { font-size: 12px; color: var(--text-dim); }
+
+    </style>
+</head>
+<body>
+
+    <aside class="sidebar">
+        <div class="logo">TRUTH<span>WORLD</span></div>
+        <nav class="nav-links">
+            <a href="#" class="nav-item active">Overview</a>
+            <a href="#" class="nav-item">Analytics</a>
+            <a href="#" class="nav-item">Revenue</a>
+            <a href="#" class="nav-item">Audience</a>
+            <a href="#" class="nav-item">Verification</a>
+            <a href="#" class="nav-item">Settings</a>
+        </nav>
+        <div style="margin-top: auto;">
+            <div style="background: rgba(56, 189, 248, 0.1); padding: 16px; border-radius: 12px;">
+                <p style="font-size: 12px; color: var(--primary); font-weight: 700;">PRO TIP</p>
+                <p style="font-size: 11px; margin-top: 4px; color: var(--text-dim);">Maintaining 9.0+ Trust Index for 3 months unlocks Institutional status.</p>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <header class="header">
+            <h1>Welcome back, @techtruth</h1>
+            <p>Your credibility engine is running at peak performance.</p>
+        </header>
+
+        <section class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Revenue</h3>
+                <div class="value" style="color: var(--revenue);">₹48,240.50</div>
+                <div class="trend up">↑ +12% this month</div>
+            </div>
+            <div class="stat-card">
+                <h3>Avg Trust Index</h3>
+                <div class="value" style="color: var(--trust-high);">9.2</div>
+                <div class="trend up">↑ +0.3 rising</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Followers</h3>
+                <div class="value">124.5k</div>
+                <div class="trend up">↑ +1.2k today</div>
+            </div>
+            <div class="stat-card">
+                <h3>Revenue per TI</h3>
+                <div class="value">₹5,243</div>
+                <div class="trend up">↑ New High</div>
+            </div>
+        </section>
+
+        <div class="dashboard-grid">
+            <div class="module">
+                <h2>Top Performing Content</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Video Title</th>
+                            <th>Views</th>
+                            <th>Trust Index</th>
+                            <th>Revenue</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>The Ethics of Generative AI in 2026</td>
+                            <td>42.5k</td>
+                            <td><span class="trust-pill">9.6</span></td>
+                            <td>₹8,240</td>
+                        </tr>
+                        <tr>
+                            <td>Deepfake Authentication Bypass: A Threat</td>
+                            <td>38.2k</td>
+                            <td><span class="trust-pill">9.3</span></td>
+                            <td>₹7,150</td>
+                        </tr>
+                        <tr>
+                            <td>Biometric Security vs Privacy</td>
+                            <td>24.1k</td>
+                            <td><span class="trust-pill">9.1</span></td>
+                            <td>₹4,800</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="module">
+                <h2>Trust Performance Report</h2>
+                <div class="performance-item">
+                    <div class="perf-icon good">✓</div>
+                    <div class="perf-text">
+                        <h4>High Fact Density</h4>
+                        <p>Your recent videos have 20% more verified claims than your average.</p>
+                    </div>
+                </div>
+                <div class="performance-item">
+                    <div class="perf-icon good">✓</div>
+                    <div class="perf-text">
+                        <h4>Low Appeal Rate</h4>
+                        <p>0.2% appeal rate indicates very high audience agreement.</p>
+                    </div>
+                </div>
+                <div class="performance-item">
+                    <div class="perf-icon bad">!</div>
+                    <div class="perf-text">
+                        <h4>Stale References</h4>
+                        <p>One video used a source that was recently debunked. -0.1 drag.</p>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--glass-border);">
+                    <h4 style="font-size: 14px; margin-bottom: 12px;">Institutional Readiness</h4>
+                    <div style="width: 100%; height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden;">
+                        <div style="width: 78%; height: 100%; background: var(--primary);"></div>
+                    </div>
+                    <p style="font-size: 11px; margin-top: 8px; color: var(--text-dim);">78% towards Official Newsroom status.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        console.log("Creator Dashboard Loaded");
+    </script>
+</body>
+</html>

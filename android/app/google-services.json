@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "768266102263",
+    "project_id": "truthworld-1",
+    "storage_bucket": "truthworld-1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:768266102263:android:e5c98dd3fb6c6788143af2",
+        "android_client_info": {
+          "package_name": "com.example.truthworld"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC6PeXkaMYu9_KDV9ypWlLMJBp8BbKrR50"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

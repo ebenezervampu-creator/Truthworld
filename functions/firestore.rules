@@ -1,0 +1,67 @@
+// ================================================
+// FIRESTORE SECURITY RULES FOR VIDEO ACCESS
+// ================================================
+// Location: firestore.rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ========== USER COLLECTION ==========
+    match /users/{userId} {+
+      // Users can read their own data
+      allow read: if request.auth.uid == userId;
+      // Users can update their own non-critical fields
+      allow update: if request.auth.uid == userId &&
+        !('isAdmin' in request.resource.data.diff().changedKeys());
+    }
+
+    // ========== VIDEO FILES METADATA ==========
+    match /videoFiles/{videoId} {
+      // Anyone can read public videos
+      allow read: if resource.data.accessControl == 'public' ||
+        // Owner can read their own
+        resource.data.ownerId == request.auth.uid ||
+        // Subscriber can read if they have subscription
+        (resource.data.accessControl == 'subscription' &&
+         request.auth.uid in request.auth.token.subscriptions);
+      
+      // Only owner can write
+      allow write: if resource.data.ownerId == request.auth.uid;
+    }
+
+    // ========== VIDEO ACCESS TOKENS ==========
+    // One-time use tokens (short-lived, auto-deleted)
+    match /videoAccessTokens/{token} {
+      // System can read/write during access
+      allow read, write: if request.auth.uid == resource.data.userId &&
+        request.time < timestamp.value(resource.data.expiresAt);
+    }
+
+    // ========== VIDEO ACCESS LOGS ==========
+    // Analytics logs (system writes, users can read their own)
+    match /videoAccessLogs/{logId} {
+      allow create: if request.auth.uid != null;
+      allow read: if request.auth.uid == resource.data.userId ||
+        // Video owner can see all access to their video
+        request.auth.uid == 
+          get(/databases/$(database)/documents/videoFiles/
+             $(resource.data.videoId)).data.ownerId;
+      allow delete: if false; // Immutable for audit trail
+    }
+
+    // ========== RATE LIMITS ==========
+    match /rateLimits/{userId} {
+      allow read, write: if request.auth.uid == userId;
+    }
+
+    // ========== BANDWIDTH USAGE ==========
+    match /bandwidthUsage/{usage} {
+      allow read: if request.auth.uid == 
+        usage.split(':')[1]; // Extract userId from key
+      allow write: if request.auth.uid == 
+        usage.split(':')[1];
+    }
+
+  }
+}

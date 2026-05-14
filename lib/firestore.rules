@@ -1,0 +1,378 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the resource
+    function isOwner(ownerId) {
+      return isAuthenticated() && request.auth.uid == ownerId;
+    }
+    
+    // Channel Drafts Collection
+    match /channel_drafts/{draftId} {
+      // Allow users to read their own drafts
+      allow read: if isAuthenticated() && 
+                     resource.data.ownerId == request.auth.uid;
+      
+      // Allow users to create their own drafts
+      allow create: if isAuthenticated() && 
+                       request.resource.data.ownerId == request.auth.uid &&
+                       request.resource.data.keys().hasAll(['ownerId', 'channelName', 'updatedAt']);
+      
+      // Allow users to update their own drafts
+      allow update: if isAuthenticated() && 
+                       resource.data.ownerId == request.auth.uid &&
+                       request.resource.data.ownerId == request.auth.uid;
+      
+      // Allow users to delete their own drafts
+      allow delete: if isAuthenticated() && 
+                       resource.data.ownerId == request.auth.uid;
+    }
+    
+    // Channels Collection (add if not exists)
+    match /channels/{channelId} {
+      // Allow anyone to read public channels
+      allow read: if resource.data.isPublic == true || 
+                     (isAuthenticated() && resource.data.ownerId == request.auth.uid);
+      
+      // Allow authenticated users to create channels
+      allow create: if isAuthenticated() && 
+                       request.resource.data.ownerId == request.auth.uid;
+      
+      // Allow owners to update their channels
+      allow update: if isAuthenticated() && 
+                       resource.data.ownerId == request.auth.uid;
+      
+      // Allow owners to delete their channels
+      allow delete: if isAuthenticated() && 
+                       resource.data.ownerId == request.auth.uid;
+    }
+    
+    // Image Status Collection (for moderation)
+    match /image_status/{imageId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only backend can write
+    }
+
+    // Image Verification Collection
+    match /image_verification/{verificationId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only backend can write
+    }
+    
+    // Videos Collection
+    match /videos/{videoId} {
+      // Allow anyone to read public videos
+      allow read: if true;
+      
+      // Allow authenticated users to create videos (flexible field check)
+      allow create: if isAuthenticated() && 
+                       (request.resource.data.uploaderId == request.auth.uid ||
+                        request.resource.data.userId == request.auth.uid ||
+                        request.resource.data.ownerId == request.auth.uid);
+      
+      // Allow owners to update their videos (check multiple possible fields)
+      allow update: if isAuthenticated() && 
+                       (resource.data.uploaderId == request.auth.uid ||
+                        resource.data.userId == request.auth.uid ||
+                        resource.data.ownerId == request.auth.uid);
+      
+      // Allow owners to delete their videos
+      allow delete: if isAuthenticated() && 
+                       (resource.data.uploaderId == request.auth.uid ||
+                        resource.data.userId == request.auth.uid ||
+                        resource.data.ownerId == request.auth.uid);
+
+      // View tracking subcollection (one doc per user per video)
+      match /views/{userId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated() && request.auth.uid == userId;
+      }
+
+      // Likes/Dislikes subcollections
+      match /likes/{userId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && request.auth.uid == userId;
+      }
+
+      match /dislikes/{userId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && request.auth.uid == userId;
+      }
+
+      // Comments subcollection
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isAuthenticated();
+        allow update, delete: if isAuthenticated() && 
+                                 resource.data.userId == request.auth.uid;
+
+        // Replies subcollection
+        match /replies/{replyId} {
+          allow read: if true;
+          allow create: if isAuthenticated();
+          allow update, delete: if isAuthenticated() && 
+                                   resource.data.userId == request.auth.uid;
+
+          match /likes/{userId} {
+            allow read: if true;
+            allow write: if isAuthenticated() && request.auth.uid == userId;
+          }
+
+          match /dislikes/{userId} {
+            allow read: if true;
+            allow write: if isAuthenticated() && request.auth.uid == userId;
+          }
+        }
+
+        match /likes/{userId} {
+          allow read: if true;
+          allow write: if isAuthenticated() && request.auth.uid == userId;
+        }
+
+        match /dislikes/{userId} {
+          allow read: if true;
+          allow write: if isAuthenticated() && request.auth.uid == userId;
+        }
+      }
+    }
+    
+    // Video Transcripts Subcollection (legacy — backend write only)
+    match /videos/{videoId}/transcripts/{transcriptId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only backend service account can write
+    }
+
+    // Pipeline Errors Collection (backend monitoring)
+    match /pipeline_errors/{errorId} {
+      allow read: if false; // Admin console only
+      allow write: if false; // Only backend can write
+    }
+
+    // Subscriptions Collection
+    match /subscriptions/{subscriptionId} {
+      // Allow users to read their own subscriptions
+      allow read: if isAuthenticated() && 
+                     resource.data.subscriberId == request.auth.uid;
+      
+      // Allow users to create their own subscriptions
+      allow create: if isAuthenticated() && 
+                       request.resource.data.subscriberId == request.auth.uid;
+      
+      // Allow users to delete their own subscriptions
+      allow delete: if isAuthenticated() && 
+                       resource.data.subscriberId == request.auth.uid;
+    }
+    
+    // Users Collection
+    match /users/{userId} {
+      // Allow anyone to read public user profiles
+      allow read: if true;
+      
+      // Allow users to create/update their own profile
+      allow create, update: if isAuthenticated() && 
+                               request.auth.uid == userId;
+      
+      // Prevent deletion
+      allow delete: if false;
+    }
+    
+    // Comments Collection
+    match /comments/{commentId} {
+      // Allow anyone to read comments
+      allow read: if true;
+      
+      // Allow authenticated users to create comments
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid;
+      
+      // Allow comment owners to update/delete
+      allow update, delete: if isAuthenticated() && 
+                               resource.data.userId == request.auth.uid;
+    }
+    
+    // Likes Collection
+    match /likes/{likeId} {
+      // Allow anyone to read likes
+      allow read: if true;
+      
+      // Allow authenticated users to create/delete their own likes
+      allow create, delete: if isAuthenticated() && 
+                               request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Notifications Collection
+    match /notifications/{notificationId} {
+      // Allow users to read their own notifications
+      allow read: if isAuthenticated() && 
+                     resource.data.userId == request.auth.uid;
+      
+      // Allow system/backend to create notifications
+      allow create: if isAuthenticated();
+      
+      // Allow users to update their own notifications (mark as read)
+      allow update: if isAuthenticated() && 
+                       resource.data.userId == request.auth.uid;
+      
+      // Allow users to delete their own notifications
+      allow delete: if isAuthenticated() && 
+                       resource.data.userId == request.auth.uid;
+    }
+    
+    // Playlists Collection
+    match /playlists/{playlistId} {
+      // Allow anyone to read public playlists
+      allow read: if resource.data.isPublic == true || 
+                     (isAuthenticated() && resource.data.ownerId == request.auth.uid);
+      
+      // Allow authenticated users to create playlists
+      allow create: if isAuthenticated() && 
+                       request.resource.data.ownerId == request.auth.uid;
+      
+      // Allow owners to update/delete their playlists
+      allow update, delete: if isAuthenticated() && 
+                               resource.data.ownerId == request.auth.uid;
+    }
+        // Community Posts Collection
+    match /communityPosts/{postId} {
+      // Allow anyone to read public community posts
+      allow read: if resource.data.visibility == 'Public' || 
+                     (isAuthenticated() && resource.data.ownerId == request.auth.uid);
+      
+      // Allow authenticated users to create community posts
+      allow create: if isAuthenticated() && 
+                       request.resource.data.ownerId == request.auth.uid;
+      
+      // Allow owners to update/delete their community posts
+      allow update, delete: if isAuthenticated() && 
+                               resource.data.ownerId == request.auth.uid;
+    }
+    
+    // Watch History — per user per video (merge upsert)
+    match /users/{userId}/watch_history/{videoId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow create, update: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Watch History Collection (legacy)
+    match /watch_history/{historyId} {
+      // Allow users to read their own watch history
+      allow read: if isAuthenticated() && 
+                     resource.data.userId == request.auth.uid;
+      
+      // Allow users to create their own watch history
+      allow create: if isAuthenticated() && 
+                       request.resource.data.userId == request.auth.uid;
+      
+      // Allow users to delete their own watch history
+      allow delete: if isAuthenticated() && 
+                       resource.data.userId == request.auth.uid;
+    }
+    
+    // Feeds Collection (for aggregated data like 'home')
+    match /feeds/{feedId} {
+      allow read: if true;
+      allow write: if false; // Only backend or admin should write
+    }
+
+    // ================================================================
+    // ANALYTICS COLLECTIONS (server-written, client-read)
+    // ================================================================
+
+    // Raw watch events (written by Cloud Function, read by aggregator)
+    match /watch_events_raw/{eventId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Cloud Function only
+    }
+
+    // Pre-aggregated daily video stats
+    match /video_stats_daily/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Cloud Function only
+    }
+
+    // Pre-aggregated daily channel stats
+    match /channel_stats_daily/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Cloud Function only
+    }
+
+    // Resolution jobs (transcoding status)
+    match /resolution_jobs/{jobId} {
+      allow read: if true;
+      allow write: if false; // Backend only
+    }
+
+    // Live viewing sessions (written by Cloud Function)
+    match /live_sessions/{videoId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Cloud Function only
+
+      match /viewers/{viewerId} {
+        allow read: if isAuthenticated();
+        allow write: if false; // Cloud Function only
+      }
+    }
+
+    // Pre-aggregated hourly video stats (real-time recent trends)
+    match /video_stats_hourly/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Cloud Function only
+    }
+
+    // Server-side view dedup: 1 qualified view per user per video per day
+    // Document ID: `{videoId}_{userId}_{YYYY_MM_DD}`
+    match /qualified_views/{dedupId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Cloud Function creates via transaction
+    }
+
+    // Fraud flags — server-evaluated behavioral anomalies
+    match /fraud_flags/{flagId} {
+      allow read: if false; // Admin console only
+      allow write: if false; // Cloud Function only
+    }
+
+    // Impression events — thumbnail visibility tracking for true CTR
+    match /impressions_raw/{impressionId} {
+      allow read: if false; // Aggregator only
+      allow create: if isAuthenticated(); // Client batches impressions
+      allow update, delete: if false;
+    }
+
+    // Idempotency keys — prevents duplicate Cloud Function event writes
+    match /idempotency_keys/{keyId} {
+      allow read: if false; // Cloud Function internal
+      allow write: if false; // Cloud Function only
+    }
+
+    // Copyrights Collection
+    match /copyrights/{copyrightId} {
+      allow read: if isAuthenticated() && 
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.ownerId == request.auth.uid ||
+                      resource.data.channelId == request.auth.uid);
+      allow write: if false; // Only backend or system can write
+    }
+
+    // Content Verifications Collection
+    match /content_verifications/{verificationId} {
+      allow read: if isAuthenticated() && 
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.ownerId == request.auth.uid);
+      allow write: if false; // Only backend can write
+    }
+
+    // Default: Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+

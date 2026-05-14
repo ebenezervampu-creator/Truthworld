@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Truthworld | Explore Creators</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --primary: #38bdf8;
+            --accent: #818cf8;
+            --text: #f1f5f9;
+            --text-dim: #94a3b8;
+            --trust-high: #22c55e;
+            --trust-mid: #eab308;
+            --trust-low: #ef4444;
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.1) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(129, 140, 248, 0.1) 0px, transparent 50%);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+
+        /* Hero / Search Section */
+        .hero {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .hero h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            background: linear-gradient(to right, var(--text), var(--primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .search-container {
+            max-width: 600px;
+            margin: 0 auto 40px;
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 18px 24px;
+            border-radius: 20px;
+            background: var(--card-bg);
+            border: 1px solid var(--glass-border);
+            color: var(--text);
+            font-size: 16px;
+            outline: none;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.2);
+        }
+
+        /* Category Filters */
+        .categories {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 60px;
+        }
+
+        .cat-pill {
+            padding: 8px 20px;
+            border-radius: 30px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--glass-border);
+            color: var(--text-dim);
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .cat-pill.active {
+            background: var(--primary);
+            color: #0f172a;
+            border-color: var(--primary);
+        }
+
+        .cat-pill:hover:not(.active) {
+            background: rgba(255,255,255,0.1);
+            color: var(--text);
+        }
+
+        /* Layout */
+        .explore-grid {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 40px;
+        }
+
+        @media (max-width: 1000px) {
+            .explore-grid { grid-template-columns: 1fr; }
+        }
+
+        /* Section Titles */
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .section-header h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        /* Leaderboard Cards */
+        .creator-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .creator-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .creator-card:hover {
+            transform: scale(1.01);
+            border-color: rgba(255,255,255,0.2);
+            background: rgba(45, 55, 72, 0.8);
+        }
+
+        .rank {
+            font-family: 'Outfit', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-dim);
+            width: 30px;
+        }
+
+        .avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 16px;
+            object-fit: cover;
+        }
+
+        .info { flex: 1; }
+        .info h3 { font-size: 18px; margin-bottom: 4px; }
+        .info .meta { color: var(--text-dim); font-size: 14px; }
+
+        .trust-metrics { text-align: right; }
+        .trust-score {
+            display: block;
+            font-family: 'Outfit', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--trust-high);
+        }
+
+        .trend-small {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--trust-high);
+        }
+
+        /* Rising Sidebar */
+        .sidebar-card {
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 24px;
+        }
+
+        .rising-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .rising-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+
+        .rising-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            object-fit: cover;
+        }
+
+        .rising-info h4 { font-size: 15px; }
+        .rising-info .trend { color: var(--trust-high); font-size: 12px; font-weight: 600; }
+
+        /* Follow Button */
+        .btn-follow {
+            padding: 8px 16px;
+            border-radius: 10px;
+            background: var(--primary);
+            color: #0f172a;
+            border: none;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-follow:hover {
+            filter: brightness(1.1);
+            transform: scale(1.05);
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header class="hero">
+            <h1>Explore Creators</h1>
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Search by name, category, or niche...">
+            </div>
+            
+            <div class="categories">
+                <div class="cat-pill active">All Categories</div>
+                <div class="cat-pill">News</div>
+                <div class="cat-pill">Finance</div>
+                <div class="cat-pill">Politics</div>
+                <div class="cat-pill">Science</div>
+                <div class="cat-pill">Tech</div>
+                <div class="cat-pill">Education</div>
+            </div>
+        </header>
+
+        <div class="explore-grid">
+            <main>
+                <div class="section-header">
+                    <h2>Top Trusted Creators</h2>
+                    <span style="color: var(--text-dim); font-size: 14px;">Weighted by Trust, Consistency & Momentum</span>
+                </div>
+
+                <div class="creator-list">
+                    <!-- Card 1 -->
+                    <div class="creator-card">
+                        <span class="rank">#1</span>
+                        <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100" alt="Avatar" class="avatar">
+                        <div class="info">
+                            <h3>Financial Freedom Today</h3>
+                            <span class="meta">Finance • 124k Followers</span>
+                        </div>
+                        <div class="trust-metrics">
+                            <span class="trust-score">9.8</span>
+                            <span class="trend-small">↑ +0.2</span>
+                        </div>
+                        <button class="btn-follow">Follow</button>
+                    </div>
+
+                    <!-- Card 2 -->
+                    <div class="creator-card">
+                        <span class="rank">#2</span>
+                        <img src="https://images.unsplash.com/photo-1554151228-14d9def656e4?auto=format&fit=crop&q=80&w=100" alt="Avatar" class="avatar">
+                        <div class="info">
+                            <h3>Tech Truth Reports</h3>
+                            <span class="meta">Technology • 42k Followers</span>
+                        </div>
+                        <div class="trust-metrics">
+                            <span class="trust-score">9.3</span>
+                            <span class="trend-small">↑ +0.4</span>
+                        </div>
+                        <button class="btn-follow">Follow</button>
+                    </div>
+
+                    <!-- Card 3 -->
+                    <div class="creator-card">
+                        <span class="rank">#3</span>
+                        <img src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=100" alt="Avatar" class="avatar">
+                        <div class="info">
+                            <h3>Global Insight News</h3>
+                            <span class="meta">News • 890k Followers</span>
+                        </div>
+                        <div class="trust-metrics">
+                            <span class="trust-score">8.9</span>
+                            <span class="trend-small">↓ -0.1</span>
+                        </div>
+                        <button class="btn-follow">Follow</button>
+                    </div>
+                </div>
+            </main>
+
+            <aside>
+                <div class="section-header">
+                    <h2>Rising Fast</h2>
+                </div>
+                <div class="sidebar-card">
+                    <div class="rising-item">
+                        <img src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=100" alt="Avatar" class="rising-avatar">
+                        <div class="rising-info">
+                            <h4>Climate Action Hub</h4>
+                            <span class="trend">↑ +1.2 This Month</span>
+                        </div>
+                    </div>
+                    <div class="rising-item">
+                        <img src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80&w=100" alt="Avatar" class="rising-avatar">
+                        <div class="rising-info">
+                            <h4>Bio Ethics Daily</h4>
+                            <span class="trend">↑ +0.9 This Month</span>
+                        </div>
+                    </div>
+                    <div class="rising-item">
+                        <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=100" alt="Avatar" class="rising-avatar">
+                        <div class="rising-info">
+                            <h4>Deep Code Academy</h4>
+                            <span class="trend">↑ +0.7 This Month</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <script>
+        // Real logic would fetch from getLeaderboard and getRisingCreators
+        console.log("Discovery Page Loaded");
+    </script>
+</body>
+</html>

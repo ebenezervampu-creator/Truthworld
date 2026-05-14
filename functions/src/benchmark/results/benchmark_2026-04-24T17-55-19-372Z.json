@@ -1,0 +1,1322 @@
+{
+  "runId": "bench_1777053319357",
+  "timestamp": "2026-04-24T17:55:19.357Z",
+  "version": "v1.2.0",
+  "datasetVersion": "1.0.0",
+  "config": {
+    "extractionModel": "gemini-2.5-flash",
+    "verificationModel": "gemini-2.5-pro",
+    "groundingMode": "auto"
+  },
+  "results": [
+    {
+      "id": "geo_001",
+      "claim": "20% of the world's daily oil supply passes through the Strait of Hormuz.",
+      "domain": "geopolitics",
+      "groundTruth": "correct",
+      "predictedLabel": "mostly_correct",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0.95,
+      "reasoning": "The U.S. Energy Information Administration (EIA) is a primary source for this data. In its most recent analyses, it states that oil flow through the Strait of Hormuz was about 21 million barrels per day, representing about 21% of global petroleum liquids consumption. The figure fluctuates slightly year-to-year, so stating it as a round '20%' (or one-fifth) is a widely used and substantively accurate approximation.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 7734,
+      "exactMatch": false,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "geo_002",
+      "claim": "Ayatollah Ali Khamenei has been Iran's ultimate authority for over 3 decades.",
+      "domain": "geopolitics",
+      "groundTruth": "mostly_correct",
+      "predictedLabel": "mostly_correct",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0.99,
+      "reasoning": "Ayatollah Ali Khamenei was appointed Supreme Leader of Iran on June 4, 1989. As of 2024, he has been in this role for 35 years. The claim of 'over 3 decades' (i.e., more than 30 years) is a correct and reasonable approximation of his actual tenure, fitting the 'mostly_correct' category.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 7734,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "geo_003",
+      "claim": "Russia invaded Ukraine in February 2022.",
+      "domain": "geopolitics",
+      "groundTruth": "correct",
+      "predictedLabel": "correct",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 1,
+      "reasoning": "This is a well-documented and undisputed historical fact. On February 24, 2022, Russia launched a full-scale invasion of Ukraine, which continues to this day. The month and year in the claim are accurate.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 7734,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "geo_004",
+      "claim": "NATO has 35 member countries as of 2026.",
+      "domain": "geopolitics",
+      "groundTruth": "needs_context",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "mostly_correct",
+        "needs_context",
+        "correct"
+      ],
+      "confidence": 0.99,
+      "reasoning": "This claim is a definitive statement about a future date that is not supported by current facts. As of March 2024, with the accession of Sweden, NATO has 32 member countries. While other nations aspire to join, there is no official confirmation or timeline that guarantees the alliance will have exactly 35 members by 2026. Therefore, the claim is factually incorrect.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 7734,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": true,
+      "isFalseAccusation": true,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "geo_005",
+      "claim": "The US military operation against Iran was named 'Epic Fury'.",
+      "domain": "geopolitics",
+      "groundTruth": "unsupported",
+      "predictedLabel": "unsupported",
+      "acceptableLabels": [
+        "unsupported",
+        "unverifiable"
+      ],
+      "confidence": 0.95,
+      "reasoning": "A thorough search of public records, declassified documents, Department of Defense press releases, and major news archives reveals no evidence of any US military operation, contingency plan, or exercise named 'Epic Fury' related to Iran. While it is impossible to disprove the existence of a highly classified codename, there is no publicly available information to support this claim.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 7734,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "geo_006",
+      "claim": "China has the largest navy in the world by number of vessels.",
+      "domain": "geopolitics",
+      "groundTruth": "correct",
+      "predictedLabel": "correct",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0.99,
+      "reasoning": "The U.S. Department of Defense's annual \"Military and Security Developments Involving the People's Republic of China\" report has consistently stated for several years that the People's Liberation Army Navy (PLAN) is the world's largest by number of battle force ships. The 2023 report notes the PLAN has a battle force of over 370 ships and submarines, compared to the U.S. Navy's fleet of under 300. While the U.S. Navy leads in tonnage and certain capabilities, the claim is specifically about the 'number of vessels,' which is accurate.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 7517,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "geo_007",
+      "claim": "The Israeli-Palestinian conflict started in 1948.",
+      "domain": "geopolitics",
+      "groundTruth": "needs_context",
+      "predictedLabel": "needs_context",
+      "acceptableLabels": [
+        "needs_context",
+        "mostly_correct",
+        "contested_interpretation"
+      ],
+      "confidence": 0.99,
+      "reasoning": "While 1948 is a crucial year that marks the establishment of the State of Israel and the beginning of the first Arab-Israeli War, it is not the start of the conflict itself. The roots of the conflict trace back to the late 19th and early 20th centuries with the rise of Zionism and Arab nationalism, and significant intercommunal violence occurred throughout the British Mandate period (1920-1948). Therefore, stating the conflict 'started in 1948' is an oversimplification that requires significant context, as it only refers to the beginning of the interstate phase of the conflict.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 7517,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "geo_008",
+      "claim": "North Korea has successfully tested nuclear weapons 6 times.",
+      "domain": "geopolitics",
+      "groundTruth": "correct",
+      "predictedLabel": "correct",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 0.99,
+      "reasoning": "International monitoring agencies and governments have confirmed that North Korea has conducted six nuclear tests on the following dates: October 9, 2006; May 25, 2009; February 12, 2013; January 6, 2016; September 9, 2016; and September 3, 2017. These tests were detected seismically and are widely documented.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 7517,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "geo_009",
+      "claim": "The EU imposed 15 rounds of sanctions on Russia by the end of 2024.",
+      "domain": "geopolitics",
+      "groundTruth": "mostly_correct",
+      "predictedLabel": "unsupported",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct",
+        "needs_context"
+      ],
+      "confidence": 0.99,
+      "reasoning": "This claim is a prediction about future events. As of mid-2024, the European Union has adopted 14 packages of sanctions against Russia since the full-scale invasion of Ukraine. While a 15th package may be imposed before the end of 2024, it has not happened yet and is not guaranteed to happen. Therefore, the claim is currently unsupported by evidence.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 7517,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "geo_010",
+      "claim": "The Taliban seized control of Afghanistan in August 2021.",
+      "domain": "geopolitics",
+      "groundTruth": "correct",
+      "predictedLabel": "correct",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 0.99,
+      "reasoning": "The claim is a well-documented historical fact. Following the withdrawal of U.S. troops, the Taliban launched a swift military offensive and captured the capital, Kabul, on August 15, 2021. This event marked the collapse of the Islamic Republic of Afghanistan and the Taliban's return to power.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 7517,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_001",
+      "claim": "Ivermectin is a proven cure for COVID-19.",
+      "domain": "health",
+      "groundTruth": "incorrect",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 1,
+      "reasoning": "Major global health organizations, including the WHO, NIH, and FDA, have concluded based on numerous large-scale clinical trials that ivermectin is not effective for treating or preventing COVID-19. The claim that it is a 'proven cure' is directly contradicted by the scientific and medical consensus.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 6948,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_002",
+      "claim": "Smoking causes lung cancer.",
+      "domain": "health",
+      "groundTruth": "correct",
+      "predictedLabel": "correct",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 1,
+      "reasoning": "The causal link between smoking and lung cancer is supported by overwhelming and long-standing scientific and medical consensus. According to the CDC, smoking is the leading cause of lung cancer, responsible for about 80% to 90% of lung cancer deaths in the United States.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": false,
+      "latencyMs": 6948,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_003",
+      "claim": "Drinking 8 glasses of water per day is medically required.",
+      "domain": "health",
+      "groundTruth": "mostly_correct",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "mostly_correct",
+        "needs_context"
+      ],
+      "confidence": 1,
+      "reasoning": "The '8 glasses of water per day' rule is a popular guideline, not a strict medical requirement. Major health institutions like the Mayo Clinic and the National Academies of Sciences clarify that hydration needs vary significantly by individual and that fluid intake is also met through other beverages and foods. There is no scientific evidence supporting this specific amount as a universal medical necessity.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": false,
+      "latencyMs": 6948,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": true,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_004",
+      "claim": "mRNA vaccines alter your DNA permanently.",
+      "domain": "health",
+      "groundTruth": "incorrect",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 1,
+      "reasoning": "This claim is biologically incorrect. According to the CDC and other major health organizations, mRNA from vaccines works in the cytoplasm of the cell to create proteins and does not enter the nucleus, where the cell's DNA is located. The human body's cells cannot integrate the mRNA into the DNA, and the mRNA itself degrades quickly after its function is complete.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 6948,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_005",
+      "claim": "The WHO declared monkeypox a global health emergency in 2022.",
+      "domain": "health",
+      "groundTruth": "correct",
+      "predictedLabel": "correct",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 1,
+      "reasoning": "On July 23, 2022, the World Health Organization (WHO) Director-General declared the multi-country outbreak of monkeypox (later renamed mpox) a Public Health Emergency of International Concern (PHEIC), which is the highest level of alert the organization can issue and is commonly referred to as a global health emergency.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": false,
+      "latencyMs": 6948,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_006",
+      "claim": "Turmeric cures cancer.",
+      "domain": "health",
+      "groundTruth": "incorrect",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "incorrect",
+        "unsupported"
+      ],
+      "confidence": 0.99,
+      "reasoning": "This claim is contradicted by scientific and medical consensus. While curcumin, a compound in turmeric, is studied for anti-inflammatory properties and a potential role in cancer prevention or as an adjunct therapy, there is no reliable scientific evidence that turmeric or curcumin can cure cancer in humans. Major health organizations like the National Cancer Institute and Cancer Research UK explicitly state that it is not a cure and warn against using it as a substitute for conventional medical treatments.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 5664,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_007",
+      "claim": "Life expectancy in the US declined during 2020-2021.",
+      "domain": "health",
+      "groundTruth": "correct",
+      "predictedLabel": "correct",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 0.99,
+      "reasoning": "This claim is confirmed by official data. According to the CDC's National Center for Health Statistics (NCHS), U.S. life expectancy at birth declined from 77.0 years in 2020 to 76.1 years in 2021. This was the second consecutive year of decline, driven primarily by the COVID-19 pandemic and increases in unintentional injuries, such as drug overdoses.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": false,
+      "latencyMs": 5664,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_008",
+      "claim": "5G towers spread the coronavirus.",
+      "domain": "health",
+      "groundTruth": "incorrect",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 1,
+      "reasoning": "This is a widely debunked conspiracy theory with no scientific basis. Viruses are biological agents that spread through respiratory droplets and contact; they cannot be transmitted via electromagnetic waves like those used for 5G mobile networks. The World Health Organization (WHO), CDC, and other global health bodies have explicitly stated there is no link between 5G and COVID-19.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 5664,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_009",
+      "claim": "The global maternal mortality rate has decreased by about 35% since 2000.",
+      "domain": "health",
+      "groundTruth": "mostly_correct",
+      "predictedLabel": "mostly_correct",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0.98,
+      "reasoning": "This claim is substantively true. A major report from the World Health Organization (WHO) and other UN agencies titled 'Trends in maternal mortality 2000 to 2020' states that the global maternal mortality ratio (MMR) declined by 34.3% over that period. The claim of 'about 35%' is a very close and reasonable approximation of this official figure.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": false,
+      "latencyMs": 5664,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "health_010",
+      "claim": "COVID-19 vaccines were developed in under a year, which is unprecedented.",
+      "domain": "health",
+      "groundTruth": "correct",
+      "predictedLabel": "correct",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0.99,
+      "reasoning": "This claim is factually correct. The genetic sequence for SARS-CoV-2 was published in January 2020, and the first mRNA vaccines received emergency use authorization in the US and UK in December 2020. This timeline of approximately 11 months is unprecedented in the history of vaccinology, where development has traditionally taken 10-15 years. The rapid development was enabled by decades of prior research on mRNA technology and coronaviruses, massive international funding, and overlapping trial phases.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": false,
+      "latencyMs": 5664,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_001",
+      "claim": "Bitcoin reached an all-time high of $100,000 in 2024.",
+      "domain": "finance",
+      "groundTruth": "mostly_correct",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct",
+        "needs_context"
+      ],
+      "confidence": 0.99,
+      "reasoning": "This claim is factually incorrect. While Bitcoin did achieve a new all-time high in March 2024, surpassing its 2021 peak, it did not reach $100,000. The peak price was approximately $73,750. The claimed figure is significantly higher than the actual record.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 6043,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": true,
+      "isFalseAccusation": true,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_002",
+      "claim": "The US national debt exceeds $34 trillion.",
+      "domain": "finance",
+      "groundTruth": "correct",
+      "predictedLabel": "correct",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0.99,
+      "reasoning": "This claim is correct. According to the official 'Debt to the Penny' data published by the U.S. Department of the Treasury, the total public debt outstanding surpassed $34 trillion in early January 2024 and has continued to rise since.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": false,
+      "latencyMs": 6043,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_003",
+      "claim": "The stock market always recovers within 2 years after a crash.",
+      "domain": "finance",
+      "groundTruth": "incorrect",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "incorrect",
+        "mostly_correct"
+      ],
+      "confidence": 0.99,
+      "reasoning": "This claim is incorrect and represents a dangerous oversimplification of market history. The use of the word 'always' is definitively false. For example, after the 1929 stock market crash, the Dow Jones Industrial Average did not recover its previous peak until 1954 (a 25-year period). Similarly, the NASDAQ Composite took approximately 15 years to recover its peak after the dot-com bubble burst in 2000. While some recent recoveries have been faster, there is no guarantee.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 6043,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_004",
+      "claim": "Inflation in the US peaked at around 9% in June 2022.",
+      "domain": "finance",
+      "groundTruth": "correct",
+      "predictedLabel": "mostly_correct",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0.99,
+      "reasoning": "This claim is substantively true. According to the U.S. Bureau of Labor Statistics (BLS), the Consumer Price Index (CPI) for all urban consumers showed a 12-month increase of 9.1% in June 2022, the highest rate in four decades. The claim's use of 'around 9%' and the correct month of June 2022 makes it a fair and accurate summary of the data.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": false,
+      "latencyMs": 6043,
+      "exactMatch": false,
+      "acceptableMatch": true,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_005",
+      "claim": "The Federal Reserve has never cut interest rates by more than 50 basis points at once.",
+      "domain": "finance",
+      "groundTruth": "incorrect",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 0.99,
+      "reasoning": "This claim is factually incorrect. The Federal Reserve has cut its target for the federal funds rate by more than 50 basis points (0.50%) on multiple occasions, typically during economic crises. A notable recent example was an emergency 100-basis-point (1.0%) cut on March 15, 2020, in response to the COVID-19 pandemic. There were also cuts of 75 basis points during the 2008 financial crisis.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 6043,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_006",
+      "claim": "Silicon Valley Bank collapsed in March 2023 due to a bank run.",
+      "domain": "finance",
+      "groundTruth": "correct",
+      "predictedLabel": "correct",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0.99,
+      "reasoning": "The claim is factually accurate. On March 10, 2023, Silicon Valley Bank (SVB) was closed by the California Department of Financial Protection and Innovation, which appointed the Federal Deposit Insurance Corporation (FDIC) as receiver. The collapse was triggered by a classic bank run, where depositors, concerned about the bank's solvency after it announced a significant loss on its bond portfolio, withdrew funds en masse. On March 9 alone, customers attempted to withdraw $42 billion.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": false,
+      "latencyMs": 7857,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_007",
+      "claim": "China's GDP surpassed the US economy in 2023.",
+      "domain": "finance",
+      "groundTruth": "incorrect",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "incorrect",
+        "needs_context"
+      ],
+      "confidence": 0.99,
+      "reasoning": "This claim is incorrect based on the most common metric for comparing national economies, which is nominal GDP. According to 2023 data from the International Monetary Fund (IMF) and the World Bank, the nominal GDP of the United States was approximately $27.36 trillion, while China's was approximately $17.7 trillion. While China's economy has surpassed the US when measured by Purchasing Power Parity (PPP), nominal GDP remains the standard for such comparisons unless otherwise specified.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 7857,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_008",
+      "claim": "The Indian rupee has depreciated about 40% against the dollar over the last decade.",
+      "domain": "finance",
+      "groundTruth": "mostly_correct",
+      "predictedLabel": "mostly_correct",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0.98,
+      "reasoning": "This claim is substantively accurate. In mid-2014 (a decade ago from mid-2024), the USD/INR exchange rate was approximately ₹60 per US dollar. In mid-2024, the rate is approximately ₹83.5 per US dollar. The calculation for depreciation is ((83.5 - 60) / 60) * 100, which equals approximately 39.2%. The claim of \"about 40%\" is a reasonable and accurate approximation of this long-term currency trend.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": false,
+      "latencyMs": 7857,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_009",
+      "claim": "Cryptocurrency is illegal in India.",
+      "domain": "finance",
+      "groundTruth": "incorrect",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "incorrect",
+        "outdated"
+      ],
+      "confidence": 0.99,
+      "reasoning": "The claim is incorrect. While the regulatory environment for cryptocurrencies in India is stringent and has been uncertain, it is not illegal to own or trade them. In 2020, the Supreme Court of India overturned a central bank ban that prevented financial institutions from dealing with crypto businesses. Furthermore, the Indian government's introduction of a 30% tax on gains from 'virtual digital assets' and a 1% tax deducted at source (TDS) in 2022, while punitive, implicitly acknowledges the legality of these assets for taxation purposes.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 7857,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "fin_010",
+      "claim": "Warren Buffett has consistently beaten the S&P 500 over the last 50 years.",
+      "domain": "finance",
+      "groundTruth": "mostly_correct",
+      "predictedLabel": "mostly_correct",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct",
+        "needs_context"
+      ],
+      "confidence": 0.95,
+      "reasoning": "This claim is substantively true regarding long-term performance but inaccurate in its use of the word \"consistently.\" Over the long run, Warren Buffett's Berkshire Hathaway has massively outperformed the S&P 500. From 1965 through 2023, Berkshire's compounded annual gain was 19.8% versus 10.2% for the S&P 500 (with dividends included). However, Berkshire has not beaten the index every year; there have been numerous years, including several in the last decade (e.g., 2019, 2020), where the S&P 500's annual return was higher. The claim is 'mostly_correct' because the core semantic meaning—that Buffett's long-term track record is vastly superior—is accurate.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": false,
+      "latencyMs": 7857,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_001",
+      "claim": "OpenAI released GPT-4 in March 2023.",
+      "domain": "technology",
+      "groundTruth": "correct",
+      "predictedLabel": "correct",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 0.98,
+      "reasoning": "OpenAI officially released GPT-4 in ChatGPT in March 2023.",
+      "modelUsed": "gemini-2.5-flash",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 5047,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_002",
+      "claim": "Apple's Vision Pro sold over 10 million units in its first year.",
+      "domain": "technology",
+      "groundTruth": "incorrect",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "incorrect",
+        "unsupported"
+      ],
+      "confidence": 0.98,
+      "reasoning": "Apple's Vision Pro sales in its first year were significantly lower than 10 million units. Initial reports indicated around 200,000 units sold in the first 10 days of pre-orders, with analysts forecasting total sales for 2024 ranging from 500,000 to 1 million units. A safe estimate for worldwide sales in the first year is no more than approximately 500,000 units.",
+      "modelUsed": "gemini-2.5-flash",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 5047,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_003",
+      "claim": "Google's Gemini model can process text, images, and audio natively.",
+      "domain": "technology",
+      "groundTruth": "correct",
+      "predictedLabel": "correct",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 0.99,
+      "reasoning": "Google's Gemini model is designed with multimodal capabilities, allowing it to process and understand text, images, audio, and even video inputs natively.",
+      "modelUsed": "gemini-2.5-flash",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 5047,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_004",
+      "claim": "Elon Musk acquired Twitter for $44 billion and renamed it to X.",
+      "domain": "technology",
+      "groundTruth": "correct",
+      "predictedLabel": "correct",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 0.99,
+      "reasoning": "Elon Musk completed the acquisition of Twitter for approximately $44 billion in 2022. Subsequently, Twitter was rebranded and renamed to X in July 2023.",
+      "modelUsed": "gemini-2.5-flash",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 5047,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_005",
+      "claim": "TikTok was permanently banned in the United States in 2024.",
+      "domain": "technology",
+      "groundTruth": "needs_context",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "needs_context",
+        "outdated",
+        "mostly_correct"
+      ],
+      "confidence": 0.95,
+      "reasoning": "While a bill was signed into law in April 2024 requiring ByteDance to divest TikTok or face a ban, the ban was slated to go into effect in January 2025 and was not a 'permanent ban' in 2024. Furthermore, the ban was not consistently enforced and faced legal challenges and extensions, allowing TikTok to remain operable in the U.S. even after the initial deadline.",
+      "modelUsed": "gemini-2.5-flash",
+      "wasRouted": "flash",
+      "shouldUsePro": true,
+      "latencyMs": 5047,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": false,
+      "isFalseAccusation": true,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_006",
+      "claim": "Anthropic's Claude model was trained by former OpenAI researchers.",
+      "domain": "technology",
+      "groundTruth": "correct",
+      "predictedLabel": "correct",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0.99,
+      "reasoning": "Anthropic was founded in 2021 by siblings Dario Amodei (former VP of Research at OpenAI) and Daniela Amodei (former VP of Safety and Policy at OpenAI). They were joined by a group of other senior researchers who also left OpenAI, many of whom were key to the development of models like GPT-3. This founding team went on to lead the development of the Claude series of models. Therefore, the claim is factually correct.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": false,
+      "latencyMs": 6706,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_007",
+      "claim": "Quantum computers can already break all existing encryption.",
+      "domain": "technology",
+      "groundTruth": "incorrect",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 0.99,
+      "reasoning": "This claim is a significant overstatement of current capabilities. While quantum computers theoretically threaten certain types of public-key encryption (like RSA) via Shor's algorithm, today's quantum hardware is not nearly powerful, large-scale, or error-free enough to break the cryptographic keys currently used in practice. Furthermore, the claim that they can break *all* existing encryption is false, as many symmetric encryption algorithms (like AES-256) are considered more resistant to quantum attacks. The field of post-quantum cryptography is actively developing new standards to defend against this future threat.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 6706,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_008",
+      "claim": "India's Chandrayaan-3 successfully landed on the Moon's south pole region in August 2023.",
+      "domain": "technology",
+      "groundTruth": "correct",
+      "predictedLabel": "correct",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 1,
+      "reasoning": "This is a factual and widely documented historical event. On August 23, 2023, the Indian Space Research Organisation's (ISRO) Chandrayaan-3 mission successfully executed a soft landing on the lunar surface. The landing site was in the south polar region, making India the first nation to ever achieve this specific feat and the fourth nation overall to land on the Moon.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": false,
+      "latencyMs": 6706,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_009",
+      "claim": "Meta's Threads app hit 100 million users in its first week.",
+      "domain": "technology",
+      "groundTruth": "correct",
+      "predictedLabel": "correct",
+      "acceptableLabels": [
+        "correct",
+        "mostly_correct"
+      ],
+      "confidence": 0.99,
+      "reasoning": "Meta launched its Threads app on July 5, 2023. According to Meta CEO Mark Zuckerberg and multiple independent tracking firms, the app surpassed 100 million sign-ups by July 10, 2023. This timeline of five days is well within the 'first week' specified in the claim, making the statement correct.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": false,
+      "latencyMs": 6706,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": false,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "tech_010",
+      "claim": "Self-driving cars are fully legal and operating without any safety drivers in all US states.",
+      "domain": "technology",
+      "groundTruth": "incorrect",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 1,
+      "reasoning": "This claim is incorrect. The regulation of autonomous vehicles in the US is a complex patchwork of state-level laws, not a single federal mandate. While a few companies, like Waymo, operate fully driverless robotaxi services in limited, geofenced areas within a handful of states (e.g., Arizona, California), it is not legal or operational 'in all US states'. Most states either have no specific laws, have restrictive laws, or only permit testing with a safety driver present.",
+      "modelUsed": "gemini-2.5-pro",
+      "wasRouted": "pro",
+      "shouldUsePro": true,
+      "latencyMs": 6706,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_001",
+      "claim": "The Great Wall of China is visible from space with the naked eye.",
+      "domain": "science",
+      "groundTruth": "incorrect",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 0.99,
+      "reasoning": "This is a widespread myth. Astronauts and experts, including NASA, have consistently stated that the Great Wall of China is not visible from Earth orbit with the naked eye, let alone from the Moon or higher altitudes. It is too narrow and blends too well with its surrounding terrain to be easily discernable without optical aid.",
+      "modelUsed": "gemini-2.5-flash",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 2514,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_002",
+      "claim": "Napoleon was exceptionally short for his era.",
+      "domain": "history",
+      "groundTruth": "incorrect",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "incorrect",
+        "needs_context"
+      ],
+      "confidence": 0.98,
+      "reasoning": "Napoleon Bonaparte's height was approximately 5 feet 6 inches (1.68 meters) at the time of his death. This was an average height for a Frenchman of his era, if not slightly above average. The perception of him being exceptionally short was largely due to British propaganda during the Napoleonic Wars and potential confusion arising from differences between French pre-metric 'pouce' (inch) and English 'inch' measurements.",
+      "modelUsed": "gemini-2.5-flash",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 2514,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_003",
+      "claim": "Einstein failed math in school.",
+      "domain": "history",
+      "groundTruth": "incorrect",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 0.99,
+      "reasoning": "Albert Einstein did not fail math in school. Historical records, including his report cards, show that he was an excellent student in mathematics and physics from an early age, often excelling far beyond his peers. The myth likely arose from him failing an entrance exam to a polytechnic school in Zurich on his first attempt, but that was due to deficiencies in non-science subjects (like French), not mathematics.",
+      "modelUsed": "gemini-2.5-flash",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 2514,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_004",
+      "claim": "The average human uses only 10% of their brain.",
+      "domain": "science",
+      "groundTruth": "incorrect",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 0.99,
+      "reasoning": "The claim that humans only use 10% of their brain is a widespread neurological myth. Neuroscience research, including advanced brain imaging techniques (fMRI, PET scans), consistently demonstrates that most of the brain is active almost all the time, even during resting states or sleep. Specific brain areas are engaged for different tasks, and damage to even a small part of the brain can have profound effects, indicating that there is no large 'unused' portion.",
+      "modelUsed": "gemini-2.5-flash",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 2514,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_005",
+      "claim": "The Soviet Union put the first human in space before the United States.",
+      "domain": "history",
+      "groundTruth": "correct",
+      "predictedLabel": "correct",
+      "acceptableLabels": [
+        "correct"
+      ],
+      "confidence": 0.99,
+      "reasoning": "The Soviet Union successfully launched Yuri Gagarin into orbit aboard Vostok 1 on April 12, 1961, making him the first human in space. The United States followed with Alan Shepard's suborbital flight on May 5, 1961, but Gagarin's mission predates it as the first human spaceflight.",
+      "modelUsed": "gemini-2.5-flash",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 2514,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_006",
+      "claim": "Twitter had 500 million daily active users when Elon Musk bought it.",
+      "domain": "technology",
+      "groundTruth": "incorrect",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "incorrect",
+        "unsupported"
+      ],
+      "confidence": 0.98,
+      "reasoning": "When Elon Musk acquired Twitter (now X) in October 2022, the company's last reported monetizable daily active users (mDAU) for Q2 2022 was 237.8 million. The claim of 500 million daily active users is significantly higher than the actual figure at the time of purchase.",
+      "modelUsed": "gemini-2.5-flash",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 3087,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_007",
+      "claim": "The Bermuda Triangle has a higher rate of ship disappearances than any other region.",
+      "domain": "science",
+      "groundTruth": "incorrect",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "incorrect",
+        "unsupported"
+      ],
+      "confidence": 0.98,
+      "reasoning": "Investigations by the U.S. Coast Guard and other maritime authorities, including Lloyd's of London, have consistently found no evidence that ship or plane disappearances in the Bermuda Triangle occur at a statistically higher rate than in any other comparable, heavily traveled ocean area. Most incidents attributed to the Triangle can be explained by natural phenomena, severe weather, or human error.",
+      "modelUsed": "gemini-2.5-flash",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 3087,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_008",
+      "claim": "Yoga was invented 5,000 years ago.",
+      "domain": "religion",
+      "groundTruth": "mostly_correct",
+      "predictedLabel": "mostly_correct",
+      "acceptableLabels": [
+        "mostly_correct",
+        "needs_context",
+        "contested_interpretation"
+      ],
+      "confidence": 0.95,
+      "reasoning": "The origins of Yoga are often traced back to the Indus Valley Civilization, which dates back more than 5,000 years (roughly 3300-1900 BCE). Archaeological findings, such as seals depicting figures in yoga-like postures, and early Vedic texts provide evidence of proto-Yoga practices from this ancient period. While 'invented' might be an oversimplification for an evolving practice, the timeframe is broadly accurate.",
+      "modelUsed": "gemini-2.5-flash",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 3087,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_009",
+      "claim": "Global temperatures have risen by about 1.1°C since pre-industrial times.",
+      "domain": "science",
+      "groundTruth": "outdated",
+      "predictedLabel": "correct",
+      "acceptableLabels": [
+        "outdated",
+        "mostly_correct"
+      ],
+      "confidence": 0.99,
+      "reasoning": "The Intergovernmental Panel on Climate Change (IPCC), the leading international body for assessing climate change, has consistently reported that global average surface temperatures have risen by approximately 1.1°C (e.g., 1.07°C or 1.09°C depending on the exact baseline period) above pre-industrial levels (typically defined as 1850-1900) as of recent assessments.",
+      "modelUsed": "gemini-2.5-flash",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 3087,
+      "exactMatch": false,
+      "acceptableMatch": false,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    },
+    {
+      "id": "gray_010",
+      "claim": "Mark Zuckerberg challenged Elon Musk to a cage fight and it actually happened.",
+      "domain": "viral",
+      "groundTruth": "incorrect",
+      "predictedLabel": "incorrect",
+      "acceptableLabels": [
+        "incorrect"
+      ],
+      "confidence": 0.99,
+      "reasoning": "While Mark Zuckerberg and Elon Musk did publicly challenge each other to a cage fight in 2023, and there was significant media speculation, the fight ultimately never materialized or took place. Both parties posted about it, but it remained a proposed event that did not happen.",
+      "modelUsed": "gemini-2.5-flash",
+      "wasRouted": "flash",
+      "shouldUsePro": false,
+      "latencyMs": 3087,
+      "exactMatch": true,
+      "acceptableMatch": true,
+      "routingCorrect": true,
+      "isFalseAccusation": false,
+      "isFalseLeniency": false
+    }
+  ],
+  "metrics": {
+    "accuracy": {
+      "exactMatchRate": 84,
+      "acceptableMatchRate": 88,
+      "highRiskAccuracy": 81.8,
+      "lowRiskAccuracy": 92.9
+    },
+    "errors": {
+      "falseAccusationRate": 8,
+      "falseLeniencyRate": 0,
+      "totalMismatches": 8,
+      "worstMismatches": [
+        {
+          "id": "geo_001",
+          "claim": "20% of the world's daily oil supply passes through the Strait of Hormuz.",
+          "domain": "geopolitics",
+          "groundTruth": "correct",
+          "predictedLabel": "mostly_correct",
+          "acceptableLabels": [
+            "correct",
+            "mostly_correct"
+          ],
+          "confidence": 0.95,
+          "reasoning": "The U.S. Energy Information Administration (EIA) is a primary source for this data. In its most recent analyses, it states that oil flow through the Strait of Hormuz was about 21 million barrels per day, representing about 21% of global petroleum liquids consumption. The figure fluctuates slightly year-to-year, so stating it as a round '20%' (or one-fifth) is a widely used and substantively accurate approximation.",
+          "modelUsed": "gemini-2.5-pro",
+          "wasRouted": "pro",
+          "shouldUsePro": true,
+          "latencyMs": 7734,
+          "exactMatch": false,
+          "acceptableMatch": true,
+          "routingCorrect": true,
+          "isFalseAccusation": false,
+          "isFalseLeniency": false
+        },
+        {
+          "id": "geo_004",
+          "claim": "NATO has 35 member countries as of 2026.",
+          "domain": "geopolitics",
+          "groundTruth": "needs_context",
+          "predictedLabel": "incorrect",
+          "acceptableLabels": [
+            "mostly_correct",
+            "needs_context",
+            "correct"
+          ],
+          "confidence": 0.99,
+          "reasoning": "This claim is a definitive statement about a future date that is not supported by current facts. As of March 2024, with the accession of Sweden, NATO has 32 member countries. While other nations aspire to join, there is no official confirmation or timeline that guarantees the alliance will have exactly 35 members by 2026. Therefore, the claim is factually incorrect.",
+          "modelUsed": "gemini-2.5-pro",
+          "wasRouted": "pro",
+          "shouldUsePro": true,
+          "latencyMs": 7734,
+          "exactMatch": false,
+          "acceptableMatch": false,
+          "routingCorrect": true,
+          "isFalseAccusation": true,
+          "isFalseLeniency": false
+        },
+        {
+          "id": "geo_009",
+          "claim": "The EU imposed 15 rounds of sanctions on Russia by the end of 2024.",
+          "domain": "geopolitics",
+          "groundTruth": "mostly_correct",
+          "predictedLabel": "unsupported",
+          "acceptableLabels": [
+            "correct",
+            "mostly_correct",
+            "needs_context"
+          ],
+          "confidence": 0.99,
+          "reasoning": "This claim is a prediction about future events. As of mid-2024, the European Union has adopted 14 packages of sanctions against Russia since the full-scale invasion of Ukraine. While a 15th package may be imposed before the end of 2024, it has not happened yet and is not guaranteed to happen. Therefore, the claim is currently unsupported by evidence.",
+          "modelUsed": "gemini-2.5-pro",
+          "wasRouted": "pro",
+          "shouldUsePro": true,
+          "latencyMs": 7517,
+          "exactMatch": false,
+          "acceptableMatch": false,
+          "routingCorrect": true,
+          "isFalseAccusation": false,
+          "isFalseLeniency": false
+        },
+        {
+          "id": "fin_001",
+          "claim": "Bitcoin reached an all-time high of $100,000 in 2024.",
+          "domain": "finance",
+          "groundTruth": "mostly_correct",
+          "predictedLabel": "incorrect",
+          "acceptableLabels": [
+            "correct",
+            "mostly_correct",
+            "needs_context"
+          ],
+          "confidence": 0.99,
+          "reasoning": "This claim is factually incorrect. While Bitcoin did achieve a new all-time high in March 2024, surpassing its 2021 peak, it did not reach $100,000. The peak price was approximately $73,750. The claimed figure is significantly higher than the actual record.",
+          "modelUsed": "gemini-2.5-pro",
+          "wasRouted": "pro",
+          "shouldUsePro": true,
+          "latencyMs": 6043,
+          "exactMatch": false,
+          "acceptableMatch": false,
+          "routingCorrect": true,
+          "isFalseAccusation": true,
+          "isFalseLeniency": false
+        },
+        {
+          "id": "tech_005",
+          "claim": "TikTok was permanently banned in the United States in 2024.",
+          "domain": "technology",
+          "groundTruth": "needs_context",
+          "predictedLabel": "incorrect",
+          "acceptableLabels": [
+            "needs_context",
+            "outdated",
+            "mostly_correct"
+          ],
+          "confidence": 0.95,
+          "reasoning": "While a bill was signed into law in April 2024 requiring ByteDance to divest TikTok or face a ban, the ban was slated to go into effect in January 2025 and was not a 'permanent ban' in 2024. Furthermore, the ban was not consistently enforced and faced legal challenges and extensions, allowing TikTok to remain operable in the U.S. even after the initial deadline.",
+          "modelUsed": "gemini-2.5-flash",
+          "wasRouted": "flash",
+          "shouldUsePro": true,
+          "latencyMs": 5047,
+          "exactMatch": false,
+          "acceptableMatch": false,
+          "routingCorrect": false,
+          "isFalseAccusation": true,
+          "isFalseLeniency": false
+        }
+      ]
+    },
+    "routing": {
+      "totalClaims": 50,
+      "routedToPro": 35,
+      "routedToFlash": 15,
+      "escalationRate": 70,
+      "routingAccuracy": 70,
+      "missedEscalations": 1,
+      "unnecessaryPro": 14
+    },
+    "labelDistribution": {
+      "predicted": {
+        "mostly_correct": 7,
+        "correct": 18,
+        "incorrect": 22,
+        "unsupported": 2,
+        "needs_context": 1
+      },
+      "expected": {
+        "correct": 19,
+        "mostly_correct": 8,
+        "needs_context": 3,
+        "unsupported": 1,
+        "incorrect": 18,
+        "outdated": 1
+      }
+    },
+    "domainAccuracy": {
+      "geopolitics": {
+        "total": 10,
+        "exactMatch": 7,
+        "acceptableMatch": 8,
+        "accuracy": 80
+      },
+      "health": {
+        "total": 10,
+        "exactMatch": 9,
+        "acceptableMatch": 9,
+        "accuracy": 90
+      },
+      "finance": {
+        "total": 10,
+        "exactMatch": 8,
+        "acceptableMatch": 9,
+        "accuracy": 90
+      },
+      "technology": {
+        "total": 11,
+        "exactMatch": 10,
+        "acceptableMatch": 10,
+        "accuracy": 90.9
+      },
+      "science": {
+        "total": 4,
+        "exactMatch": 3,
+        "acceptableMatch": 3,
+        "accuracy": 75
+      },
+      "history": {
+        "total": 3,
+        "exactMatch": 3,
+        "acceptableMatch": 3,
+        "accuracy": 100
+      },
+      "religion": {
+        "total": 1,
+        "exactMatch": 1,
+        "acceptableMatch": 1,
+        "accuracy": 100
+      },
+      "viral": {
+        "total": 1,
+        "exactMatch": 1,
+        "acceptableMatch": 1,
+        "accuracy": 100
+      }
+    },
+    "nuance": {
+      "mostlyCorrectRecognition": 62.5,
+      "outdatedRecognition": 0,
+      "needsContextRecognition": 33.3,
+      "unsupportedRecognition": 100
+    },
+    "performance": {
+      "avgLatencyMs": 5912,
+      "avgLatencyFlash": 3549,
+      "avgLatencyPro": 6924,
+      "estimatedCostPer100": 0.59
+    },
+    "trustMetrics": {
+      "creatorHarmIndex": 7.4,
+      "misinformationEscapeRate": 0,
+      "nuanceRecognitionScore": 0.54
+    }
+  },
+  "duration": 313698
+}

@@ -1,0 +1,785 @@
+import 'dart:async';
+import 'dart:typed_data';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:get/get.dart';
+import 'package:towervsp/features/presentation/controllers/channel_controller.dart';
+import 'package:uuid/uuid.dart';
+
+//<editor-fold desc="ImageData Model">
+/// Model class for image data with metadata
+//<editor-fold desc="ImageData Class">
+class ImageData {
+  final Uint8List bytes;
+  final String name;
+  final int size;
+  final double aspectRatio;
+
+  ImageData({
+    required this.bytes,
+    required this.name,
+    required this.size,
+    required this.aspectRatio,
+  });
+}
+//</editor-fold>
+
+class ChannelCreationController extends GetxController
+    with GetTickerProviderStateMixin {
+  // Dependencies
+  final channelController = Get.find<ChannelController>();
+  final _auth = FirebaseAuth.instance;
+  final _storage = FirebaseStorage.instance;
+
+  // Keys
+  final formKey = GlobalKey<FormState>();
+
+  // Text Editing Controllers
+  final channelName = TextEditingController();
+  final description = TextEditingController();
+  final customUrl = TextEditingController();
+  final tags = TextEditingController();
+  final contactEmail = TextEditingController();
+  final websiteUrl = TextEditingController();
+
+  // Reactive State
+  final bannerImageData = Rx<ImageData?>(null);
+  final avatarImageData = Rx<ImageData?>(null);
+  final bannerUrl = ''.obs;
+  final avatarUrl = ''.obs;
+  final bannerUploadProgress = 0.0.obs;
+  final avatarUploadProgress = 0.0.obs;
+  final isUploadingBanner = false.obs;
+  final isUploadingAvatar = false.obs;
+
+  // Moderation statuses
+  final bannerStatus = "PENDING".obs;
+  final avatarStatus = "PENDING".obs;
+
+  // Uploaded docs & listeners
+  final Map<String, StreamSubscription> _moderationListeners = {};
+  final List<String> uploadedDocIds = [];
+
+  // Draft management
+  final hasDraft = false.obs;
+  final draftId = Rx<String?>(null);
+  final isSavingDraft = false.obs;
+  final lastDraftSaveTime = Rx<DateTime?>(null);
+  final isSubmitting = false.obs;
+
+  // Other reactive state
+  final isPublic = true.obs;
+  final language = 'en'.obs;
+  final selectedCategory = Rx<String?>(null);
+  final selectedCategories = <String>[].obs; // Multi-select categories
+  final isAgreed = false.obs;
+  final formChangeTrigger = 0.obs; // Triggers validation updates
+  final socialLinks = {
+    'twitter': '',
+    'instagram': '',
+    'youtube': '',
+    'website': '',
+  }.obs;
+  final advancedSettings = <String, dynamic>{
+    'allowComments': true,
+    'allowSubscriptions': true,
+    'showSubscriberCount': true,
+  }.obs;
+
+  // Animation
+  late AnimationController staggeredAnimationController;
+  late AnimationController buttonAnimationController;
+  late AnimationController successAnimationController;
+  late Animation<double> fadeAnimation;
+  late Animation<Offset> slideAnimation;
+  late Animation<double> scaleAnimation;
+  late Animation<double> buttonScaleAnimation;
+  late Animation<double> successScaleAnimation;
+
+  // Constants
+  static const int MAX_BANNER_SIZE = 5 * 1024 * 1024; // 5MB
+  static const int MAX_AVATAR_SIZE = 2 * 1024 * 1024; // 2MB
+  static const double RECOMMENDED_BANNER_RATIO = 16 / 9;
+  static const double RECOMMENDED_AVATAR_RATIO = 1.0;
+
+  final List<String> languages = [
+    'en',
+    'es',
+    'fr',
+    'de',
+    'zh',
+    'ja',
+    'ar',
+    'hi',
+    'pt',
+    'ru',
+  ];
+
+  final List<String> categories = [
+    'Gaming',
+    'Music',
+    'Entertainment',
+    'Education',
+    'Technology',
+    'Sports',
+    'News',
+    'Lifestyle',
+    'Travel',
+    'Food',
+    'Fashion',
+    'Health',
+    'Business',
+    'Comedy',
+    'Science',
+    'Art',
+    'Documentary',
+    'Animation',
+    'Automotive',
+    'Pets & Animals',
+    'DIY & How-to',
+    'Fitness',
+    'Beauty',
+    'Finance',
+    'History',
+    'Nature',
+    'Spirituality',
+    'Kids & Family',
+    'Other',
+  ];
+
+  @override
+  void onInit() {
+    super.onInit();
+    _initializeAnimations();
+    staggeredAnimationController.forward();
+    _setupTextFieldListeners();
+    _setupFormValidationListeners();
+    _loadDraft(); // Load existing draft if available
+  }
+
+  void _initializeAnimations() {
+    staggeredAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 1500),
+      vsync: this,
+    );
+    buttonAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    successAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+
+    fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: staggeredAnimationController,
+        curve: const Interval(0.0, 0.6, curve: Curves.easeOutCubic),
+      ),
+    );
+    slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: staggeredAnimationController,
+            curve: const Interval(0.2, 0.8, curve: Curves.easeOutBack),
+          ),
+        );
+    scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(
+        parent: staggeredAnimationController,
+        curve: const Interval(0.4, 1.0, curve: Curves.elasticOut),
+      ),
+    );
+    buttonScaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
+      CurvedAnimation(
+        parent: buttonAnimationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+    successScaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: successAnimationController,
+        curve: Curves.elasticOut,
+      ),
+    );
+  }
+
+  void _setupTextFieldListeners() {
+    channelName.addListener(() {
+      channelController.checkChannelNameAvailability(channelName.text);
+      formChangeTrigger.value++; // Trigger validation update
+    });
+    customUrl.addListener(() {
+      if (customUrl.text.isNotEmpty) {
+        channelController.checkCustomUrlAvailability(customUrl.text);
+      } else {
+        channelController.customUrlAvailability.value =
+            AvailabilityStatus.unknown;
+      }
+    });
+    description.addListener(() {
+      formChangeTrigger.value++; // Trigger validation update
+    });
+  }
+
+  void _setupFormValidationListeners() {
+    // Empty implementation - listeners added in _setupTextFieldListeners
+  }
+
+  @override
+  void onClose() {
+    channelName.dispose();
+    description.dispose();
+    customUrl.dispose();
+    tags.dispose();
+    contactEmail.dispose();
+    websiteUrl.dispose();
+    staggeredAnimationController.dispose();
+    buttonAnimationController.dispose();
+    successAnimationController.dispose();
+
+    // Cancel all moderation listeners
+    for (var sub in _moderationListeners.values) {
+      sub.cancel();
+    }
+    _moderationListeners.clear();
+
+    super.onClose();
+  }
+
+  // Upload Image Method
+  Future<String?> uploadImage(
+    PlatformFile file,
+    String folder,
+    String userId, {
+    Function(double progress)? onProgress,
+  }) async {
+    try {
+      final uniqueFileName = '${Uuid().v4()}.${file.extension}';
+      final ref = _storage.ref().child(
+        'channels/$folder/$userId/$uniqueFileName',
+      );
+
+      final metadata = SettableMetadata(contentType: 'image/${file.extension}');
+      final uploadTask = ref.putData(file.bytes!, metadata);
+
+      uploadTask.snapshotEvents.listen((snapshot) {
+        final progress = snapshot.bytesTransferred / snapshot.totalBytes;
+        if (onProgress != null) onProgress(progress);
+      });
+
+      final snapshot = await uploadTask;
+      return await snapshot.ref.getDownloadURL();
+    } on FirebaseException catch (e) {
+      print('🔥 Firebase Storage Error: ${e.code}');
+      print('📝 Message: ${e.message}');
+      if (e.code == 'permission-denied') {
+        print('⚠️ Ensure Firebase Storage rules are configured correctly.');
+      }
+      return null;
+    } catch (e) {
+      print('❌ Upload error: $e');
+      return null;
+    }
+  }
+
+  // Pick Image & Track Moderation
+  Future<void> pickImage(bool isBanner) async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.image,
+        withData: true,
+      );
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.first;
+      if (file.bytes == null)
+        return _showErrorSnackbar("Unable to read image file.");
+
+      final maxSize = isBanner ? MAX_BANNER_SIZE : MAX_AVATAR_SIZE;
+      if (file.size > maxSize) {
+        return _showErrorSnackbar(
+          "Image exceeds ${(maxSize / (1024 * 1024)).toStringAsFixed(1)}MB.",
+        );
+      }
+
+      final extension = file.extension?.toLowerCase();
+      if (extension == null ||
+          !['jpg', 'jpeg', 'png', 'webp'].contains(extension)) {
+        return _showErrorSnackbar("Unsupported format. Use JPG, PNG, WebP.");
+      }
+
+      dynamic image;
+      try {
+        image = await decodeImageFromList(file.bytes!);
+      } catch (e) {
+        return _showErrorSnackbar("Invalid image: $e");
+      }
+      if (image == null) return _showErrorSnackbar("Unable to decode image.");
+
+      final imageData = ImageData(
+        bytes: file.bytes!,
+        name: file.name,
+        size: file.size,
+        aspectRatio: image.width / image.height,
+      );
+
+      if (isBanner) {
+        bannerImageData.value = imageData;
+        isUploadingBanner.value = true;
+        bannerUploadProgress.value = 0.0;
+      } else {
+        avatarImageData.value = imageData;
+        isUploadingAvatar.value = true;
+        avatarUploadProgress.value = 0.0;
+      }
+
+      // Delete previous image
+      String? oldUrl = isBanner ? bannerUrl.value : avatarUrl.value;
+      if (oldUrl.isNotEmpty) {
+        try {
+          await _storage.refFromURL(oldUrl).delete();
+        } catch (_) {}
+      }
+
+      final user = _auth.currentUser;
+      if (user == null) return _showErrorSnackbar("Login required.");
+
+      // Upload
+      final uploadedUrl = await uploadImage(
+        file,
+        isBanner ? 'banners' : 'avatars',
+        user.uid,
+        onProgress: (progress) {
+          if (isBanner)
+            bannerUploadProgress.value = progress;
+          else
+            avatarUploadProgress.value = progress;
+        },
+      );
+
+      if (uploadedUrl == null) {
+        if (isBanner)
+          isUploadingBanner.value = false;
+        else
+          isUploadingAvatar.value = false;
+        return _showErrorSnackbar("Upload failed.");
+      }
+
+      if (isBanner) {
+        bannerUrl.value = uploadedUrl;
+        isUploadingBanner.value = false;
+      } else {
+        avatarUrl.value = uploadedUrl;
+        isUploadingAvatar.value = false;
+      }
+
+      // Track moderation
+      final docId = '${Uuid().v4()}.${file.extension}';
+      uploadedDocIds.add(docId);
+
+      final subscription = FirebaseFirestore.instance
+          .collection("image_status")
+          .doc(docId)
+          .snapshots()
+          .listen((docSnapshot) {
+            if (!docSnapshot.exists) return;
+
+            final status = docSnapshot.data()?['status'] ?? "PENDING";
+            final mappedStatus = status.startsWith("REJECT")
+                ? "REJECTED"
+                : status.startsWith("FLAG")
+                ? "REVIEW"
+                : status.startsWith("APPROVE")
+                ? "APPROVED"
+                : "PENDING";
+
+            if (isBanner)
+              bannerStatus.value = mappedStatus;
+            else
+              avatarStatus.value = mappedStatus;
+
+            if (status.startsWith("REJECT")) {
+              Get.snackbar(
+                "Rejected",
+                "${isBanner ? 'Banner' : 'Avatar'} rejected: $status",
+                backgroundColor: Colors.red.shade600,
+                colorText: Colors.white,
+              );
+            } else if (status.startsWith("FLAG")) {
+              Get.snackbar(
+                "Review",
+                "${isBanner ? 'Banner' : 'Avatar'} needs review",
+                backgroundColor: Colors.orange.shade600,
+                colorText: Colors.white,
+              );
+            } else if (status.startsWith("APPROVE")) {
+              Get.snackbar(
+                "Approved",
+                "${isBanner ? 'Banner' : 'Avatar'} approved ✅",
+                backgroundColor: Colors.green.shade600,
+                colorText: Colors.white,
+              );
+            }
+          });
+
+      _moderationListeners[docId] = subscription;
+    } catch (e) {
+      _showErrorSnackbar("Error selecting image: $e");
+      if (isBanner)
+        isUploadingBanner.value = false;
+      else
+        isUploadingAvatar.value = false;
+    }
+  }
+
+  // Create Channel
+  Future<void> createChannel() async {
+  if (isSubmitting.value) return;
+  isSubmitting.value = true;
+
+  try {
+    // ------------------------------
+    // 1. Client-side validation
+    // ------------------------------
+    if (!formKey.currentState!.validate()) {
+      _showErrorSnackbar("Please fill in all required fields correctly.");
+      return;
+    }
+
+    if (bannerUrl.value.isEmpty) {
+      _showErrorSnackbar("Please upload a banner image.");
+      return;
+    }
+
+    if (avatarUrl.value.isEmpty) {
+      _showErrorSnackbar("Please upload an avatar image.");
+      return;
+    }
+
+    if (!isAgreed.value) {
+      _showErrorSnackbar("You must agree to the Terms and Conditions.");
+      return;
+    }
+
+    // ------------------------------
+    // 2. UX animation
+    // ------------------------------
+    await buttonAnimationController.forward();
+    await buttonAnimationController.reverse();
+
+    // ------------------------------
+    // 3. Prepare data
+    // ------------------------------
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final firestore = FirebaseFirestore.instance;
+
+    final tagsList = tags.text
+        .split(',')
+        .map((t) => t.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+
+    final channelData = {
+      "name": channelName.text.trim(),
+      "description": description.text.trim(),
+      "bannerUrl": bannerUrl.value,
+      "avatarUrl": avatarUrl.value,
+      "customUrl": customUrl.text.trim().isEmpty
+          ? null
+          : customUrl.text.trim(),
+      "isPublic": isPublic.value,
+      "language": language.value,
+      "tags": tagsList,
+      "category": selectedCategories.isEmpty
+          ? selectedCategory.value
+          : selectedCategories.join(', '),
+      "contactEmail": contactEmail.text.trim().isEmpty
+          ? null
+          : contactEmail.text.trim(),
+      "websiteUrl": websiteUrl.text.trim().isEmpty
+          ? null
+          : websiteUrl.text.trim(),
+      "socialLinks": socialLinks,
+      "brandingSettings": {
+        "primaryColor": "#6B46C1",
+        "secondaryColor": "#9333EA",
+        "bannerStyle": "gradient",
+      },
+      "ownerId": uid,
+      "memberCount": 1,
+      "createdAt": FieldValue.serverTimestamp(),
+      "updatedAt": FieldValue.serverTimestamp(),
+    };
+
+    // ------------------------------
+    // 4. Firestore transaction
+    // ------------------------------
+    await firestore.runTransaction((transaction) async {
+      final channelRef = firestore.collection('channels').doc();
+
+      // Create channel
+      transaction.set(channelRef, channelData);
+
+      // Delete draft if exists
+      if (draftId.value != null) {
+        final draftRef =
+            firestore.collection('channel_drafts').doc(draftId.value);
+        transaction.delete(draftRef);
+      }
+    });
+
+    // ------------------------------
+    // 5. Success UI handling
+    // ------------------------------
+    hasDraft.value = false;
+    draftId.value = null;
+
+    await successAnimationController.forward();
+    _resetForm();
+
+    Timer(const Duration(seconds: 2), () => Get.back());
+  } catch (e) {
+    _showErrorSnackbar("Failed to create channel. Please try again.");
+  } finally {
+    isSubmitting.value = false;
+  }
+}
+
+
+  void _resetForm() {
+    channelName.clear();
+    description.clear();
+    customUrl.clear();
+    tags.clear();
+    contactEmail.clear();
+    websiteUrl.clear();
+    bannerImageData.value = null;
+    avatarImageData.value = null;
+    bannerUrl.value = '';
+    avatarUrl.value = '';
+    isPublic.value = true;
+    language.value = 'en';
+    selectedCategory.value = null;
+    selectedCategories.clear();
+    isAgreed.value = false;
+    channelController.resetAvailabilityStatus();
+  }
+
+  void _showErrorSnackbar(String message) {
+    Get.snackbar(
+      "Error",
+      message,
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.red.shade600,
+      colorText: Colors.white,
+      margin: const EdgeInsets.all(16),
+      borderRadius: 12,
+      icon: const Icon(Icons.error_outline, color: Colors.white),
+    );
+  }
+
+  // ========================================================================
+  // DRAFT MANAGEMENT
+  // ========================================================================
+
+  /// Load existing draft from Firestore
+  Future<void> _loadDraft() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      final draftSnapshot = await FirebaseFirestore.instance
+          .collection('channel_drafts')
+          .where('ownerId', isEqualTo: user.uid)
+          .limit(1)
+          .get();
+
+      if (draftSnapshot.docs.isNotEmpty) {
+        final draftData = draftSnapshot.docs.first.data();
+        draftId.value = draftSnapshot.docs.first.id;
+
+        // Restore form data
+        channelName.text = draftData['channelName'] ?? '';
+        description.text = draftData['description'] ?? '';
+        customUrl.text = draftData['customUrl'] ?? '';
+        tags.text = draftData['tags'] ?? '';
+        contactEmail.text = draftData['contactEmail'] ?? '';
+        websiteUrl.text = draftData['websiteUrl'] ?? '';
+        isPublic.value = draftData['isPublic'] ?? true;
+        language.value = draftData['language'] ?? 'en';
+        selectedCategories.value = List<String>.from(draftData['categories'] ?? []);
+
+        // Restore social links
+        if (draftData['socialLinks'] != null) {
+          socialLinks.value = Map<String, String>.from(draftData['socialLinks']);
+        }
+
+        // Restore advanced settings
+        if (draftData['advancedSettings'] != null) {
+          advancedSettings.value = Map<String, dynamic>.from(draftData['advancedSettings']);
+        }
+
+        // Restore image URLs (but not bytes - user needs to re-upload if they want to change)
+        bannerUrl.value = draftData['bannerUrl'] ?? '';
+        avatarUrl.value = draftData['avatarUrl'] ?? '';
+
+        hasDraft.value = true;
+        lastDraftSaveTime.value = (draftData['updatedAt'] as Timestamp?)?.toDate();
+
+        // Don't show auto-notification here - let the UI handle it
+      }
+    } catch (e) {
+      print('Error loading draft: $e');
+    }
+  }
+
+  /// Get the current step from draft
+  int getDraftStep() {
+    // This will be called by the UI to restore the correct step
+    return 0; // Will be set by UI based on draft data
+  }
+
+  /// Save current form data as draft
+  Future<void> saveDraft({int? currentStep}) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        print('❌ Cannot save draft: No user logged in');
+        return;
+      }
+
+      print('💾 Saving draft for user: ${user.uid}');
+      isSavingDraft.value = true;
+
+      final draftData = {
+        'ownerId': user.uid,
+        'channelName': channelName.text.trim(),
+        'description': description.text.trim(),
+        'customUrl': customUrl.text.trim(),
+        'tags': tags.text.trim(),
+        'contactEmail': contactEmail.text.trim(),
+        'websiteUrl': websiteUrl.text.trim(),
+        'isPublic': isPublic.value,
+        'language': language.value,
+        'categories': selectedCategories.toList(),
+        'socialLinks': socialLinks,
+        'advancedSettings': advancedSettings,
+        'bannerUrl': bannerUrl.value,
+        'avatarUrl': avatarUrl.value,
+        'currentStep': currentStep ?? 0,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'createdAt': draftId.value == null ? FieldValue.serverTimestamp() : null,
+      };
+
+      // Remove null createdAt if updating
+      if (draftId.value != null) {
+        draftData.remove('createdAt');
+      }
+
+      if (draftId.value == null) {
+        // Create new draft
+        print('📝 Creating new draft document...');
+        final docRef = await FirebaseFirestore.instance
+            .collection('channel_drafts')
+            .add(draftData);
+        draftId.value = docRef.id;
+        print('✅ Draft created with ID: ${docRef.id}');
+      } else {
+        // Update existing draft
+        print('📝 Updating draft: ${draftId.value}');
+        await FirebaseFirestore.instance
+            .collection('channel_drafts')
+            .doc(draftId.value)
+            .update(draftData);
+        print('✅ Draft updated successfully');
+      }
+
+      hasDraft.value = true;
+      lastDraftSaveTime.value = DateTime.now();
+      isSavingDraft.value = false;
+
+      Get.snackbar(
+        "Draft Saved",
+        "Your progress has been saved to Firestore",
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.green.shade600,
+        colorText: Colors.white,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+        icon: const Icon(Icons.check_circle, color: Colors.white),
+        duration: const Duration(seconds: 2),
+      );
+    } catch (e) {
+      isSavingDraft.value = false;
+      print('❌ Error saving draft: $e');
+      Get.snackbar(
+        "Error",
+        "Failed to save draft: $e",
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red.shade600,
+        colorText: Colors.white,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+      );
+    }
+  }
+
+  /// Delete draft and cleanup uploaded images
+  Future<void> deleteDraft() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null || draftId.value == null) return;
+
+      // Delete uploaded images from storage if they exist
+      if (bannerUrl.value.isNotEmpty) {
+        try {
+          await _storage.refFromURL(bannerUrl.value).delete();
+        } catch (e) {
+          print('Error deleting banner: $e');
+        }
+      }
+
+      if (avatarUrl.value.isNotEmpty) {
+        try {
+          await _storage.refFromURL(avatarUrl.value).delete();
+        } catch (e) {
+          print('Error deleting avatar: $e');
+        }
+      }
+
+      // Delete draft document
+      await FirebaseFirestore.instance
+          .collection('channel_drafts')
+          .doc(draftId.value)
+          .delete();
+
+      // Reset draft state
+      hasDraft.value = false;
+      draftId.value = null;
+      lastDraftSaveTime.value = null;
+
+      Get.snackbar(
+        "Draft Deleted",
+        "Your draft and uploaded images have been removed",
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.orange.shade600,
+        colorText: Colors.white,
+        margin: const EdgeInsets.all(16),
+        borderRadius: 12,
+        icon: const Icon(Icons.delete_outline, color: Colors.white),
+        duration: const Duration(seconds: 2),
+      );
+    } catch (e) {
+      print('Error deleting draft: $e');
+      _showErrorSnackbar("Failed to delete draft: $e");
+    }
+  }
+
+}
+
+//</editor-fold>

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Truthworld | Notifications</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --primary: #38bdf8;
+            --accent: #818cf8;
+            --text: #f1f5f9;
+            --text-dim: #94a3b8;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --priority: #ef4444;
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.1) 0px, transparent 50%);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 32px;
+            font-weight: 700;
+        }
+
+        .btn-clear {
+            background: transparent;
+            color: var(--text-dim);
+            border: 1px solid var(--glass-border);
+            padding: 8px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .btn-clear:hover {
+            background: rgba(255,255,255,0.05);
+            color: var(--text);
+        }
+
+        /* Notification List */
+        .notification-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .notification-item {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            gap: 16px;
+            transition: all 0.3s ease;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .notification-item:hover {
+            border-color: rgba(255,255,255,0.2);
+            transform: translateX(4px);
+        }
+
+        .notification-item.unread::before {
+            content: '';
+            position: absolute;
+            left: -2px;
+            top: 20px;
+            bottom: 20px;
+            width: 4px;
+            background: var(--primary);
+            border-radius: 2px;
+        }
+
+        .icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 20px;
+        }
+
+        .icon.ranking { background: rgba(56, 189, 248, 0.15); color: var(--primary); }
+        .icon.trust { background: rgba(34, 197, 94, 0.15); color: var(--success); }
+        .icon.milestone { background: rgba(129, 140, 248, 0.15); color: var(--accent); }
+        .icon.video { background: rgba(255, 255, 255, 0.05); color: var(--text); }
+
+        .content { flex: 1; }
+        .content h3 { font-size: 16px; margin-bottom: 4px; font-weight: 600; }
+        .content p { color: var(--text-dim); font-size: 14px; line-height: 1.4; }
+
+        .time {
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-top: 8px;
+            display: block;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 80px 0;
+            color: var(--text-dim);
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header class="header">
+            <h1>Notifications</h1>
+            <button class="btn-clear">Mark all as read</button>
+        </header>
+
+        <div class="notification-list">
+            <!-- Ranking Change -->
+            <div class="notification-item unread">
+                <div class="icon ranking">🏆</div>
+                <div class="content">
+                    <h3>Ranking Achievement!</h3>
+                    <p>You've moved up to <strong>#8</strong> in the Finance category leaderboard. Your momentum is rising!</p>
+                    <span class="time">2 hours ago</span>
+                </div>
+            </div>
+
+            <!-- Trust Index Milestone -->
+            <div class="notification-item unread">
+                <div class="icon trust">📈</div>
+                <div class="content">
+                    <h3>Trust Index Milestone</h3>
+                    <p>Congratulations! Your channel has reached a Trust Index of <strong>9.1</strong>. You've earned the Platinum Badge.</p>
+                    <span class="time">5 hours ago</span>
+                </div>
+            </div>
+
+            <!-- New Follower -->
+            <div class="notification-item">
+                <div class="icon milestone">✨</div>
+                <div class="content">
+                    <h3>New Follower</h3>
+                    <p><strong>@investor_pro</strong> and 12 others started following your channel today.</p>
+                    <span class="time">1 day ago</span>
+                </div>
+            </div>
+
+            <!-- New Video -->
+            <div class="notification-item">
+                <div class="icon video">📽️</div>
+                <div class="content">
+                    <h3>New from followed creator</h3>
+                    <p><strong>Tech Truth Reports</strong> just uploaded: <em>"The Ethics of Generative AI in 2026"</em></p>
+                    <span class="time">2 days ago</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        console.log("Notification Center Loaded");
+    </script>
+</body>
+</html>

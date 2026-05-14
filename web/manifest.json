@@ -1,0 +1,36 @@
+{
+  "name": "Truthworld",
+  "short_name": "Truthworld",
+  "description": "See the world clearly. Discover and share verified truth.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0D0014",
+  "theme_color": "#9B30FF",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "icons/Icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/Icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/Icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/Icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

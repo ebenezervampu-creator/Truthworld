@@ -1,0 +1,775 @@
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import * as admin from "firebase-admin";
+import { PIPELINE_CONFIG } from "../config";
+import { 
+  ExtractedClaim, 
+  GeminiExtractionSchema, 
+  Utterance, 
+  VerifiedClaim,
+  ClaimNature,
+  SynthesisResult,
+} from "../types";
+import { registryService } from "../registry/RegistryService";
+import { isSubjectiveClaim, containsVerifiablePredicate } from "./contentIntentDetector";
+import { logger } from "../utils/logger";
+import { withAiRetry } from "../utils/ai-utils";
+
+/**
+ * 🔹 A. Fact Extraction Service
+ * 
+ * Extracts atomic factual claims from transcript chunks
+ * Input: transcript chunks (30-60 sec)
+ * Output: classified claims (fact/opinion/speculation/unclear)
+ */
+export class FactExtractionService {
+  private genAI: GoogleGenerativeAI;
+
+  constructor(apiKey: string) {
+    this.genAI = new GoogleGenerativeAI(apiKey);
+  }
+
+  private static readonly LONGFORM_THRESHOLD_MINUTES = 30;
+  private static readonly LONGFORM_THRESHOLD_MS = FactExtractionService.LONGFORM_THRESHOLD_MINUTES * 60 * 1000;
+
+  /**
+   * Split transcript into chunks (30-60 seconds)
+   * 🛠 v5.1 FIX: Handles oversized utterances by splitting them semantically.
+   */
+  private chunkTranscript(
+    utterances: Utterance[],
+    chunkDurationMs: number = 45000 // 45 seconds default
+  ): { utterances: Utterance[]; chunkIndex: number }[] {
+    const chunks: { utterances: Utterance[]; chunkIndex: number }[] = [];
+    let currentChunk: Utterance[] = [];
+    let chunkStart = utterances[0]?.start || 0;
+    let chunkIndex = 0;
+
+    for (const utterance of utterances) {
+      // 1. Handle oversized utterances (v5.1 Fix)
+      // If a single utterance is significantly longer than our chunk target, split it.
+      if (utterance.end - utterance.start > chunkDurationMs * 1.5) {
+        // Flush any pending utterances first
+        if (currentChunk.length > 0) {
+          chunks.push({ utterances: currentChunk, chunkIndex });
+          chunkIndex++;
+          currentChunk = [];
+        }
+
+        // Split the giant utterance into virtual sub-utterances
+        const subChunks = this.splitLargeUtterance(utterance, chunkDurationMs);
+        for (const sub of subChunks) {
+          chunks.push({ utterances: [sub], chunkIndex });
+          chunkIndex++;
+        }
+
+        // Reset for next
+        chunkStart = utterance.end;
+        continue;
+      }
+
+      // 2. Standard chunking logic
+      currentChunk.push(utterance);
+
+      // Check if chunk is large enough
+      if (utterance.end - chunkStart >= chunkDurationMs) {
+        chunks.push({ utterances: currentChunk, chunkIndex });
+        currentChunk = [];
+        chunkStart = utterance.end;
+        chunkIndex++;
+      }
+    }
+
+    // Add remaining utterances
+    if (currentChunk.length > 0) {
+      chunks.push({ utterances: currentChunk, chunkIndex });
+    }
+
+    return chunks;
+  }
+
+  /**
+   * 🛠 v5.1: Semantic splitting for giant utterances (monologues).
+   * Splits on punctuation if possible, otherwise falls back to word count.
+   */
+  private splitLargeUtterance(utterance: Utterance, targetDurationMs: number): Utterance[] {
+    const words = utterance.text.split(/\s+/);
+    const subUtterances: Utterance[] = [];
+    
+    // Estimate words per chunk: standard speaking rate ~150 wpm = 2.5 words/sec.
+    // 45 seconds ~ 110-130 words. We use 180 for safety with fast speakers.
+    const targetWords = 180; 
+    const overlapWords = 25;
+    const duration = utterance.end - utterance.start;
+
+    for (let i = 0; i < words.length; i += (targetWords - overlapWords)) {
+      let endIdx = i + targetWords;
+      
+      // Attempt to find a punctuation boundary within the last 30% of the chunk
+      const searchWindow = Math.floor(targetWords * 0.3);
+      const windowEnd = Math.min(words.length, i + targetWords);
+      const windowStart = Math.max(i, windowEnd - searchWindow);
+      
+      for (let j = windowEnd - 1; j >= windowStart; j--) {
+        if (words[j].endsWith('.') || words[j].endsWith('?') || words[j].endsWith('!')) {
+          endIdx = j + 1;
+          break;
+        }
+      }
+
+      const chunkWords = words.slice(i, Math.min(words.length, endIdx));
+      if (chunkWords.length < 30 && subUtterances.length > 0) break; // Avoid tiny orphans
+
+      const ratioStart = i / words.length;
+      const ratioEnd = Math.min(1, endIdx / words.length);
+
+      subUtterances.push({
+        speaker: utterance.speaker,
+        text: chunkWords.join(" "),
+        start: Math.floor(utterance.start + (duration * ratioStart)),
+        end: Math.floor(utterance.start + (duration * ratioEnd))
+      });
+
+      if (endIdx >= words.length) break;
+      i = endIdx - overlapWords; // Move i to endIdx but keep overlap
+    }
+
+    return subUtterances;
+  }
+
+  /**
+   * Format utterances into readable transcript
+   */
+  private formatChunk(utterances: Utterance[]): string {
+    return utterances
+      .map(
+        (u) =>
+          `[${this.formatTime(u.start)}-${this.formatTime(u.end)}] ${u.speaker || "Unnamed"}: ${u.text}`
+      )
+      .join("\n");
+  }
+
+  private formatTime(ms: number): string {
+    const seconds = Math.floor(ms / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes}:${String(secs).padStart(2, "0")}`;
+  }
+
+  /**
+   * Extract claims from a single chunk using Gemini
+   */
+  async extractClaimsFromChunk(
+    jobId: string,
+    utterances: Utterance[],
+    chunkIndex: number
+  ): Promise<ExtractedClaim[]> {
+    const transcript = this.formatChunk(utterances);
+
+    const prompt = `You are a fact-checking expert and claim ontologist. Extract only atomic claims from the following transcript chunk.
+
+### CORE PRINCIPLE:
+A claim is FACTUAL if an external source (news archive, official record, scientific data) could confirm or refute it, even if presented dramatically, emotionally, sarcastically, or persuasively. Tone ≠ Falsity. 
+
+### CRITICAL RULES:
+1. Extract atomic claims (statements that can be verified or identified as belief/myth).
+3. For each claim, detect its **ClaimNature** (the "Domain of Truth"):
+    - "FACTUAL": Empirically testable claims, current events, statistics.
+    - "OPINION": Subjective preferences or value judgments.
+    - "PREDICTION": Future-oriented claims or projections.
+    - "THEORY": Explanatory frameworks or hypotheses.
+    - "BELIEF": Faith-based or non-empirical claims.
+    - "SATIRE": Non-literal or parody content.
+
+4. Detect **FramingStyle** (How the speaker presents the claim):
+    - "HEDGED": Use of "may", "might", "possibly", "could", "evidence suggests". (Honesty bonus)
+    - "BALANCED": Acknowledges multiple perspectives or uncertainty. (Honesty bonus)
+    - "ASSERTIVE": Standard confident presentation. (Neutral)
+    - "ABSOLUTE": Use of "proven", "guaranteed", "obvious fact", "without question". (Penalty if evidence weak)
+    - "MANIPULATIVE": Use of rage-bait, fear-mongering, or emotional coercion. (Severe penalty)
+
+3. **🚨 ANTI-SUPPRESSION RULE (v5.2) — LANGUAGE AGNOSTIC**:
+    - Identify [Actor] + [Action] + [Object] structures as factual regardless of the source language.
+    - Set "isVerifiableEvent": true if the claim describes a checkable real-world incident, announcement, or status change.
+    - Examples (Factual): "Iran attacked ships", "Apple launched iPhone", "GDP fell 2%".
+    - Examples (Opinion): "This is amazing", "I feel happy", "It might be bad".
+
+4. **Subjective Language Filtering**:
+    - Do NOT extract purely subjective adjectives as claims.
+    - If a sentence contains BOTH a subjective adjective AND a verifiable fact, STRIP the adjective and extract the fact.
+
+5. **🚨 SPEAKER ATTRIBUTION (v5.3)**:
+    - If there are multiple speakers, ALWAYS include the speaker name/label in the claim if they are making a personal claim or rebuttal.
+    - Format: "[Speaker Name] stated that..." or "[Speaker Name] argued that..."
+    - This is critical for differentiating Host questions from Guest claims.
+
+6. Detect **assertiveness** and **strength** — how the speaker frames the claim:
+   - "assertiveness": casual (hedged) | moderate | confident | authoritative | absolute
+   - "claimStrength": "hedged" | "moderate" | "strong" | "absolute"
+
+8. **HONESTY_WASHING detection**: 
+   - A claim is "honesty washed" if a false empirical claim is disguised as an opinion (e.g., "In my opinion, smoking cures cancer"). 
+   - Tag such claims with "honestyWashingRisk": true.
+
+
+Transcript:
+\`\`\`
+${transcript}
+\`\`\`
+
+Return a JSON response with this structure:
+{
+  "claims": [
+    {
+      "text": "Exact claim from transcript",
+      "nature": "FACTUAL|OPINION|PREDICTION|THEORY|BELIEF|SATIRE",
+      "framing": "HEDGED|BALANCED|ASSERTIVE|ABSOLUTE|MANIPULATIVE",
+      "confidence": 0.95,
+      "importance": 0.8,
+      "isVerifiableEvent": true|false,
+      "honestyWashingRisk": true|false,
+      "assertiveness": "casual|moderate|confident|authoritative|absolute",
+      "claimStrength": "hedged|moderate|strong|absolute"
+    }
+  ],
+  "summary": "Summary of extracted claims"
+}
+
+Return ONLY valid JSON, no explanations.`;
+
+    const extractChain = {
+      primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || PIPELINE_CONFIG.GEMINI_MODEL || "gemini-2.5-flash",
+      fallback: null,
+      forcePrimary: true
+    };
+    return withAiRetry(async (modelId: string) => {
+      const activeModel = this.genAI.getGenerativeModel({ model: modelId });
+      const response = await activeModel.generateContent(prompt);
+      const text = response.response.text();
+
+      // Parse JSON response with robust cleanup
+      const jsonMatch = this.extractJSON(text);
+      if (!jsonMatch) {
+        console.warn(`No valid JSON found in response for chunk ${chunkIndex}.`);
+        return [];
+      }
+
+      const rawParsed = JSON.parse(jsonMatch);
+      const validation = GeminiExtractionSchema.safeParse(rawParsed);
+      
+      if (!validation.success) {
+        console.error(`[FactExtraction] Schema validation failed for chunk ${chunkIndex}:`, validation.error.format());
+        return [];
+      }
+
+      const parsed = validation.data;
+
+      const extractedClaims: ExtractedClaim[] = parsed.claims
+        .filter((c) => c.confidence >= 0.5) 
+        .map((claim, idx) => {
+          let nature: ClaimNature = claim.nature as any;
+          const deterministicNature = registryService.getDeterministicDomain(claim.text);
+          
+          if (deterministicNature) {
+            nature = deterministicNature as any;
+          }
+
+          return {
+            text: claim.text,
+            nature,
+            framing: claim.framing as any,
+            confidence: claim.confidence,
+            importance: claim.importance,
+            chunkIndex,
+            isVerifiableEvent: claim.isVerifiableEvent,
+            honestyWashingRisk: claim.honestyWashingRisk,
+            assertiveness: claim.assertiveness as any,
+            claimStrength: claim.claimStrength as any,
+            start: utterances[0]?.start,
+            end: utterances[utterances.length - 1]?.end,
+          };
+        });
+
+      const calibratedClaims = extractedClaims.map(claim => {
+        // v5.2: LLM-flagged verifiable events bypass the English-only regex filter
+        if (claim.isVerifiableEvent || containsVerifiablePredicate(claim.text)) {
+          return claim;
+        }
+        if (isSubjectiveClaim(claim.text, claim.isVerifiableEvent)) {
+          return { ...claim, nature: 'OPINION' as any };
+        }
+        return claim;
+      });
+
+      return calibratedClaims;
+    }, extractChain, { maxAttempts: 4, instanceId: jobId });
+  }
+
+  /**
+   * Detect the overall domain and speaker's primary stance.
+   * Useful for domain-sensitivity modes (Refinement 2).
+   */
+  async detectDomainAndStance(
+    utterances: Utterance[]
+  ): Promise<{ 
+    domain: string; 
+    stance: string; 
+    cautionLevel: "low" | "medium" | "high"; 
+    isLaunchNews: boolean;
+    primaryIntent?: string;
+    isSensitive?: boolean;
+    detectedLanguage?: string;
+  }> {
+    const sample = utterances.slice(0, 50).map((u) => u.text).join(" ");
+    
+    const prompt = `Analyze the following transcript sample and categorize it.
+Sample: "${sample.substring(0, 4000)}"
+
+Return ONLY a JSON object:
+{
+  "domain": "e.g., Technology, Health, Finance, Entertainment, Politics, Science, Geopolitical",
+  "stance": "e.g., Explanatory, Persuasive, Debunking, Satirical",
+  "cautionLevel": "low|medium|high",
+  "isLaunchNews": true|false,
+  "primaryIntent": "factual|promotional|editorial|educational|entertainment|testimonial|commentary",
+  "isSensitive": true|false,
+  "detectedLanguage": "ISO code (e.g., en, hi, es, fr)"
+}
+
+RULES:
+1. If domain is Health, Finance, or Breaking News/War, cautionLevel MUST be "high" and isSensitive: true.
+2. If text mentions "launched", "announced", "new product", "released today", set isLaunchNews: true and primaryIntent: "promotional".
+3. If text is hard news or geopolitical reporting, set primaryIntent: "factual".
+4. Detect the language accurately.`;
+
+    const stanceChain = {
+      primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash",
+      fallback: null,
+      forcePrimary: true
+    };
+
+    return withAiRetry(async (modelId: string) => {
+      const activeModel = this.genAI.getGenerativeModel({ model: modelId });
+      const response = await activeModel.generateContent(prompt);
+      const text = response.response.text();
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      const res = jsonMatch ? JSON.parse(jsonMatch[0]) : { domain: "General", stance: "Mixed", cautionLevel: "medium", isLaunchNews: false };
+      
+      if (!res.isLaunchNews) {
+        const freshKeywords = ["launch", "announce", "released", "today", "new product"];
+        const hasKeywords = freshKeywords.some(kw => sample.toLowerCase().includes(kw));
+        if (hasKeywords) res.isLaunchNews = true;
+      }
+
+      return res;
+    }, stanceChain, { maxAttempts: 4, instanceId: "stance_detection" }).catch(() => ({ 
+      domain: "General", 
+      stance: "Mixed", 
+      cautionLevel: "medium", 
+      isLaunchNews: false, 
+      primaryIntent: "factual", 
+      isSensitive: false 
+    }));
+  }
+
+  async extractClaimsStandard(
+    jobId: string,
+    utterances: Utterance[],
+    chunkDurationMs: number = 45000,
+    maxConcurrent: number = 5
+  ): Promise<ExtractedClaim[]> {
+    if (!utterances || utterances.length === 0) {
+      console.warn("[FactExtraction] Empty transcript — skipping extraction");
+      return [];
+    }
+
+    // Split into chunks
+    const chunks = this.chunkTranscript(utterances, chunkDurationMs);
+    const totalChunks = chunks.length;
+    const allClaims: ExtractedClaim[] = [];
+
+    // Process chunks with concurrency control
+    for (let i = 0; i < chunks.length; i += maxConcurrent) {
+      const batch = chunks.slice(i, i + maxConcurrent);
+      
+      // Granular progress update for long extractions (30% -> 50% range in 06-credibility)
+      const progressPercent = 30 + Math.floor((i / totalChunks) * 20);
+      try {
+         const db = admin.firestore();
+         await db.collection("video_jobs").doc(jobId).update({
+           "stages.credibility.progress": Math.min(48, progressPercent),
+           "stages.credibility.lastUpdate": admin.firestore.FieldValue.serverTimestamp()
+         });
+      } catch (e) { /* ignore progress update errors */ }
+
+      try {
+        const batchResults = await Promise.all(
+          batch.map((chunk) =>
+            this.extractClaimsFromChunk(jobId, chunk.utterances, chunk.chunkIndex)
+          )
+        );
+
+        batchResults.forEach((claims) => allClaims.push(...claims));
+      } catch (error: any) {
+        // ... (existing error handling)
+        const status = error?.status || (error?.message?.includes("429") ? 429 : 500);
+        const isCapacity = status === 429 || status === 503 || error?.message?.toLowerCase().includes("capacity");
+        
+        if (isCapacity) {
+          logger.warn(`[FactExtraction] High-level capacity limit hit. Falling back to sequential mode for batch at ${i}`);
+          for (const chunk of batch) {
+            const claims = await this.extractClaimsFromChunk(jobId, chunk.utterances, chunk.chunkIndex);
+            allClaims.push(...claims);
+          }
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    return allClaims;
+  }
+
+  async extractClaims(
+    jobId: string,
+    transcript: any, // TranscriptData
+    chunkDurationMs: number = 45000,
+    maxConcurrent: number = 5
+  ): Promise<ExtractedClaim[]> {
+    const durationMs = transcript.duration * 1000;
+    
+    if (durationMs > FactExtractionService.LONGFORM_THRESHOLD_MS) {
+      logger.info(`[FactExtraction] Long-form detected (${Math.round(durationMs/60000)} mins). Using Map-Reduce path.`);
+      return this.extractClaimsMapReduce(jobId, transcript, chunkDurationMs, maxConcurrent);
+    } else {
+      return this.extractClaimsStandard(jobId, transcript.utterances ?? [], chunkDurationMs, maxConcurrent);
+    }
+  }
+
+  private async extractClaimsMapReduce(
+    jobId: string,
+    transcript: any, // TranscriptData
+    chunkDurationMs: number,
+    maxConcurrent: number
+  ): Promise<ExtractedClaim[]> {
+    const segmentDurationMs = 10 * 60 * 1000; // 10 minute segments
+    const segments = this.segmentTranscript(transcript, segmentDurationMs);
+    
+    logger.info(`[FactExtraction] Map Phase: Segmented transcript into ${segments.length} blocks for parallel processing.`);
+
+    const segmentResults: ExtractedClaim[][] = [];
+    const segmentBatchSize = 2; // Process 2 segments (~20 mins of video) at a time
+
+    for (let i = 0; i < segments.length; i += segmentBatchSize) {
+      const batch = segments.slice(i, i + segmentBatchSize);
+      logger.info(`[FactExtraction] Processing segment batch ${Math.floor(i/segmentBatchSize) + 1}/${Math.ceil(segments.length/segmentBatchSize)}`);
+      
+      const batchResults = await Promise.all(
+        batch.map((segment) => this.extractClaimsStandard(jobId, segment.utterances, chunkDurationMs, maxConcurrent))
+      );
+      
+      batchResults.forEach(res => segmentResults.push(res));
+    }
+    
+    // Reduce: deduplicate and merge
+    return this.deduplicateAndMerge(segmentResults.flat());
+  }
+
+  /**
+   * Segments a transcript into larger blocks (e.g. 10 mins) for Map-Reduce
+   */
+  private segmentTranscript(transcript: any, segmentDurationMs: number): any[] {
+    const segments: { utterances: Utterance[]; duration: number }[] = [];
+    let currentUtterances: Utterance[] = [];
+    let currentStart = transcript.utterances[0]?.start || 0;
+
+    for (const utterance of transcript.utterances) {
+      currentUtterances.push(utterance);
+      if (utterance.end - currentStart >= segmentDurationMs) {
+        segments.push({ utterances: currentUtterances, duration: (utterance.end - currentStart) / 1000 });
+        currentUtterances = [];
+        currentStart = utterance.end;
+      }
+    }
+
+    if (currentUtterances.length > 0) {
+      segments.push({ utterances: currentUtterances, duration: (currentUtterances[currentUtterances.length - 1].end - currentStart) / 1000 });
+    }
+
+    return segments;
+  }
+
+  /**
+   * Basic semantic deduplication for merged claims
+   */
+  private deduplicateAndMerge(claims: ExtractedClaim[]): ExtractedClaim[] {
+    const seen = new Set<string>();
+    return claims.filter(c => {
+      const key = c.text.toLowerCase().trim();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  /**
+   * 🏛 NEW: Multi-Tier Intelligence Layer (Standard | Deep | Podcast)
+   */
+  async generateTieredIntelligence(
+    utterances: Utterance[],
+    verifiedClaims: VerifiedClaim[],
+    tier: "standard" | "deep" | "podcast",
+    consistencyWarnings: string[] = [],
+    context: { 
+      pipelineMode: string; 
+      speakerCount: number;
+      speakerIdentities?: Record<string, any>;
+      speakerPriors?: Record<string, any>;
+    } = { pipelineMode: "solo", speakerCount: 1 }
+  ): Promise<SynthesisResult> {
+    if (!utterances || utterances.length === 0) {
+      return {
+        summary: "No content detected.",
+        conclusion: { label: "Empty", text: "Transcript is empty.", confidence: 1.0 },
+        knowledgeDensity: 0,
+        keyThemes: [],
+        viewerNote: "No content available.",
+        manipulationScore: 0,
+        manipulationSignals: [],
+        chapters: [],
+        speakerRoles: {},
+        hallucinationIsolation: { verifiedFacts: [], modelInterpretations: [], uncertainInferences: [] },
+        traceabilityMap: {}
+      };
+    }
+
+    const fullTranscript = utterances.map((u) => `${u.speaker || "Speaker"}: ${u.text}`).join("\n");
+    const verificationSummary = verifiedClaims.map(c => `- [${c.speaker || "Speaker"}] Claim: "${c.text}" | Status: ${c.status}`).join("\n");
+    const consistencyBlob = consistencyWarnings.length > 0 ? `### INTERNAL CONTRADICTIONS DETECTED:\n${consistencyWarnings.join("\n")}` : "None detected.";
+
+    // v5.1 & v8.4: Long-form Transcript Handling (Map-Reduce Summarization)
+    const MAX_TRANSCRIPT_CHARS = 18000;
+    let transcriptSnippet = fullTranscript;
+    
+    if (fullTranscript.length > MAX_TRANSCRIPT_CHARS) {
+      logger.info("[FactExtraction] Large transcript detected — using Map-Reduce synthesis", { 
+        length: fullTranscript.length, 
+        limit: MAX_TRANSCRIPT_CHARS 
+      });
+      
+      // Step 1: Map (Summarize segments in parallel)
+      const segmentSize = Math.floor(utterances.length / 4); // 4 major segments
+      const segments: { segmentUtterances: Utterance[]; index: number }[] = [];
+      for (let i = 0; i < utterances.length; i += segmentSize) {
+        segments.push({ segmentUtterances: utterances.slice(i, i + segmentSize), index: i });
+      }
+
+      const segmentSummariesResults = await Promise.all(
+        segments.map(async (segment) => {
+          const segmentText = segment.segmentUtterances.map(u => `${u.speaker || 'Speaker'}: ${u.text}`).join("\n");
+          const segmentChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
+          return withAiRetry(async (modelId: string) => {
+            const activeModel = this.genAI.getGenerativeModel({ model: modelId });
+            const res = await activeModel.generateContent(`Summarize this transcript segment briefly (focus on core arguments and key facts):\n\n${segmentText.substring(0, 10000)}`);
+            return `SEGMENT ${Math.floor(segment.index/segmentSize) + 1} SUMMARY:\n${res.response.text()}`;
+          }, segmentChain, { maxAttempts: 4, instanceId: `SegmentSummary-${segment.index}` }).catch(() => "Segment summary unavailable.");
+        })
+      );
+      
+      const segmentSummaries = segmentSummariesResults;
+      
+      // Step 2: Combine for final reduce prompt
+      transcriptSnippet = "AGGREGATED SEGMENT SUMMARIES (Longform Content):\n" + segmentSummaries.join("\n\n") + 
+                         "\n\nFINAL TRANSCRIPT TAIL (Direct Context):\n" + fullTranscript.slice(-5000);
+    }
+
+    const personas = {
+      standard: "Neutral Intelligence Analyst. Follow 'Rational Neutrality' rules: respect miracle narratives as faith-based contexts and never penalize theological beliefs. Focus on factual accuracy of empirical claims.",
+      deep:     "Deep-Context Intelligence Analyst. Specialize in source integrity and ontology. Strictly distinguish between 'Faith Truth' (scriptural) and 'Empirical Truth' (scientific). Apply the 'Faith Context' label for traditions.",
+      podcast:  "Podcast & Debate Expert. Analyze speaker stance, host/guest dynamics, and 'Manipulation Signals'. Detect emotional coercion, rage-bait, and fake urgency."
+    };
+
+    // v5.3: Adaptive Mode Instructions
+    let modeInstruction = "";
+    if (context.pipelineMode === "multi" || context.pipelineMode === "debate") {
+      modeInstruction = `
+### MULTI-SPEAKER MODE: ${context.pipelineMode.toUpperCase()}
+1. Identify the ROLE of each speaker (Host, Guest, Interviewer, Expert, Caller).
+2. Analyze "Claim Ownership": Who is introducing the facts? Who is verifying them?
+3. Detect "Corrective Dynamics": If one speaker corrects another, note it in the summary.
+4. Flag "Crosstalk/Chaos": If there are 4+ speakers or heavy overlap, adjust confidence accordingly.`;
+
+      if (context.speakerPriors && Object.keys(context.speakerPriors).length > 0) {
+        const priorsInfo = Object.entries(context.speakerPriors).map(([id, p]: any) => {
+          const name = Object.values(context.speakerIdentities || {}).find((i: any) => i.id === id)?.name || id;
+          return `- ${name}: Prior Trust Label "${p.trustLevel || 'Developing'}" (Historical Accuracy: ${(p.factualAccuracy * 100).toFixed(0)}%)`;
+        }).join("\n");
+
+        modeInstruction += `\n\n### SPEAKER REPUTATION (FOR CONTEXT ONLY):
+Use these priors to guide your confidence in their expertise, but NEVER let them override current evidence:
+${priorsInfo}`;
+      }
+    }
+
+    const chapterInstruction = tier === "standard" 
+      ? "Divide transcript into fixed 10-minute trust windows." 
+      : "Perform SEMANTIC chaptering: detect topic shifts and assign a trustIndex to each chapter.";
+
+    const prompt = `You are a ${personas[tier]}. Produce an institutional-grade Trust Report.
+    
+### CORE PRINCIPLE: EVIDENCE-BOUNDED SYNTHESIS (v10.0)
+Your summary and conclusion MUST be strictly derived from the provided transcript and verified claims. 
+1. DO NOT use your own external training data to verify facts.
+2. DO NOT make definitive statements that are not supported by the "Verified Claims" list.
+3. If no claims were verified, explicitly state that the analysis is structural only.
+
+### INPUT DATA
+1. TRANSCRIPT (Sanitized):
+"""
+${transcriptSnippet} 
+"""
+
+2. VERIFIED CLAIMS:
+${verificationSummary.substring(0, 5000)}
+
+3. ${consistencyBlob}
+
+${modeInstruction}
+
+Produce a JSON response with:
+1. summary: A faithful representation of the speaker's arguments (ignore your own checks here).
+2. conclusion: Evidence-adjusted synthesis (label: Supported|Mixed|Contested|Unsupported).
+3. hallucinationIsolation: (v10.0) Separate the following:
+   - "verifiedFacts": Statements directly supported by the "Verified Claims" list.
+   - "modelInterpretations": Analytical interpretations of the speaker's intent or structure.
+   - "uncertainInferences": Statements where the evidence is insufficient or logic is speculative.
+4. traceabilityMap: (v10.0) Map each distinct sentence/point in the "conclusion" to the relevant "claimId"s from the verified claims (if any). Format: {"sentence text": ["claim_id_1", "claim_id_2"]}.
+5. knowledgeDensity: 0.0-1.0.
+6. keyThemes: 3-5 major topics.
+7. viewerNote: Strategic pro-tip/warning.
+8. manipulationScore: 0.0-1.0.
+9. manipulationSignals: Explicitly label as "Hype/Promotion", "Rage-bait", "Fear-mongering", or "Political Spin".
+10. chapters: ${chapterInstruction}
+11. speakerRoles: Map each speaker to a detected role (Host|Guest|Expert|Caller|Other).
+
+Return ONLY valid JSON according to:
+{
+  "summary": "...",
+  "conclusion": { "label": "...", "text": "...", "confidence": 0.9 },
+  "hallucinationIsolation": {
+    "verifiedFacts": ["..."],
+    "modelInterpretations": ["..."],
+    "uncertainInferences": ["..."]
+  },
+  "traceabilityMap": { "point 1": ["claim_1"], "point 2": ["claim_2"] },
+  "knowledgeDensity": 0.85,
+  "keyThemes": ["..."],
+  "viewerNote": "...",
+  "manipulationScore": 0.4,
+  "manipulationSignals": ["..."],
+  "chapters": [
+    { "index": 0, "title": "...", "start": 0, "end": 600000, "trustIndex": 8.5, "primaryTopics": ["..."] }
+  ],
+  "speakerRoles": { "Speaker A": "Host" }
+}
+
+#### RATIONAL NEUTRALITY RULES:
+1. If content is religious/scriptural: Use status "faith_context" if it is a miracle/tradition. 
+2. If it is sacred geography/history: Use status "tradition_linked".
+3. Use the following reasoning: "This claim is rooted in religious belief and scripture. It carries significance within faith traditions, but no independently verified empirical evidence currently confirms it as a historical event."
+4. DO NOT use "faith_context" for modern factual claims (e.g., vaccines, financial advice) even if religion is mentioned.
+5. MANIPULATION CLASSIFICATION: Distinguish between "Marketing Hype" (stunning, crazy, amazing) and "Rage-bait" (outrageous, corrupt, woke, dangerous). Marketing hype should yield a lower manipulationScore than rage-bait.
+6. INTELLIGENT NEUTRALITY: If the transcript is primarily legal or political questions, inquiries, or interpretations, ensure the viewerNote is neutral and educational. Suggest specific types of sources for research (e.g., "consult court rulings", "check parliamentary records") rather than making definitive conclusions.`;
+
+    const narrativeChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
+    return withAiRetry(async (modelId: string) => {
+      const activeModel = this.genAI.getGenerativeModel({ model: modelId });
+      const response = await activeModel.generateContent(prompt);
+      const text = response.response.text();
+      const jsonMatch = this.extractJSON(text);
+      if (!jsonMatch) throw new Error("No JSON found");
+
+      const parsed = JSON.parse(jsonMatch);
+      return {
+        summary:          parsed.summary || "Summary unavailable.",
+        conclusion:       parsed.conclusion || { label: "Error", text: "Error in synthesis", confidence: 0 },
+        hallucinationIsolation: parsed.hallucinationIsolation || { verifiedFacts: [], modelInterpretations: [], uncertainInferences: [] },
+        traceabilityMap:  parsed.traceabilityMap || {},
+        knowledgeDensity: parsed.knowledgeDensity || 0.5,
+        keyThemes:        parsed.keyThemes || [],
+        viewerNote:       parsed.viewerNote || "No viewer notes.",
+        manipulationScore: parsed.manipulationScore || 0.0,
+        manipulationSignals: parsed.manipulationSignals || [],
+        chapters:         parsed.chapters || [],
+        speakerRoles:     parsed.speakerRoles || {}
+      };
+    }, narrativeChain, { maxAttempts: 4, instanceId: `TieredIntelligence-${tier}` });
+  }
+
+  /**
+   * 🛡 NEW: Global Consistency Engine
+   * Cross-references claims across chunk boundaries to find stance shifts.
+   */
+  public async detectInternalContradictions(claims: VerifiedClaim[]): Promise<{ hasContradiction: boolean; details: string; claimNature: ClaimNature }> {
+    if (claims.length < 5) return { hasContradiction: false, details: "", claimNature: ClaimNature.FACTUAL };
+
+    const claimSummary = claims
+      .map(c => `[Speaker: ${c.speaker}] Claim: "${c.text}" | Timestamp: ${c.start}ms`)
+      .join("\n");
+
+    const prompt = `You are a Logical Consistency Auditor. Compare the following claims from the same transcript.
+Do any claims made later contradict or significantly reverse claims made earlier?
+
+Claims:
+${claimSummary}
+
+Return a JSON array of strings, each describing a specific contradiction found.
+Format: ["At 12:05 Speaker A said X, but at 44:20 they said Y."]
+If no contradictions, return [].
+Return ONLY valid JSON.`;
+
+    const contradictionChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
+    return withAiRetry(async (modelId: string) => {
+      const activeModel = this.genAI.getGenerativeModel({ model: modelId });
+      const response = await activeModel.generateContent(prompt);
+      const text = response.response.text();
+      const jsonMatch = this.extractJSON(text);
+      return jsonMatch ? JSON.parse(jsonMatch) : [];
+    }, contradictionChain, { maxAttempts: 3, instanceId: "InternalContradictions" }).catch(() => []);
+  }
+
+  /**
+   * Helper to extract JSON from marked up text
+   */
+  private extractJSON(text: string): string | null {
+    // 1. Try to find JSON within code blocks first
+    const codeBlockMatch = text.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+    if (codeBlockMatch) return codeBlockMatch[1];
+
+    // 2. Fallback to finding first { and last }
+    const match = text.match(/\{[\s\S]*\}/);
+    return match ? match[0] : null;
+  }
+  /**
+   * 🏷 v7: Identity Extraction (Quick Pass)
+   */
+  async extractSpeakerNames(sampleText: string): Promise<Record<string, string>> {
+    const prompt = `Identify the real names of the speakers in this transcript if they are mentioned or can be inferred (e.g. from introductions).
+Transcript Sample:
+"""
+${sampleText}
+"""
+
+Return a JSON map: {"Speaker Label": "Real Name or Unknown"}. 
+Example: {"Speaker A": "John Smith", "Speaker B": "Unknown"}.
+Return ONLY JSON.`;
+
+    const speakerChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
+    return withAiRetry(async (modelId: string) => {
+      const activeModel = this.genAI.getGenerativeModel({ model: modelId });
+      const res = await activeModel.generateContent(prompt);
+      const text = res.response.text();
+      const match = text.match(/\{[\s\S]*\}/);
+      return match ? JSON.parse(match[0]) : {};
+    }, speakerChain, { maxAttempts: 3, instanceId: "SpeakerNameExtraction" }).catch(() => ({}));
+  }
+}

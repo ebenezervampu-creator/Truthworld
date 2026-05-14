@@ -1,0 +1,497 @@
+﻿Analyzing truthworld...                                         
+
+warning - Unused import: 'package:truthworld/core/theme/app_theme.dart' - lib\core\services\feedback\implementation_in_progress.dart:1:8 - unused_import
+warning - Unused import: 'package:truthworld/core/theme/app_theme.dart' - lib\core\services\feedback\quick_reference.dart:1:8 - unused_import
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\services\feedback\toast_service.dart:27:48 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\services\feedback\toast_service.dart:28:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\services\feedback\toast_service.dart:39:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\services\feedback\toast_service.dart:40:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\services\feedback\toast_service.dart:51:48 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\services\feedback\toast_service.dart:52:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\services\feedback\toast_service.dart:63:45 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\core\services\feedback\toast_service.dart:64:41 - deprecated_member_use
+   info - Instances of 'Color' should be created using an 8-digit hexadecimal integer (such as '0xFFFFFFFF') - lib\core\theme\crimson_noir_theme.dart:152:39 - use_full_hex_values_for_flutter_colors
+  error - The argument type '({BorderRadius borderRadius})' can't be assigned to the parameter type 'ShapeBorder?'.  - lib\core\theme\crimson_noir_theme.dart:787:25 - argument_type_not_assignable
+  error - The named parameter 'selectedLabelTextStyle' isn't defined - lib\core\theme\crimson_noir_theme.dart:823:9 - undefined_named_parameter
+  error - The named parameter 'unselectedLabelTextStyle' isn't defined - lib\core\theme\crimson_noir_theme.dart:828:9 - undefined_named_parameter
+  error - The named parameter 'labelTextStyle' isn't defined - lib\core\theme\crimson_noir_theme.dart:856:9 - undefined_named_parameter
+  error - The named parameter 'unselectedLabelTextStyle' isn't defined - lib\core\theme\crimson_noir_theme.dart:860:9 - undefined_named_parameter
+  error - The named parameter 'labelTextStyle' isn't defined - lib\core\theme\crimson_noir_theme.dart:1183:9 - undefined_named_parameter
+  error - The argument type '({BorderRadius borderRadius})' can't be assigned to the parameter type 'ShapeBorder?'.  - lib\core\theme\crimson_noir_theme.dart:1316:25 - argument_type_not_assignable
+  error - The named parameter 'selectedLabelTextStyle' isn't defined - lib\core\theme\crimson_noir_theme.dart:1352:9 - undefined_named_parameter
+  error - The named parameter 'unselectedLabelTextStyle' isn't defined - lib\core\theme\crimson_noir_theme.dart:1357:9 - undefined_named_parameter
+  error - The named parameter 'labelTextStyle' isn't defined - lib\core\theme\crimson_noir_theme.dart:1385:9 - undefined_named_parameter
+  error - The named parameter 'unselectedLabelTextStyle' isn't defined - lib\core\theme\crimson_noir_theme.dart:1389:9 - undefined_named_parameter
+  error - The element type 'Widget?' can't be assigned to the list type 'Widget' - lib\core\theme\interaction_constants.dart:273:13 - list_element_type_not_assignable
+  error - The named parameter 'margin' isn't defined - lib\core\theme\responsive_utils.dart:554:15 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\core\theme\responsive_utils.dart:555:15 - undefined_named_parameter
+  error - Variables must be declared using the keywords 'const', 'final', 'var' or a type name - lib\core\theme\spacing_constants.dart:65:11 - missing_const_final_var_or_type
+  error - Variables must be declared using the keywords 'const', 'final', 'var' or a type name - lib\core\theme\spacing_constants.dart:66:11 - missing_const_final_var_or_type
+  error - Variables must be declared using the keywords 'const', 'final', 'var' or a type name - lib\core\theme\spacing_constants.dart:67:11 - missing_const_final_var_or_type
+  error - Variables must be declared using the keywords 'const', 'final', 'var' or a type name - lib\core\theme\spacing_constants.dart:68:11 - missing_const_final_var_or_type
+  error - Variables must be declared using the keywords 'const', 'final', 'var' or a type name - lib\core\theme\spacing_constants.dart:69:11 - missing_const_final_var_or_type
+  error - Variables must be declared using the keywords 'const', 'final', 'var' or a type name - lib\core\theme\spacing_constants.dart:70:11 - missing_const_final_var_or_type
+  error - Variables must be declared using the keywords 'const', 'final', 'var' or a type name - lib\core\theme\spacing_constants.dart:73:11 - missing_const_final_var_or_type
+  error - Variables must be declared using the keywords 'const', 'final', 'var' or a type name - lib\core\theme\spacing_constants.dart:74:11 - missing_const_final_var_or_type
+  error - Variables must be declared using the keywords 'const', 'final', 'var' or a type name - lib\core\theme\spacing_constants.dart:75:11 - missing_const_final_var_or_type
+  error - Variables must be declared using the keywords 'const', 'final', 'var' or a type name - lib\core\theme\spacing_constants.dart:76:11 - missing_const_final_var_or_type
+  error - Variables must be declared using the keywords 'const', 'final', 'var' or a type name - lib\core\theme\spacing_constants.dart:77:11 - missing_const_final_var_or_type
+  error - Variables must be declared using the keywords 'const', 'final', 'var' or a type name - lib\core\theme\spacing_constants.dart:80:11 - missing_const_final_var_or_type
+  error - Variables must be declared using the keywords 'const', 'final', 'var' or a type name - lib\core\theme\spacing_constants.dart:81:11 - missing_const_final_var_or_type
+  error - Variables must be declared using the keywords 'const', 'final', 'var' or a type name - lib\core\theme\spacing_constants.dart:82:11 - missing_const_final_var_or_type
+  error - Variables must be declared using the keywords 'const', 'final', 'var' or a type name - lib\core\theme\spacing_constants.dart:83:11 - missing_const_final_var_or_type
+  error - Variables must be declared using the keywords 'const', 'final', 'var' or a type name - lib\core\theme\spacing_constants.dart:84:11 - missing_const_final_var_or_type
+warning - Unused import: 'package:truthworld/core/theme/app_tokens.dart' - lib\core\theme\theme_manager.dart:3:8 - unused_import
+  error - The named parameter 'selectedLabelTextStyle' isn't defined - lib\core\theme\theme_manager.dart:313:7 - undefined_named_parameter
+  error - The named parameter 'unselectedLabelTextStyle' isn't defined - lib\core\theme\theme_manager.dart:314:7 - undefined_named_parameter
+  error - The element type '()' can't be assigned to the list type 'Widget' - lib\core\utils\getx_utils.dart:163:13 - list_element_type_not_assignable
+  error - The returned type 'Object' isn't returnable from a 'Widget?' function, as required by the closure's context - lib\core\utils\pagination_utils.dart:242:22 - return_of_invalid_type_from_closure
+  error - The returned type 'Object' isn't returnable from a 'Widget?' function, as required by the closure's context - lib\core\utils\pagination_utils.dart:310:24 - return_of_invalid_type_from_closure
+  error - The argument type 'String' can't be assigned to the parameter type 'Widget?'.  - lib\core\utils\route_guards.dart:43:19 - argument_type_not_assignable
+   info - Constructors for public widgets should have a named 'key' parameter - lib\core\widgets\icon_button_custom.dart:17:7 - use_key_in_widget_constructors
+  error - The final variable 'icon' must be initialized - lib\core\widgets\icon_button_custom.dart:18:18 - final_not_initialized
+  error - The final variable 'onPressed' must be initialized - lib\core\widgets\icon_button_custom.dart:19:23 - final_not_initialized
+  error - The final variable 'size' must be initialized - lib\core\widgets\icon_button_custom.dart:20:24 - final_not_initialized
+  error - The final variable 'variant' must be initialized - lib\core\widgets\icon_button_custom.dart:21:27 - final_not_initialized
+  error - The final variable 'isLoading' must be initialized - lib\core\widgets\icon_button_custom.dart:22:14 - final_not_initialized
+  error - The final variable 'tooltip' must be initialized - lib\core\widgets\icon_button_custom.dart:23:17 - final_not_initialized
+  error - The final variable 'color' must be initialized - lib\core\widgets\icon_button_custom.dart:24:16 - final_not_initialized
+  error - The final variable 'iconSize' must be initialized - lib\core\widgets\icon_button_custom.dart:25:17 - final_not_initialized
+   info - Missing type annotation - lib\core\widgets\icon_button_custom.dart:27:3 - strict_top_level_inference
+   info - The variable name 'ButtonCustom' isn't a lowerCamelCase identifier - lib\core\widgets\icon_button_custom.dart:27:3 - non_constant_identifier_names
+  error - 'ButtonCustom' must have a method body because 'IconButtonCustom' isn't abstract - lib\core\widgets\icon_button_custom.dart:27:3 - concrete_class_with_abstract_member
+  error - Super parameters can only be used in non-redirecting generative constructors - lib\core\widgets\icon_button_custom.dart:28:5 - invalid_super_formal_parameter_location
+  error - Field formal parameters can only be used in a constructor - lib\core\widgets\icon_button_custom.dart:29:5 - field_initializer_outside_constructor
+  error - Field formal parameters can only be used in a constructor - lib\core\widgets\icon_button_custom.dart:30:5 - field_initializer_outside_constructor
+  error - Field formal parameters can only be used in a constructor - lib\core\widgets\icon_button_custom.dart:31:5 - field_initializer_outside_constructor
+  error - Field formal parameters can only be used in a constructor - lib\core\widgets\icon_button_custom.dart:32:5 - field_initializer_outside_constructor
+  error - Field formal parameters can only be used in a constructor - lib\core\widgets\icon_button_custom.dart:33:5 - field_initializer_outside_constructor
+  error - Field formal parameters can only be used in a constructor - lib\core\widgets\icon_button_custom.dart:34:5 - field_initializer_outside_constructor
+  error - Field formal parameters can only be used in a constructor - lib\core\widgets\icon_button_custom.dart:35:5 - field_initializer_outside_constructor
+  error - Field formal parameters can only be used in a constructor - lib\core\widgets\icon_button_custom.dart:36:5 - field_initializer_outside_constructor
+  error - The named parameter 'constraints' isn't defined - lib\core\widgets\layout_container.dart:32:9 - undefined_named_parameter
+  error - The named parameter 'padding' isn't defined - lib\core\widgets\layout_container.dart:33:9 - undefined_named_parameter
+warning - Unused import: 'package:truthworld/core/theme/app_tokens.dart' - lib\core\widgets\modern_video_card.dart:9:8 - unused_import
+  error - The named parameter 'decoration' isn't defined - lib\core\widgets\modern_video_card.dart:240:15 - undefined_named_parameter
+  error - The named parameter 'alignment' isn't defined - lib\core\widgets\network\network_listener.dart:114:19 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\core\widgets\optimized_image.dart:209:9 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\core\widgets\optimized_image.dart:217:7 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\core\widgets\optimized_verification_ui.dart:186:19 - undefined_named_parameter
+  error - The getter 'circularMd' isn't defined for the type 'BorderRadius' - lib\core\widgets\primary_button.dart:170:40 - undefined_getter
+  error - The named parameter 'thickness' isn't defined - lib\core\widgets\responsive_page_template.dart:76:13 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\core\widgets\responsive_page_template.dart:77:13 - undefined_named_parameter
+   info - Use a 'SizedBox' to add whitespace to a layout - lib\core\widgets\responsive_video_grid.dart:228:12 - sized_box_for_whitespace
+  error - The named parameter 'thickness' isn't defined - lib\core\widgets\standard_header.dart:47:13 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\core\widgets\standard_header.dart:48:13 - undefined_named_parameter
+  error - The getter 'circularMd' isn't defined for the type 'BorderRadius' - lib\core\widgets\standard_sidebar.dart:141:36 - undefined_getter
+  error - The getter 'circularMd' isn't defined for the type 'BorderRadius' - lib\core\widgets\standard_sidebar.dart:145:36 - undefined_getter
+  error - The getter 'circularMd' isn't defined for the type 'BorderRadius' - lib\core\widgets\standard_sidebar.dart:148:38 - undefined_getter
+  error - The named parameter 'margin' isn't defined - lib\core\widgets\standard_sidebar.dart:164:21 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\core\widgets\standard_sidebar.dart:165:21 - undefined_named_parameter
+  error - The element type '({Color color})' can't be assigned to the list type 'Widget' - lib\features\about\presentation\pages\about_page.dart:1024:11 - list_element_type_not_assignable
+  error - The named parameter 'padding' isn't defined - lib\features\analytics\presentation\pages\creator_analytics_dashboard.dart:383:7 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\analytics\presentation\pages\creator_analytics_dashboard.dart:384:7 - undefined_named_parameter
+  error - The named parameter 'titleTextStyle' isn't defined - lib\features\analytics\presentation\pages\creator_analytics_dashboard.dart:468:23 - undefined_named_parameter
+  error - The named parameter 'titleTextStyle' isn't defined - lib\features\analytics\presentation\pages\creator_analytics_dashboard.dart:534:23 - undefined_named_parameter
+  error - The named parameter 'titleTextStyle' isn't defined - lib\features\analytics\presentation\pages\creator_analytics_dashboard.dart:639:25 - undefined_named_parameter
+  error - The named parameter 'titleTextStyle' isn't defined - lib\features\analytics\presentation\widgets\analytics_charts_widget.dart:28:11 - undefined_named_parameter
+  error - The named parameter 'titleTextStyle' isn't defined - lib\features\analytics\presentation\widgets\analytics_charts_widget.dart:135:11 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\analytics\presentation\widgets\analytics_charts_widget.dart:432:41 - undefined_named_parameter
+  error - Expected an identifier - lib\features\category\presentation\pages\category_page.dart:530:23 - missing_identifier
+  error - The named parameter '' isn't defined - lib\features\category\presentation\pages\category_page.dart:530:26 - undefined_named_parameter
+  error - The named parameter 'margin' isn't defined - lib\features\category\presentation\pages\category_page.dart:1215:7 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\category\presentation\pages\category_page.dart:1789:19 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\category\presentation\pages\category_page.dart:1976:17 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\category\presentation\pages\category_page.dart:1981:17 - undefined_named_parameter
+  error - The named parameter 'margin' isn't defined - lib\features\category\presentation\pages\category_page.dart:2033:13 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\category\presentation\pages\category_page.dart:2034:13 - undefined_named_parameter
+warning - Unused import: 'package:truthworld/core/theme/app_tokens.dart' - lib\features\category\presentation\pages\tandc_for_channel.dart:4:8 - unused_import
+warning - Unused import: 'package:truthworld/core/theme/crimson_noir_theme.dart' - lib\features\category\presentation\pages\tandc_for_channel.dart:5:8 - unused_import
+  error - The named parameter 'decoration' isn't defined - lib\features\category\presentation\pages\tandc_for_channel.dart:167:9 - undefined_named_parameter
+  error - Expected an identifier - lib\features\channel\presentation\controllers\channel_controller.dart:552:23 - missing_identifier
+  error - The named parameter '' isn't defined - lib\features\channel\presentation\controllers\channel_controller.dart:552:26 - undefined_named_parameter
+  error - The named parameter 'unselectedLabelTextStyle' isn't defined - lib\features\channel\presentation\pages\channel_details_page.dart:1110:9 - undefined_named_parameter
+  error - The named parameter 'margin' isn't defined - lib\features\channel\presentation\pages\channel_details_page.dart:1865:7 - undefined_named_parameter
+  error - The named parameter 'margin' isn't defined - lib\features\channel\presentation\pages\channel_details_page.dart:2078:15 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\channel\presentation\pages\channel_details_page.dart:2093:21 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\channel\presentation\pages\channel_details_page.dart:2136:17 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\channel\presentation\pages\channel_details_page.dart:2170:21 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\channel\presentation\pages\channel_details_page.dart:2196:17 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\channel\presentation\pages\channel_details_page.dart:2208:23 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\channel\presentation\pages\channel_details_page.dart:2211:54 - undefined_named_parameter
+  error - The element type 'String' can't be assigned to the list type 'Widget' - lib\features\channel\presentation\pages\channel_screen_wizard_page.dart:144:25 - list_element_type_not_assignable
+  error - The named parameter 'margin' isn't defined - lib\features\channel\presentation\pages\channel_screen_wizard_page.dart:174:25 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\channel\presentation\pages\channel_screen_wizard_page.dart:175:25 - undefined_named_parameter
+  error - The element type '({Divider child, EdgeInsets padding})' can't be assigned to the list type 'Widget' - lib\features\channel\presentation\pages\channel_screen_wizard_page.dart:393:15 - list_element_type_not_assignable
+  error - The argument type 'Null Function<Color>(InvalidType)' can't be assigned to the parameter type 'Animation<Color?>?'.  - lib\features\channel\presentation\pages\channel_screen_wizard_page.dart:1381:29 - argument_type_not_assignable
+   info - The type parameter name 'Color' matches a visible type name - lib\features\channel\presentation\pages\channel_screen_wizard_page.dart:1381:30 - avoid_types_as_parameter_names
+  error - Colors.white isn't a type - lib\features\channel\presentation\pages\channel_screen_wizard_page.dart:1381:37 - not_a_type
+  error - Expected an identifier - lib\features\channel\presentation\pages\channel_screen_wizard_page.dart:1381:49 - missing_identifier
+  error - A function body must be provided - lib\features\channel\presentation\pages\channel_screen_wizard_page.dart:1381:50 - missing_function_body
+  error - Unexpected text ',' - lib\features\channel\presentation\pages\channel_screen_wizard_page.dart:1381:50 - unexpected_token
+  error - 1 positional argument expected by 'Text.new', but 0 found - lib\features\channel\presentation\widgets\milestone_timeline.dart:25:9 - not_enough_positional_arguments
+  error - The named parameter 'child' isn't defined - lib\features\channel\presentation\widgets\milestone_timeline.dart:25:9 - undefined_named_parameter
+  error - The argument type '({int crossAxisCount, int crossAxisSpacing, int mainAxisSpacing})' can't be assigned to the parameter type 'SliverGridDelegate'.  - lib\features\community\presentation\pages\community_post_upload_page.dart:197:33 - argument_type_not_assignable
+  error - 1 positional argument expected by 'Text.new', but 0 found - lib\features\community\presentation\pages\community_post_upload_page.dart:261:31 - not_enough_positional_arguments
+  error - The named parameter 'child' isn't defined - lib\features\community\presentation\pages\community_post_upload_page.dart:261:31 - undefined_named_parameter
+  error - The named parameter 'margin' isn't defined - lib\features\community\presentation\pages\community_post_upload_page.dart:987:17 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\community\presentation\pages\community_post_upload_page.dart:988:17 - undefined_named_parameter
+warning - Unused import: 'package:truthworld/core/theme/app_tokens.dart' - lib\features\community\presentation\pages\poll_upload_page.dart:8:8 - unused_import
+warning - Unused import: 'package:truthworld/core/theme/crimson_noir_theme.dart' - lib\features\community\presentation\pages\poll_upload_page.dart:9:8 - unused_import
+  error - The named parameter 'color' isn't defined - lib\features\content\presentation\pages\privacy_policy_page.dart:102:7 - undefined_named_parameter
+  error - The named parameter 'thickness' isn't defined - lib\features\content\presentation\pages\privacy_policy_page.dart:223:46 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\content\presentation\pages\terms_page.dart:97:7 - undefined_named_parameter
+  error - The named parameter 'thickness' isn't defined - lib\features\content\presentation\pages\terms_page.dart:219:46 - undefined_named_parameter
+  error - 1 positional argument expected by 'Text.new', but 0 found - lib\features\dashboard\presentation\pages\analytics_page.dart:66:21 - not_enough_positional_arguments
+  error - The named parameter 'mainAxisSize' isn't defined - lib\features\dashboard\presentation\pages\analytics_page.dart:66:21 - undefined_named_parameter
+  error - The named parameter 'children' isn't defined - lib\features\dashboard\presentation\pages\analytics_page.dart:67:21 - undefined_named_parameter
+  error - The returned type '({Center child, EdgeInsets padding})' isn't returnable from a 'Widget' function, as required by the closure's context - lib\features\dashboard\presentation\pages\comment_section.dart:1167:26 - return_of_invalid_type_from_closure
+  error - The returned type '({Color color, int height})' isn't returnable from a 'Widget' function, as required by the closure's context - lib\features\dashboard\presentation\pages\comment_section.dart:1189:25 - return_of_invalid_type_from_closure
+  error - The named parameter 'color' isn't defined - lib\features\dashboard\presentation\pages\comment_section.dart:1270:11 - undefined_named_parameter
+  error - The named parameter 'margin' isn't defined - lib\features\dashboard\presentation\pages\comment_section.dart:1271:11 - undefined_named_parameter
+warning - Unused import: 'package:truthworld/core/theme/crimson_noir_theme.dart' - lib\features\dashboard\presentation\pages\content_page.dart:7:8 - unused_import
+  error - The argument type '({Color iconColor, Color textColor})' can't be assigned to the parameter type 'ListTileThemeData?'.  - lib\features\dashboard\presentation\pages\copyright_page.dart:38:22 - argument_type_not_assignable
+  error - The argument type 'ThemeData' can't be assigned to the parameter type 'IconThemeData?'.  - lib\features\dashboard\presentation\pages\customization_page.dart:57:20 - argument_type_not_assignable
+  error - The named parameter 'color' isn't defined - lib\features\dashboard\presentation\pages\customization_page.dart:57:30 - undefined_named_parameter
+  error - The returned type '({SizedBox child, EdgeInsets padding})' isn't returnable from a 'Widget' function, as required by the closure's context - lib\features\dashboard\presentation\pages\customization_page.dart:73:22 - return_of_invalid_type_from_closure
+warning - Unused import: 'package:truthworld/core/theme/crimson_noir_theme.dart' - lib\features\dashboard\presentation\pages\dashboard_comments_page.dart:5:8 - unused_import
+  error - The named parameter 'color' isn't defined - lib\features\dashboard\presentation\pages\dashboard_comments_page.dart:143:29 - undefined_named_parameter
+  error - The argument type 'Null Function<Color>(dynamic Function(dynamic))' can't be assigned to the parameter type 'Animation<Color?>?'.  - lib\features\dashboard\presentation\pages\dashboard_page.dart:424:27 - argument_type_not_assignable
+   info - The type parameter name 'Color' matches a visible type name - lib\features\dashboard\presentation\pages\dashboard_page.dart:424:28 - avoid_types_as_parameter_names
+   info - The variable name 'Color' isn't a lowerCamelCase identifier - lib\features\dashboard\presentation\pages\dashboard_page.dart:425:17 - non_constant_identifier_names
+   info - Use the generic function type syntax to declare the parameter 'Color' - lib\features\dashboard\presentation\pages\dashboard_page.dart:425:17 - use_function_type_syntax_for_parameters
+  error - Expected an identifier - lib\features\dashboard\presentation\pages\dashboard_page.dart:425:23 - missing_identifier
+  error - A function body must be provided - lib\features\dashboard\presentation\pages\dashboard_page.dart:426:16 - missing_function_body
+  error - Unexpected text ',' - lib\features\dashboard\presentation\pages\dashboard_page.dart:426:16 - unexpected_token
+   info - 'background' is deprecated and shouldn't be used. Use surface instead. This feature was deprecated after v3.18.0-0.1.pre - lib\features\dashboard\presentation\pages\dashboard_page.dart:437:38 - deprecated_member_use
+warning - The value of the local variable 'isDarkMode' isn't used - lib\features\dashboard\presentation\pages\dashboard_page.dart:463:11 - unused_local_variable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\dashboard\presentation\pages\dashboard_page.dart:488:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\dashboard\presentation\pages\dashboard_page.dart:504:46 - deprecated_member_use
+warning - The value of the local variable 'isDarkMode' isn't used - lib\features\dashboard\presentation\pages\dashboard_page.dart:568:11 - unused_local_variable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\dashboard\presentation\pages\dashboard_page.dart:575:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\dashboard\presentation\pages\dashboard_page.dart:585:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\dashboard\presentation\pages\dashboard_page.dart:589:42 - deprecated_member_use
+  error - The named parameter 'alignment' isn't defined - lib\features\dashboard\presentation\pages\dashboard_page.dart:634:15 - undefined_named_parameter
+warning - The declaration '_buildChannelSelector' isn't referenced - lib\features\dashboard\presentation\pages\dashboard_page.dart:696:10 - unused_element
+warning - The value of the local variable 'isDarkMode' isn't used - lib\features\dashboard\presentation\pages\dashboard_page.dart:698:11 - unused_local_variable
+  error - The named parameter 'margin' isn't defined - lib\features\dashboard\presentation\pages\dashboard_page.dart:714:13 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\dashboard\presentation\pages\dashboard_page.dart:715:13 - undefined_named_parameter
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\dashboard\presentation\pages\dashboard_page.dart:825:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\dashboard\presentation\pages\dashboard_page.dart:873:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\dashboard\presentation\pages\dashboard_page.dart:1026:44 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\dashboard\presentation\pages\dashboard_page.dart:1039:40 - deprecated_member_use
+warning - The value of the local variable 'colorScheme' isn't used - lib\features\dashboard\presentation\pages\dashboard_page.dart:1128:11 - unused_local_variable
+warning - The value of the local variable 'colorScheme' isn't used - lib\features\dashboard\presentation\pages\dashboard_page.dart:1480:11 - unused_local_variable
+warning - The value of the local variable 'colorScheme' isn't used - lib\features\dashboard\presentation\pages\dashboard_page.dart:1561:11 - unused_local_variable
+  error - Undefined name 'isDarkMode' - lib\features\dashboard\presentation\pages\dashboard_page.dart:1619:44 - undefined_identifier
+  error - Undefined name 'isDarkMode' - lib\features\dashboard\presentation\pages\dashboard_page.dart:1621:43 - undefined_identifier
+  error - Undefined name 'isDarkMode' - lib\features\dashboard\presentation\pages\dashboard_page.dart:1633:48 - undefined_identifier
+warning - The value of the local variable 'isDarkMode' isn't used - lib\features\dashboard\presentation\pages\dashboard_page.dart:1795:11 - unused_local_variable
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\dashboard\presentation\pages\dashboard_page.dart:1801:38 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\dashboard\presentation\pages\dashboard_page.dart:1810:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\features\dashboard\presentation\pages\dashboard_page.dart:1814:42 - deprecated_member_use
+warning - The value of the local variable 'isDarkMode' isn't used - lib\features\dashboard\presentation\pages\dashboard_page.dart:1827:11 - unused_local_variable
+warning - The value of the local variable 'colorScheme' isn't used - lib\features\dashboard\presentation\pages\dashboard_page.dart:1970:11 - unused_local_variable
+warning - The value of the local variable 'isDarkMode' isn't used - lib\features\dashboard\presentation\pages\dashboard_page.dart:2182:11 - unused_local_variable
+  error - The argument type 'SizedBox' can't be assigned to the parameter type 'MajorGridLines'.  - lib\features\dashboard\presentation\pages\dashboard_page.dart:2214:27 - argument_type_not_assignable
+  error - The argument type 'SizedBox' can't be assigned to the parameter type 'AxisLine'.  - lib\features\dashboard\presentation\pages\dashboard_page.dart:2219:21 - argument_type_not_assignable
+  error - The named parameter 'color' isn't defined - lib\features\dashboard\presentation\pages\dashboard_page.dart:2220:13 - undefined_named_parameter
+  error - The argument type 'SizedBox' can't be assigned to the parameter type 'AxisLine'.  - lib\features\dashboard\presentation\pages\dashboard_page.dart:2228:21 - argument_type_not_assignable
+  error - The argument type 'SizedBox' can't be assigned to the parameter type 'MajorTickLines'.  - lib\features\dashboard\presentation\pages\dashboard_page.dart:2229:27 - argument_type_not_assignable
+  error - The argument type 'SizedBox' can't be assigned to the parameter type 'MajorGridLines'.  - lib\features\dashboard\presentation\pages\dashboard_page.dart:2230:27 - argument_type_not_assignable
+  error - The named parameter 'color' isn't defined - lib\features\dashboard\presentation\pages\dashboard_page.dart:2231:13 - undefined_named_parameter
+  error - The named parameter 'dashArray' isn't defined - lib\features\dashboard\presentation\pages\dashboard_page.dart:2232:13 - undefined_named_parameter
+  error - The named parameter 'unselectedLabelTextStyle' isn't defined - lib\features\dashboard\presentation\pages\dashboard_wrapper.dart:241:13 - undefined_named_parameter
+  error - The element type '({Color color, int height})' can't be assigned to the list type 'Widget' - lib\features\dashboard\presentation\pages\studio_settings_page.dart:42:23 - list_element_type_not_assignable
+  error - The element type '({Color color, int height})' can't be assigned to the list type 'Widget' - lib\features\dashboard\presentation\pages\studio_settings_page.dart:45:23 - list_element_type_not_assignable
+  error - The element type '({Color color, int height})' can't be assigned to the list type 'Widget' - lib\features\dashboard\presentation\pages\studio_settings_page.dart:48:23 - list_element_type_not_assignable
+  error - The element type '({Color color, int height})' can't be assigned to the list type 'Widget' - lib\features\dashboard\presentation\pages\studio_settings_page.dart:51:23 - list_element_type_not_assignable
+  error - The argument type 'Object' can't be assigned to the parameter type 'Widget?'.  - lib\features\feedback\presentation\pages\feedback_page.dart:193:32 - argument_type_not_assignable
+  error - The argument type '({BorderRadius borderRadius})' can't be assigned to the parameter type 'ShapeBorder?'.  - lib\features\feedback\presentation\pages\more_options_page.dart:12:12 - argument_type_not_assignable
+  error - Expected an identifier - lib\features\home\presentation\controllers\home_controller.dart:206:23 - missing_identifier
+  error - The named parameter '' isn't defined - lib\features\home\presentation\controllers\home_controller.dart:206:26 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\home\presentation\pages\home_page.dart:469:31 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\home\presentation\pages\home_page.dart:1231:48 - undefined_named_parameter
+   info - Use a 'SizedBox' to add whitespace to a layout - lib\features\home\presentation\pages\home_page.dart:1940:12 - sized_box_for_whitespace
+  error - The named parameter 'margin' isn't defined - lib\features\home\presentation\pages\home_page.dart:1974:7 - undefined_named_parameter
+   info - Use a 'SizedBox' to add whitespace to a layout - lib\features\home\presentation\pages\home_page.dart:1990:12 - sized_box_for_whitespace
+  error - The named parameter 'margin' isn't defined - lib\features\home\presentation\pages\home_page.dart:1998:13 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\home\presentation\pages\home_page.dart:2029:29 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\home\presentation\pages\home_page.dart:2044:33 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\home\presentation\pages\home_page.dart:2051:29 - undefined_named_parameter
+  error - The named parameter 'unselectedLabelTextStyle' isn't defined - lib\features\home\presentation\pages\leaderboard_page.dart:47:23 - undefined_named_parameter
+  error - Expected an identifier - lib\features\library\presentation\pages\library_page.dart:90:23 - missing_identifier
+  error - The named parameter '' isn't defined - lib\features\library\presentation\pages\library_page.dart:90:26 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\library\presentation\pages\library_page.dart:836:23 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\library\presentation\pages\library_page.dart:840:21 - undefined_named_parameter
+warning - The declaration '_buildSidebarHeader' isn't referenced - lib\features\library\presentation\pages\library_page.dart:949:10 - unused_element
+warning - The declaration '_buildSidebarSearch' isn't referenced - lib\features\library\presentation\pages\library_page.dart:998:10 - unused_element
+warning - The declaration '_buildSidebarQuickActions' isn't referenced - lib\features\library\presentation\pages\library_page.dart:1017:10 - unused_element
+warning - The declaration '_buildSidebarPlaylists' isn't referenced - lib\features\library\presentation\pages\library_page.dart:1081:10 - unused_element
+  error - The named parameter 'decoration' isn't defined - lib\features\library\presentation\pages\library_page.dart:1598:17 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\library\presentation\pages\library_page.dart:1631:33 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\library\presentation\pages\library_page.dart:1635:31 - undefined_named_parameter
+warning - Unused import: 'package:truthworld/core/theme/spacing_constants.dart' - lib\features\likedvideos\presentation\pages\liked_video_page.dart:4:8 - unused_import
+  error - Expected an identifier - lib\features\likedvideos\presentation\pages\liked_video_page.dart:171:21 - missing_identifier
+  error - The named parameter '' isn't defined - lib\features\likedvideos\presentation\pages\liked_video_page.dart:171:24 - undefined_named_parameter
+  error - The named parameter 'margin' isn't defined - lib\features\likedvideos\presentation\pages\liked_video_page.dart:991:15 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\likedvideos\presentation\pages\liked_video_page.dart:992:15 - undefined_named_parameter
+  error - A value of type '(double, double)' can't be assigned to a variable of type 'Offset' - lib\features\miniplayer\presentation\utils\miniplayer_utils.dart:244:20 - invalid_assignment
+  error - The named parameter 'offset' isn't defined - lib\features\miniplayer\presentation\widgets\miniplayer_overlay_manager.dart:52:21 - undefined_named_parameter
+  error - 1 positional argument expected by 'Text.new', but 0 found - lib\features\miniplayer\presentation\widgets\miniplayer_widget.dart:185:11 - not_enough_positional_arguments
+  error - The named parameter 'child' isn't defined - lib\features\miniplayer\presentation\widgets\miniplayer_widget.dart:185:11 - undefined_named_parameter
+  error - The returned type 'Object' isn't returnable from a 'Widget' function, as required by the closure's context - lib\features\miniplayer\presentation\widgets\miniplayer_widget.dart:447:21 - return_of_invalid_type_from_closure
+  error - The argument type '(IconData, {Color color, int size})' can't be assigned to the parameter type 'Widget'.  - lib\features\miniplayer\presentation\widgets\miniplayer_widget.dart:529:19 - argument_type_not_assignable
+  error - The argument type '(IconData, {Color color, int size})' can't be assigned to the parameter type 'Widget'.  - lib\features\miniplayer\presentation\widgets\miniplayer_widget.dart:569:19 - argument_type_not_assignable
+  error - The argument type 'Object' can't be assigned to the parameter type 'Offset'.  - lib\features\myvideos\presentation\pages\my_videos_page.dart:121:19 - argument_type_not_assignable
+  error - The argument type 'Object' can't be assigned to the parameter type 'Widget?'.  - lib\features\myvideos\presentation\pages\my_videos_page.dart:700:16 - argument_type_not_assignable
+warning - The declaration '_showDeleteConfirm' isn't referenced - lib\features\myvideos\presentation\pages\my_videos_page.dart:710:8 - unused_element
+warning - Unused import: 'package:truthworld/core/theme/crimson_noir_theme.dart' - lib\features\notifications\presentation\pages\notification_page.dart:3:8 - unused_import
+  error - The named parameter 'color' isn't defined - lib\features\notifications\presentation\pages\notification_page.dart:266:50 - undefined_named_parameter
+  error - The named parameter 'margin' isn't defined - lib\features\notifications\presentation\pages\notification_page.dart:553:21 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\notifications\presentation\pages\notification_page.dart:554:21 - undefined_named_parameter
+  error - Expected an identifier - lib\features\playlist\presentation\pages\playlist_detail.dart:121:23 - missing_identifier
+  error - The named parameter '' isn't defined - lib\features\playlist\presentation\pages\playlist_detail.dart:121:26 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\playlist\presentation\pages\playlist_detail.dart:1281:11 - undefined_named_parameter
+  error - The argument type '({BorderRadius borderRadius})' can't be assigned to the parameter type 'ShapeBorder?'.  - lib\features\playlist\presentation\pages\playlist_detail.dart:1444:14 - argument_type_not_assignable
+warning - Unused import: 'package:truthworld/core/theme/app_theme.dart' - lib\features\playlist\presentation\pages\playlist_page.dart:1:8 - unused_import
+warning - Unused import: 'package:truthworld/core/theme/crimson_noir_theme.dart' - lib\features\playlist\presentation\pages\playlist_page.dart:14:8 - unused_import
+  error - Variables must be declared using the keywords 'const', 'final', 'var' or a type name - lib\features\playlist\presentation\pages\playlist_page.dart:18:2 - missing_const_final_var_or_type
+  error - The getter 'colors' isn't defined for the type 'AppTheme' - lib\features\playlist\presentation\pages\playlist_page.dart:18:27 - undefined_getter
+  error - 1 positional argument expected by 'Text.new', but 0 found - lib\features\playlist\presentation\pages\playlist_page.dart:473:39 - not_enough_positional_arguments
+  error - The named parameter 'color' isn't defined - lib\features\playlist\presentation\pages\playlist_page.dart:473:39 - undefined_named_parameter
+  error - The named parameter 'strokeWidth' isn't defined - lib\features\playlist\presentation\pages\playlist_page.dart:474:39 - undefined_named_parameter
+  error - The argument type '({LinearGradient gradient})' can't be assigned to the parameter type 'Decoration?'.  - lib\features\playlist\presentation\pages\playlist_page.dart:1007:35 - argument_type_not_assignable
+  error - The named parameter 'offset' isn't defined - lib\features\playlist\presentation\pages\playlist_page.dart:1057:33 - undefined_named_parameter
+  error - The named parameter 'unselectedLabelTextStyle' isn't defined - lib\features\playlist\presentation\pages\playlist_page.dart:1120:27 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\playlist\presentation\pages\playlist_page.dart:1547:21 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\playlist\presentation\pages\playlist_page.dart:1552:21 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\playlist\presentation\pages\playlist_page.dart:1572:27 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\playlist\presentation\pages\playlist_page.dart:1577:27 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\playlist\presentation\pages\playlist_page.dart:1582:27 - undefined_named_parameter
+  error - Expected an identifier - lib\features\playlist\presentation\pages\playlist_page.dart:1718:27 - missing_identifier
+  error - The named parameter '' isn't defined - lib\features\playlist\presentation\pages\playlist_page.dart:1718:28 - undefined_named_parameter
+  error - Expected an identifier - lib\features\playlist\presentation\pages\playlist_page.dart:1718:37 - missing_identifier
+  error - Expected an identifier - lib\features\playlist\presentation\pages\playlist_page.dart:1763:27 - missing_identifier
+  error - The named parameter '' isn't defined - lib\features\playlist\presentation\pages\playlist_page.dart:1763:28 - undefined_named_parameter
+  error - Expected an identifier - lib\features\playlist\presentation\pages\playlist_page.dart:1763:37 - missing_identifier
+  error - The named parameter 'offset' isn't defined - lib\features\playlist\presentation\pages\show_diaglog.dart:40:33 - undefined_named_parameter
+  error - The named parameter 'constraints' isn't defined - lib\features\playlist\presentation\pages\show_diaglog.dart:129:13 - undefined_named_parameter
+  error - The named parameter 'margin' isn't defined - lib\features\playlist\presentation\pages\show_diaglog.dart:133:13 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\playlist\presentation\pages\show_diaglog.dart:134:13 - undefined_named_parameter
+   info - Use a 'SizedBox' to add whitespace to a layout - lib\features\playlist\presentation\pages\show_diaglog.dart:549:12 - sized_box_for_whitespace
+  error - The argument type 'String' can't be assigned to the parameter type 'Widget'.  - lib\features\playlist\presentation\pages\show_diaglog.dart:720:23 - argument_type_not_assignable
+warning - Unused import: 'package:truthworld/core/theme/crimson_noir_theme.dart' - lib\features\search\presentation\pages\industry_search_page.dart:5:8 - unused_import
+  error - The element type '({AlwaysStoppedAnimation<Color> valueColor})' can't be assigned to the list type 'Widget' - lib\features\search\presentation\pages\industry_search_page.dart:318:11 - list_element_type_not_assignable
+  error - The named parameter 'color' isn't defined - lib\features\search\presentation\pages\industry_search_page.dart:683:11 - undefined_named_parameter
+   info - Use a 'SizedBox' to add whitespace to a layout - lib\features\search\presentation\pages\search_page.dart:209:25 - sized_box_for_whitespace
+  error - The named parameter 'margin' isn't defined - lib\features\search\presentation\pages\search_page.dart:360:9 - undefined_named_parameter
+  error - The named parameter 'margin' isn't defined - lib\features\search\presentation\widgets\search_widgets.dart:43:15 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\search\presentation\widgets\search_widgets.dart:44:15 - undefined_named_parameter
+  error - The named parameter 'margin' isn't defined - lib\features\search\presentation\widgets\search_widgets.dart:161:15 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\search\presentation\widgets\search_widgets.dart:162:15 - undefined_named_parameter
+  error - The named parameter 'margin' isn't defined - lib\features\search\presentation\widgets\search_widgets.dart:279:17 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\search\presentation\widgets\search_widgets.dart:280:17 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\search\presentation\widgets\search_widgets.dart:292:44 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\search\presentation\widgets\search_widgets.dart:295:25 - undefined_named_parameter
+   info - 'activeColor' is deprecated and shouldn't be used. Use activeThumbColor instead. This feature was deprecated after v3.31.0-2.0.pre - lib\features\settings\presentation\pages\settings_page.dart:187:9 - deprecated_member_use
+  error - The argument type '({LinearGradient gradient})' can't be assigned to the parameter type 'Decoration?'.  - lib\features\splash\presentation\pages\splash_page.dart:62:23 - argument_type_not_assignable
+  error - The argument type 'Null Function<Color>(dynamic Function(dynamic))' can't be assigned to the parameter type 'Animation<Color?>?'.  - lib\features\splash\presentation\pages\splash_page.dart:288:41 - argument_type_not_assignable
+   info - The type parameter name 'Color' matches a visible type name - lib\features\splash\presentation\pages\splash_page.dart:288:42 - avoid_types_as_parameter_names
+   info - The variable name 'Color' isn't a lowerCamelCase identifier - lib\features\splash\presentation\pages\splash_page.dart:289:43 - non_constant_identifier_names
+   info - Use the generic function type syntax to declare the parameter 'Color' - lib\features\splash\presentation\pages\splash_page.dart:289:43 - use_function_type_syntax_for_parameters
+  error - Expected an identifier - lib\features\splash\presentation\pages\splash_page.dart:289:49 - missing_identifier
+  error - A function body must be provided - lib\features\splash\presentation\pages\splash_page.dart:290:42 - missing_function_body
+  error - Unexpected text ',' - lib\features\splash\presentation\pages\splash_page.dart:290:42 - unexpected_token
+warning - Unused import: 'package:truthworld/core/theme/typography_constants.dart' - lib\features\subscriptions\presentation\pages\subscriptions_page.dart:4:8 - unused_import
+warning - The declaration '_buildNavItem' isn't referenced - lib\features\subscriptions\presentation\pages\subscriptions_page.dart:161:10 - unused_element
+warning - A value for optional parameter 'context' isn't ever given - lib\features\subscriptions\presentation\pages\subscriptions_page.dart:168:19 - unused_element_parameter
+warning - The declaration '_buildChannelItem' isn't referenced - lib\features\subscriptions\presentation\pages\subscriptions_page.dart:197:10 - unused_element
+  error - The named parameter 'color' isn't defined - lib\features\subscriptions\presentation\pages\subscriptions_page.dart:620:21 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\subscriptions\presentation\pages\subscriptions_page.dart:624:21 - undefined_named_parameter
+  error - Expected an identifier - lib\features\video\presentation\controllers\comments_tab_controller.dart:31:36 - missing_identifier
+  error - The named parameter '' isn't defined - lib\features\video\presentation\controllers\comments_tab_controller.dart:31:37 - undefined_named_parameter
+  error - Expected an identifier - lib\features\video\presentation\controllers\comments_tab_controller.dart:31:46 - missing_identifier
+   info - Use a 'SizedBox' to add whitespace to a layout - lib\features\video\presentation\controllers\tower_player_controller.dart:1540:20 - sized_box_for_whitespace
+  error - The named parameter 'padding' isn't defined - lib\features\video\presentation\controllers\tower_player_controller.dart:1551:27 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\video\presentation\controllers\tower_player_controller.dart:1555:27 - undefined_named_parameter
+   info - Use a 'SizedBox' to add whitespace to a layout - lib\features\video\presentation\controllers\tower_player_controller.dart:1932:16 - sized_box_for_whitespace
+  error - The named parameter 'decoration' isn't defined - lib\features\video\presentation\controllers\tower_player_controller.dart:1938:17 - undefined_named_parameter
+  error - The named parameter 'constraints' isn't defined - lib\features\video\presentation\controllers\tower_player_controller.dart:2120:17 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\video\presentation\controllers\tower_player_controller.dart:2121:17 - undefined_named_parameter
+  error - The element type '({int blurRadius, Color color, Offset offset})' can't be assigned to the list type 'Shadow' - lib\features\video\presentation\controllers\tower_player_controller.dart:3474:21 - list_element_type_not_assignable
+  error - The named parameter 'color' isn't defined - lib\features\video\presentation\pages\ai_features_selector.dart:378:15 - undefined_named_parameter
+  error - Undefined name 'BorderTextStyle' - lib\features\video\presentation\pages\ai_features_selector.dart:519:22 - undefined_identifier
+  error - The argument type '({double childAspectRatio, int crossAxisCount, int crossAxisSpacing, int mainAxisSpacing})' can't be assigned to the parameter type 'SliverGridDelegate'.  - lib\features\video\presentation\pages\clips_page.dart:138:21 - argument_type_not_assignable
+  error - The argument type '({double childAspectRatio, int crossAxisCount, int crossAxisSpacing, int mainAxisSpacing})' can't be assigned to the parameter type 'SliverGridDelegate'.  - lib\features\video\presentation\pages\clips_page.dart:271:23 - argument_type_not_assignable
+  error - The named parameter 'color' isn't defined - lib\features\video\presentation\pages\clips_page.dart:334:31 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\video\presentation\pages\clips_page.dart:338:29 - undefined_named_parameter
+  error - The argument type '({BorderRadius borderRadius})' can't be assigned to the parameter type 'ShapeBorder?'.  - lib\features\video\presentation\pages\clips_page.dart:462:14 - argument_type_not_assignable
+  error - The named parameter 'color' isn't defined - lib\features\video\presentation\pages\clips_page.dart:486:29 - undefined_named_parameter
+  error - The element type '()' can't be assigned to the list type 'Widget' - lib\features\video\presentation\pages\comment_input.dart:400:19 - list_element_type_not_assignable
+  error - The named parameter 'decoration' isn't defined - lib\features\video\presentation\pages\comments_tab.dart:343:23 - undefined_named_parameter
+  error - The argument type '({BorderRadius borderRadius})' can't be assigned to the parameter type 'ShapeBorder?'.  - lib\features\video\presentation\pages\comments_tab.dart:808:14 - argument_type_not_assignable
+  error - The argument type '({BorderRadius borderRadius})' can't be assigned to the parameter type 'ShapeBorder?'.  - lib\features\video\presentation\pages\comments_tab.dart:1197:12 - argument_type_not_assignable
+warning - Unused import: 'package:truthworld/core/theme/app_tokens.dart' - lib\features\video\presentation\pages\create_content_page.dart:6:8 - unused_import
+  error - Invalid constant value - lib\features\video\presentation\pages\create_content_page.dart:205:20 - invalid_constant
+  error - Invalid constant value - lib\features\video\presentation\pages\create_content_page.dart:221:39 - invalid_constant
+  error - The argument type 'Object' can't be assigned to the parameter type 'Offset'.  - lib\features\video\presentation\pages\downloads_page.dart:112:19 - argument_type_not_assignable
+warning - Unused import: 'package:truthworld/core/theme/app_tokens.dart' - lib\features\video\presentation\pages\enhanced_ai_features_selector.dart:6:8 - unused_import
+  error - The named parameter 'margin' isn't defined - lib\features\video\presentation\pages\enhanced_ai_features_selector.dart:313:21 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\video\presentation\pages\enhanced_ai_features_selector.dart:314:21 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\video\presentation\pages\enhanced_ai_features_selector.dart:623:15 - undefined_named_parameter
+  error - The method '_buildActionButtonIcon' isn't defined for the type 'OfflineVideoPlayerPage' - lib\features\video\presentation\pages\offline_videoplayer.dart:92:25 - undefined_method
+  error - The method '_buildActionButtonIcon' isn't defined for the type 'OfflineVideoPlayerPage' - lib\features\video\presentation\pages\offline_videoplayer.dart:93:25 - undefined_method
+  error - The method '_buildActionButtonIcon' isn't defined for the type 'OfflineVideoPlayerPage' - lib\features\video\presentation\pages\offline_videoplayer.dart:94:25 - undefined_method
+  error - The method '_buildActionButtonIcon' isn't defined for the type 'OfflineVideoPlayerPage' - lib\features\video\presentation\pages\offline_videoplayer.dart:95:25 - undefined_method
+  error - The method '_buildActionButtonIcon' isn't defined for the type 'OfflineVideoPlayerPage' - lib\features\video\presentation\pages\offline_videoplayer.dart:96:25 - undefined_method
+  error - The element type '({MaterialColor color, int height})' can't be assigned to the list type 'Widget' - lib\features\video\presentation\pages\offline_videoplayer.dart:100:21 - list_element_type_not_assignable
+warning - The declaration '_buildActionButton' isn't referenced - lib\features\video\presentation\pages\offline_videoplayer.dart:150:10 - unused_element
+  error - The element type '()' can't be assigned to the list type 'Widget' - lib\features\video\presentation\pages\reply_input.dart:376:19 - list_element_type_not_assignable
+  error - Expected an identifier - lib\features\video\presentation\pages\upload_page.dart:101:23 - missing_identifier
+  error - The named parameter '' isn't defined - lib\features\video\presentation\pages\upload_page.dart:101:24 - undefined_named_parameter
+  error - Expected an identifier - lib\features\video\presentation\pages\upload_page.dart:101:33 - missing_identifier
+  error - The argument type 'Null Function<Color>(dynamic Function(dynamic))' can't be assigned to the parameter type 'Animation<Color?>?'.  - lib\features\video\presentation\pages\upload_page.dart:1637:41 - argument_type_not_assignable
+   info - The type parameter name 'Color' matches a visible type name - lib\features\video\presentation\pages\upload_page.dart:1637:42 - avoid_types_as_parameter_names
+   info - The variable name 'Color' isn't a lowerCamelCase identifier - lib\features\video\presentation\pages\upload_page.dart:1638:31 - non_constant_identifier_names
+   info - Use the generic function type syntax to declare the parameter 'Color' - lib\features\video\presentation\pages\upload_page.dart:1638:31 - use_function_type_syntax_for_parameters
+  error - Expected an identifier - lib\features\video\presentation\pages\upload_page.dart:1638:37 - missing_identifier
+  error - A function body must be provided - lib\features\video\presentation\pages\upload_page.dart:1639:30 - missing_function_body
+  error - Unexpected text ',' - lib\features\video\presentation\pages\upload_page.dart:1639:30 - unexpected_token
+  error - The argument type 'Null Function<Color>(InvalidType)' can't be assigned to the parameter type 'Animation<Color?>?'.  - lib\features\video\presentation\pages\upload_page.dart:1824:35 - argument_type_not_assignable
+   info - The type parameter name 'Color' matches a visible type name - lib\features\video\presentation\pages\upload_page.dart:1824:36 - avoid_types_as_parameter_names
+  error - Colors.white isn't a type - lib\features\video\presentation\pages\upload_page.dart:1825:25 - not_a_type
+  error - Expected an identifier - lib\features\video\presentation\pages\upload_page.dart:1825:37 - missing_identifier
+  error - A function body must be provided - lib\features\video\presentation\pages\upload_page.dart:1826:24 - missing_function_body
+  error - Unexpected text ',' - lib\features\video\presentation\pages\upload_page.dart:1826:24 - unexpected_token
+  error - The argument type 'Null Function<Color>(dynamic Function(dynamic))' can't be assigned to the parameter type 'Animation<Color?>?'.  - lib\features\video\presentation\pages\upload_page.dart:1874:29 - argument_type_not_assignable
+   info - The type parameter name 'Color' matches a visible type name - lib\features\video\presentation\pages\upload_page.dart:1874:30 - avoid_types_as_parameter_names
+   info - The variable name 'Color' isn't a lowerCamelCase identifier - lib\features\video\presentation\pages\upload_page.dart:1875:19 - non_constant_identifier_names
+   info - Use the generic function type syntax to declare the parameter 'Color' - lib\features\video\presentation\pages\upload_page.dart:1875:19 - use_function_type_syntax_for_parameters
+  error - Expected an identifier - lib\features\video\presentation\pages\upload_page.dart:1875:25 - missing_identifier
+  error - A function body must be provided - lib\features\video\presentation\pages\upload_page.dart:1876:18 - missing_function_body
+  error - Unexpected text ',' - lib\features\video\presentation\pages\upload_page.dart:1876:18 - unexpected_token
+  error - The argument type 'String' can't be assigned to the parameter type 'Widget?'.  - lib\features\video\presentation\pages\upload_page.dart:2479:19 - argument_type_not_assignable
+  error - The named parameter 'margin' isn't defined - lib\features\video\presentation\pages\upload_page.dart:2977:29 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\video\presentation\pages\upload_page.dart:2978:29 - undefined_named_parameter
+  error - The argument type 'Null Function<Color>(dynamic Function(dynamic))' can't be assigned to the parameter type 'Animation<Color?>?'.  - lib\features\video\presentation\pages\upload_page.dart:3614:37 - argument_type_not_assignable
+   info - The type parameter name 'Color' matches a visible type name - lib\features\video\presentation\pages\upload_page.dart:3614:38 - avoid_types_as_parameter_names
+   info - The variable name 'Color' isn't a lowerCamelCase identifier - lib\features\video\presentation\pages\upload_page.dart:3615:27 - non_constant_identifier_names
+   info - Use the generic function type syntax to declare the parameter 'Color' - lib\features\video\presentation\pages\upload_page.dart:3615:27 - use_function_type_syntax_for_parameters
+  error - Expected an identifier - lib\features\video\presentation\pages\upload_page.dart:3615:33 - missing_identifier
+  error - A function body must be provided - lib\features\video\presentation\pages\upload_page.dart:3616:26 - missing_function_body
+  error - Unexpected text ',' - lib\features\video\presentation\pages\upload_page.dart:3616:26 - unexpected_token
+  error - The named parameter 'color' isn't defined - lib\features\video\presentation\pages\upload_page.dart:3874:23 - undefined_named_parameter
+  error - The named parameter 'indent' isn't defined - lib\features\video\presentation\pages\upload_page.dart:4542:31 - undefined_named_parameter
+  error - The named parameter 'indent' isn't defined - lib\features\video\presentation\pages\upload_page.dart:4552:31 - undefined_named_parameter
+  error - Expected an identifier - lib\features\video\presentation\pages\upload_page_utf8.dart:100:23 - missing_identifier
+  error - The named parameter '' isn't defined - lib\features\video\presentation\pages\upload_page_utf8.dart:100:24 - undefined_named_parameter
+  error - Expected an identifier - lib\features\video\presentation\pages\upload_page_utf8.dart:100:33 - missing_identifier
+  error - The argument type 'Null Function<Color>(dynamic Function(dynamic))' can't be assigned to the parameter type 'Animation<Color?>?'.  - lib\features\video\presentation\pages\upload_page_utf8.dart:1639:41 - argument_type_not_assignable
+   info - The type parameter name 'Color' matches a visible type name - lib\features\video\presentation\pages\upload_page_utf8.dart:1639:42 - avoid_types_as_parameter_names
+   info - The variable name 'Color' isn't a lowerCamelCase identifier - lib\features\video\presentation\pages\upload_page_utf8.dart:1640:31 - non_constant_identifier_names
+   info - Use the generic function type syntax to declare the parameter 'Color' - lib\features\video\presentation\pages\upload_page_utf8.dart:1640:31 - use_function_type_syntax_for_parameters
+  error - Expected an identifier - lib\features\video\presentation\pages\upload_page_utf8.dart:1640:37 - missing_identifier
+  error - A function body must be provided - lib\features\video\presentation\pages\upload_page_utf8.dart:1641:30 - missing_function_body
+  error - Unexpected text ',' - lib\features\video\presentation\pages\upload_page_utf8.dart:1641:30 - unexpected_token
+  error - The argument type 'Null Function<Color>(InvalidType)' can't be assigned to the parameter type 'Animation<Color?>?'.  - lib\features\video\presentation\pages\upload_page_utf8.dart:1826:35 - argument_type_not_assignable
+   info - The type parameter name 'Color' matches a visible type name - lib\features\video\presentation\pages\upload_page_utf8.dart:1826:36 - avoid_types_as_parameter_names
+  error - Colors.white isn't a type - lib\features\video\presentation\pages\upload_page_utf8.dart:1827:25 - not_a_type
+  error - Expected an identifier - lib\features\video\presentation\pages\upload_page_utf8.dart:1827:37 - missing_identifier
+  error - A function body must be provided - lib\features\video\presentation\pages\upload_page_utf8.dart:1828:24 - missing_function_body
+  error - Unexpected text ',' - lib\features\video\presentation\pages\upload_page_utf8.dart:1828:24 - unexpected_token
+  error - The argument type 'Null Function<Color>(dynamic Function(dynamic))' can't be assigned to the parameter type 'Animation<Color?>?'.  - lib\features\video\presentation\pages\upload_page_utf8.dart:1876:29 - argument_type_not_assignable
+   info - The type parameter name 'Color' matches a visible type name - lib\features\video\presentation\pages\upload_page_utf8.dart:1876:30 - avoid_types_as_parameter_names
+   info - The variable name 'Color' isn't a lowerCamelCase identifier - lib\features\video\presentation\pages\upload_page_utf8.dart:1877:19 - non_constant_identifier_names
+   info - Use the generic function type syntax to declare the parameter 'Color' - lib\features\video\presentation\pages\upload_page_utf8.dart:1877:19 - use_function_type_syntax_for_parameters
+  error - Expected an identifier - lib\features\video\presentation\pages\upload_page_utf8.dart:1877:25 - missing_identifier
+  error - A function body must be provided - lib\features\video\presentation\pages\upload_page_utf8.dart:1878:18 - missing_function_body
+  error - Unexpected text ',' - lib\features\video\presentation\pages\upload_page_utf8.dart:1878:18 - unexpected_token
+  error - The argument type 'String' can't be assigned to the parameter type 'Widget?'.  - lib\features\video\presentation\pages\upload_page_utf8.dart:2481:19 - argument_type_not_assignable
+  error - The named parameter 'margin' isn't defined - lib\features\video\presentation\pages\upload_page_utf8.dart:2979:29 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\video\presentation\pages\upload_page_utf8.dart:2980:29 - undefined_named_parameter
+  error - The argument type 'Null Function<Color>(dynamic Function(dynamic))' can't be assigned to the parameter type 'Animation<Color?>?'.  - lib\features\video\presentation\pages\upload_page_utf8.dart:3616:37 - argument_type_not_assignable
+   info - The type parameter name 'Color' matches a visible type name - lib\features\video\presentation\pages\upload_page_utf8.dart:3616:38 - avoid_types_as_parameter_names
+   info - The variable name 'Color' isn't a lowerCamelCase identifier - lib\features\video\presentation\pages\upload_page_utf8.dart:3617:27 - non_constant_identifier_names
+   info - Use the generic function type syntax to declare the parameter 'Color' - lib\features\video\presentation\pages\upload_page_utf8.dart:3617:27 - use_function_type_syntax_for_parameters
+  error - Expected an identifier - lib\features\video\presentation\pages\upload_page_utf8.dart:3617:33 - missing_identifier
+  error - A function body must be provided - lib\features\video\presentation\pages\upload_page_utf8.dart:3618:26 - missing_function_body
+  error - Unexpected text ',' - lib\features\video\presentation\pages\upload_page_utf8.dart:3618:26 - unexpected_token
+  error - The named parameter 'color' isn't defined - lib\features\video\presentation\pages\upload_page_utf8.dart:3876:23 - undefined_named_parameter
+  error - The named parameter 'indent' isn't defined - lib\features\video\presentation\pages\upload_page_utf8.dart:4544:31 - undefined_named_parameter
+  error - The named parameter 'indent' isn't defined - lib\features\video\presentation\pages\upload_page_utf8.dart:4554:31 - undefined_named_parameter
+  error - The getter 'AppTheme' isn't defined for the type 'ColorScheme' - lib\features\video\presentation\pages\video_page.dart:124:59 - undefined_getter
+  error - The getter 'AppTheme' isn't defined for the type 'ColorScheme' - lib\features\video\presentation\pages\video_page.dart:126:63 - undefined_getter
+  error - The getter 'AppTheme' isn't defined for the type 'ColorScheme' - lib\features\video\presentation\pages\video_page.dart:135:62 - undefined_getter
+  error - The getter 'AppTheme' isn't defined for the type 'ColorScheme' - lib\features\video\presentation\pages\video_page.dart:167:65 - undefined_getter
+  error - The getter 'AppTheme' isn't defined for the type 'ColorScheme' - lib\features\video\presentation\pages\video_page.dart:169:69 - undefined_getter
+  error - The getter 'AppTheme' isn't defined for the type 'ColorScheme' - lib\features\video\presentation\pages\video_page.dart:178:68 - undefined_getter
+  error - The named parameter 'color' isn't defined - lib\features\video\presentation\pages\video_page.dart:186:30 - undefined_named_parameter
+  error - The getter 'AppTheme' isn't defined for the type 'ColorScheme' - lib\features\video\presentation\pages\video_page.dart:306:65 - undefined_getter
+  error - The getter 'AppTheme' isn't defined for the type 'ColorScheme' - lib\features\video\presentation\pages\video_page.dart:335:48 - undefined_getter
+  error - Too many positional arguments: 0 expected, but 1 found - lib\features\video\presentation\pages\video_page.dart:337:11 - extra_positional_arguments_could_be_named
+  error - Expected to find ')' - lib\features\video\presentation\pages\video_page.dart:337:34 - expected_token
+  error - The getter 'AppTheme' isn't defined for the type 'ColorScheme' - lib\features\video\presentation\pages\video_page.dart:341:82 - undefined_getter
+  error - The getter 'AppTheme' isn't defined for the type 'ColorScheme' - lib\features\video\presentation\pages\video_page.dart:370:56 - undefined_getter
+  error - The getter 'AppTheme' isn't defined for the type 'ColorScheme' - lib\features\video\presentation\pages\video_page.dart:375:56 - undefined_getter
+  error - The getter 'colors' isn't defined for the type 'IconData' - lib\features\video\presentation\pages\video_page.dart:581:40 - undefined_getter
+  error - The getter 'AppTheme' isn't defined for the type 'ColorScheme' - lib\features\video\presentation\pages\video_page.dart:587:62 - undefined_getter
+  error - The getter 'AppTheme' isn't defined for the type 'ColorScheme' - lib\features\video\presentation\pages\video_page.dart:745:78 - undefined_getter
+  error - The getter 'outlineSide' isn't defined for the type 'AppColors' - lib\features\video\presentation\pages\video_page.dart:764:31 - undefined_getter
+  error - The getter 'AppTheme' isn't defined for the type 'ColorScheme' - lib\features\video\presentation\pages\video_page.dart:871:67 - undefined_getter
+  error - The argument type '({BorderRadius borderRadius})' can't be assigned to the parameter type 'ShapeBorder?'.  - lib\features\video\presentation\pages\video_page.dart:886:14 - argument_type_not_assignable
+  error - The getter 'AppTheme' isn't defined for the type 'AppTheme' - lib\features\video\presentation\pages\video_page.dart:985:51 - undefined_getter
+  error - The getter 'AppTheme' isn't defined for the type 'AppTheme' - lib\features\video\presentation\pages\video_page.dart:1051:40 - undefined_getter
+  error - The named parameter 'surface' is required, but there's no corresponding argument - lib\features\video\presentation\pages\video_page.dart:1291:12 - missing_required_argument
+  error - The named parameter 'textPrimary' is required, but there's no corresponding argument - lib\features\video\presentation\pages\video_page.dart:1291:12 - missing_required_argument
+  error - The named parameter 'textSecondary' is required, but there's no corresponding argument - lib\features\video\presentation\pages\video_page.dart:1291:12 - missing_required_argument
+  error - Too many positional arguments: 0 expected, but 1 found - lib\features\video\presentation\pages\video_page.dart:1294:7 - extra_positional_arguments_could_be_named
+  error - Expected to find ')' - lib\features\video\presentation\pages\video_page.dart:1294:30 - expected_token
+  error - The argument type '({double childAspectRatio, int crossAxisCount, int crossAxisSpacing, int mainAxisSpacing})' can't be assigned to the parameter type 'SliverGridDelegate'.  - lib\features\video\presentation\pages\video_page.dart:1364:25 - argument_type_not_assignable
+  error - The getter 'cardAppTheme' isn't defined for the type 'AppColors' - lib\features\video\presentation\pages\video_page.dart:1393:34 - undefined_getter
+  error - Too many positional arguments: 0 expected, but 1 found - lib\features\video\presentation\pages\video_page.dart:1395:11 - extra_positional_arguments_could_be_named
+  error - Expected to find ')' - lib\features\video\presentation\pages\video_page.dart:1395:34 - expected_token
+  error - The getter 'cardAppTheme' isn't defined for the type 'AppColors' - lib\features\video\presentation\pages\video_page.dart:1498:39 - undefined_getter
+  error - The argument type '({double childAspectRatio, int crossAxisCount, int crossAxisSpacing, int mainAxisSpacing})' can't be assigned to the parameter type 'SliverGridDelegate'.  - lib\features\video\presentation\pages\video_page.dart:1502:23 - argument_type_not_assignable
+  error - Too many positional arguments: 0 expected, but 1 found - lib\features\video\presentation\pages\video_page.dart:1717:33 - extra_positional_arguments_could_be_named
+  error - Expected to find ')' - lib\features\video\presentation\pages\video_page.dart:1717:56 - expected_token
+  error - Too many positional arguments: 0 expected, but 1 found - lib\features\video\presentation\pages\video_page.dart:1725:37 - extra_positional_arguments_could_be_named
+  error - The getter 'backgroundImage' isn't defined for the type 'AppColors' - lib\features\video\presentation\pages\video_page.dart:1725:53 - undefined_getter
+  error - Expected to find ')' - lib\features\video\presentation\pages\video_page.dart:1725:68 - expected_token
+  error - Too many positional arguments: 0 expected, but 1 found - lib\features\video\presentation\pages\video_page.dart:1767:27 - extra_positional_arguments_could_be_named
+  error - Expected to find ')' - lib\features\video\presentation\pages\video_page.dart:1767:50 - expected_token
+  error - The returned type '({SizedBox child, EdgeInsets padding})' isn't returnable from a 'Widget' function, as required by the closure's context - lib\features\video\presentation\pages\video_page.dart:1833:18 - return_of_invalid_type_from_closure
+  error - The named parameter 'color' isn't defined - lib\features\video\presentation\pages\video_page.dart:1904:27 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\video\presentation\pages\video_page.dart:2096:23 - undefined_named_parameter
+  error - The argument type '({BorderRadius borderRadius})' can't be assigned to the parameter type 'ShapeBorder?'.  - lib\features\video\presentation\widgets\clip_creator_widget.dart:34:14 - argument_type_not_assignable
+  error - The named parameter 'color' isn't defined - lib\features\video\presentation\widgets\job_status_widget.dart:282:21 - undefined_named_parameter
+  error - The element type 'String' can't be assigned to the list type 'Widget' - lib\features\video\presentation\widgets\job_status_widget.dart:333:15 - list_element_type_not_assignable
+  error - The argument type 'Null Function<Color>(InvalidType)' can't be assigned to the parameter type 'Animation<Color?>?'.  - lib\features\video\presentation\widgets\job_status_widget.dart:644:33 - argument_type_not_assignable
+   info - The type parameter name 'Color' matches a visible type name - lib\features\video\presentation\widgets\job_status_widget.dart:644:34 - avoid_types_as_parameter_names
+  error - Colors.white isn't a type - lib\features\video\presentation\widgets\job_status_widget.dart:645:23 - not_a_type
+  error - Expected an identifier - lib\features\video\presentation\widgets\job_status_widget.dart:645:35 - missing_identifier
+  error - A function body must be provided - lib\features\video\presentation\widgets\job_status_widget.dart:646:22 - missing_function_body
+  error - Unexpected text ',' - lib\features\video\presentation\widgets\job_status_widget.dart:646:22 - unexpected_token
+warning - Unused import: 'package:truthworld/core/theme/crimson_noir_theme.dart' - lib\features\video\presentation\widgets\recommendation_feed.dart:9:8 - unused_import
+  error - The named parameter 'color' isn't defined - lib\features\video\presentation\widgets\recommendation_feed.dart:328:19 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\video\presentation\widgets\recommendation_feed.dart:333:19 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\video\presentation\widgets\recommendation_feed.dart:336:50 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\video\presentation\widgets\recommendation_feed.dart:367:17 - undefined_named_parameter
+  error - The named parameter 'color' isn't defined - lib\features\video\presentation\widgets\recommendation_feed.dart:370:48 - undefined_named_parameter
+  error - The argument type 'SizedBox' can't be assigned to the parameter type 'InputBorder?'.  - lib\features\video\presentation\widgets\tags_input_field.dart:34:21 - argument_type_not_assignable
+  error - The default value of an optional parameter must be constant - lib\features\video\presentation\widgets\upload_shared_widgets.dart:416:24 - non_constant_default_value
+  error - The argument type 'Null Function<Color>(InvalidType)' can't be assigned to the parameter type 'Animation<Color?>?'.  - lib\features\video\presentation\widgets\upload_shared_widgets.dart:528:33 - argument_type_not_assignable
+   info - The type parameter name 'Color' matches a visible type name - lib\features\video\presentation\widgets\upload_shared_widgets.dart:528:34 - avoid_types_as_parameter_names
+  error - AppTheme.colors isn't a type - lib\features\video\presentation\widgets\upload_shared_widgets.dart:529:23 - not_a_type
+  error - Expected an identifier - lib\features\video\presentation\widgets\upload_shared_widgets.dart:529:38 - missing_identifier
+  error - Expected to find ')' - lib\features\video\presentation\widgets\upload_shared_widgets.dart:529:39 - expected_token
+  error - A function body must be provided - lib\features\video\presentation\widgets\upload_shared_widgets.dart:530:22 - missing_function_body
+  error - Unexpected text ',' - lib\features\video\presentation\widgets\upload_shared_widgets.dart:530:22 - unexpected_token
+  error - Expected an identifier - lib\features\watchhistory\presentation\pages\watch_history_page.dart:182:19 - missing_identifier
+  error - The named parameter '' isn't defined - lib\features\watchhistory\presentation\pages\watch_history_page.dart:182:22 - undefined_named_parameter
+  error - The named parameter 'margin' isn't defined - lib\features\watchhistory\presentation\pages\watch_history_page.dart:1083:15 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\watchhistory\presentation\pages\watch_history_page.dart:1084:15 - undefined_named_parameter
+  error - The named parameter 'margin' isn't defined - lib\features\watchhistory\presentation\pages\watch_history_page.dart:1193:15 - undefined_named_parameter
+  error - The named parameter 'decoration' isn't defined - lib\features\watchhistory\presentation\pages\watch_history_page.dart:1194:15 - undefined_named_parameter
+  error - The element type '({Text child, EdgeInsets padding})' can't be assigned to the list type 'Widget' - lib\features\watchhistory\presentation\pages\watch_history_page.dart:1208:13 - list_element_type_not_assignable
+

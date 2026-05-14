@@ -1,0 +1,20 @@
+{
+  "runId": "backfill_1776951693670",
+  "timestamp": "2026-04-23T13:41:36.728Z",
+  "durationMs": 3057,
+  "options": {
+    "dryRun": true,
+    "limit": 500,
+    "lookbackDays": 7,
+    "batchSize": 50
+  },
+  "stats": {
+    "scanned": 2,
+    "recoverable": 0,
+    "alreadyCompleted": 0,
+    "missingStages": 2,
+    "repaired": 0,
+    "errors": 0
+  },
+  "logs": []
+}

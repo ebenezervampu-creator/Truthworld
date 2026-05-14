@@ -1,0 +1,53 @@
+{
+  "entities": [
+    {
+      "name": "Adolf Hitler",
+      "aliases": ["Hitler", "Der Führer"],
+      "domain": "historical",
+      "consensus_level": "high",
+      "tags": ["ww2", "holocaust", "historical_figure"]
+    },
+    {
+      "name": "Mahatma Gandhi",
+      "aliases": ["Gandhi", "Bapu"],
+      "domain": "historical",
+      "consensus_level": "high",
+      "tags": ["india", "independence", "historical_figure"]
+    },
+    {
+      "name": "Napoleon Bonaparte",
+      "aliases": ["Napoleon"],
+      "domain": "historical",
+      "consensus_level": "high",
+      "tags": ["france", "napoleonic_wars", "historical_figure"]
+    },
+    {
+      "name": "Moses",
+      "aliases": ["Musa"],
+      "domain": "religious_historical",
+      "consensus_level": "tradition",
+      "tags": ["bible", "torah", "religious_figure"]
+    },
+    {
+      "name": "Lord Rama",
+      "aliases": ["Rama", "Ram", "Maryada Purushottam"],
+      "domain": "religious_historical",
+      "consensus_level": "tradition",
+      "tags": ["ramayana", "hinduism", "religious_figure"]
+    },
+    {
+      "name": "Jesus Christ",
+      "aliases": ["Jesus", "Isa"],
+      "domain": "religious_historical",
+      "consensus_level": "consensus_tradition",
+      "tags": ["bible", "christianity", "religious_figure"]
+    },
+    {
+      "name": "Inigo Jones",
+      "aliases": [],
+      "domain": "historical",
+      "consensus_level": "specialized",
+      "tags": ["architecture"]
+    }
+  ]
+}

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+
+  <!-- ── SEO ─────────────────────────────────────────── -->
+  <title>Truthworld</title>
+  <meta name="description" content="Truthworld - News, stories, insights, and discussions." />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://www.truthworld.in/" />
+
+  <!-- ── Open Graph (Discord / Facebook / LinkedIn) ──── -->
+  <meta property="og:type"         content="website" />
+  <meta property="og:url"          content="https://www.truthworld.in/" />
+  <meta property="og:title"        content="Truthworld" />
+  <meta property="og:description"  content="Truthworld platform for articles and discussions." />
+  <meta property="og:image"        content="https://www.truthworld.in/icons/og-image.png" />
+  <meta property="og:image:width"  content="1200" />
+  <meta property="og:image:height" content="630" />
+
+  <!-- ── Twitter Card ──────────────────────────────────── -->
+  <meta name="twitter:card"        content="summary_large_image" />
+  <meta name="twitter:title"       content="Truthworld" />
+  <meta name="twitter:description" content="Truthworld platform for articles and discussions." />
+  <meta name="twitter:image"       content="https://www.truthworld.in/icons/og-image.png" />
+
+  <!-- ── Structured Data (JSON-LD) ────────────────────── -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Truthworld",
+    "url": "https://www.truthworld.in/",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://www.truthworld.in/search?q={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  }
+  </script>
+
+  <!-- ── Viewport & Theme ──────────────────────────────── -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#9B30FF" />
+
+  <!-- ── PWA & Icons ───────────────────────────────────── -->
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <link rel="apple-touch-icon" href="icons/Icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+
+  <!-- ── Preloads (cuts TTI) ───────────────────────────── -->
+  <link rel="preload" href="flutter_bootstrap.js" as="script" />
+  <link rel="preload" href="main.dart.js" as="script" />
+
+  <!-- ── Fonts ─────────────────────────────────────────── -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Rounded|Material+Icons+Outlined&display=swap" rel="stylesheet">
+
+  <!-- ── Inline Splash CSS (zero extra network round-trips) -->
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: #0D0014;
+      overflow: hidden;
+    }
+
+    #splash {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: radial-gradient(ellipse at 50% 40%,
+        #3D0080 0%, #1A0040 50%, #0D0014 100%);
+      transition: opacity 0.5s ease, visibility 0.5s ease;
+    }
+    #splash.hidden {
+      opacity: 0; visibility: hidden; pointer-events: none;
+    }
+
+    .splash-logo {
+      width: 80px; height: 80px; border-radius: 20px;
+      background: linear-gradient(135deg, #9B30FF, #C87DFF);
+      box-shadow: 0 0 40px rgba(155,48,255,.6), 0 0 80px rgba(155,48,255,.3);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 24px;
+      animation: logoPulse 2s ease-in-out infinite;
+    }
+    .splash-logo svg { width: 44px; height: 44px; fill: #fff; }
+
+    .splash-title {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 28px; font-weight: 700; color: #fff;
+      letter-spacing: -0.5px; margin-bottom: 8px;
+    }
+    .splash-subtitle {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px; color: rgba(200,125,255,.8); letter-spacing: 0.5px;
+    }
+
+    .splash-progress {
+      position: absolute; bottom: 0; left: 0;
+      width: 0%; height: 3px;
+      background: linear-gradient(90deg, #9B30FF, #C87DFF);
+      border-radius: 0 2px 2px 0;
+      animation: progressBar 3s ease-out forwards;
+    }
+
+    @keyframes logoPulse {
+      0%, 100% { box-shadow: 0 0 40px rgba(155,48,255,.6), 0 0 80px rgba(155,48,255,.3); }
+      50%       { box-shadow: 0 0 60px rgba(155,48,255,.9), 0 0 120px rgba(155,48,255,.5); }
+    }
+    @keyframes progressBar {
+      0%   { width: 0%; }
+      60%  { width: 70%; }
+      100% { width: 92%; }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Splash Screen — hidden by Flutter once first frame renders -->
+  <div id="splash" role="status" aria-label="Loading Truthworld…">
+    <div class="splash-logo">
+      <!-- Replace the path below with your actual logo SVG -->
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10
+                 10 10 10-4.48 10-10S17.52 2 12 2zm-1
+                 14H9V8h2v8zm4 0h-2V8h2v8z"/>
+      </svg>
+    </div>
+    <div class="splash-title">Truthworld</div>
+    <div class="splash-subtitle">See the world clearly</div>
+    <div class="splash-progress"></div>
+  </div>
+
+  <script>
+    // Define appReady globally before Flutter bootstrap loads
+    window.appReady = function () {
+      var splash = document.getElementById('splash');
+      if (splash) {
+        splash.classList.add('hidden');
+        // Remove from DOM after transition ends (keeps a11y tree clean)
+        splash.addEventListener('transitionend', function () {
+          splash.remove();
+        }, { once: true });
+      }
+    };
+  </script>
+
+  <!-- Flutter bootstrap must load after appReady is defined -->
+  <script src="flutter_bootstrap.js"></script>
+</body>
+</html>

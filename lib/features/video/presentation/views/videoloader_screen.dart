@@ -1,0 +1,190 @@
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/services/video_hydration_service.dart';
+
+// Constants for consistent styling
+const double kBorderRadius = 16.0;
+const double kSmallPadding = 8.0;
+const double kMediumPadding = 16.0;
+const double kLargePadding = 24.0;
+
+class VideoLoaderScreen extends StatefulWidget {
+  const VideoLoaderScreen({super.key});
+
+  @override
+  State<VideoLoaderScreen> createState() => _VideoLoaderScreenState();
+}
+
+class _VideoLoaderScreenState extends State<VideoLoaderScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    _animation = CurvedAnimation(parent: _controller, curve: Curves.easeInOut);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadVideo();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadVideo() async {
+    final videoId = Get.parameters['videoId'];
+
+    if (videoId == null) {
+      _showErrorSnackbar("Error", "No video ID found in URL");
+      return;
+    }
+
+    try {
+      Video? video;
+
+      // PHASE 2: Check for injected data first (instant load - no Firestore)
+      if (VideoHydrationService.hasInjectedData()) {
+        debugPrint('✅ Using prerendered video data (instant hydration)');
+
+        final injectedData = VideoHydrationService.getInjectedData();
+        if (injectedData != null) {
+          // Create Video from injected data
+          video = Video(
+            id: injectedData['id'] as String? ?? videoId,
+            title: injectedData['title'] as String? ?? 'Video',
+            description: injectedData['description'] as String? ?? '',
+            thumbnailUrl: injectedData['thumbnail'] as String? ?? '',
+            videoUrl: injectedData['videoUrl'] as String?,
+            hlsUrl: injectedData['hlsUrl'] as String? ?? '',
+            dashUrl: injectedData['dashUrl'] as String? ?? '',
+            ownerId: injectedData['creatorId'] as String? ?? 'unknown',
+            channelId: injectedData['channelId'] as String? ?? (injectedData['creatorId'] as String? ?? 'unknown'),
+            channelName: injectedData['creatorName'] as String? ?? 'Creator',
+            category: injectedData['category'] as String? ?? 'General',
+            tags: List<String>.from(injectedData['tags'] as List? ?? []),
+            viewCount: injectedData['viewCount'] as int? ?? 0,
+            vDurationValue: Duration(seconds: injectedData['duration'] as int? ?? 0),
+            createdAt: Timestamp.now(), // Fallback
+          );
+
+          // Clean up injected data after consuming
+          VideoHydrationService.clearInjectedData();
+        }
+      }
+
+      // Fallback: Load from Firestore (for app navigation, not web/SEO)
+      if (video == null) {
+        debugPrint('⏳ Loading video from Firestore: $videoId');
+
+        DocumentSnapshot doc = await FirebaseFirestore.instance
+            .collection('videos')
+            .doc(videoId)
+            .get();
+
+        if (!doc.exists) {
+          _showErrorSnackbar("Error", "Video not found");
+          return;
+        }
+
+        video = Video.fromDocumentSnapshot(doc);
+      }
+
+      // Navigate with loaded video
+      Get.offNamed("/videoscreen", arguments: {"video": video});
+      debugPrint("🧭 Video loaded and navigating to video screen");
+    } catch (e) {
+      _showErrorSnackbar("Error", "Something went wrong: $e");
+      debugPrint('❌ Error loading video: $e');
+    }
+  }
+
+  void _showErrorSnackbar(String title, String message) {
+    Get.snackbar(
+      title,
+      message,
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Get.theme.colorScheme.errorContainer,
+      colorText: Get.theme.colorScheme.onErrorContainer,
+      margin: EdgeInsets.all(kMediumPadding),
+      borderRadius: kBorderRadius,
+      icon: Icon(
+        Icons.error_rounded,
+        color: Get.theme.colorScheme.onErrorContainer,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      backgroundColor: colorScheme.surface,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ScaleTransition(
+              scale: _animation,
+              child: Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: colorScheme.primary,
+                  borderRadius: BorderRadius.circular(kBorderRadius * 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: colorScheme.primary.withValues(alpha: 0.3),
+                      blurRadius: 20,
+                      spreadRadius: 5,
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  Icons.play_arrow_rounded,
+                  color: colorScheme.onPrimary,
+                  size: 48,
+                ),
+              ),
+            ),
+            const SizedBox(height: kLargePadding),
+            Text(
+              'Loading Video...',
+              style: GoogleFonts.roboto(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: kSmallPadding),
+            Text(
+              'Please wait a moment while we fetch your content.',
+              style: GoogleFonts.roboto(
+                fontSize: 14,
+                color: colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+
+
+
