@@ -1,7 +1,9 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 import { PIPELINE_CONFIG } from "../config";
 import {
   ClaimStatus,
+  ClaimNature,
+  FramingStyle,
   EvidenceLevel,
   ExtractedClaim,
   FilteredClaim,
@@ -9,11 +11,13 @@ import {
   RichSource,
   SourceTier,
   VerifiedClaim,
+  VerificationMethod,
 } from "../types";
-import { registryService } from "../registry/RegistryService";
 import { containsVerifiablePredicate } from "./contentIntentDetector";
 import { withAiRetry } from "../utils/ai-utils";
 import { logger } from "../utils/logger";
+import { sourceTrustService } from "./sourceTrustService";
+import { tier0KnowledgeService } from "./tier0Knowledge";
 
 /**
  * v10.6: Dynamic batch timeout calculation.
@@ -30,23 +34,32 @@ function calculateBatchTimeout(
   const isGrounded = groundingMode === 'always';
   const isProModel = forcePro;
 
-  // Base timeouts by mode
-  const baseTimeout = isProModel && isGrounded ? 45_000   // Pro + grounding
-    : isGrounded ? 30_000   // Flash + grounding
-      : 20_000;  // Flash, no grounding
+  // Base timeouts by mode (v11.1 Hardened)
+  const baseTimeout = isProModel && isGrounded ? 30_000   // Pro + grounding (Reduced from 45s)
+    : isGrounded ? 10_000   // Flash + grounding (Reduced from 15s)
+      : 8_000;  // Flash, no grounding (Reduced from 10s)
 
-  // Per-claim addition
-  const perClaimMs = isProModel && isGrounded ? 12_000   // Pro + grounding: 12s/claim
-    : isGrounded ? 8_000    // Flash + grounding: 8s/claim
-      : 5_000;   // Standard: 5s/claim
+  // Per-claim addition (User requested 8s per claim)
+  const perClaimMs = isProModel && isGrounded ? 10_000   // Pro + grounding: 10s/claim
+    : isGrounded ? 8_000    // Flash + grounding: 8s/claim (Verified)
+      : 4_000;   // Standard: 4s/claim
 
-  // Retry pass gets a flat 60s regardless of model
-  if (isRetryPass) return 60_000;
+  // Retry pass gets a flat 30s regardless of model (v11.2 Hardened)
+  if (isRetryPass) return 30_000;
 
   return Math.min(
     baseTimeout + (batchSize * perClaimMs),
-    120_000  // hard ceiling — never wait more than 2 minutes per batch
+    150_000  // raised ceiling to 2.5 minutes to accommodate larger batches in long-form videos
   );
+}
+
+// v14.0: Sanitize LLM JSON output (trailing commas, comments, etc.)
+function sanitizeJSON(raw: string): string {
+  return raw
+    .replace(/\/\/[^\n]*/g, '')         // Remove single-line comments
+    .replace(/\/\*[\s\S]*?\*\//g, '')   // Remove multi-line comments
+    .replace(/,\s*([\]\}])/g, '$1')     // Remove trailing commas
+    .replace(/[\uFEFF\u200B]/g, '');    // Remove BOM/zero-width chars
 }
 
 /**
@@ -84,6 +97,8 @@ export class ClaimVerificationService {
       /\b(?:genocide|ethnic cleansing|war crime|human rights)\b/i,
       /\b(?:nuclear|chemical weapon|biological weapon)\b/i,
       /\b(?:coup|overthrow|martial law|emergency)\b/i,
+      /\b(?:scientific discovery|breakthrough|study shows|researchers found)\b/i, // v12.5: Science markers
+      /\b(?:ancient|archaeological|excavated|dynasty|civilization|historical record)\b/i, // v12.5: History markers
     ];
 
     // Pattern match
@@ -93,8 +108,6 @@ export class ClaimVerificationService {
     const sensitiveDomains = PIPELINE_CONFIG.SENSITIVE_DOMAINS || [];
     if (sensitiveDomains.some((d: string) => text.includes(d))) return true;
 
-    // High-importance factual claims
-    if ((claim.nature === 'FACTUAL') && text.length > 80) return true;
 
     return false;
   }
@@ -104,36 +117,56 @@ export class ClaimVerificationService {
    */
   private shouldGroundClaim(text: string, isLaunchNews: boolean = false): boolean {
     if (isLaunchNews) return true; // v5.2: Force grounding for launches
+    
+    const textLower = text.toLowerCase();
+
+    // v11.3 & v11.5: "Knowledge-Only" Skip List (Historical/Scientific/Trivia Constants)
+    // These are known by Gemini training data and do NOT need 15s search latency.
+    const historicalMarkers = [
+      /\bancient\b/i, /\bhistorical\b/i, /\bcentury\b/i, /\bgupta\b/i, /\bindus valley\b/i,
+      /\bdynasty\b/i, /\bmythology\b/i, /\bscripture\b/i, /\bbce\b/i, /\barchaeology\b/i,
+      /\bhistory of\b/i, /\borigin of\b/i, /\binvented by\b/i, /\bdiscovered by\b/i
+    ];
+
+    const geographyMarkers = [
+      /\bborder\b/i, /\bcapital of\b/i, /\bhemisphere\b/i, /\bmeridian\b/i, /\bequator\b/i,
+      /\bstate of\b/i, /\bcountry\b/i, /\bocean\b/i, /\bcontinent\b/i, /\blatitude\b/i, /\blongitude\b/i,
+      /\bsouthernmost\b/i, /\bnorthernmost\b/i, /\beasternmost\b/i, /\bwesternmost\b/i,
+      /\bhottest temperature\b/i, /\bcoldest temperature\b/i, /\bhighest peak\b/i, /\bdeepest\b/i
+    ];
+
+    const scienceMarkers = [
+      /\bboiling point\b/i, /\bfreezing point\b/i, /\belements\b/i, /\bperiodic table\b/i,
+      /\bspeed of light\b/i, /\bgravity\b/i, /\bmolecule\b/i, /\batom\b/i, /\bdna\b/i,
+      /\bplanet\b/i, /\bsolar system\b/i, /\bgalaxy\b/i, /\bmathematics\b/i, /\bformula\b/i,
+      /\banatomy\b/i, /\bheart\b/i, /\bspecies\b/i, /\bmammal\b/i, /\banimal\b/i, /\binvertebrate\b/i,
+      /\bblood\b/i, /\bskeleton\b/i, /\bgrowth\b/i, /\bsleep\b/i, /\bgestation\b/i, /\bhabitat\b/i
+    ];
+
+    if (
+      historicalMarkers.some(regex => regex.test(textLower)) ||
+      geographyMarkers.some(regex => regex.test(textLower)) ||
+      scienceMarkers.some(regex => regex.test(textLower))
+    ) {
+      logger.info(`[ClaimVerification] Grounding skipped: Deterministic context detected in "${text.substring(0, 50)}..."`);
+      return false;
+    }
+
     const freshMarkers = [
       /\blaunched\b/i, /\bannounced\b/i, /\breleased\b/i, /\bjust in\b/i,
       /\brecently\b/i, /\bnew product\b/i, /\bupcoming\b/i, /\bfeature\b/i,
       /\btoday\b/i, /\byesterday\b/i, /\bthis week\b/i, /\bbreaking\b/i,
       /\bdeployment\b/i, /\brollout\b/i, /\bupdate\b/i
     ];
-    return freshMarkers.some(regex => regex.test(text));
+    return freshMarkers.some(regex => regex.test(textLower));
   }
 
   /**
-   * Assigns a tier to a source based on its domain
+   * Assigns a tier to a source based on its domain using the SourceTrustService.
    */
   private getSourceTier(url: string, domainContext: string = "General"): SourceTier {
-    const lowUrl = url.toLowerCase();
-
-    // Tier A: Official sources / Gold standard
-    const officialTech = ["anthropic.com", "openai.com", "google.com", "apple.com", "microsoft.com", "nvidia.com", "meta.com"];
-    const officialGov = [".gov", ".edu", "who.int", "nih.gov", "fda.gov", "sec.gov", "ecb.europa.eu"];
-
-    if (officialGov.some(d => lowUrl.includes(d)) || officialTech.some(d => lowUrl.includes(d))) return 'A';
-
-    // Tier B: Institutional Press / Primary Agencies
-    const tier1Press = ["reuters.com", "apnews.com", "bloomberg.com", "wsj.com", "nytimes.com", "ft.com"];
-    if (tier1Press.some(d => lowUrl.includes(d))) return 'B';
-
-    // Tier C: Specialized Press / Enthusiast
-    const techPress = ["techcrunch.com", "theverge.com", "wired.com", "engadget.com", "zdnet.com"];
-    if (techPress.some(d => lowUrl.includes(d))) return 'C';
-
-    return 'D';
+    const trust = sourceTrustService.resolveSourceTrust(url, domainContext);
+    return trust.tier;
   }
 
   /**
@@ -164,51 +197,42 @@ export class ClaimVerificationService {
 
     claims.forEach((claim, idx) => {
       const claimId = `claim_${Date.now()}_${idx}`;
-      const tagged: FilteredClaim = { ...claim, claimId };
+      
+      // Honesty Flag Detection: If Opinion/Belief is presented as Fact
+      const isOpinionOrBelief = claim.nature === ClaimNature.OPINION || claim.nature === ClaimNature.BELIEF;
+      const isAuthoritative = claim.framing === FramingStyle.ABSOLUTE || claim.framing === FramingStyle.MANIPULATIVE || (claim as any).assertiveness === 'authoritative' || (claim as any).assertiveness === 'absolute';
+      
+      const tagged: FilteredClaim = { 
+        ...claim, 
+        claimId,
+        isFramingViolation: isOpinionOrBelief && isAuthoritative
+      };
 
       // Gate 1: Minimum confidence threshold
-      // v5.1: Lower threshold for launch news to ensure critical product claims aren't missed
-      const effectiveThreshold = this.confidenceThreshold * (isLaunchNews ? 0.66 : 1.0); // 0.4 instead of 0.6 for launches
+      const effectiveThreshold = this.confidenceThreshold * (isLaunchNews ? 0.66 : 1.0);
       if (claim.confidence < effectiveThreshold) {
         filteringReasons.push(`Claim "${claim.text.substring(0, 40)}..." filtered: confidence ${claim.confidence} below ${effectiveThreshold.toFixed(2)}`);
-        return; // Drop entirely
+        return;
       }
 
-      // Gate 2: Satirical content is never verified
-      if (claim.nature === 'SATIRE') {
+      // Gate 2: Satirical content
+      if (claim.nature === ClaimNature.SATIRE) {
         opinions.push(tagged);
-        filteringReasons.push(`Claim "${claim.text.substring(0, 40)}..." labeled satirical — skipping verification`);
         return;
       }
 
-      // Gate 3: Unclear claims (dropped if nature is unknown or low confidence)
-      // v8.5: We strictly use nature now
+      // === ROUTING MATRIX (TRUTHWORLD PATH 1) ===
 
-      // === ROUTING MATRIX ===
-
-      // v11.0 Safety Net: Route claims with missing or unrecognized nature to verification
-      // This prevents claims from being dropped when Gemini's extraction classifier is uncertain
-      const recognizedNatures = ['FACTUAL', 'OPINION', 'PREDICTION', 'THEORY', 'BELIEF', 'SATIRE'];
-      if (!claim.nature || !recognizedNatures.includes(claim.nature as string)) {
-        toVerify.push(tagged);
-        filteringReasons.push(`Claim "${claim.text.substring(0, 40)}..." had nature=${claim.nature || 'undefined'} — routed to verify (safety net)`);
-        return;
-      }
-
-      // Route A: Explicitly factual natures → always verify
-      const factualNatures = ['FACTUAL', 'THEORY', 'PREDICTION'];
-      if (factualNatures.includes(claim.nature)) {
+      // Bucket 1 (Fact) & Bucket 4 (Estimation) -> Verification
+      if (claim.nature === ClaimNature.VERIFIABLE_FACT || claim.nature === ClaimNature.ESTIMATION) {
         toVerify.push(tagged);
         return;
       }
 
-      // Route B: Opinion/belief types — but check for hidden verifiable predicates
-      const opinionNatures = ['OPINION', 'BELIEF'];
-      if (opinionNatures.includes(claim.nature)) {
-        // CRITICAL FIX: If the claim LOOKS like an opinion but contains a
-        // verifiable predicate, it should be verified, not filtered.
+      // Bucket 2 (Opinion) & Bucket 3 (Belief) -> Opinions (Labeling only)
+      if (isOpinionOrBelief) {
+        // RESCUE: If it contains a verifiable predicate, it might be Bucket 1 in disguise
         if (claim.isVerifiableEvent || containsVerifiablePredicate(claim.text)) {
-          console.log(`[ClaimRouter] Rescued verifiable claim from opinion bucket: "${claim.text.substring(0, 50)}..."`);
           toVerify.push(tagged);
           return;
         }
@@ -216,14 +240,12 @@ export class ClaimVerificationService {
         return;
       }
 
-      // Route C: Everything else (unclear with high confidence, etc.) → verify
-      // Safety net: when classifier confidence is low, route to verify anyway
-      // (better false positives than missed truth checks)
+      // Safety net
       toVerify.push(tagged);
     });
 
     console.log(
-      `[ClaimRouter] Routing: ${claims.length} total → ${toVerify.length} verify, ${opinions.length} opinions, ${claims.length - toVerify.length - opinions.length} dropped`
+      `[ClaimRouter] Routing: ${claims.length} total → ${toVerify.length} verify, ${opinions.length} opinions`
     );
 
     return { toVerify, opinions, filteringReasons };
@@ -252,11 +274,13 @@ export class ClaimVerificationService {
       sourceDiversityRequired: boolean;
       isDiscoverySensitive?: boolean;
     } = {
-        groundingMode: 'auto' as any,
+        groundingMode: 'sensitive_only',
         forcePro: false,
         minSourcesRequired: 1,
         sourceDiversityRequired: false
-      }
+      },
+    signal?: AbortSignal,
+    maxAttemptsOverride?: number
   ): Promise<VerifiedClaim[]> {
     if (claims.length === 0) {
       return [];
@@ -267,179 +291,74 @@ export class ClaimVerificationService {
 
 
     try {
-      // 🛡 NEW: LAYER 4 Deterministic Registry Bypass
+      const remainingToVerify = claims;
       const preVerified: VerifiedClaim[] = [];
-      const remainingToVerify: FilteredClaim[] = [];
 
-      for (const claim of claims) {
-        const registryCheck = registryService.resolveTruthCheck(claim.text);
-        if (registryCheck) {
-          preVerified.push({
-            ...claim,
-            status: registryCheck.status as any,
-            nature: claim.nature,
-            ontology: claim.nature as any,
-            verificationConfidence: 1.0,
-            evidenceConfidence: 1.0,
-            reasoning: registryCheck.reasoning,
-            sources: [registryCheck.source],
-            richSources: [{ title: registryCheck.source, url: "#", tier: "A", snippet: registryCheck.reasoning }],
-            isGrounded: true
-          });
-        } else {
-          remainingToVerify.push(claim);
-        }
+      // Fetch Tier-0 Wikipedia Context for all claims in this batch
+      const tier0Contexts = await tier0KnowledgeService.getBatchContext(
+        remainingToVerify.map(c => ({ claimId: c.claimId, text: c.text }))
+      );
+
+      let tier0Injection = "";
+      const validContexts = tier0Contexts.filter(c => c.context !== null);
+      if (validContexts.length > 0) {
+        tier0Injection = `\n### TIER-0 KNOWLEDGE RECOVERY (WIKIPEDIA):\n${validContexts.map(c => `[ID: ${c.claimId}] ${c.context}`).join('\n')}\n`;
       }
 
-      if (remainingToVerify.length === 0) return preVerified;
+      const prompt = `ROLE: TruthWorld Institutional Verification Engine.
 
-      const useDeepResearchPrompt = options.groundingMode === 'always';
+OBJECTIVE: Verify the following batch of claims.
 
-      const prompt = useDeepResearchPrompt
-        ? `SYSTEM PROMPT - TRUTHWORLD DEEP RESEARCH MASTER PROMPT v10.5
-You are an institutional fact-checker performing exhaustive deep research.
-
-For each claim provided, you must:
-
-1. SEARCH GLOBALLY: Use Google Search to find sources from multiple regions, institutions, and perspectives. Do not limit yourself to English-language or Western sources.
-
-2. CROSS-SOURCE VALIDATION: Verify each claim against a minimum of ${options.minSourcesRequired} independent sources. Sources must come from different domains — do not accept two results from the same website.
-
-3. CLASSIFY EVIDENCE: For each source found, assign:
-   - tier: "A" (peer-reviewed / government / WHO / official institution)
-   - tier: "B" (established news organization / university press)
-   - tier: "C" (credible secondary source / expert blog)
-   - tier: "D" (forum / unverified / social media)
-
-4. RETURN STRUCTURED RESULTS: For each claim return:
-   - status: correct | mostly_correct | incorrect | needs_context | outdated | unsupported | unverifiable
-   - evidenceLevel: STRONG | MODERATE | WEAK | NONE | CONTRADICTED
-   - verifiedFacts: string[] — direct findings from sources (quote the relevant fact)
-   - missingEvidence: string[] — what you could not find or confirm
-   - sourceConsensus: "consensus" | "disputed" | "no_data"
-   - richSources: [{title, url, domain, publishedAt, tier, snippet}]
-   - publicNote: plain-language summary for viewers
-   - recommendedAction: what a viewer should do with this information
-
-CONSTRAINT: You may only use information found via the Google Search tool. You are strictly prohibited from using your internal training knowledge to confirm or deny any factual claim. If search returns no results, return evidenceLevel: "NONE".
-
-Claims to research:
-${remainingToVerify.map((c, i) => `[${i + 1}] "${c.text}" (ID: ${c.claimId})`).join('\n')}
-
-Return ONLY valid JSON object with "verifications" array.
-`
-        : `SYSTEM PROMPT - TRUTHWORLD LIVE GROUNDING MASTER PROMPT v10.0
-STRICT CONSTRAINT: You must only verify claims using the provided source documents and registry data. 
-You are PROHIBITED from using your internal training knowledge to confirm or deny any factual claim.
-If no registry source supports a claim, return evidenceLevel: "NONE" — do not infer from training data.
-
-ROLE:
-You are TruthWorld’s Institutional Verification Engine.
-Your duty is to determine what is TRUE, FALSE, UNVERIFIED, MISLEADING, OUTDATED, PARTLY TRUE, OPINION, THEORY, BELIEF, SATIRE, PROPAGANDA, or QUESTIONABLE using the most current information available.
-
-DEEP RESEARCH PROTOCOL (v10.5):
-1. Use Google Search tools for EVERY claim.
-2. Cross-reference multiple high-tier sources (Tier 1-2).
-3. Look for contradictions, retractions, or recent updates.
-4. If a claim is "partially true", pinpoint exactly which part is verified and which is not.
-5. Identify the "latest known state" of any event or metric.
-
-You are NOT a chatbot.
-You are a live truth investigator.
-
---------------------------------------------------
-PRIMARY OBJECTIVE
---------------------------------------------------
-
-Given any claim, transcript, article, speech, creator statement, breaking news alert, historical statement, conspiracy claim, religious claim, economic claim, war claim, political claim, or viral rumor:
-
-You must determine:
-1. What exactly is being claimed?
-2. Is it factual, opinion, prediction, theory, belief, satire, or propaganda?
-3. Is it true right now?
-4. Was it true before but outdated now?
-5. Is there enough evidence?
-6. Are trusted sources confirming it?
-7. Is it manipulated framing?
-8. What is the confidence level?
-9. What should public users know?
-
---------------------------------------------------
-LIVE GROUNDING REQUIREMENT (MANDATORY)
---------------------------------------------------
-
-For any time-sensitive claim, you MUST use freshest available sources.
-If evidence unavailable, say so clearly.
-
---------------------------------------------------
-SOURCE HIERARCHY
---------------------------------------------------
-
-Tier 1 (Highest Trust): Official Gov, Courts, UN/WHO/IMF, Stock Exchanges, Official Press Releases.
-Tier 2: Reuters, AP, AFP, Bloomberg, BBC, FT, WSJ.
-Tier 3: Reputable specialist media.
-Tier 4: Wikipedia (background only).
-Tier 5 (Low Trust): Social media, Influence posts, Anonymous blogs.
-
---------------------------------------------------
-CLAIM TYPES
---------------------------------------------------
-A. FACT CLAIM, B. BREAKING NEWS, C. HISTORICAL CLAIM, D. OPINION, E. PREDICTION, F. THEORY, G. BELIEF, H. SATIRE, I. QUESTION, J. PROPAGANDA.
-
---------------------------------------------------
-TRUTH LABELS
---------------------------------------------------
-1. VERIFIED TRUE, 2. MOSTLY TRUE, 3. PARTLY TRUE, 4. NEEDS CONTEXT, 5. OUTDATED, 6. UNVERIFIED, 7. FALSE, 8. MISLEADING, 9. DISPUTED, 10. DEVELOPING STORY, 11. OPINION, 12. BELIEF / FAITH CLAIM, 13. PREDICTION, 14. SATIRE, 15. QUESTION / INQUIRY
-
---------------------------------------------------
-EVIDENCE LEVELS
---------------------------------------------------
-- "STRONG": Multiple independent high-tier sources.
-- "MODERATE": Some reliable sources, but not definitive.
-- "WEAK": Single source or anecdotal evidence only.
-- "NONE": No evidence found.
-- "CONTRADICTED": Credible sources explicitly disprove the claim.
-
---------------------------------------------------
-ANTI-HALLUCINATION LAW
---------------------------------------------------
-Never invent evidence. Never guess. If insufficient evidence, say UNVERIFIED.
-
---------------------------------------------------
-OUTPUT FORMAT (MANDATORY JSON ARRAY)
---------------------------------------------------
-Return a JSON object with a "verifications" array. Each object in the array MUST follow:
-{
-  "claimId": "string",
-  "claim": "string",
-  "claimType": "string",
-  "label": "string",
-  "evidenceLevel": "STRONG|MODERATE|WEAK|NONE|CONTRADICTED",
-  "rating": number (0-10),
-  "confidence": number (0-1),
-  "freshness": "string",
-  "summary": "string",
-  "verifiedFacts": ["string"],
-  "missingEvidence": ["string"],
-  "sourceConsensus": "string",
-  "riskLevel": "string",
-  "publicNote": "string",
-  "recommendedAction": "string"
-}
-
+PROTOCOL:
+1. EVIDENCE: If Google Search tools are enabled, prioritize them. If disabled or search fails, use your internal high-precision training data.
+2. LABELS: VERIFIED TRUE | MOSTLY TRUE | DISPUTED | INCONCLUSIVE | LIMITED SUPPORT | MISLEADING | FALSE | RELIGIOUS BELIEF | OPINION | SATIRE.
+3. BAN ON UNSUPPORTED: You are STRICTLY FORBIDDEN from outputting "UNPROVEN" or "UNSUPPORTED". This applies to ALL categories and ALL videos.
+4. KNOWLEDGE FALLBACK: If search yields no results, evaluate the claim using your internal knowledge. If it is widely accepted as true (e.g. animal trivia, science facts), label it MOSTLY TRUE or LIMITED SUPPORT.
+5. EVIDENCE LEVELS: STRONG | MODERATE | WEAK | NONE | CONTRADICTED. Use NONE for INCONCLUSIVE.
+6. ANTI-HALLUCINATION: Never invent sources. If evidence is truly missing and your internal knowledge is low-confidence, use INCONCLUSIVE.
+${tier0Injection}
 ### BATCH TO VERIFY:
-${remainingToVerify.map(c => `[ID: ${c.claimId}, Context: ${domainContext}] Claim: "${c.text}"`).join('\n')}
+${remainingToVerify.map(c => {
+  // v11.6: Sanity-strip emoji hallucinations from extraction layer
+  const cleanText = c.text.replace(/^[🔍\s]+/, '').trim();
+  return `[ID: ${c.claimId}] Claim: "${cleanText}"`;
+}).join('\n')}
 
-Return ONLY valid JSON.`;
+RETURN JSON:
+{
+  "verifications": [
+    {
+      "claimId": "string",
+      "claim": "string",
+      "claimType": "string",
+      "label": "string",
+      "evidenceLevel": "STRONG|MODERATE|WEAK|NONE|CONTRADICTED",
+      "rating": number (0-10),
+      "confidence": number (0-1),
+      "freshness": "string",
+      "summary": "string",
+      "verifiedFacts": ["string"],
+      "missingEvidence": ["string"],
+      "sourceConsensus": "string",
+      "riskLevel": "string",
+      "publicNote": "string",
+      "recommendedAction": "string"
+    }
+  ]
+}`;
 
       // Step A: Determine if grounding is needed for remaining
       const needsGrounding = remainingToVerify.some(c =>
-        (c.nature === 'FACTUAL') &&
+        (c.nature === ClaimNature.VERIFIABLE_FACT) &&
         this.shouldGroundClaim(c.text)
-      ) || PIPELINE_CONFIG.GROUNDING_MODE === 'always';
+      );
+
+      // v11.4: "Knowledge-Only" Override (Indus Valley Fix)
+      // If ALL claims in batch are historical/established, force no grounding
+      const allHistorical = remainingToVerify.every(c => !this.shouldGroundClaim(c.text));
+      const enableGrounding = !allHistorical && (options.groundingMode === 'always' || needsGrounding || PIPELINE_CONFIG.GROUNDING_MODE === 'always');
 
       const hasSensitiveClaims = options.isDiscoverySensitive || options.forcePro || remainingToVerify.some(c => this.isSensitiveClaim(c, options.isDiscoverySensitive));
-      const enableGrounding = options.groundingMode === 'always' || needsGrounding;
 
       const standardChain = {
         primary: PIPELINE_CONFIG.GEMINI_MODELS?.verification || "gemini-2.5-pro",
@@ -447,22 +366,54 @@ Return ONLY valid JSON.`;
         forcePrimary: false,
       };
 
+      // v14.0: Changed fallback from null to Flash. Previously Pro had no fallback,
+      // meaning if Pro failed (rate limit, safety filter), ALL retries hit Pro again.
+      // Now Pro falls back to Flash, ensuring verification always has a path forward.
       const sensitiveChain = {
         primary: PIPELINE_CONFIG.GEMINI_MODELS?.verification || "gemini-2.5-pro",
-        fallback: null,
-        forcePrimary: true,
+        fallback: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash",
+        forcePrimary: false,
       };
 
-      const chain = hasSensitiveClaims ? sensitiveChain : standardChain;
+      const chain = (hasSensitiveClaims && enableGrounding) ? sensitiveChain : standardChain;
       const instanceId = `verification_batch_${Date.now()}`;
 
       const verifiedFromLLM: VerifiedClaim[] = await withAiRetry(async (modelId: string) => {
-        const activeModel = this.genAI.getGenerativeModel({
-          model: modelId,
-          tools: enableGrounding ? [{ googleSearch: {} }] as any : undefined
+        logger.info(`[ClaimVerification] Constructing Gemini Call`, {
+          modelId,
+          enableGrounding,
+          batchSize: remainingToVerify.length,
+          claims: remainingToVerify.map(c => c.text.substring(0, 50) + "...")
         });
 
-        const response = await activeModel.generateContent(prompt);
+        // v14.0: Safety settings for fact-checking engine.
+        // TruthWorld MUST be able to process content about violence, politics, 
+        // assassination, military strikes, etc. — that's what it fact-checks.
+        // Default Gemini safety filters block this content, causing 100% timeouts.
+        const safetySettings = [
+          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        ];
+
+        const activeModel = this.genAI.getGenerativeModel({
+          model: modelId,
+          tools: enableGrounding ? [{ googleSearch: {} }] as any : undefined,
+          safetySettings,
+        });
+
+        // Step B: Call Gemini with timeout support
+        const tReqStart = Date.now();
+        const response = await activeModel.generateContent(prompt, { signal });
+        const tReqEnd = Date.now();
+
+        logger.info(`[ClaimVerification] Gemini Call Completed`, {
+          latencyMs: tReqEnd - tReqStart,
+          modelId,
+          groundingUsed: !!(response.response.candidates?.[0] as any)?.groundingMetadata
+        });
+
         const text = response.response.text();
 
         const groundingMetadata = (response.response.candidates?.[0] as any)?.groundingMetadata;
@@ -475,7 +426,7 @@ Return ONLY valid JSON.`;
         }
 
         // Hardened Schema Validation
-        const rawParsed = JSON.parse(jsonMatch[0]);
+        const rawParsed = JSON.parse(sanitizeJSON(jsonMatch[0]));
         const validation = GeminiVerificationSchema.safeParse(rawParsed);
 
         if (!validation.success) {
@@ -502,13 +453,25 @@ Return ONLY valid JSON.`;
             });
             return {
               ...claim,
-              status: "unverifiable",
+              status: "verification_timeout",
               verificationConfidence: 0.3,
               reasoning: "Claim ID mismatch during verification — marked for re-analysis.",
               sources: [],
               richSources: [],
-              isGrounded: false
+              isGrounded: false,
+              verificationMethod: 'not_verified'
             };
+          }
+
+          // v11.5: Determine verification method and evidence level
+          const hasRichSources = !!groundingSupports.length;
+          const skippedGrounding = !enableGrounding;
+          
+          let verificationMethod: VerificationMethod = 'llm_training';
+          if (hasRichSources) {
+            verificationMethod = 'grounded';
+          } else if (skippedGrounding) {
+            verificationMethod = 'deterministic'; // Verified via internal training data as a "known constant"
           }
 
           // v11.0: Claim-level source attribution via groundingSupports
@@ -565,7 +528,7 @@ Return ONLY valid JSON.`;
 
           if (options.sourceDiversityRequired && diverseSources.length < options.minSourcesRequired) {
             evidenceLevel = "INSUFFICIENT";
-            finalStatus = 'unverifiable';
+            finalStatus = 'inconclusive';
             publicNote = `Only ${diverseSources.length} unique source(s) found. Minimum ${options.minSourcesRequired} required for verification.`;
           }
 
@@ -580,6 +543,7 @@ Return ONLY valid JSON.`;
               diverseSources.some(s => s.tier === 'A' || s.tier === 'B' || s.tier === 'C') &&
               diverseSources.length >= options.minSourcesRequired,
             trueAsOf: verification.freshness,
+            verificationMethod, // v11.5: deterministic | grounded | llm_training
 
             // v5.2: Live Grounding Engine Fields
             claimType: verification.claimType,
@@ -597,7 +561,7 @@ Return ONLY valid JSON.`;
             freshnessScore: verification.rating / 10 // Map 0-10 rating to 0-1 score
           };
         });
-      }, chain, { maxAttempts: 4, instanceId });
+      }, chain, { maxAttempts: maxAttemptsOverride ?? 1, instanceId, signal });
 
       return [...preVerified, ...verifiedFromLLM];
     } catch (error) {
@@ -623,6 +587,7 @@ Return ONLY valid JSON.`;
       sourceDiversityRequired: boolean;
       isDiscoverySensitive?: boolean;
       isRetryPass?: boolean; // v10.6: flag for retry pass routing
+      jobId?: string; // v11.5: for circuit breaker logging
     } = {
         groundingMode: 'auto' as any,
         forcePro: false,
@@ -662,12 +627,12 @@ Return ONLY valid JSON.`;
     // Factory pattern ensures promises only start when we reach their wave in the loop
     const allBatchFactories = [
       ...sensitiveBatches.map((batch, idx) => ({
-        factory: () => this.verifyClaimBatch(batch, domainContext, { ...options, isDiscoverySensitive: true }),
+        factory: (signal?: AbortSignal, maxAttempts?: number) => this.verifyClaimBatch(batch, domainContext, { ...options, isDiscoverySensitive: true }, signal, maxAttempts),
         label: `sensitive_${idx}`,
         claims: batch,
       })),
       ...standardBatches.map((batch, idx) => ({
-        factory: () => this.verifyClaimBatch(batch, domainContext, options),
+        factory: (signal?: AbortSignal, maxAttempts?: number) => this.verifyClaimBatch(batch, domainContext, options, signal, maxAttempts),
         label: `standard_${idx}`,
         claims: batch,
       })),
@@ -705,23 +670,60 @@ Return ONLY valid JSON.`;
 
       logger.info(`[ClaimVerification] Wave timeout: ${batchTimeoutMs}ms for ${waveBatchSize} claims (retry=${isRetryPass})`);
 
+      const waveController = new AbortController();
       const results = await Promise.allSettled(
-        wave.map(w => Promise.race([
-          w.factory(),
-          new Promise<VerifiedClaim[]>((resolve) =>
-            setTimeout(() => resolve(w.claims.map(c => ({
+        wave.map(async (w) => {
+          const waveSignal = waveController.signal;
+
+          // v13.2: Correct timeout-then-recover architecture.
+          // Race the factory against a simple timer. Recovery runs AFTER the race is decided,
+          // not inside a competing promise (which caused the abort-rejection to win every time).
+          type RaceResult = { type: 'success'; claims: VerifiedClaim[] } | { type: 'timeout' };
+
+          const raceResult = await Promise.race([
+            w.factory(waveSignal, isRetryPass ? 2 : 1)
+              .then((claims): RaceResult => ({ type: 'success', claims }))
+              .catch((): RaceResult => ({ type: 'timeout' })), // Abort/error → treat as timeout
+            new Promise<RaceResult>(resolve =>
+              setTimeout(() => resolve({ type: 'timeout' }), batchTimeoutMs)
+            )
+          ]);
+
+          // Case 1: Factory resolved successfully with real results
+          if (raceResult.type === 'success') {
+            const allTimedOut = raceResult.claims.length > 0 &&
+              raceResult.claims.every(c => c.status === 'verification_timeout' || (c as any).failureReason === 'timeout');
+
+            if (!allTimedOut) {
+              return raceResult.claims; // Real results — use them
+            }
+            // Factory "succeeded" but returned all-timeout claims (e.g. claimId mismatch) — fall through to recovery
+          }
+
+          // Case 2: Timeout or all-timeout factory results — run Fast Knowledge Recovery
+          console.warn(`[ClaimVerification] Wave batch timeout for ${w.claims.length} claims. Running Fast Knowledge Recovery.`);
+          waveController.abort(); // Kill any lingering grounded calls
+
+          try {
+            const recovered = await this.verifyBatchWithFastKnowledge(w.claims, options.jobId || "unknown");
+            logger.info(`[ClaimVerification] Recovery Pass succeeded for ${recovered.length} claims`);
+            return recovered;
+          } catch (err) {
+            logger.error(`[ClaimVerification] Recovery Pass failed: ${(err as any).message}`, { jobId: options.jobId });
+            return w.claims.map(c => ({
               ...c,
-              status: "unverifiable" as ClaimStatus, // Keep as unverifiable — retry pass detects this
-              verificationConfidence: 0,
-              reasoning: "Verification timed out. Will retry if claim importance qualifies.",
+              status: "verification_timeout" as ClaimStatus,
+              verificationConfidence: 0.1,
+              reasoning: "Critical infrastructure failure — both grounding and recovery pass failed.",
               sources: [],
               richSources: [],
               evidenceLevel: EvidenceLevel.NONE,
               importance: c.importance || 0.5,
-              timedOutAt: Date.now(), // v10.6: marker for retry detection
-            }))), batchTimeoutMs)
-          )
-        ]))
+              timedOutAt: Date.now(),
+              failureReason: 'timeout'
+            }));
+          }
+        })
       );
 
       const failures = results.filter(r => r.status === 'rejected').length;
@@ -735,24 +737,27 @@ Return ONLY valid JSON.`;
           if (isActuallyTimeout) timedOut++;
           else completed++;
         } else {
-          logger.warn(`[AdaptiveConcurrency] Wave batch failed: ${result.reason}`);
+          console.warn(`[ClaimVerification] Wave batch REJECTED: ${result.reason}`);
           allVerified.push(...wave[idx].claims.map(c => ({
             ...c,
-            status: "unverifiable" as ClaimStatus,
+            status: "verification_timeout" as ClaimStatus,
             verificationConfidence: 0,
-            reasoning: 'Wave batch failed during execution.',
+            reasoning: 'Wave batch failed during execution (AI or Network error).',
             sources: [],
             richSources: [],
             evidenceLevel: EvidenceLevel.NONE,
             importance: c.importance || 0.5,
             timedOutAt: Date.now(), // v10.6: mark as timed out for retry
+            failureReason: 'timeout'
           })));
         }
       }
 
       // Adjust concurrency for next wave
-      if (outcome === 'failure') {
-        concurrency.current = concurrency.min;
+      const isWaveActuallyTimeout = results.some(r => r.status === 'fulfilled' && r.value.some((c: any) => c.failureReason === 'timeout'));
+      
+      if (outcome === 'failure' || isWaveActuallyTimeout) {
+        concurrency.current = Math.max(concurrency.min, concurrency.current - 1);
         concurrency.consecutiveSuccesses = 0;
         concurrency.consecutiveFailures++;
       } else if (outcome === 'partial') {
@@ -767,6 +772,37 @@ Return ONLY valid JSON.`;
         concurrency.consecutiveFailures = 0;
       }
 
+      if (concurrency.consecutiveFailures >= 3) {
+        logger.error(`[ClaimVerification] CIRCUIT BREAKER: 3 consecutive waves timed out or failed. Aborting remaining batches.`, {
+          remaining: allBatchFactories.length - batchIndex,
+          jobId: options.jobId
+        });
+        
+        // Mark remaining batches — attempt Fast Knowledge Recovery instead of hard-kill
+        const remaining = allBatchFactories.slice(batchIndex);
+        for (const batch of remaining) {
+          try {
+            const recovered = await this.verifyBatchWithFastKnowledge(batch.claims, options.jobId || "unknown");
+            allVerified.push(...recovered);
+          } catch (e) {
+            allVerified.push(...batch.claims.map(c => ({
+              ...c,
+              status: "verification_timeout" as ClaimStatus,
+              verificationConfidence: 0,
+              reasoning: 'Verification aborted due to persistent pipeline latency (Circuit Breaker). Recovery also failed.',
+              sources: [],
+              richSources: [],
+              evidenceLevel: EvidenceLevel.NONE,
+              importance: c.importance || 0.5,
+              timedOutAt: Date.now(),
+              failureReason: 'timeout'
+            })));
+          }
+          timedOut++;
+        }
+        break; 
+      }
+
       if (outcome !== 'success') {
         logger.info(`[AdaptiveConcurrency] Adjusted concurrency to ${concurrency.current} after ${outcome} wave.`);
       }
@@ -777,7 +813,7 @@ Return ONLY valid JSON.`;
     // Routes through the same wave system (recursive call) with sequential concurrency.
     if (!isRetryPass) {
       const timedOutClaims = allVerified.filter(
-        c => c.status === 'unverifiable' &&
+        c => (c.status === 'inconclusive' || c.status === 'verification_timeout') &&
           c.timedOutAt !== undefined &&
           (c.importance ?? 0.5) >= 0.5
       );
@@ -802,19 +838,19 @@ Return ONLY valid JSON.`;
           if (idx !== -1) allVerified[idx] = retried;
         }
 
-        const recoveredCount = retryResult.claims.filter(c => c.status !== 'unverifiable').length;
+        const recoveredCount = retryResult.claims.filter(c => c.status !== 'inconclusive').length;
         logger.info(`[ClaimVerification] Retry pass complete. ${recoveredCount} claims recovered.`);
       } else if (timedOutClaims.length > 10) {
         logger.warn(`[ClaimVerification] Too many timed-out claims (${timedOutClaims.length}) — skipping retry pass to avoid cost.`);
       }
 
-      // ── v10.6: Final conversion — remaining unverifiable+timedOutAt → unsupported ──
+      // ── v10.6: Final conversion — remaining unverifiable+timedOutAt → inconclusive ──
       for (const claim of allVerified) {
-        if (claim.status === 'unverifiable' && claim.timedOutAt) {
-          claim.status = 'unsupported';
+        if ((claim.status === 'unproven' || claim.status === 'inconclusive') && claim.timedOutAt) {
+          claim.status = 'inconclusive';
           claim.verificationConfidence = 0.1;
-          claim.reasoning = 'Evidence not found — verification timed out. Try re-analyzing for complete results.';
-          claim.publicNote = 'Evidence not found for this claim.';
+          claim.reasoning = 'Verification timed out during deep research. The claim has been marked inconclusive as evidence could not be retrieved in the allotted time.';
+          claim.publicNote = 'Evidence Inconclusive';
         }
       }
     }
@@ -835,8 +871,8 @@ Return ONLY valid JSON.`;
     // - Unverifiable claims with confidence < 0.6
     const needsDoubleCheck = verifiedClaims.filter(
       (claim) =>
-        (claim.status === "incorrect" && claim.verificationConfidence < 0.8) ||
-        (claim.status === "unverifiable" && claim.verificationConfidence < 0.6)
+        (claim.status === "false_claim" && claim.verificationConfidence < 0.8) ||
+        ((claim.status === "unproven" || claim.status === "inconclusive") && claim.verificationConfidence < 0.6)
     );
 
     if (needsDoubleCheck.length === 0) {
@@ -885,21 +921,75 @@ Return ONLY valid JSON.`;
 
   private mapLabelToStatus(label: string): ClaimStatus {
     const l = label.toUpperCase();
-    if (l.includes("VERIFIED TRUE")) return "correct";
-    if (l.includes("MOSTLY TRUE")) return "mostly_correct";
-    if (l.includes("PARTLY TRUE")) return "needs_context";
-    if (l.includes("NEEDS CONTEXT")) return "needs_context";
-    if (l.includes("OUTDATED")) return "outdated";
-    if (l.includes("FALSE")) return "incorrect";
-    if (l.includes("MISLEADING")) return "incorrect";
-    if (l.includes("UNVERIFIED")) return "unverified";
-    if (l.includes("DISPUTED")) return "unsupported";
-    if (l.includes("DEVELOPING STORY")) return "developing_story";
-    if (l.includes("OPINION")) return "opinion";
-    if (l.includes("BELIEF")) return "faith_context";
-    if (l.includes("PREDICTION")) return "speculation";
-    if (l.includes("SATIRE")) return "satire";
-    if (l.includes("QUESTION")) return "opinion";
-    return "unverifiable";
+    if (l.includes("VERIFIED TRUE")) return "verified_true";
+    if (l.includes("MOSTLY TRUE")) return "mostly_true";
+    if (l.includes("DISPUTED")) return "disputed";
+    if (l.includes("UNPROVEN") || l.includes("UNSUPPORTED")) return "inconclusive";
+    if (l.includes("FALSE CLAIM")) return "false_claim";
+    if (l.includes("MISLEADING")) return "misleading";
+    return "inconclusive";
+  }
+
+  /**
+   * 🏷 v13.0: Zero-Timeout Fast Recovery Pass
+   * Verifies claims using Gemini's internal training data (No Grounding).
+   * Used as a fallback when search/grounding takes too long.
+   */
+  public async verifyBatchWithFastKnowledge(claims: FilteredClaim[], jobId: string): Promise<VerifiedClaim[]> {
+    logger.info(`[ClaimVerification] Initiating Fast Knowledge Recovery Pass for ${claims.length} claims`, { jobId });
+    
+    const prompt = `ROLE: TruthWorld Epistemic Recovery Engine.
+OBJECTIVE: Verify this batch of claims using your INTERNAL TRAINING DATA only.
+CONTEXT: Grounding infrastructure timed out. Provide the best possible verdict based on general consensus knowledge.
+
+Claims to Verify:
+${claims.map(c => `[ID: ${c.claimId}] ${c.text}`).join('\n')}
+
+Output JSON:
+{
+  "verifications": [
+    {
+      "claimId": "ID",
+      "status": "VERIFIED TRUE | MOSTLY TRUE | DISPUTED | UNSUPPORTED | FALSE CLAIM | MISLEADING",
+      "reasoning": "Explain based on consensus knowledge.",
+      "confidence": 0.8
+    }
+  ]
+}
+Return ONLY JSON.`;
+
+    const recoveryChain = { primary: "gemini-2.5-flash", fallback: null, forcePrimary: true };
+    
+    return withAiRetry(async (modelId: string) => {
+      const activeModel = this.genAI.getGenerativeModel({ 
+        model: modelId,
+        safetySettings: [
+          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        ],
+      });
+      const res = await activeModel.generateContent(prompt);
+      const text = res.response.text();
+      const match = text.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error("No JSON in recovery response");
+      
+      const parsed = JSON.parse(sanitizeJSON(match[0]));
+      return claims.map(c => {
+        const v = parsed.verifications.find((v: any) => v.claimId === c.claimId);
+        return {
+          ...c,
+          status: v ? this.mapLabelToStatus(v.status) : ("inconclusive" as ClaimStatus),
+          verificationConfidence: v ? v.confidence : 0.4,
+          reasoning: v ? `[RECOVERY PASS] ${v.reasoning}` : "Recovery pass failed to provide verdict.",
+          sources: ["Internal Knowledge Recovery"],
+          richSources: [],
+          evidenceLevel: EvidenceLevel.WEAK,
+          importance: c.importance || 0.5,
+          verificationMethod: 'llm_training'
+        };
+      });
+    }, recoveryChain, { maxAttempts: 2, instanceId: "FastKnowledgeRecovery" });
   }
 }

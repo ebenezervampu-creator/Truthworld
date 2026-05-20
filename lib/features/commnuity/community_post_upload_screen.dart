@@ -1161,7 +1161,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
+            icon: const Icon(Icons.arrow_back_ios_new),
             onPressed: () => Get.back(),
           ),
           const SizedBox(width: 8),
@@ -1205,7 +1205,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
         width: double.infinity,
         child: OutlinedButton.icon(
           onPressed: () => Get.back(),
-          icon: const Icon(Icons.arrow_back_rounded, size: 18),
+          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
           label: Text(
             'Back to Home',
             style: GoogleFonts.roboto(fontSize: 13, fontWeight: FontWeight.w500),

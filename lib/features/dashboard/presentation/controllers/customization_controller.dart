@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker_web/image_picker_web.dart';
@@ -131,16 +134,68 @@ class CustomizationController extends GetxController {
     }
   }
 
+  /// Ensure auth context is ready for Storage operations on web
+  Future<void> _ensureStorageAuthReady() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception("User not authenticated");
+      }
+
+      // Get the ID token and ensure it's fresh
+      await user.getIdToken(true);
+
+      // On web, add a small delay to ensure Firebase Storage SDK picks it up
+      if (kIsWeb) {
+        debugPrint('⏳ [CustomizationController] Waiting for Storage auth context sync...');
+        await Future.delayed(const Duration(milliseconds: 300));
+        debugPrint('✅ [CustomizationController] Storage auth context synchronized');
+      }
+
+      debugPrint('✅ [CustomizationController] Storage auth ready for user: ${user.uid}');
+    } catch (e) {
+      debugPrint('❌ [CustomizationController] Failed to prepare Storage auth: $e');
+      throw Exception("Storage auth preparation failed: $e");
+    }
+  }
+
   Future<String?> _uploadImage(Uint8List bytes, String path) async {
     try {
+      debugPrint('🚀 [CustomizationController] Starting _uploadImage...');
+      debugPrint('📂 [CustomizationController] Target Path: $path');
+      debugPrint('📦 [CustomizationController] Payload: ${bytes.length} bytes');
+
+      // Ensure Storage auth is synchronized on web
+      await _ensureStorageAuthReady();
+
       final ref = _storage.ref().child(path);
       final metadata = SettableMetadata(
         contentType: 'image/jpeg',
         customMetadata: {'uploaded': DateTime.now().toString()},
       );
-      await ref.putData(bytes, metadata);
-      return await ref.getDownloadURL();
+
+      debugPrint('📤 [CustomizationController] Invoking putData...');
+      final uploadTask = ref.putData(bytes, metadata);
+
+      uploadTask.snapshotEvents.listen(
+        (snapshot) {
+          debugPrint('📊 [CustomizationController] Event -> State: ${snapshot.state}, '
+              'Transferred: ${snapshot.bytesTransferred}/${snapshot.totalBytes} bytes');
+        },
+        onError: (e) {
+          debugPrint('❌ [CustomizationController] Stream Event Error: $e');
+        },
+      );
+
+      debugPrint('⏳ [CustomizationController] Awaiting uploadTask future completion with 20s timeout...');
+      await uploadTask.timeout(const Duration(seconds: 20));
+      debugPrint('✅ [CustomizationController] uploadTask completed successfully!');
+
+      final downloadUrl = await ref.getDownloadURL();
+      debugPrint('🔗 [CustomizationController] Retrieved Download URL: $downloadUrl');
+      return downloadUrl;
     } catch (e) {
+      debugPrint('❌ [CustomizationController] General Upload error: $e');
       return null;
     }
   }
@@ -154,14 +209,14 @@ class CustomizationController extends GetxController {
       if (newAvatarBytes.value != null) {
         updatedAvatarUrl = await _uploadImage(
           newAvatarBytes.value!,
-          'channels/$channelId/avatar.jpg',
+          'channels/avatars/$ownerId/avatar.jpg',
         );
       }
 
       if (newBannerBytes.value != null) {
         updatedBannerUrl = await _uploadImage(
           newBannerBytes.value!,
-          'channels/$channelId/banner.jpg',
+          'channels/banners/$ownerId/banner.jpg',
         );
       }
 

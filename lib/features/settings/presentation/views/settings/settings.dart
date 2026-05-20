@@ -4,8 +4,8 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
-
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/features/settings/presentation/controllers/settings_controller.dart';
 
 // Constants for consistent styling
 const double kBorderRadius = 16.0;
@@ -50,7 +50,7 @@ class SettingsScreen extends StatelessWidget {
       centerTitle: context.isMobile,
       leading: IconButton(
         icon: Icon(
-          Icons.arrow_back_ios_new_rounded,
+          Icons.arrow_back_ios_new,
           color: colorScheme.onSurface,
           size: context.isMobileSmall ? 20 : 24,
         ),
@@ -60,53 +60,73 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Widget _buildBody(BuildContext context, ColorScheme colorScheme) {
+    final AppSettingsController controller = Get.find<AppSettingsController>();
+
     return ResponsiveContainer(
-      child: ListView(
-        padding: EdgeInsets.symmetric(vertical: context.spacing),
-        children: [
-          // Account Section
-          _buildSection(
-            context,
-            title: 'Account',
-            colorScheme: colorScheme,
-            settings: [_buildUserInfoTile(context, colorScheme)],
-          ),
-          SizedBox(height: context.spacing),
-          // Appearance Section
-          _buildSection(
-            context,
-            title: 'Appearance',
-            colorScheme: colorScheme,
-            settings: [
-              _buildThemeTile(context, colorScheme),
-              _buildLanguageTile(context, colorScheme),
-            ],
-          ),
-          SizedBox(height: context.spacing),
-          // Privacy Section
-          _buildSection(
-            context,
-            title: 'Privacy',
-            colorScheme: colorScheme,
-            settings: [
-              _buildPrivacyTile(context, colorScheme),
-              _buildDataTile(context, colorScheme),
-              _buildDeleteAccountTile(context, colorScheme),
-            ],
-          ),
-          SizedBox(height: context.spacing),
-          // About Section
-          _buildSection(
-            context,
-            title: 'About',
-            colorScheme: colorScheme,
-            settings: [
-              _buildVersionTile(context, colorScheme),
-              _buildHelpTile(context, colorScheme),
-            ],
-          ),
-        ],
-      ),
+      child: Obx(() {
+        return ListView(
+          padding: EdgeInsets.symmetric(vertical: context.spacing),
+          children: [
+            // Account Section
+            _buildSection(
+              context,
+              title: 'Account',
+              colorScheme: colorScheme,
+              settings: [_buildUserInfoTile(context, colorScheme)],
+            ),
+            SizedBox(height: context.spacing),
+
+            // Appearance Section
+            _buildSection(
+              context,
+              title: 'Appearance',
+              colorScheme: colorScheme,
+              settings: [
+                _buildThemeTile(context, controller, colorScheme),
+                _buildLanguageTile(context, controller, colorScheme),
+              ],
+            ),
+            SizedBox(height: context.spacing),
+
+            // Playback & Data Section
+            _buildSection(
+              context,
+              title: 'Playback & Data',
+              colorScheme: colorScheme,
+              settings: [
+                _buildAutoplayTile(context, controller, colorScheme),
+                _buildWifiOnlyTile(context, controller, colorScheme),
+                _buildDownloadQualityTile(context, controller, colorScheme),
+              ],
+            ),
+            SizedBox(height: context.spacing),
+
+            // Privacy Section
+            _buildSection(
+              context,
+              title: 'Privacy',
+              colorScheme: colorScheme,
+              settings: [
+                _buildPauseWatchHistoryTile(context, controller, colorScheme),
+                _buildPauseSearchHistoryTile(context, controller, colorScheme),
+                _buildDeleteAccountTile(context, colorScheme),
+              ],
+            ),
+            SizedBox(height: context.spacing),
+
+            // About Section
+            _buildSection(
+              context,
+              title: 'About',
+              colorScheme: colorScheme,
+              settings: [
+                _buildVersionTile(context, colorScheme),
+                _buildHelpTile(context, colorScheme),
+              ],
+            ),
+          ],
+        );
+      }),
     );
   }
 
@@ -160,14 +180,14 @@ class SettingsScreen extends StatelessWidget {
         displayName: user?.displayName,
       ),
       title: Text(
-        user?.displayName ?? 'User',
+        user?.displayName ?? 'Guest User',
         style: AppTextStyles.bodyLarge.copyWith(
           fontSize:
               (AppTextStyles.bodyLarge.fontSize ?? 16) * context.fontScale,
         ),
       ),
       subtitle: Text(
-        user?.email ?? '',
+        user?.email ?? 'Tap to sign in',
         style: AppTextStyles.bodySmall.copyWith(
           fontSize:
               (AppTextStyles.bodySmall.fontSize ?? 12) * context.fontScale,
@@ -175,12 +195,20 @@ class SettingsScreen extends StatelessWidget {
       ),
       trailing: Icon(Icons.chevron_right, color: colorScheme.onSurface),
       onTap: () {
-        // Navigate to profile
+        if (user != null) {
+          Get.toNamed('/profile');
+        } else {
+          Get.toNamed('/auth');
+        }
       },
     );
   }
 
-  Widget _buildThemeTile(BuildContext context, ColorScheme colorScheme) {
+  Widget _buildThemeTile(
+    BuildContext context,
+    AppSettingsController controller,
+    ColorScheme colorScheme,
+  ) {
     return ListTile(
       leading: Icon(Icons.palette, color: colorScheme.primary),
       title: Text(
@@ -198,15 +226,18 @@ class SettingsScreen extends StatelessWidget {
         ),
       ),
       trailing: Switch(
-        value: Theme.of(context).brightness == Brightness.dark,
-        onChanged: (value) {
-          // Toggle theme
-        },
+        value: controller.isDarkMode.value,
+        activeThumbColor: colorScheme.primary,
+        onChanged: (value) => controller.toggleDarkMode(value),
       ),
     );
   }
 
-  Widget _buildLanguageTile(BuildContext context, ColorScheme colorScheme) {
+  Widget _buildLanguageTile(
+    BuildContext context,
+    AppSettingsController controller,
+    ColorScheme colorScheme,
+  ) {
     return ListTile(
       leading: Icon(Icons.language, color: colorScheme.primary),
       title: Text(
@@ -217,50 +248,156 @@ class SettingsScreen extends StatelessWidget {
         ),
       ),
       subtitle: Text(
-        'English',
+        controller.selectedLanguage.value,
         style: AppTextStyles.bodySmall.copyWith(
           fontSize:
               (AppTextStyles.bodySmall.fontSize ?? 12) * context.fontScale,
         ),
       ),
       trailing: Icon(Icons.chevron_right, color: colorScheme.onSurface),
-      onTap: () {
-        // Change language
-      },
+      onTap: () => _showLanguageSelector(context, controller, colorScheme),
     );
   }
 
-  Widget _buildPrivacyTile(BuildContext context, ColorScheme colorScheme) {
+  Widget _buildAutoplayTile(
+    BuildContext context,
+    AppSettingsController controller,
+    ColorScheme colorScheme,
+  ) {
     return ListTile(
-      leading: Icon(Icons.lock, color: colorScheme.primary),
+      leading: Icon(Icons.play_circle_outline, color: colorScheme.primary),
       title: Text(
-        'Privacy',
+        'Autoplay',
         style: AppTextStyles.bodyLarge.copyWith(
           fontSize:
               (AppTextStyles.bodyLarge.fontSize ?? 16) * context.fontScale,
         ),
       ),
-      trailing: Icon(Icons.chevron_right, color: colorScheme.onSurface),
-      onTap: () {
-        // Open privacy settings
-      },
+      subtitle: Text(
+        'Autoplay next video',
+        style: AppTextStyles.bodySmall.copyWith(
+          fontSize:
+              (AppTextStyles.bodySmall.fontSize ?? 12) * context.fontScale,
+        ),
+      ),
+      trailing: Switch(
+        value: controller.autoplayNext.value,
+        activeThumbColor: colorScheme.primary,
+        onChanged: (value) => controller.toggleAutoplay(value),
+      ),
     );
   }
 
-  Widget _buildDataTile(BuildContext context, ColorScheme colorScheme) {
+  Widget _buildWifiOnlyTile(
+    BuildContext context,
+    AppSettingsController controller,
+    ColorScheme colorScheme,
+  ) {
     return ListTile(
-      leading: Icon(Icons.data_usage, color: colorScheme.primary),
+      leading: Icon(Icons.wifi, color: colorScheme.primary),
       title: Text(
-        'Data Usage',
+        'Wi-Fi Playback',
         style: AppTextStyles.bodyLarge.copyWith(
           fontSize:
               (AppTextStyles.bodyLarge.fontSize ?? 16) * context.fontScale,
         ),
       ),
+      subtitle: Text(
+        'Stream high quality on Wi-Fi only',
+        style: AppTextStyles.bodySmall.copyWith(
+          fontSize:
+              (AppTextStyles.bodySmall.fontSize ?? 12) * context.fontScale,
+        ),
+      ),
+      trailing: Switch(
+        value: controller.wifiOnlyPlayback.value,
+        activeThumbColor: colorScheme.primary,
+        onChanged: (value) => controller.toggleWifiOnly(value),
+      ),
+    );
+  }
+
+  Widget _buildDownloadQualityTile(
+    BuildContext context,
+    AppSettingsController controller,
+    ColorScheme colorScheme,
+  ) {
+    return ListTile(
+      leading: Icon(Icons.download_for_offline_outlined, color: colorScheme.primary),
+      title: Text(
+        'Download Quality',
+        style: AppTextStyles.bodyLarge.copyWith(
+          fontSize:
+              (AppTextStyles.bodyLarge.fontSize ?? 16) * context.fontScale,
+        ),
+      ),
+      subtitle: Text(
+        controller.downloadQuality.value,
+        style: AppTextStyles.bodySmall.copyWith(
+          fontSize:
+              (AppTextStyles.bodySmall.fontSize ?? 12) * context.fontScale,
+        ),
+      ),
       trailing: Icon(Icons.chevron_right, color: colorScheme.onSurface),
-      onTap: () {
-        // Open data usage settings
-      },
+      onTap: () => _showDownloadQualitySelector(context, controller, colorScheme),
+    );
+  }
+
+  Widget _buildPauseWatchHistoryTile(
+    BuildContext context,
+    AppSettingsController controller,
+    ColorScheme colorScheme,
+  ) {
+    return ListTile(
+      leading: Icon(Icons.history_toggle_off, color: colorScheme.primary),
+      title: Text(
+        'Pause Watch History',
+        style: AppTextStyles.bodyLarge.copyWith(
+          fontSize:
+              (AppTextStyles.bodyLarge.fontSize ?? 16) * context.fontScale,
+        ),
+      ),
+      subtitle: Text(
+        'Temporarily stop saving watched videos',
+        style: AppTextStyles.bodySmall.copyWith(
+          fontSize:
+              (AppTextStyles.bodySmall.fontSize ?? 12) * context.fontScale,
+        ),
+      ),
+      trailing: Switch(
+        value: controller.pauseWatchHistory.value,
+        activeThumbColor: colorScheme.primary,
+        onChanged: (value) => controller.togglePauseWatchHistory(value),
+      ),
+    );
+  }
+
+  Widget _buildPauseSearchHistoryTile(
+    BuildContext context,
+    AppSettingsController controller,
+    ColorScheme colorScheme,
+  ) {
+    return ListTile(
+      leading: Icon(Icons.search_off, color: colorScheme.primary),
+      title: Text(
+        'Pause Search History',
+        style: AppTextStyles.bodyLarge.copyWith(
+          fontSize:
+              (AppTextStyles.bodyLarge.fontSize ?? 16) * context.fontScale,
+        ),
+      ),
+      subtitle: Text(
+        'Temporarily stop saving search queries',
+        style: AppTextStyles.bodySmall.copyWith(
+          fontSize:
+              (AppTextStyles.bodySmall.fontSize ?? 12) * context.fontScale,
+        ),
+      ),
+      trailing: Switch(
+        value: controller.pauseSearchHistory.value,
+        activeThumbColor: colorScheme.primary,
+        onChanged: (value) => controller.togglePauseSearchHistory(value),
+      ),
     );
   }
 
@@ -295,9 +432,7 @@ class SettingsScreen extends StatelessWidget {
         ),
       ),
       trailing: Icon(Icons.chevron_right, color: colorScheme.onSurface),
-      onTap: () {
-        // Open help
-      },
+      onTap: () => _showHelpSupportSheet(context, colorScheme),
     );
   }
 
@@ -364,13 +499,176 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
   }
+
+  void _showLanguageSelector(
+    BuildContext context,
+    AppSettingsController controller,
+    ColorScheme colorScheme,
+  ) {
+    final languages = ['English', 'Español', 'Français', 'Deutsch', 'Português'];
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.all(kMediumPadding),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(kBorderRadius),
+            topRight: Radius.circular(kBorderRadius),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: kSmallPadding, left: kSmallPadding),
+              child: Text(
+                'Select Language',
+                style: AppTextStyles.titleMedium.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ),
+            const Divider(),
+            ...languages.map((lang) => ListTile(
+              title: Text(lang, style: TextStyle(color: colorScheme.onSurface)),
+              trailing: controller.selectedLanguage.value == lang
+                  ? Icon(Icons.check, color: colorScheme.primary)
+                  : null,
+              onTap: () {
+                controller.setLanguage(lang);
+                Get.back();
+                Get.snackbar(
+                  'Language Updated',
+                  'Application language changed to $lang.',
+                  snackPosition: SnackPosition.BOTTOM,
+                  backgroundColor: colorScheme.primary,
+                  colorText: Colors.white,
+                );
+              },
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showDownloadQualitySelector(
+    BuildContext context,
+    AppSettingsController controller,
+    ColorScheme colorScheme,
+  ) {
+    final qualities = ['Auto (720p)', '1080p (Full HD)', '720p (HD)', '480p (SD)', 'Ask every time'];
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.all(kMediumPadding),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(kBorderRadius),
+            topRight: Radius.circular(kBorderRadius),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: kSmallPadding, left: kSmallPadding),
+              child: Text(
+                'Download Quality',
+                style: AppTextStyles.titleMedium.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ),
+            const Divider(),
+            ...qualities.map((q) => ListTile(
+              title: Text(q, style: TextStyle(color: colorScheme.onSurface)),
+              trailing: controller.downloadQuality.value == q
+                  ? Icon(Icons.check, color: colorScheme.primary)
+                  : null,
+              onTap: () {
+                controller.setDownloadQuality(q);
+                Get.back();
+              },
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showHelpSupportSheet(BuildContext context, ColorScheme colorScheme) {
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.all(kMediumPadding),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(kBorderRadius),
+            topRight: Radius.circular(kBorderRadius),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: kSmallPadding, left: kSmallPadding),
+              child: Text(
+                'Help & Support',
+                style: AppTextStyles.titleMedium.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ),
+            const Divider(),
+            ListTile(
+              leading: Icon(Icons.help_outline, color: colorScheme.primary),
+              title: Text('Frequently Asked Questions', style: TextStyle(color: colorScheme.onSurface)),
+              onTap: () {
+                Get.back();
+                Get.toNamed('/help');
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.mail_outline, color: colorScheme.primary),
+              title: Text('Contact Support Email', style: TextStyle(color: colorScheme.onSurface)),
+              subtitle: Text('support@truthworld.app', style: TextStyle(color: colorScheme.onSurfaceVariant)),
+              onTap: () {
+                Get.back();
+                Get.snackbar(
+                  'Support Email',
+                  'Support email is: support@truthworld.app',
+                  snackPosition: SnackPosition.BOTTOM,
+                  backgroundColor: colorScheme.primary,
+                  colorText: Colors.white,
+                );
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.info_outline, color: colorScheme.primary),
+              title: Text('Privacy Policy & Terms', style: TextStyle(color: colorScheme.onSurface)),
+              onTap: () {
+                Get.back();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-class ModernSettingsSection extends StatelessWidget {
+class SettingsSection extends StatelessWidget {
   final String title;
   final List<Widget> settings;
 
-  const ModernSettingsSection({
+  const SettingsSection({
     super.key,
     required this.title,
     required this.settings,
@@ -383,7 +681,7 @@ class ModernSettingsSection extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(
         bottom: kMediumPadding,
-      ), // Spacing between sections
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -397,11 +695,10 @@ class ModernSettingsSection extends StatelessWidget {
               style: GoogleFonts.roboto(
                 fontWeight: FontWeight.bold,
                 fontSize: 18,
-                color: colorScheme.primary, // Section title color
+                color: colorScheme.primary,
               ),
             ),
           ),
-          // Use Column to ensure proper layout and prevent overflow for settings list
           Column(
             children: settings
                 .map(
@@ -409,7 +706,7 @@ class ModernSettingsSection extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                       horizontal: kMediumPadding,
                       vertical: 2,
-                    ), // Padding for each tile
+                    ),
                     child: setting,
                   ),
                 )
@@ -420,7 +717,7 @@ class ModernSettingsSection extends StatelessWidget {
             endIndent: kMediumPadding,
             color: colorScheme.outline.withValues(alpha: 0.2),
             thickness: 1,
-            height: kMediumPadding * 1.5, // Spacing around divider
+            height: kMediumPadding * 1.5,
           ),
         ],
       ),
@@ -428,13 +725,13 @@ class ModernSettingsSection extends StatelessWidget {
   }
 }
 
-class ModernSettingsTile extends StatelessWidget {
+class SettingsTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final String? subtitle;
   final VoidCallback onTap;
 
-  const ModernSettingsTile({
+  const SettingsTile({
     super.key,
     required this.icon,
     required this.title,
@@ -447,15 +744,15 @@ class ModernSettingsTile extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Card(
-      margin: EdgeInsets.zero, // Remove default card margin
+      margin: EdgeInsets.zero,
       color: AppTheme.secondaryBackground.withValues(
         alpha: 0.2,
-      ), // Subtle background for tile
+      ),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(
           kBorderRadius / 2,
-        ), // Slightly rounded corners
+        ),
       ),
       child: InkWell(
         onTap: onTap,
@@ -471,7 +768,7 @@ class ModernSettingsTile extends StatelessWidget {
                 icon,
                 color: colorScheme.primary,
                 size: 24,
-              ), // Primary color for icons
+              ),
               const SizedBox(width: kMediumPadding),
               Expanded(
                 child: Column(
@@ -507,7 +804,7 @@ class ModernSettingsTile extends StatelessWidget {
                 Icons.arrow_forward_ios_rounded,
                 size: 16,
                 color: colorScheme.onSurfaceVariant,
-              ), // Rounded arrow
+              ),
             ],
           ),
         ),
@@ -516,13 +813,13 @@ class ModernSettingsTile extends StatelessWidget {
   }
 }
 
-class ModernSwitchSettingsTile extends StatelessWidget {
+class SwitchSettingsTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final bool value;
   final ValueChanged<bool> onChanged;
 
-  const ModernSwitchSettingsTile({
+  const SwitchSettingsTile({
     super.key,
     required this.icon,
     required this.title,
@@ -580,8 +877,3 @@ class ModernSwitchSettingsTile extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

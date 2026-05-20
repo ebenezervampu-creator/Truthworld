@@ -462,7 +462,7 @@ class ChannelScreen extends StatelessWidget {
         const SizedBox(height: 24),
         _buildCategoryMultiSelect(controller, isDarkMode),
         const SizedBox(height: 24),
-        _buildModernTextField(
+        _buildTextField(
           controller: controller.description,
           labelText: "Description",
           hintText: "Tell others what this channel is about",
@@ -475,7 +475,7 @@ class ChannelScreen extends StatelessWidget {
               : null,
         ),
         const SizedBox(height: 24),
-        _buildModernTextField(
+        _buildTextField(
           controller: controller.tags,
           labelText: "Tags",
           hintText: "gaming, tutorial (comma-separated)",
@@ -563,13 +563,6 @@ class ChannelScreen extends StatelessWidget {
             ),
             _buildSocialLinkField(
               controller,
-              'YouTube',
-              Icons.play_circle_outline,
-              'youtube',
-              isDarkMode,
-            ),
-            _buildSocialLinkField(
-              controller,
               'Website',
               Icons.web_outlined,
               'website',
@@ -581,7 +574,7 @@ class ChannelScreen extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: _buildModernTextField(
+              child: _buildTextField(
                 controller: controller.contactEmail,
                 labelText: "Contact Email",
                 hintText: "contact@example.com",
@@ -600,7 +593,7 @@ class ChannelScreen extends StatelessWidget {
             if (!isMobile) ...[
               const SizedBox(width: 16),
               Expanded(
-                child: _buildModernTextField(
+                child: _buildTextField(
                   controller: controller.websiteUrl,
                   labelText: "Website URL",
                   hintText: "https://example.com",
@@ -621,7 +614,7 @@ class ChannelScreen extends StatelessWidget {
         ),
         if (isMobile) ...[
           const SizedBox(height: 16),
-          _buildModernTextField(
+          _buildTextField(
             controller: controller.websiteUrl,
             labelText: "Website URL",
             hintText: "https://example.com",
@@ -1085,7 +1078,7 @@ class ChannelScreen extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        Icons.arrow_back,
+                        Icons.arrow_back_ios_new,
                         color: isDarkMode
                             ? Colors.white
                             : const Color(0xFF2D3748),
@@ -1671,7 +1664,7 @@ class ChannelScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildModernTextField({
+  Widget _buildTextField({
     required TextEditingController controller,
     required String labelText,
     required String hintText,

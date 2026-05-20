@@ -20,25 +20,41 @@ import 'package:visibility_detector/visibility_detector.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:universal_html/html.dart' as html;
 
-// Feature Pages for Dashboard (Deferred for YouTube-speed startup)
-import 'package:truthworld/features/subscriptions/presentation/views/subscriptions/subscriptions.dart' deferred as subscriptions;
-import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart' deferred as history;
-import 'package:truthworld/features/myvideos/presentation/views/myvideos/my_videos.dart' deferred as my_videos;
-import 'package:truthworld/features/library/presentation/views/library/library_screen.dart' deferred as lib_feature;
-import 'package:truthworld/features/trending/presentation/views/trending/trending_page.dart' deferred as trending;
-import 'package:truthworld/features/about/presentation/views/About/about.dart' deferred as about;
-import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/privacy_polices.dart' deferred as privacy;
-import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/terms.dart' deferred as terms;
-import 'package:truthworld/features/settings/presentation/views/settings/settings.dart' deferred as settings;
-import 'package:truthworld/features/feedback/presentation/views/feedback/help.dart' deferred as help;
-import 'package:truthworld/features/video/presentation/views/clips/clips_page.dart' deferred as clips;
-import 'package:truthworld/features/feedback/presentation/views/feedback/feedbacks.dart' deferred as feedback;
-import 'package:truthworld/features/likedvideos/presentation/views/likedvideos/liked_video_screen.dart' deferred as liked_videos;
-import 'package:truthworld/features/video/presentation/views/downloadpage/download_page.dart' deferred as downloads;
-import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_screen.dart' deferred as playlist;
-import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_detail_screen.dart' deferred as playlist_detail;
-import 'package:truthworld/features/discover/presentation/views/discover_channels.dart' deferred as discover;
-import 'package:truthworld/features/channel/presentation/views/channel/channel_details_screen.dart' deferred as channel_details;
+// Feature Pages for Dashboard (Deferred for TruthWorld-speed startup)
+import 'package:truthworld/features/subscriptions/presentation/views/subscriptions/subscriptions.dart'
+    deferred as subscriptions;
+import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart'
+    deferred as watch_history;
+import 'package:truthworld/features/myvideos/presentation/views/myvideos/my_videos.dart'
+    deferred as my_videos;
+import 'package:truthworld/features/library/presentation/views/library/library_screen.dart'
+    deferred as lib_feature;
+import 'package:truthworld/features/about/presentation/views/About/about.dart'
+    deferred as about;
+import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/privacy_polices.dart'
+    deferred as privacy;
+import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/terms.dart'
+    deferred as terms;
+import 'package:truthworld/features/settings/presentation/views/settings/settings.dart'
+    deferred as settings;
+import 'package:truthworld/features/feedback/presentation/views/feedback/help.dart'
+    deferred as help;
+import 'package:truthworld/features/video/presentation/views/clips/clips_page.dart'
+    deferred as clips;
+import 'package:truthworld/features/feedback/presentation/views/feedback/feedbacks.dart'
+    deferred as feedback;
+import 'package:truthworld/features/likedvideos/presentation/views/likedvideos/liked_video_screen.dart'
+    deferred as liked_videos;
+import 'package:truthworld/features/video/presentation/views/downloadpage/download_page.dart'
+    deferred as downloads;
+import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_screen.dart'
+    deferred as playlist;
+import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_detail_screen.dart'
+    deferred as playlist_detail;
+import 'package:truthworld/features/discover/presentation/views/discover_channels.dart'
+    deferred as discover;
+import 'package:truthworld/features/channel/presentation/views/channel/channel_details_screen.dart'
+    deferred as channel_details;
 
 import 'package:truthworld/core/widgets/deferred_widget.dart';
 
@@ -53,7 +69,7 @@ final Color darkOnSurfaceVariant = Color(0xFFB8B8B8); // Muted text
 final Color primaryAccent = Color(0xFF1976D2); // Professional blue
 final Color secondaryAccent = Color(0xFF42A5F5); // Lighter blue
 final Color tertiaryAccent = Color(0xFF90CAF9); // Subtle blue
-ThemeData modernDarkProfessionalTheme = ThemeData(
+ThemeData darkProfessionalTheme = ThemeData(
   brightness: Brightness.dark,
   primaryColor: primaryAccent,
   colorScheme: ColorScheme.dark(
@@ -368,7 +384,7 @@ const double kBottomNavBarHeight = kToolbarHeight;
 // ENHANCED HOME CONTROLLER
 // ==========================================================================
 // ==========================================================================
-// MODERNIZED HOME WIDGET
+// HOME WIDGET
 // ==========================================================================
 class Home extends GetView<HomeController> {
   const Home({super.key});
@@ -411,7 +427,7 @@ class Home extends GetView<HomeController> {
         final bool isMobile = constraints.maxWidth < kTabletBreakpoint;
         final bool showCompactNavRail = isTablet && constraints.maxWidth < 850;
         return Scaffold(
-          backgroundColor: modernDarkProfessionalTheme.scaffoldBackgroundColor,
+          backgroundColor: darkProfessionalTheme.scaffoldBackgroundColor,
           appBar: _buildGlobalAppBar(context, isMobile, isTablet, isDesktop),
           drawer: isMobile || isTablet ? _buildDrawer(context) : null,
           body: Row(
@@ -451,17 +467,12 @@ class Home extends GetView<HomeController> {
 
       switch (index) {
         case HomeController.indexHome:
-          return _ModernMainContent(
+          return _MainContent(
             isMobile: isMobile,
             isTablet: isTablet,
             isDesktop: isDesktop,
             homeController: controller,
             appBarActionsBuilder: (ctx) => _buildAppBarActions(ctx, !isDesktop),
-          );
-        case HomeController.indexTrending:
-          return DeferredWidget(
-            loader: trending.loadLibrary,
-            builder: () => trending.TrendingVideosPage(isDashboard: true),
           );
         case HomeController.indexDiscover:
           return DeferredWidget(
@@ -480,8 +491,8 @@ class Home extends GetView<HomeController> {
           );
         case HomeController.indexHistory:
           return DeferredWidget(
-            loader: history.loadLibrary,
-            builder: () => history.WatchHistory(isDashboard: true),
+            loader: watch_history.loadLibrary,
+            builder: () => watch_history.WatchHistory(isDashboard: true),
           );
         case HomeController.indexYourVideos:
           return DeferredWidget(
@@ -543,17 +554,23 @@ class Home extends GetView<HomeController> {
           if (p == null) return playlist.PlaylistScreen(isDashboard: true);
           return DeferredWidget(
             loader: playlist_detail.loadLibrary,
-            builder: () => playlist_detail.PlaylistDetailScreen(key: ValueKey(p.id)),
+            builder: () =>
+                playlist_detail.PlaylistDetailScreen(key: ValueKey(p.id)),
           );
         case HomeController.indexChannelDetail:
           final c = controller.selectedChannelForDetail.value;
-          if (c == null) return discover.DiscoverChannelsPage(isDashboard: true);
+          if (c == null)
+            return discover.DiscoverChannelsPage(isDashboard: true);
           return DeferredWidget(
             loader: channel_details.loadLibrary,
-            builder: () => channel_details.ChannelDetailsPage(key: ValueKey(c.channelId), channel: c, isDashboard: true),
+            builder: () => channel_details.ChannelDetailsPage(
+              key: ValueKey(c.channelId),
+              channel: c,
+              isDashboard: true,
+            ),
           );
         default:
-          return _ModernMainContent(
+          return _MainContent(
             isMobile: isMobile,
             isTablet: isTablet,
             isDesktop: isDesktop,
@@ -576,7 +593,7 @@ class Home extends GetView<HomeController> {
       preferredSize: const Size.fromHeight(kToolbarHeight + 10),
       child: AppBar(
         backgroundColor:
-            modernDarkProfessionalTheme.appBarTheme.backgroundColor,
+            darkProfessionalTheme.appBarTheme.backgroundColor,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         automaticallyImplyLeading: false,
@@ -599,30 +616,15 @@ class Home extends GetView<HomeController> {
               padding: EdgeInsets.symmetric(vertical: 8.0),
               child: Row(
                 children: [
-                  Container(
-                    padding: EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [primaryAccent, secondaryAccent],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.play_circle_fill_rounded,
-                      color: Colors.white,
-                      size: 32,
-                    ),
-                  ),
+                  Image.asset('assets/logo.png', height: 38, width: 38),
                   SizedBox(width: 12),
                   Text(
                     "Truthworld",
-                    style: modernDarkProfessionalTheme.textTheme.titleLarge
+                    style: darkProfessionalTheme.textTheme.titleLarge
                         ?.copyWith(
                           fontWeight: FontWeight.bold,
                           color:
-                              modernDarkProfessionalTheme.colorScheme.onSurface,
+                              darkProfessionalTheme.colorScheme.onSurface,
                         ),
                   ),
                 ],
@@ -637,7 +639,7 @@ class Home extends GetView<HomeController> {
                 height: 44,
                 child: Material(
                   borderRadius: BorderRadius.circular(22),
-                  color: modernDarkProfessionalTheme
+                  color: darkProfessionalTheme
                       .colorScheme
                       .surfaceContainerHighest
                       .withValues(alpha: 0.3),
@@ -652,7 +654,7 @@ class Home extends GetView<HomeController> {
                         children: [
                           Icon(
                             Icons.search_rounded,
-                            color: modernDarkProfessionalTheme
+                            color: darkProfessionalTheme
                                 .colorScheme
                                 .onSurfaceVariant,
                             size: 22,
@@ -661,11 +663,11 @@ class Home extends GetView<HomeController> {
                           Expanded(
                             child: Text(
                               'Search videos...',
-                              style: modernDarkProfessionalTheme
+                              style: darkProfessionalTheme
                                   .textTheme
                                   .bodyMedium
                                   ?.copyWith(
-                                    color: modernDarkProfessionalTheme
+                                    color: darkProfessionalTheme
                                         .colorScheme
                                         .onSurfaceVariant,
                                   ),
@@ -692,7 +694,7 @@ class Home extends GetView<HomeController> {
         builder: (context) => IconButton(
           icon: Icon(
             Icons.menu_rounded,
-            color: modernDarkProfessionalTheme.colorScheme.onSurfaceVariant,
+            color: darkProfessionalTheme.colorScheme.onSurfaceVariant,
           ),
           tooltip: 'Open Navigation Menu',
           onPressed: () => Scaffold.of(context).openDrawer(),
@@ -700,9 +702,9 @@ class Home extends GetView<HomeController> {
       ),
       actions: _buildAppBarActions(context, true),
       elevation: 0,
-      backgroundColor: modernDarkProfessionalTheme.appBarTheme.backgroundColor,
+      backgroundColor: darkProfessionalTheme.appBarTheme.backgroundColor,
       surfaceTintColor:
-          modernDarkProfessionalTheme.appBarTheme.surfaceTintColor,
+          darkProfessionalTheme.appBarTheme.surfaceTintColor,
     );
   }
 
@@ -717,29 +719,14 @@ class Home extends GetView<HomeController> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                padding: EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [primaryAccent, secondaryAccent],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Icon(
-                  Icons.play_circle_fill_rounded,
-                  color: Colors.white,
-                  size: 24,
-                ),
-              ),
+              Image.asset('assets/logo.png', height: 30, width: 30),
               const SizedBox(width: 8),
               Text(
                 "Truthworld",
-                style: modernDarkProfessionalTheme.textTheme.titleLarge
+                style: darkProfessionalTheme.textTheme.titleLarge
                     ?.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: modernDarkProfessionalTheme.colorScheme.onSurface,
+                      color: darkProfessionalTheme.colorScheme.onSurface,
                     ),
               ),
             ],
@@ -755,7 +742,7 @@ class Home extends GetView<HomeController> {
         Container(
           margin: EdgeInsets.only(right: 8),
           decoration: BoxDecoration(
-            color: modernDarkProfessionalTheme
+            color: darkProfessionalTheme
                 .colorScheme
                 .surfaceContainerHighest
                 .withValues(alpha: 0.3),
@@ -764,7 +751,7 @@ class Home extends GetView<HomeController> {
           child: IconButton(
             icon: Icon(
               Icons.search_rounded,
-              color: modernDarkProfessionalTheme.colorScheme.onSurfaceVariant,
+              color: darkProfessionalTheme.colorScheme.onSurfaceVariant,
             ),
             tooltip: 'Search',
             onPressed: () {
@@ -875,7 +862,7 @@ class Home extends GetView<HomeController> {
         offset: const Offset(0, 45),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         elevation: 8,
-        color: modernDarkProfessionalTheme.colorScheme.surface,
+        color: darkProfessionalTheme.colorScheme.surface,
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.black.withValues(alpha: 0.3),
         onSelected: (value) {
@@ -921,7 +908,7 @@ class Home extends GetView<HomeController> {
                 Obx(
                   () => Text(
                     controller.currentUser.value?.displayName ?? 'User',
-                    style: modernDarkProfessionalTheme.textTheme.titleSmall
+                    style: darkProfessionalTheme.textTheme.titleSmall
                         ?.copyWith(fontWeight: FontWeight.bold),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -930,9 +917,9 @@ class Home extends GetView<HomeController> {
                   () => controller.currentUser.value?.email != null
                       ? Text(
                           controller.currentUser.value!.email!,
-                          style: modernDarkProfessionalTheme.textTheme.bodySmall
+                          style: darkProfessionalTheme.textTheme.bodySmall
                               ?.copyWith(
-                                color: modernDarkProfessionalTheme
+                                color: darkProfessionalTheme
                                     .colorScheme
                                     .onSurfaceVariant,
                               ),
@@ -963,10 +950,10 @@ class Home extends GetView<HomeController> {
           Icon(
             icon,
             size: 20,
-            color: modernDarkProfessionalTheme.colorScheme.onSurfaceVariant,
+            color: darkProfessionalTheme.colorScheme.onSurfaceVariant,
           ),
           const SizedBox(width: 12),
-          Text(title, style: modernDarkProfessionalTheme.textTheme.bodyMedium),
+          Text(title, style: darkProfessionalTheme.textTheme.bodyMedium),
         ],
       ),
     );
@@ -974,7 +961,7 @@ class Home extends GetView<HomeController> {
 
   Widget _buildUserAvatar(BuildContext context, {double radius = 18}) {
     final imageUrl = controller.currentUser.value?.photoURL;
-    return _ModernAvatar(
+    return _Avatar(
       imageUrl: imageUrl,
       radius: radius,
       placeholderText: controller.currentUser.value?.displayName
@@ -986,9 +973,9 @@ class Home extends GetView<HomeController> {
   Widget _buildDrawer(BuildContext context) {
     return Drawer(
       width: kSideNavWidth,
-      backgroundColor: modernDarkProfessionalTheme.colorScheme.surface,
+      backgroundColor: darkProfessionalTheme.colorScheme.surface,
       child: Obx(
-        () => _ModernSideNavigationRail(
+        () => _SideNavigationRail(
           selectedIndex: controller.sideNavSelectedIndex.value,
           onSelectItem: controller.onSideNavItemSelect,
           onShowSignInSnackbar: controller.showSignInSnackbar,
@@ -1003,7 +990,7 @@ class Home extends GetView<HomeController> {
 
   Widget _buildSideNavigation(BuildContext context, bool showCompactNavRail) {
     return Obx(
-      () => _ModernSideNavigationRail(
+      () => _SideNavigationRail(
         selectedIndex: controller.sideNavSelectedIndex.value,
         onSelectItem: controller.onSideNavItemSelect,
         onShowSignInSnackbar: controller.showSignInSnackbar,
@@ -1015,14 +1002,14 @@ class Home extends GetView<HomeController> {
   }
 
   Widget _buildVerticalDivider(BuildContext context) {
-    return Container(width: 1, color: modernDarkProfessionalTheme.dividerColor);
+    return Container(width: 1, color: darkProfessionalTheme.dividerColor);
   }
 
   Widget _buildBottomNavigation(BuildContext context) {
     return Obx(
       () => Container(
         decoration: BoxDecoration(
-          color: modernDarkProfessionalTheme.navigationBarTheme.backgroundColor,
+          color: darkProfessionalTheme.navigationBarTheme.backgroundColor,
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.1),
@@ -1065,7 +1052,7 @@ class Home extends GetView<HomeController> {
 // ==========================================================================
 // MODERNIZED SIDE NAVIGATION RAIL
 // ==========================================================================
-class _ModernSideNavigationRail extends StatelessWidget {
+class _SideNavigationRail extends StatelessWidget {
   final int selectedIndex;
   final Function(int) onSelectItem;
   final VoidCallback onShowSignInSnackbar;
@@ -1073,7 +1060,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
   final bool isDrawer;
   final bool isCompact;
   final HomeController homeController;
-  const _ModernSideNavigationRail({
+  const _SideNavigationRail({
     required this.selectedIndex,
     required this.onSelectItem,
     required this.onShowSignInSnackbar,
@@ -1087,10 +1074,10 @@ class _ModernSideNavigationRail extends StatelessWidget {
     return Container(
       width: isCompact ? kCompactSideNavWidth : kSideNavWidth,
       decoration: BoxDecoration(
-        color: modernDarkProfessionalTheme.navigationRailTheme.backgroundColor,
+        color: darkProfessionalTheme.navigationRailTheme.backgroundColor,
         border: Border(
           right: BorderSide(
-            color: modernDarkProfessionalTheme.dividerColor,
+            color: darkProfessionalTheme.dividerColor,
             width: 0.5,
           ),
         ),
@@ -1127,7 +1114,9 @@ class _ModernSideNavigationRail extends StatelessWidget {
                     style: GoogleFonts.roboto(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: isDarkMode ? Colors.white54 : AppColors.textSecondary,
+                      color: isDarkMode
+                          ? Colors.white54
+                          : AppColors.textSecondary,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -1151,19 +1140,35 @@ class _ModernSideNavigationRail extends StatelessWidget {
               ),
               _buildNavItem(
                 context,
-                Icons.trending_up_rounded,
-                Icons.trending_up_outlined,
-                'Trending',
-                HomeController.indexTrending,
-                route: "/trending",
-              ),
-              _buildNavItem(
-                context,
                 Icons.explore_rounded,
                 Icons.explore_outlined,
                 'Discover Channels',
                 HomeController.indexDiscover,
                 route: "/discover",
+              ),
+              _buildNavItem(
+                context,
+                Icons.info_rounded,
+                Icons.info_outline,
+                'About ',
+                HomeController.indexAbout,
+                route: '/about',
+              ),
+              _buildNavItem(
+                context,
+                Icons.privacy_tip_rounded,
+                Icons.privacy_tip_outlined,
+                'Privacy Policy',
+                HomeController.indexPrivacy,
+                route: '/privacy',
+              ),
+              _buildNavItem(
+                context,
+                Icons.article_rounded,
+                Icons.article_outlined,
+                'Terms of Service',
+                HomeController.indexTerms,
+                route: '/terms',
               ),
             ],
           ),
@@ -1314,7 +1319,11 @@ class _ModernSideNavigationRail extends StatelessWidget {
               SizedBox(height: 8),
 
               // Subscriptions Section
-              _buildSectionHeader(context, 'Following'),
+              _buildSectionHeader(
+                context,
+                'Subscriptions',
+                onTap: () => onSelectItem(HomeController.indexSubscriptions),
+              ),
               _buildSubscriptionList(context),
             ],
           );
@@ -1338,7 +1347,9 @@ class _ModernSideNavigationRail extends StatelessWidget {
                     style: GoogleFonts.roboto(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: isDarkMode ? Colors.white54 : AppColors.textSecondary,
+                      color: isDarkMode
+                          ? Colors.white54
+                          : AppColors.textSecondary,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -1368,30 +1379,6 @@ class _ModernSideNavigationRail extends StatelessWidget {
                 route: "/feedback",
               ),
               _buildDivider(context),
-              _buildNavItem(
-                context,
-                Icons.info_rounded,
-                Icons.info_outline,
-                'About Truthworld',
-                HomeController.indexAbout,
-                route: '/about',
-              ),
-              _buildNavItem(
-                context,
-                Icons.privacy_tip_rounded,
-                Icons.privacy_tip_outlined,
-                'Privacy Policy',
-                HomeController.indexPrivacy,
-                route: '/privacy',
-              ),
-              _buildNavItem(
-                context,
-                Icons.article_rounded,
-                Icons.article_outlined,
-                'Terms of Service',
-                HomeController.indexTerms,
-                route: '/terms',
-              ),
             ],
           ),
         ),
@@ -1415,7 +1402,9 @@ class _ModernSideNavigationRail extends StatelessWidget {
                     style: GoogleFonts.roboto(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: isDarkMode ? Colors.white54 : AppColors.textSecondary,
+                      color: isDarkMode
+                          ? Colors.white54
+                          : AppColors.textSecondary,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -1439,7 +1428,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                       ),
                       SizedBox(height: 4),
                       Text(
-                        'Made with â¤ï¸ for creators',
+                        'Made with  for creators',
                         style: GoogleFonts.roboto(
                           fontSize: 11,
                           color: isDarkMode
@@ -1472,7 +1461,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
     final bool isSelected = selectedIndex == index;
     final color = isSelected
         ? primaryAccent
-        : modernDarkProfessionalTheme.colorScheme.onSurfaceVariant;
+        : darkProfessionalTheme.colorScheme.onSurfaceVariant;
     return Container(
       margin: EdgeInsets.symmetric(vertical: 2),
       child: Material(
@@ -1537,7 +1526,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             title,
-            style: modernDarkProfessionalTheme.textTheme.labelSmall?.copyWith(
+            style: darkProfessionalTheme.textTheme.labelSmall?.copyWith(
               color: color,
               fontWeight: isSelected ? FontWeight.w500 : FontWeight.w500,
             ),
@@ -1573,7 +1562,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: modernDarkProfessionalTheme.textTheme.bodyMedium?.copyWith(
+            style: darkProfessionalTheme.textTheme.bodyMedium?.copyWith(
               color: color,
               fontWeight: isSelected ? FontWeight.w500 : FontWeight.w500,
             ),
@@ -1601,7 +1590,6 @@ class _ModernSideNavigationRail extends StatelessWidget {
       // Instead of full page transitions, we just update the index for dashboard-compatible pages
       final bool isDashboardPage =
           index == HomeController.indexHome ||
-          index == HomeController.indexTrending ||
           index == HomeController.indexSubscriptions ||
           index == HomeController.indexDiscover ||
           index == HomeController.indexLibrary ||
@@ -1649,20 +1637,39 @@ class _ModernSideNavigationRail extends StatelessWidget {
     return Container(
       margin: EdgeInsets.symmetric(vertical: 16),
       height: 0.5,
-      color: modernDarkProfessionalTheme.dividerColor,
+      color: darkProfessionalTheme.dividerColor,
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context, String title) {
+  Widget _buildSectionHeader(
+    BuildContext context,
+    String title, {
+    VoidCallback? onTap,
+  }) {
     if (isCompact) return SizedBox.shrink();
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Text(
-        title,
-        style: modernDarkProfessionalTheme.textTheme.titleSmall?.copyWith(
-          color: modernDarkProfessionalTheme.colorScheme.onSurfaceVariant,
-          fontWeight: FontWeight.w500,
-          letterSpacing: 0.5,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: darkProfessionalTheme.textTheme.titleSmall?.copyWith(
+                color: darkProfessionalTheme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.5,
+              ),
+            ),
+            if (onTap != null)
+              Icon(
+                Icons.chevron_right_rounded,
+                size: 16,
+                color: darkProfessionalTheme.colorScheme.onSurfaceVariant,
+              ),
+          ],
         ),
       ),
     );
@@ -1710,7 +1717,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
             subscriberCount: 0,
           );
 
-          return _ModernChannelListItem(
+          return _ChannelListItem(
             channel: channel,
             isCompact: isCompact,
             onTap: () => _handleChannelTap(context, channel, 0),
@@ -1747,11 +1754,11 @@ class _ModernSideNavigationRail extends StatelessWidget {
         vertical: 6,
       ),
       child: Shimmer.fromColors(
-        baseColor: modernDarkProfessionalTheme
+        baseColor: darkProfessionalTheme
             .colorScheme
             .surfaceContainerHighest
             .withValues(alpha: 0.3),
-        highlightColor: modernDarkProfessionalTheme
+        highlightColor: darkProfessionalTheme
             .colorScheme
             .surfaceContainerHighest
             .withValues(alpha: 0.1),
@@ -1792,7 +1799,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
           ? Icon(
               icon,
               size: 24,
-              color: modernDarkProfessionalTheme.colorScheme.onSurfaceVariant,
+              color: darkProfessionalTheme.colorScheme.onSurfaceVariant,
             )
           : Row(
               children: [
@@ -1800,15 +1807,15 @@ class _ModernSideNavigationRail extends StatelessWidget {
                   icon,
                   size: 18,
                   color:
-                      modernDarkProfessionalTheme.colorScheme.onSurfaceVariant,
+                      darkProfessionalTheme.colorScheme.onSurfaceVariant,
                 ),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     message,
-                    style: modernDarkProfessionalTheme.textTheme.bodyMedium
+                    style: darkProfessionalTheme.textTheme.bodyMedium
                         ?.copyWith(
-                          color: modernDarkProfessionalTheme
+                          color: darkProfessionalTheme
                               .colorScheme
                               .onSurfaceVariant,
                         ),
@@ -1824,11 +1831,11 @@ class _ModernSideNavigationRail extends StatelessWidget {
 // ==========================================================================
 // MODERNIZED CHANNEL LIST ITEM
 // ==========================================================================
-class _ModernChannelListItem extends StatelessWidget {
+class _ChannelListItem extends StatelessWidget {
   final Channel channel;
   final VoidCallback onTap;
   final bool isCompact;
-  const _ModernChannelListItem({
+  const _ChannelListItem({
     required this.channel,
     required this.onTap,
     required this.isCompact,
@@ -1863,8 +1870,8 @@ class _ModernChannelListItem extends StatelessWidget {
           SizedBox(height: 4),
           Text(
             channel.channelName,
-            style: modernDarkProfessionalTheme.textTheme.labelSmall?.copyWith(
-              color: modernDarkProfessionalTheme.colorScheme.onSurface,
+            style: darkProfessionalTheme.textTheme.labelSmall?.copyWith(
+              color: darkProfessionalTheme.colorScheme.onSurface,
               fontWeight: FontWeight.w500,
             ),
             maxLines: 1,
@@ -1884,8 +1891,8 @@ class _ModernChannelListItem extends StatelessWidget {
         Expanded(
           child: Text(
             channel.channelName,
-            style: modernDarkProfessionalTheme.textTheme.bodyMedium?.copyWith(
-              color: modernDarkProfessionalTheme.colorScheme.onSurface,
+            style: darkProfessionalTheme.textTheme.bodyMedium?.copyWith(
+              color: darkProfessionalTheme.colorScheme.onSurface,
               fontWeight: FontWeight.w500,
             ),
             maxLines: 1,
@@ -1897,7 +1904,7 @@ class _ModernChannelListItem extends StatelessWidget {
   }
 
   Widget _buildChannelAvatar(BuildContext context, double radius) {
-    return _ModernAvatar(
+    return _Avatar(
       imageUrl: channel.avatarUrl,
       radius: radius,
       placeholderText: channel.channelName.safeSubstring(0, 1).toUpperCase(),
@@ -1906,15 +1913,15 @@ class _ModernChannelListItem extends StatelessWidget {
 }
 
 // ==========================================================================
-// MODERNIZED MAIN CONTENT
+// MAIN CONTENT
 // ==========================================================================
-class _ModernMainContent extends StatelessWidget {
+class _MainContent extends StatelessWidget {
   final bool isMobile;
   final bool isTablet;
   final bool isDesktop;
   final HomeController homeController;
   final List<Widget> Function(BuildContext) appBarActionsBuilder;
-  const _ModernMainContent({
+  const _MainContent({
     required this.isMobile,
     required this.isTablet,
     required this.isDesktop,
@@ -1943,39 +1950,6 @@ class _ModernMainContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final categories = [
-      'All',
-      'Education',
-      'Entertainment',
-      'Music',
-      'News',
-      'Sports',
-      'Gaming',
-      'Technology',
-      'Science',
-      'Travel',
-      'Lifestyle',
-      'Comedy',
-      'Documentary',
-      'Movies',
-      'TV Shows',
-      'Vlogs',
-      'DIY & How-to',
-      'Health & Fitness',
-      'Fashion & Beauty',
-      'Food & Cooking',
-      'Business & Finance',
-      'Animation',
-      'Short Films',
-      'Motivation',
-      'History',
-      'Art & Design',
-      'Automotive',
-      'Animals & Pets',
-      'Spirituality',
-      'Nature & Wildlife',
-      'Kids & Family',
-    ];
     final horizontalPadding = isMobile ? 16.0 : (isTablet ? 24.0 : 32.0);
     return Container(
       decoration: BoxDecoration(
@@ -1983,8 +1957,8 @@ class _ModernMainContent extends StatelessWidget {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            modernDarkProfessionalTheme.scaffoldBackgroundColor,
-            modernDarkProfessionalTheme.scaffoldBackgroundColor.withValues(
+            darkProfessionalTheme.scaffoldBackgroundColor,
+            darkProfessionalTheme.scaffoldBackgroundColor.withValues(
               alpha: 0.95,
             ),
           ],
@@ -1993,25 +1967,10 @@ class _ModernMainContent extends StatelessWidget {
       child: CustomScrollView(
         controller: homeController.scrollController,
         slivers: [
-          if (homeController.sideNavSelectedIndex.value ==
-              HomeController.indexHome)
-            _buildMobileCategoryBar(context, categories),
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _FeaturedVideoBanner(horizontalPadding: horizontalPadding),
-                SizedBox(height: 32),
-                _PersonalizedPlaylistsSection(
-                  horizontalPadding: horizontalPadding,
-                ),
-                SizedBox(height: 24),
-              ],
-            ),
-          ),
+
           Obx(() {
             if (homeController.isLoadingVideos.value) {
-              return _ModernVideoGridSection(
+              return _VideoGridSection(
                 isMobile: isMobile,
                 isTablet: isTablet,
                 isDesktop: isDesktop,
@@ -2023,7 +1982,7 @@ class _ModernMainContent extends StatelessWidget {
                 formatTimestamp: _formatTimestamp,
               );
             }
-            return _ModernVideoGridSection(
+            return _VideoGridSection(
               isMobile: isMobile,
               isTablet: isTablet,
               isDesktop: isDesktop,
@@ -2048,6 +2007,7 @@ class _ModernMainContent extends StatelessWidget {
             }
             return SliverToBoxAdapter(child: SizedBox.shrink());
           }),
+          SliverToBoxAdapter(child: _buildHomeFooter(context)),
           SliverToBoxAdapter(
             child: SizedBox(
               height: isMobile || isTablet ? kBottomNavBarHeight + 16 : 16,
@@ -2058,123 +2018,148 @@ class _ModernMainContent extends StatelessWidget {
     );
   }
 
-  Widget _buildMobileCategoryBar(
-    BuildContext context,
-    List<String> categories,
-  ) {
-    return SliverAppBar(
-      floating: true,
-      pinned: true,
-      snap: true,
-      elevation: 0,
-      toolbarHeight: 0,
-      backgroundColor: modernDarkProfessionalTheme.appBarTheme.backgroundColor,
-      surfaceTintColor:
-          modernDarkProfessionalTheme.appBarTheme.surfaceTintColor,
-      bottom: _buildCategoryChipsBar(context, categories),
+  Widget _buildHomeFooter(BuildContext context) {
+    final colorScheme = darkProfessionalTheme.colorScheme;
+    final textTheme = darkProfessionalTheme.textTheme;
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        vertical: 64,
+        horizontal: isMobile ? 24 : 64,
+      ),
+      decoration: BoxDecoration(
+        color: colorScheme.surface.withValues(alpha: 0.3),
+        border: Border(
+          top: BorderSide(
+            color: darkProfessionalTheme.dividerColor,
+            width: 0.5,
+          ),
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [primaryAccent, secondaryAccent],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.play_circle_fill_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                "Truthworld",
+                style: textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Container(
+            constraints: const BoxConstraints(maxWidth: 800),
+            child: Text(
+              "Truthworld is a premium video-sharing platform that integrates automated content validation into the publishing pipeline, allowing creators to share verified stories and viewers to discover trustworthy content.",
+              textAlign: TextAlign.center,
+              style: textTheme.bodyLarge?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                height: 1.6,
+              ),
+            ),
+          ),
+          const SizedBox(height: 40),
+          Wrap(
+            spacing: 32,
+            runSpacing: 16,
+            alignment: WrapAlignment.center,
+            children: [
+              _buildFooterLink(
+                context,
+                "Privacy Policy",
+                HomeController.indexPrivacy,
+              ),
+              _buildFooterLink(
+                context,
+                "Terms of Service",
+                HomeController.indexTerms,
+              ),
+              _buildFooterLink(context, "About Us", HomeController.indexAbout),
+              _buildFooterLink(
+                context,
+                "Feedback",
+                HomeController.indexFeedback,
+              ),
+              _buildFooterLink(
+                context,
+                "Help Center",
+                HomeController.indexHelp,
+              ),
+            ],
+          ),
+          const SizedBox(height: 48),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              "© 2026 Truthworld Services (OPC) Private Limited. All rights reserved.",
+              style: textTheme.labelSmall?.copyWith(
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  PreferredSize _buildCategoryChipsBar(
-    BuildContext context,
-    List<String> categories,
-  ) {
-    final bool isMobile = MediaQuery.of(context).size.width < kTabletBreakpoint;
-    return PreferredSize(
-      preferredSize: Size.fromHeight(isMobile ? 64.0 : 72.0),
-      child: Container(
-        height: isMobile ? 64.0 : 72.0,
-        decoration: BoxDecoration(
-          color: modernDarkProfessionalTheme.appBarTheme.backgroundColor,
-          border: Border(
-            bottom: BorderSide(
-              color: modernDarkProfessionalTheme.dividerColor,
-              width: 0.5,
-            ),
+  Widget _buildFooterLink(BuildContext context, String text, int index) {
+    return InkWell(
+      onTap: () {
+        homeController.sideNavSelectedIndex.value = index;
+        homeController.scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOut,
+        );
+      },
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        child: Text(
+          text,
+          style: darkProfessionalTheme.textTheme.bodyMedium?.copyWith(
+            color: primaryAccent,
+            fontWeight: FontWeight.w600,
           ),
-        ),
-        padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 14),
-        child: ListView.builder(
-          scrollDirection: Axis.horizontal,
-          padding: EdgeInsets.symmetric(horizontal: isMobile ? 8.0 : 16.0),
-          itemCount: categories.length,
-          itemBuilder: (context, index) {
-            final category = categories[index];
-            return Obx(() {
-              final isSelected =
-                  homeController.selectedCategory.value == category;
-              return Padding(
-                padding: EdgeInsets.symmetric(horizontal: isMobile ? 4.0 : 6.0),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      homeController.selectCategory(category);
-                      Get.toNamed(
-                        "/category",
-                        arguments: {"category": category},
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(24),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isMobile ? 16 : 20,
-                        vertical: isMobile ? 10 : 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? Color(0xFF2A2A2A)
-                            : Color(0xFF1E1E1E),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: isSelected
-                              ? Colors.white.withValues(alpha: 0.5)
-                              : Colors.transparent,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          // Checkmark for selected
-                          if (isSelected) ...[
-                            Icon(
-                              Icons.check,
-                              color: Colors.white,
-                              size: isMobile ? 14 : 16,
-                            ),
-                            SizedBox(width: 6),
-                          ],
-                          // Category text - show full text
-                          Text(
-                            category,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: isMobile ? 13 : 14,
-                              height: 1.2,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            });
-          },
         ),
       ),
     );
   }
+
+
 }
 
 // ==========================================================================
 // MODERNIZED VIDEO GRID SECTION
 // ==========================================================================
-class _ModernVideoGridSection extends StatelessWidget {
+class _VideoGridSection extends StatelessWidget {
   final bool isMobile;
   final bool isTablet;
   final bool isDesktop;
@@ -2184,7 +2169,7 @@ class _ModernVideoGridSection extends StatelessWidget {
   final double horizontalPadding;
   final String Function(int) formatViews;
   final String Function(Timestamp) formatTimestamp;
-  const _ModernVideoGridSection({
+  const _VideoGridSection({
     required this.isMobile,
     required this.isTablet,
     required this.isDesktop,
@@ -2232,10 +2217,10 @@ class _ModernVideoGridSection extends StatelessWidget {
   Widget _buildGridVideoCard(BuildContext context, Video video) {
     return Container(
       decoration: BoxDecoration(
-        color: modernDarkProfessionalTheme.colorScheme.surface,
+        color: darkProfessionalTheme.colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: modernDarkProfessionalTheme.colorScheme.outline.withValues(
+          color: darkProfessionalTheme.colorScheme.outline.withValues(
             alpha: 0.1,
           ),
           width: 1,
@@ -2333,7 +2318,7 @@ class _ModernVideoGridSection extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _ModernAvatar(
+          _Avatar(
             imageUrl: video.channelImage,
             radius: 18,
             placeholderText: video.channelName
@@ -2349,7 +2334,7 @@ class _ModernVideoGridSection extends StatelessWidget {
                   video.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: modernDarkProfessionalTheme.textTheme.titleMedium
+                  style: darkProfessionalTheme.textTheme.titleMedium
                       ?.copyWith(
                         fontWeight: FontWeight.bold,
                         height: 1.3,
@@ -2361,9 +2346,9 @@ class _ModernVideoGridSection extends StatelessWidget {
                   video.channelName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: modernDarkProfessionalTheme.textTheme.bodySmall
+                  style: darkProfessionalTheme.textTheme.bodySmall
                       ?.copyWith(
-                        color: modernDarkProfessionalTheme
+                        color: darkProfessionalTheme
                             .colorScheme
                             .onSurfaceVariant,
                         fontWeight: FontWeight.w500,
@@ -2372,9 +2357,9 @@ class _ModernVideoGridSection extends StatelessWidget {
                 SizedBox(height: 2),
                 Text(
                   '${formatViews(video.views)} views • ${formatTimestamp(video.uploadedAt)}',
-                  style: modernDarkProfessionalTheme.textTheme.bodySmall
+                  style: darkProfessionalTheme.textTheme.bodySmall
                       ?.copyWith(
-                        color: modernDarkProfessionalTheme
+                        color: darkProfessionalTheme
                             .colorScheme
                             .onSurfaceVariant,
                       ),
@@ -2388,7 +2373,7 @@ class _ModernVideoGridSection extends StatelessWidget {
             icon: Icon(
               Icons.more_vert_rounded,
               size: 20,
-              color: modernDarkProfessionalTheme.colorScheme.onSurfaceVariant,
+              color: darkProfessionalTheme.colorScheme.onSurfaceVariant,
             ),
             onPressed: () {},
             padding: EdgeInsets.zero,
@@ -2401,14 +2386,14 @@ class _ModernVideoGridSection extends StatelessWidget {
 
   Widget _buildThumbnailShimmer(BuildContext context) {
     return Shimmer.fromColors(
-      baseColor: modernDarkProfessionalTheme.colorScheme.surfaceContainerHighest
+      baseColor: darkProfessionalTheme.colorScheme.surfaceContainerHighest
           .withValues(alpha: 0.3),
-      highlightColor: modernDarkProfessionalTheme
+      highlightColor: darkProfessionalTheme
           .colorScheme
           .surfaceContainerHighest
           .withValues(alpha: 0.1),
       child: Container(
-        color: modernDarkProfessionalTheme.colorScheme.surfaceContainerHighest,
+        color: darkProfessionalTheme.colorScheme.surfaceContainerHighest,
       ),
     );
   }
@@ -2455,17 +2440,17 @@ class _ModernVideoGridSection extends StatelessWidget {
         ),
         delegate: SliverChildBuilderDelegate((context, index) {
           return Shimmer.fromColors(
-            baseColor: modernDarkProfessionalTheme
+            baseColor: darkProfessionalTheme
                 .colorScheme
                 .surfaceContainerHighest
                 .withValues(alpha: 0.3),
-            highlightColor: modernDarkProfessionalTheme
+            highlightColor: darkProfessionalTheme
                 .colorScheme
                 .surfaceContainerHighest
                 .withValues(alpha: 0.1),
             child: Container(
               decoration: BoxDecoration(
-                color: modernDarkProfessionalTheme
+                color: darkProfessionalTheme
                     .colorScheme
                     .surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(16),
@@ -2488,14 +2473,14 @@ class _ModernVideoGridSection extends StatelessWidget {
               Icon(
                 Icons.video_library_outlined,
                 size: 48,
-                color: modernDarkProfessionalTheme.colorScheme.onSurfaceVariant,
+                color: darkProfessionalTheme.colorScheme.onSurfaceVariant,
               ),
               SizedBox(height: 16),
               Text(
                 'No videos found',
-                style: modernDarkProfessionalTheme.textTheme.titleMedium
+                style: darkProfessionalTheme.textTheme.titleMedium
                     ?.copyWith(
-                      color: modernDarkProfessionalTheme
+                      color: darkProfessionalTheme
                           .colorScheme
                           .onSurfaceVariant,
                     ),
@@ -2503,9 +2488,9 @@ class _ModernVideoGridSection extends StatelessWidget {
               SizedBox(height: 8),
               Text(
                 'Try selecting a different category',
-                style: modernDarkProfessionalTheme.textTheme.bodyMedium
+                style: darkProfessionalTheme.textTheme.bodyMedium
                     ?.copyWith(
-                      color: modernDarkProfessionalTheme
+                      color: darkProfessionalTheme
                           .colorScheme
                           .onSurfaceVariant,
                     ),
@@ -3131,14 +3116,14 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
 }
 
 // ==========================================================================
-// REUSABLE MODERN AVATAR WIDGET
+// REUSABLE AVATAR WIDGET
 // ==========================================================================
-class _ModernAvatar extends StatelessWidget {
+class _Avatar extends StatelessWidget {
   final String? imageUrl;
   final double radius;
   final String? placeholderText;
 
-  const _ModernAvatar({
+  const _Avatar({
     this.imageUrl,
     required this.radius,
     this.placeholderText,
@@ -3159,20 +3144,29 @@ class _ModernAvatar extends StatelessWidget {
       child: CircleAvatar(
         radius: radius,
         backgroundColor:
-            modernDarkProfessionalTheme.colorScheme.surfaceContainerHighest,
+            darkProfessionalTheme.colorScheme.surfaceContainerHighest,
         child: ClipOval(
           child: hasImage
-              ? CachedNetworkImage(
-                  imageUrl: imageUrl!,
-                  width: radius * 2,
-                  height: radius * 2,
-                  fit: BoxFit.cover,
-                  memCacheWidth:
-                      (radius * 2 * MediaQuery.of(context).devicePixelRatio)
-                          .toInt(),
-                  placeholder: (context, url) => _buildPlaceholder(),
-                  errorWidget: (context, url, error) => _buildPlaceholder(),
-                )
+              ? (kIsWeb
+                  ? Image.network(
+                      imageUrl!,
+                      width: radius * 2,
+                      height: radius * 2,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                          _buildPlaceholder(),
+                    )
+                  : CachedNetworkImage(
+                      imageUrl: imageUrl!,
+                      width: radius * 2,
+                      height: radius * 2,
+                      fit: BoxFit.cover,
+                      memCacheWidth:
+                          (radius * 2 * MediaQuery.of(context).devicePixelRatio)
+                              .toInt(),
+                      placeholder: (context, url) => _buildPlaceholder(),
+                      errorWidget: (context, url, error) => _buildPlaceholder(),
+                    ))
               : _buildPlaceholder(),
         ),
       ),
@@ -3200,8 +3194,3 @@ extension StringExtension on String {
     return substring(start, end);
   }
 }
-
-
-
-
-

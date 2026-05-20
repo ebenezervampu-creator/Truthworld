@@ -12,7 +12,12 @@
           "package_name": "com.example.truthworld"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "768266102263-f1bou7fgaqn2rkqh0cn5p6voksb163qt.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyC6PeXkaMYu9_KDV9ypWlLMJBp8BbKrR50"
@@ -20,7 +25,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "768266102263-f1bou7fgaqn2rkqh0cn5p6voksb163qt.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "768266102263-hbtemsacolkd51lk7515nld3m707eooo.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.truthworld"
+              }
+            }
+          ]
         }
       }
     }

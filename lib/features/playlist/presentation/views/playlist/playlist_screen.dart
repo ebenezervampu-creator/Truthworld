@@ -22,7 +22,7 @@ const kDarkSurface = Color(0xFF1A1A1A);
 const kDarksurfaceContainerHighest = Color(0xFF242424);
 
 // ==========================================================================
-// REGENERATED MODERN PLAYLIST SCREEN UI
+// REGENERATED PLAYLIST SCREEN UI
 // ==========================================================================
 
 class PlaylistScreen extends StatefulWidget {
@@ -178,7 +178,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Modern drag handle with improved design
+                    // Drag handle with improved design
                     Center(
                       child: Container(
                         width: 48,
@@ -403,7 +403,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                       const SizedBox(height: 32),
                     ],
 
-                    // Modern section header
+                    // Section header
                     Row(
                       children: [
                         Container(
@@ -452,7 +452,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                     ),
                     const SizedBox(height: 16),
 
-                    // Enhanced video list with modern cards
+                    // Enhanced video list with cards
                     Flexible(
                       child: StreamBuilder<QuerySnapshot>(
                         stream: FirebaseFirestore.instance
@@ -835,7 +835,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
 
                     const SizedBox(height: 24),
 
-                    // Modern create button with enhanced design
+                    // Create button with enhanced design
                     Container(
                       width: double.infinity,
                       decoration: BoxDecoration(
@@ -1001,7 +1001,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
         body: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
-            // Modern Header matching MyVideos
+            // Header matching MyVideos
             SliverToBoxAdapter(
               child: _buildHeader(isMobile),
             ),
@@ -1359,6 +1359,20 @@ class _PlaylistScreenState extends State<PlaylistScreen>
             return playlist.playlistName.toLowerCase().contains(
               _playlistController.searchQuery.value.toLowerCase(),
             );
+          }).toList();
+        }
+
+        // Apply category filter
+        if (_playlistController.selectedCategory.value != 'Playlists') {
+          final catLower = _playlistController.selectedCategory.value.toLowerCase();
+          playlists = playlists.where((playlist) {
+             if (catLower == 'owned') {
+               return playlist.ownerId == _playlistController.user;
+             } else if (catLower == 'saved') {
+               return playlist.ownerId != _playlistController.user;
+             } else {
+               return playlist.playlistName.toLowerCase().contains(catLower);
+             }
           }).toList();
         }
 

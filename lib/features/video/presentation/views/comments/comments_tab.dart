@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -17,19 +18,19 @@ Widget buildCommentsTab({
   required ThemeData theme,
   required MainController mainController,
 }) {
-  return ModernCommentsTab(
+  return CommentsTab(
     video: video,
     theme: theme,
     mainController: mainController,
   );
 }
 
-class ModernCommentsTab extends StatefulWidget {
+class CommentsTab extends StatefulWidget {
   final Video video;
   final ThemeData theme;
   final MainController mainController;
 
-  const ModernCommentsTab({
+  const CommentsTab({
     super.key,
     required this.video,
     required this.theme,
@@ -37,10 +38,10 @@ class ModernCommentsTab extends StatefulWidget {
   });
 
   @override
-  State<ModernCommentsTab> createState() => _ModernCommentsTabState();
+  State<CommentsTab> createState() => _CommentsTabState();
 }
 
-class _ModernCommentsTabState extends State<ModernCommentsTab>
+class _CommentsTabState extends State<CommentsTab>
     with TickerProviderStateMixin {
   late AnimationController _fadeController;
   late AnimationController _slideController;
@@ -186,7 +187,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
               ? 20
               : 24,
         ),
-        child: ModernCommentInput(
+        child: CommentInput(
           videoId: widget.video.id,
           enableComments: widget.video.enableComments,
         ),
@@ -370,7 +371,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
                   offset: Offset(0, 20 * (1 - value)),
                   child: Opacity(
                     opacity: value,
-                    child: ModernCommentItem(
+                    child: CommentItem(
                       comment: comment,
                       theme: widget.theme,
                       mainController: widget.mainController,
@@ -801,8 +802,8 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
   }
 }
 
-/// Modern Comment Item with enhanced UI/UX
-class ModernCommentItem extends StatefulWidget {
+/// Comment Item with enhanced UI/UX
+class CommentItem extends StatefulWidget {
   final Comment comment;
   final ThemeData theme;
   final MainController mainController;
@@ -811,7 +812,7 @@ class ModernCommentItem extends StatefulWidget {
   final bool isTablet;
   final bool isDesktop;
 
-  const ModernCommentItem({
+  const CommentItem({
     super.key,
     required this.comment,
     required this.theme,
@@ -823,10 +824,10 @@ class ModernCommentItem extends StatefulWidget {
   });
 
   @override
-  State<ModernCommentItem> createState() => _ModernCommentItemState();
+  State<CommentItem> createState() => _CommentItemState();
 }
 
-class _ModernCommentItemState extends State<ModernCommentItem>
+class _CommentItemState extends State<CommentItem>
     with TickerProviderStateMixin {
   late AnimationController _hoverController;
   late Animation<double> _hoverAnimation;
@@ -1210,10 +1211,10 @@ class _ModernCommentItemState extends State<ModernCommentItem>
                       color: Colors.black,
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.favorite,
                       size: 10,
-                      color: Colors.red,
+                      color: AppColors.brand,
                     ),
                   ),
                 ),
@@ -1245,7 +1246,7 @@ class _ModernCommentItemState extends State<ModernCommentItem>
   }
 
   Widget _buildRepliesSection() {
-    return ModernRepliesSection(
+    return RepliesSection(
       commentId: widget.comment.id,
       theme: widget.theme,
       video: widget.video,
@@ -1268,7 +1269,7 @@ class _ModernCommentItemState extends State<ModernCommentItem>
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
-        child: ModernReplyInput(videoId: widget.video.id, commentId: commentId),
+        child: ReplyInput(videoId: widget.video.id, commentId: commentId),
       ),
     );
   }
@@ -1300,8 +1301,8 @@ class _ModernCommentItemState extends State<ModernCommentItem>
   }
 }
 
-/// Modern Action Button for comments
-class ModernActionButton extends StatefulWidget {
+/// Action Button for comments
+class ActionButton extends StatefulWidget {
   final IconData icon;
   final int? count;
   final VoidCallback onTap;
@@ -1310,7 +1311,7 @@ class ModernActionButton extends StatefulWidget {
   final bool isTablet;
   final bool isDesktop;
 
-  const ModernActionButton({
+  const ActionButton({
     super.key,
     required this.icon,
     this.count,
@@ -1322,10 +1323,10 @@ class ModernActionButton extends StatefulWidget {
   });
 
   @override
-  State<ModernActionButton> createState() => _ModernActionButtonState();
+  State<ActionButton> createState() => _ActionButtonState();
 }
 
-class _ModernActionButtonState extends State<ModernActionButton>
+class _ActionButtonState extends State<ActionButton>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
@@ -1430,8 +1431,8 @@ class _ModernActionButtonState extends State<ModernActionButton>
   }
 }
 
-/// Modern Replies Section
-class ModernRepliesSection extends StatefulWidget {
+/// Replies Section
+class RepliesSection extends StatefulWidget {
   final String commentId;
   final ThemeData theme;
   final Video video;
@@ -1440,7 +1441,7 @@ class ModernRepliesSection extends StatefulWidget {
   final bool isTablet;
   final bool isDesktop;
 
-  const ModernRepliesSection({
+  const RepliesSection({
     super.key,
     required this.commentId,
     required this.theme,
@@ -1452,10 +1453,10 @@ class ModernRepliesSection extends StatefulWidget {
   });
 
   @override
-  State<ModernRepliesSection> createState() => _ModernRepliesSectionState();
+  State<RepliesSection> createState() => _RepliesSectionState();
 }
 
-class _ModernRepliesSectionState extends State<ModernRepliesSection>
+class _RepliesSectionState extends State<RepliesSection>
     with SingleTickerProviderStateMixin {
   late AnimationController _expansionController;
   late Animation<double> _expansionAnimation;
@@ -1592,7 +1593,7 @@ class _ModernRepliesSectionState extends State<ModernRepliesSection>
                   ),
                   child: Column(
                     children: replies.map((reply) {
-                      return ModernReplyItem(
+                      return ReplyItem(
                         reply: reply,
                         theme: widget.theme,
                         video: widget.video,
@@ -1615,8 +1616,8 @@ class _ModernRepliesSectionState extends State<ModernRepliesSection>
   }
 }
 
-/// Modern Reply Item
-class ModernReplyItem extends StatelessWidget {
+/// Reply Item
+class ReplyItem extends StatelessWidget {
   final Reply reply;
   final ThemeData theme;
   final Video video;
@@ -1625,7 +1626,7 @@ class ModernReplyItem extends StatelessWidget {
   final bool isTablet;
   final bool isDesktop;
 
-  const ModernReplyItem({
+  const ReplyItem({
     super.key,
     required this.reply,
     required this.theme,
@@ -1816,7 +1817,7 @@ class ModernReplyItem extends StatelessWidget {
                 ),
                 Row(
                   children: [
-                    ModernActionButton(
+                    ActionButton(
                       icon: Icons.thumb_up_alt_outlined,
                       count: reply.likeCount,
                       onTap: () {
@@ -1840,7 +1841,7 @@ class ModernReplyItem extends StatelessWidget {
                           ? 16
                           : 20,
                     ),
-                    ModernActionButton(
+                    ActionButton(
                       icon: Icons.thumb_down_alt_outlined,
                       count: reply.dislikeCount,
                       onTap: () {
@@ -1868,7 +1869,7 @@ class ModernReplyItem extends StatelessWidget {
   }
 }
 
-/// Show modernized reply input modal sheet
+/// Show reply input modal sheet
 void showReplyInput(String commentId, {required Video video}) {
   showModalBottomSheet(
     context: Get.context!,
@@ -1881,12 +1882,12 @@ void showReplyInput(String commentId, {required Video video}) {
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
-      child: ModernReplyInput(videoId: video.id, commentId: commentId),
+      child: ReplyInput(videoId: video.id, commentId: commentId),
     ),
   );
 }
 
-/// Show sign-in prompt with modern styling
+/// Show sign-in prompt with styling
 void showSignInPrompt(BuildContext context) {
   Get.snackbar(
     'Sign in required',

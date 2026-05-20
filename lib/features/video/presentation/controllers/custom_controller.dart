@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
@@ -615,7 +616,7 @@ class CustomController extends GetxController {
     switch (quality) {
       case '144p':
       case '240p':
-        return Colors.redAccent;
+        return AppColors.brand;
       case '360p':
       case '480p':
         return Colors.orangeAccent;
@@ -740,14 +741,14 @@ class VideoSettingsSheet extends StatelessWidget {
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.redAccent.withValues(alpha: 0.2),
+                  color: AppColors.brand.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.redAccent, width: 1),
+                  border: Border.all(color: AppColors.brand, width: 1),
                 ),
                 child: Text(
                   '${controller.playbackSpeed.toStringAsFixed(2).replaceFirst('.00', '')}x',
                   style: TextStyle(
-                    color: Colors.redAccent,
+                    color: AppColors.brand,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -760,15 +761,15 @@ class VideoSettingsSheet extends StatelessWidget {
             padding: EdgeInsets.symmetric(horizontal: 4),
             child: SliderTheme(
               data: SliderTheme.of(Get.context!).copyWith(
-                activeTrackColor: Colors.redAccent,
+                activeTrackColor: AppColors.brand,
                 inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
-                thumbColor: Colors.redAccent,
-                overlayColor: Colors.redAccent.withValues(alpha: 0.2),
+                thumbColor: AppColors.brand,
+                overlayColor: AppColors.brand.withValues(alpha: 0.2),
                 trackHeight: 4,
                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
                 valueIndicatorShape: const PaddleSliderValueIndicatorShape(),
-                valueIndicatorColor: Colors.redAccent,
+                valueIndicatorColor: AppColors.brand,
                 valueIndicatorTextStyle: TextStyle(
                   color: Colors.white,
                   fontSize: 12,
@@ -806,11 +807,11 @@ class VideoSettingsSheet extends StatelessWidget {
                   padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? Colors.redAccent
+                        ? AppColors.brand
                         : Colors.white.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: isSelected ? Colors.redAccent : Colors.white24,
+                      color: isSelected ? AppColors.brand : Colors.white24,
                       width: 1,
                     ),
                   ),
@@ -924,7 +925,7 @@ class VideoSettingsSheet extends StatelessWidget {
           Switch(
             value: controller.isLooping.value,
             onChanged: controller.toggleLooping,
-            activeThumbColor: Colors.redAccent,
+            activeThumbColor: AppColors.brand,
             inactiveThumbColor: Colors.white54,
             inactiveTrackColor: Colors.white12,
           ),
@@ -1010,21 +1011,21 @@ class _MyCustomControlsState extends State<MyCustomControls> {
       onKeyEvent: controller.handleKeyEvent,
       child: Obx(() {
         if (!controller.isInitialized.value) {
-          return const Center(
-            child: CircularProgressIndicator(color: Colors.redAccent),
+          return Center(
+            child: CircularProgressIndicator(color: AppColors.brand),
           );
         }
         if (controller.errorMessage.value.isNotEmpty) {
           return Center(
             child: Text(
               'Error: ${controller.errorMessage.value}',
-              style: TextStyle(color: Colors.redAccent),
+              style: TextStyle(color: AppColors.brand),
             ),
           );
         }
         if (controller.isBuffering.value) {
-          return const Center(
-            child: CircularProgressIndicator(color: Colors.redAccent),
+          return Center(
+            child: CircularProgressIndicator(color: AppColors.brand),
           );
         }
         final bool isPlaying = controller.isPlaying.value;
@@ -1220,8 +1221,8 @@ class _MyCustomControlsState extends State<MyCustomControls> {
                                         child: VideoProgressIndicator(
                                           controller.videoPlayerController!,
                                           allowScrubbing: true,
-                                          colors: const VideoProgressColors(
-                                            playedColor: Colors.redAccent,
+                                          colors: VideoProgressColors(
+                                            playedColor: AppColors.brand,
                                             bufferedColor: Colors.white30,
                                             backgroundColor: Colors.white12,
                                           ),
@@ -1269,13 +1270,12 @@ class _MyCustomControlsState extends State<MyCustomControls> {
                                                           overlayRadius: 12,
                                                         ),
                                                     activeTrackColor:
-                                                        Colors.redAccent,
+                                                        AppColors.brand,
                                                     inactiveTrackColor:
                                                         Colors.white30,
                                                     thumbColor:
-                                                        Colors.redAccent,
-                                                    overlayColor: Colors
-                                                        .redAccent
+                                                        AppColors.brand,
+                                                    overlayColor: AppColors.brand
                                                         .withValues(alpha: 0.2),
                                                   ),
                                                   child: Slider(

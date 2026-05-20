@@ -6,7 +6,7 @@ const db = admin.firestore();
 
 /**
  * ⚡ TRACK ACTIVITY (Callable)
- * Records implicit signals (clicks, views, follows) to refine interest mapping.
+ * Records implicit signals (clicks, views, subscriptions) to refine interest mapping.
  * This powers the 'For You' personalized feed.
  */
 export const trackActivity = onCall(
@@ -21,9 +21,9 @@ export const trackActivity = onCall(
     const userRef = db.collection("users").doc(userId);
 
     // ⚖️ Weighting Logic
-    // Follows are the strongest signal, followed by long watches
-    let weight = 0.05; // Base signal (click/short view)
-    if (type === "follow") weight = 0.5;
+    // Subscriptions are the strongest signal, followed by long watches
+    let weight = 0.1;
+    if (type === "subscribe") weight = 0.5;
     if (type === "view" && (durationSec || 0) > 60) weight = 0.2;
     if (type === "like") weight = 0.15;
 

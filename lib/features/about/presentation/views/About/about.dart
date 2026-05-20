@@ -404,7 +404,7 @@ class AboutPage extends StatelessWidget {
                   const SizedBox(height: 24),
                   _companyDetail(
                     'Legal Name',
-                    'TRUTHWORLD SERVICES (OPC) PRIVATE LIMITED',
+                    'Truthworld SERVICES (OPC) PRIVATE LIMITED',
                   ),
                   _companyDetail('CIN', 'U63111TS2025OPC207488'),
                   _companyDetail('Incorporated', 'December 10, 2025'),
@@ -430,7 +430,7 @@ class AboutPage extends StatelessWidget {
       child: Column(
         children: [
           Text(
-            'TruthWorld Content Validation & Transparency',
+            'Truthworld Content Validation & Transparency',
             style: TextStyle(
               fontSize: 56,
               fontWeight: FontWeight.bold,
@@ -1020,7 +1020,7 @@ class AboutPage extends StatelessWidget {
             children: [
               const Flexible(
                 child: Text(
-                  'TRUTHWORLD SERVICES (OPC) PRIVATE LIMITED',
+                  'Truthworld SERVICES (OPC) PRIVATE LIMITED',
                   style: TextStyle(
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.bold,
@@ -1043,16 +1043,16 @@ class AboutPage extends StatelessWidget {
                     ),
                     TextButton(
                       onPressed: () =>
-                          _sendEmail('ebenezervampu@truthworld.in'),
+                          _sendEmail('ebenezervampu@Truthworld.in'),
                       child: const Text(
-                        'ebenezervampu@truthworld.in',
+                        'ebenezervampu@Truthworld.in',
                         style: TextStyle(color: AppColors.textTertiary),
                       ),
                     ),
                     TextButton(
-                      onPressed: () => _sendEmail('ebenezer@truthworld.in'),
+                      onPressed: () => _sendEmail('ebenezer@Truthworld.in'),
                       child: const Text(
-                        'ebenezer@truthworld.in',
+                        'ebenezer@Truthworld.in',
                         style: TextStyle(color: AppColors.textTertiary),
                       ),
                     ),
@@ -1102,7 +1102,7 @@ class AboutPage extends StatelessWidget {
           const Divider(color: Color(0xFFFFB703)),
           const SizedBox(height: 20),
           const Text(
-            '© 2026 TruthWorld Services. Built for the future of trusted video.',
+            '© 2026 Truthworld Services. Built for the future of trusted video.',
             style: TextStyle(color: Color(0xFF475569), fontSize: 12),
           ),
         ],

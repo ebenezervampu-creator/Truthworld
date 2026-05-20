@@ -14,7 +14,7 @@ import 'package:truthworld/core/services/auth_service.dart';
 // DASHBOARD WRAPPER CONTROLLER
 // ==========================================================================
 class DashboardWrapperController extends GetxController {
-  final String dashboardType; // 'library', 'explore', 'following', 'support'
+  final String dashboardType; // 'library', 'explore', 'subscriptions', 'support'
   final int initialTabIndex;
 
   DashboardWrapperController({
@@ -38,8 +38,8 @@ class DashboardWrapperController extends GetxController {
         ];
       case 'explore':
         return ['Explore Pages', 'Categories', 'Trending', 'New & Popular'];
-      case 'following':
-        return ['Following', 'Subscriptions', 'Channels'];
+      case 'subscriptions':
+        return ['Subscriptions', 'Channels'];
       case 'support':
         return [
           'Help & Support',
@@ -117,8 +117,8 @@ class _DashboardWrapperState extends State<DashboardWrapper>
         ];
       case 'explore':
         return ['Explore Pages', 'Categories', 'Trending', 'New & Popular'];
-      case 'following':
-        return ['Following', 'Subscriptions', 'Channels'];
+      case 'subscriptions':
+        return ['Subscriptions', 'Channels'];
       case 'support':
         return [
           'Help & Support',
@@ -164,21 +164,11 @@ class _DashboardWrapperState extends State<DashboardWrapper>
             ),
           ),
         );
-      case 'following':
+      case 'subscriptions':
         switch (index) {
           case 0:
-            return Container(
-              color: AppColors.bgPage,
-              child: Center(
-                child: Text(
-                  'Following',
-                  style: GoogleFonts.roboto(color: Colors.white, fontSize: 18),
-                ),
-              ),
-            );
-          case 1:
             return SubscriptionsPage();
-          case 2:
+          case 1:
             return Container(
               color: AppColors.bgPage,
               child: Center(
@@ -236,7 +226,7 @@ class _DashboardWrapperState extends State<DashboardWrapper>
             ),
           ),
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xFFB8B8B8)),
+            icon: const Icon(Icons.arrow_back_ios_new, color: Color(0xFFB8B8B8)),
             onPressed: () => Get.back(),
           ),
           bottom: TabBar(
@@ -276,8 +266,8 @@ class _DashboardWrapperState extends State<DashboardWrapper>
         return 'Your Library';
       case 'explore':
         return 'Explore';
-      case 'following':
-        return 'Following';
+      case 'subscriptions':
+        return 'Subscriptions';
       case 'support':
         return 'Help & Support';
       default:

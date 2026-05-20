@@ -245,7 +245,7 @@ class ShareBottomSheet extends StatelessWidget {
   void _shareNative() async {
     await SharePlus.instance.share(
       ShareParams(
-        text: 'Check this out on TruthWorld: $title\n$url',
+        text: 'Check this out on Truthworld: $title\n$url',
         subject: title,
       ),
     );

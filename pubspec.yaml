@@ -78,10 +78,6 @@ dependencies:
   idb_shim: ^2.6.7
   path_provider: ^2.1.5
 
-  # Auth & Search
-  algoliasearch: ^1.41.0
-  algolia_helper_flutter: ^1.5.0
-
   # Charts & Visualization
   syncfusion_flutter_charts: ^33.2.4
   flutter_gantt: ^1.0.0
@@ -110,6 +106,7 @@ dependencies:
 
   flutter_web_plugins:
     sdk: flutter
+  firebase_in_app_messaging: ^0.8.1+10
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -133,10 +130,8 @@ flutter:
   # the material Icons class.
 
 
-  # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  assets:
+    - assets/logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

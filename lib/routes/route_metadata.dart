@@ -15,7 +15,7 @@ class RouteMetadata {
 }
 
 class RouteMetadataConfig {
-  static const String _defaultImage = 'https://www.truthworld.in/og-image.png';
+  static const String _defaultImage = 'https://www.Truthworld.in/og-image.png';
   static const String _defaultAuthor = 'Truthworld';
   static const String _defaultKeywords =
       'video, sharing, streaming, Truthworld, creators';

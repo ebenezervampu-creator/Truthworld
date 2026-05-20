@@ -228,12 +228,7 @@ class ChannelController extends GetxController
   final selectedCategories = <String>[].obs;
   final isAgreed = false.obs;
   final formChangeTrigger = 0.obs;
-  final socialLinks = {
-    'twitter': '',
-    'instagram': '',
-    'youtube': '',
-    'website': '',
-  }.obs;
+  final socialLinks = {'twitter': '', 'instagram': '', 'website': ''}.obs;
   final advancedSettings = <String, dynamic>{
     'allowComments': true,
     'allowSubscriptions': true,
@@ -246,6 +241,7 @@ class ChannelController extends GetxController
   final RxBool notificationNew = true.obs;
   final RxBool notificationLive = true.obs;
   final RxBool notificationPlaylist = false.obs;
+  final RxString notificationPreference = 'personalized'.obs;
 
   // Availability Checking
   var channelNameAvailability = Rx<AvailabilityStatus>(
@@ -723,6 +719,35 @@ class ChannelController extends GetxController
   // IMAGE UPLOAD
   // ==========================================================================
 
+  /// Ensure auth context is ready for Storage operations on web
+  Future<void> _ensureStorageAuthReady() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception("User not authenticated");
+      }
+
+      // Get the ID token and ensure it's fresh
+      await user.getIdToken(true);
+
+      // On web, add a small delay to ensure Firebase Storage SDK picks it up
+      if (kIsWeb) {
+        debugPrint(
+          '⏳ [ChannelController] Waiting for Storage auth context sync...',
+        );
+        await Future.delayed(const Duration(milliseconds: 300));
+        debugPrint('✅ [ChannelController] Storage auth context synchronized');
+      }
+
+      debugPrint(
+        '✅ [ChannelController] Storage auth ready for user: ${user.uid}',
+      );
+    } catch (e) {
+      debugPrint('❌ [ChannelController] Failed to prepare Storage auth: $e');
+      throw Exception("Storage auth preparation failed: $e");
+    }
+  }
+
   Future<Map<String, String>?> uploadImage(
     PlatformFile file,
     String folder,
@@ -730,27 +755,73 @@ class ChannelController extends GetxController
     Function(double progress)? onProgress,
   }) async {
     try {
-      final uniqueFileName = '${_uuid.v4()}.${file.extension}';
-      final ref = _storage.ref().child(
-        'channels/$folder/$userId/$uniqueFileName',
+      debugPrint(
+        '🚀 [ChannelController] Starting uploadImage for user: $userId',
+      );
+      debugPrint('📂 [ChannelController] Target folder: $folder');
+      debugPrint(
+        '📄 [ChannelController] File: ${file.name} | Size: ${file.size} bytes | Extension: ${file.extension}',
       );
 
-      final metadata = SettableMetadata(contentType: 'image/${file.extension}');
+      // Ensure Storage auth is synchronized on web
+      await _ensureStorageAuthReady();
+
+      final uniqueFileName = '${_uuid.v4()}.${file.extension}';
+      final targetPath = 'channels/$folder/$userId/$uniqueFileName';
+      debugPrint('📍 [ChannelController] Firebase Storage Path: $targetPath');
+
+      final ref = _storage.ref().child(targetPath);
+
+      final metadata = SettableMetadata(
+        contentType: 'image/${file.extension}',
+        customMetadata: {'uploaded': DateTime.now().toString()},
+      );
+
+      debugPrint(
+        '📤 [ChannelController] Invoking putData with ${file.bytes?.length ?? 0} bytes',
+      );
+      if (file.bytes == null) {
+        debugPrint(
+          '⚠️ [ChannelController] WARNING: file.bytes is NULL! PutData will fail!',
+        );
+      }
+
       final uploadTask = ref.putData(file.bytes!, metadata);
 
       uploadTask.snapshotEvents.listen(
         (snapshot) {
-          final progress = snapshot.bytesTransferred / snapshot.totalBytes;
+          debugPrint(
+            '📊 [ChannelController] Event -> State: ${snapshot.state}, '
+            'Transferred: ${snapshot.bytesTransferred}/${snapshot.totalBytes} bytes',
+          );
+          final progress = snapshot.totalBytes > 0
+              ? (snapshot.bytesTransferred / snapshot.totalBytes)
+              : 0.0;
+          debugPrint(
+            '📈 [ChannelController] Progress updated: ${(progress * 100).toStringAsFixed(1)}%',
+          );
           if (onProgress != null) onProgress(progress);
         },
         onError: (e) {
-          debugPrint('Upload stream error: $e');
+          debugPrint('❌ [ChannelController] Upload stream error: $e');
         },
       );
 
-      final snapshot = await uploadTask;
+      debugPrint(
+        '⏳ [ChannelController] Awaiting uploadTask future completion with 20s timeout...',
+      );
+      final snapshot = await uploadTask.timeout(const Duration(seconds: 20));
+      debugPrint('✅ [ChannelController] uploadTask completed successfully!');
+
       final url = await snapshot.ref.getDownloadURL();
+      debugPrint('🔗 [ChannelController] Retrieved Download URL: $url');
       return {'url': url, 'fileName': uniqueFileName};
+    } on TimeoutException catch (e) {
+      debugPrint('❌ [ChannelController] Upload timed out: $e');
+      _showErrorSnackbar(
+        "Upload timed out. Please check your network connection or Firebase Storage CORS configuration.",
+      );
+      return null;
     } on FirebaseException catch (e) {
       debugPrint('ðŸ”¥ Firebase Storage Error: ${e.code}');
       debugPrint('ðŸ“ Message: ${e.message}');
@@ -1155,7 +1226,15 @@ class ChannelController extends GetxController
 
       _resetForm();
 
-      Timer(const Duration(milliseconds: 1000), () => Get.back());
+      Timer(
+        const Duration(milliseconds: 1000),
+        () => Get.offAllNamed(
+          "/studio",
+          arguments: {
+            'channel': {'id': newChannelId},
+          },
+        ),
+      );
     } catch (e) {
       debugPrint('âŒ Error creating channel: $e');
       _showErrorSnackbar("Failed to create channel: $e");
@@ -1230,6 +1309,7 @@ class ChannelController extends GetxController
           'userId': user.uid,
           'channelId': channelId,
           'subscribedAt': FieldValue.serverTimestamp(),
+          'notificationPreference': 'personalized',
         });
 
         // Increment counter - FieldValue.increment is atomic and safe
@@ -1335,6 +1415,11 @@ class ChannelController extends GetxController
         .listen(
           (snapshot) {
             isSubscribed.value = snapshot.exists;
+            if (snapshot.exists) {
+              final data = snapshot.data();
+              notificationPreference.value =
+                  data?['notificationPreference'] ?? 'personalized';
+            }
             isSubscriptionLoading.value = false;
           },
           onError: (error) {
@@ -1342,6 +1427,32 @@ class ChannelController extends GetxController
             isSubscriptionLoading.value = false;
           },
         );
+  }
+
+  Future<void> updateNotificationPreference(
+    String channelId,
+    String preference,
+  ) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final subDocId = '${channelId}_${user.uid}';
+    try {
+      await _firestore.collection(_subsCol).doc(subDocId).update({
+        'notificationPreference': preference,
+      });
+      notificationPreference.value = preference;
+      Get.snackbar(
+        'Preferences Updated',
+        'Notification preference set to "$preference".',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: const Color(0xFF16132D),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 2),
+      );
+    } catch (e) {
+      debugPrint('Error updating notification preference: $e');
+    }
   }
 
   /// Check if current user is subscribed to a specific channel (reactive)

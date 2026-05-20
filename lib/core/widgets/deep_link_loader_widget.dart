@@ -8,7 +8,7 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Animated pulsing icon with glow effect
 /// - Status message with shimmer
 /// - Error state with retry button
-/// - Consistent dark theme matching TruthWorld branding
+/// - Consistent dark theme matching Truthworld branding
 class DeepLinkLoaderWidget extends StatefulWidget {
   final String title;
   final String subtitle;

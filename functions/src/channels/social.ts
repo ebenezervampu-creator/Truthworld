@@ -1,14 +1,14 @@
-﻿import * as admin from "firebase-admin";
+import * as admin from "firebase-admin";
 import { onCall, HttpsError, onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 
 const db = () => admin.firestore();
 
 /**
- * ðŸ¤ FOLLOW CHANNEL (Callable)
+ * 🤝 SUBSCRIBE CHANNEL (Callable)
  * Atomically links user to channel, updates counts.
  */
-export const followChannel = onCall(
+export const subscribeChannel = onCall(
   { region: "asia-south1", memory: "256MiB" },
   async (request) => {
     const userId = request.auth?.uid;
@@ -24,7 +24,7 @@ export const followChannel = onCall(
     try {
       return await db().runTransaction(async (tx) => {
         const followSnap = await tx.get(subscriberRef);
-        if (followSnap.exists) return { success: true, alreadyFollowing: true };
+        if (followSnap.exists) return { success: true, alreadySubscribed: true };
 
         const channelSnap = await tx.get(channelRef);
         if (!channelSnap.exists) throw new HttpsError("not-found", "Channel not found.");
@@ -40,7 +40,7 @@ export const followChannel = onCall(
         });
 
         tx.update(userRef, {
-          following: admin.firestore.FieldValue.arrayUnion(channelId),
+          subscriptions: admin.firestore.FieldValue.arrayUnion(channelId),
           updatedAt: Date.now()
         });
 
@@ -48,16 +48,16 @@ export const followChannel = onCall(
       });
     } catch (err) {
       if (err instanceof HttpsError) throw err;
-      logger.error("[followChannel] Error:", err);
-      throw new HttpsError("internal", "Failed to follow channel.");
+      logger.error("[subscribeChannel] Error:", err);
+      throw new HttpsError("internal", "Failed to subscribe to channel.");
     }
   }
 );
 
 /**
- * ðŸ‘‹ UNFOLLOW CHANNEL (Callable)
+ * 👋 UNSUBSCRIBE CHANNEL (Callable)
  */
-export const unfollowChannel = onCall(
+export const unsubscribeChannel = onCall(
   { region: "asia-south1", memory: "256MiB" },
   async (request) => {
     const userId = request.auth?.uid;
@@ -73,7 +73,7 @@ export const unfollowChannel = onCall(
     try {
       return await db().runTransaction(async (tx) => {
         const followSnap = await tx.get(subscriberRef);
-        if (!followSnap.exists) return { success: true, notFollowing: true };
+        if (!followSnap.exists) return { success: true, notSubscribed: true };
 
         tx.delete(subscriberRef);
 
@@ -82,7 +82,7 @@ export const unfollowChannel = onCall(
         });
 
         tx.update(userRef, {
-          following: admin.firestore.FieldValue.arrayRemove(channelId),
+          subscriptions: admin.firestore.FieldValue.arrayRemove(channelId),
           updatedAt: Date.now()
         });
 
@@ -90,17 +90,17 @@ export const unfollowChannel = onCall(
       });
     } catch (err) {
       if (err instanceof HttpsError) throw err;
-      logger.error("[unfollowChannel] Error:", err);
-      throw new HttpsError("internal", "Failed to unfollow channel.");
+      logger.error("[unsubscribeChannel] Error:", err);
+      throw new HttpsError("internal", "Failed to unsubscribe from channel.");
     }
   }
 );
 
 /**
- * ðŸ“° GET FOLLOWING FEED (HTTPS)
- * Fetches latest content from channels the user follows.
+ * 📰 GET SUBSCRIPTIONS FEED (HTTPS)
+ * Fetches latest content from channels the user is subscribed to.
  */
-export const getFollowingFeed = onRequest(
+export const getSubscriptionsFeed = onRequest(
   { region: "asia-south1", cors: true, memory: "512MiB" },
   async (req, res) => {
     const userId = req.query.userId as string; // Ideally from session
@@ -110,12 +110,12 @@ export const getFollowingFeed = onRequest(
     }
 
     try {
-      // 1. Get followed channel IDs
+      // 1. Get subscribed channel IDs
       const userSnap = await db().collection("users").doc(userId).get();
-      const following = (userSnap.data()?.following || []) as string[];
+      const subscriptions = (userSnap.data()?.subscriptions || []) as string[];
 
-      if (following.length === 0) {
-        res.status(200).json({ videos: [], message: "You are not following anyone yet." });
+      if (subscriptions.length === 0) {
+        res.status(200).json({ videos: [], message: "You are not subscribed to anyone yet." });
         return;
       }
 
@@ -123,7 +123,7 @@ export const getFollowingFeed = onRequest(
       // Note: Firestore 'in' query limited to 10 IDs. For larger sets, 
       // we'd need a different feed strategy (precomputed or parallel queries).
       const videoSnap = await db().collection("videos")
-        .where("channelId", "in", following.slice(0, 10))
+        .where("channelId", "in", subscriptions.slice(0, 10))
         .orderBy("createdAt", "desc")
         .limit(20)
         .get();
@@ -135,7 +135,7 @@ export const getFollowingFeed = onRequest(
 
       res.status(200).json({ videos });
     } catch (err) {
-      logger.error("[getFollowingFeed] Error:", err);
+      logger.error("[getSubscriptionsFeed] Error:", err);
       res.status(500).json({ error: "Internal error" });
     }
   }

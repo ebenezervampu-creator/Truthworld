@@ -7,12 +7,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/video/presentation/controllers/reply_input_controller.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 
-class ModernReplyInput extends StatefulWidget {
+class ReplyInput extends StatefulWidget {
   final String videoId;
   final String commentId;
   final String? initialText;
 
-  const ModernReplyInput({
+  const ReplyInput({
     required this.videoId,
     required this.commentId,
     this.initialText,
@@ -20,10 +20,10 @@ class ModernReplyInput extends StatefulWidget {
   });
 
   @override
-  State<ModernReplyInput> createState() => _ModernReplyInputState();
+  State<ReplyInput> createState() => _ReplyInputState();
 }
 
-class _ModernReplyInputState extends State<ModernReplyInput>
+class _ReplyInputState extends State<ReplyInput>
     with SingleTickerProviderStateMixin {
   late final ReplyInputController _controller;
   late AnimationController _animationController;

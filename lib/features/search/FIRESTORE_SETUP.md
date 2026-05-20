@@ -233,17 +233,13 @@ At 20K concurrent users with this design:
 
 ---
 
-## 🔄 Upgrade Path to Algolia
+## 🔄 Evolution Path
 
-When you're ready to scale beyond 100K users:
+The collection schema is forward-compatible with:
+1. **Firestore Vector Search**: Adding an `embedding` vector field.
+2. **Firestore Native Full-Text Search**: Using the `search()` operator on existing fields.
 
-1. Firestore → Cloud Function → Algolia Index (background sync)
-2. Change only `SearchService`:
-   ```dart
-   // Before: Firestore
-   // After: Algolia client
-   ```
-3. UI and Controller stay the same ✅
+Preparation already done — no schema migration required for these upgrades.
 
 ---
 

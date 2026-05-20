@@ -2,7 +2,7 @@
 // audio_only_service.dart
 // Industry-Standard Audio-Only Pipeline for Flutter Web
 // Uses: Web Audio API + MediaSource API (no video decoding)
-// Standard: Matches Spotify/YouTube Music audio pipeline
+// Standard: Matches audio engine audio pipeline
 // ============================================================
 
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
@@ -85,7 +85,7 @@ class AudioOnlyService extends GetxService {
   }
 
   /// Media Session API — controls in OS notification tray,
-  /// lock screen, headphone buttons (Spotify/YouTube Music standard)
+  /// lock screen, headphone buttons (audio engine standard)
   void _setupMediaSessionAPI() {
     if (!kIsWeb) return;
 

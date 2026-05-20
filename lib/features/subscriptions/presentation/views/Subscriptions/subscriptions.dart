@@ -325,7 +325,7 @@ class SubscriptionsPage extends StatelessWidget {
               onPressed: () {
                 controller.selectedContentFilter.value = ContentFilter.all.name;
                 controller.selectedDurationFilter.value = DurationFilter.all.name;
-                controller.selectedSortFilter.value = SortFilter.trending.name;
+                controller.selectedSortFilter.value = SortFilter.popular.name;
                 controller.selectedDateRangeFilter.value = DateRangeFilter.all.name;
                 controller.applyFilters();
               },

@@ -28,7 +28,7 @@ class ResolutionTier {
     required this.minBandwidth,
   });
 
-  /// Standard OTT resolution ladder (matches Netflix/YouTube encoding specs)
+  /// Standard OTT resolution ladder (matches Netflix/TruthWorld encoding specs)
   static List<ResolutionTier> get defaultLadder => [
     const ResolutionTier(
       label: '144p',
@@ -139,7 +139,7 @@ class AdaptiveBitrateController extends GetxController {
   List<ResolutionTier> resolutionLadder = [];
   VideoPlayerController? _vpc;
 
-  // ABR tuning constants (Netflix/YouTube values)
+  // ABR tuning constants (Netflix/TruthWorld values)
   static const double _bandwidthSafetyFactor = 0.80; // Use 80% of measured BW
   static const double _upgradeHysteresisFactor =
       1.15; // Need 15% more than tier BW to upgrade

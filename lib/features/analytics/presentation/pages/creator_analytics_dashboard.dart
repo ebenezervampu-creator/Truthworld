@@ -5,7 +5,7 @@ import 'package:truthworld/features/analytics/data/models/watch_event_model.dart
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/creator_analytics_controller.dart';
 
-/// Premium Creator Analytics Dashboard — YouTube-grade analytics UI.
+/// Premium Creator Analytics Dashboard — TruthWorld-grade analytics UI.
 ///
 /// Features:
 /// - Date range filter pills (7d / 28d / 90d / 1y / All time)
@@ -53,7 +53,7 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
         backgroundColor: const Color(0xFF0A0A0F),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
           onPressed: () => Get.back(),
         ),
         actions: [
@@ -314,8 +314,7 @@ class _SummaryCardsGrid extends StatelessWidget {
     return Obx(() {
       final va = controller.videoAnalytics.value;
       final ca = controller.channelAnalytics.value;
-
-      final views = va?.totalViews ?? ca?.totalVideoWatches ?? 0;
+      final views = va?.totalViews ?? controller.realtimeChannelViews.value ?? ca?.totalVideoWatches ?? 0;
       final uniqueViewers =
           va?.totalUniqueViewers ?? ca?.totalUniqueViewers ?? 0;
 

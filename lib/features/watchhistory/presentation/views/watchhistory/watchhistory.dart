@@ -9,7 +9,7 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/watchhistory/presentation/controllers/watch_history_controller.dart';
 
 // ==========================================================================
-// YOUTUBE-STYLE THEME COLORS (Standardized)
+// TRUTHWORLD THEME COLORS (Standardized)
 // ==========================================================================
 
 final Color bgColor = Colors.black;
@@ -165,10 +165,13 @@ class _WatchHistoryState extends State<WatchHistory>
 
               // Filter by category
               if (_controller.selectedCategory.value != 'All') {
+                final catLower = _controller.selectedCategory.value.toLowerCase();
                 displayVideos = displayVideos
-                    .where(
-                      (v) => v.category == _controller.selectedCategory.value,
-                    )
+                    .where((v) {
+                      return v.category.toLowerCase() == catLower ||
+                             v.title.toLowerCase().contains(catLower) ||
+                             v.tags.any((t) => t.toLowerCase().contains(catLower));
+                    })
                     .toList();
               }
 

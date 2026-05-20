@@ -2,6 +2,11 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // Global Language Requests rule (Debug)
+    match /{path=**}/language_requests/{requestId} {
+      allow read, write: if true;
+    }
+    
     // Helper function to check if user is authenticated
     function isAuthenticated() {
       return request.auth != null;
@@ -63,6 +68,16 @@ service cloud.firestore {
                          (resource.data.ownerId == request.auth.uid ||
                           request.resource.data.ownerId == request.auth.uid);
       }
+
+      // Reports subcollection
+      match /reports/{reportId} {
+        allow create: if isAuthenticated() && 
+                         request.resource.data.userId == request.auth.uid;
+        allow read: if isAuthenticated() && 
+                       (get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid ||
+                        resource.data.userId == request.auth.uid);
+        allow update, delete: if false;
+      }
     }
     
     // Image Status Collection (for moderation)
@@ -81,6 +96,11 @@ service cloud.firestore {
     match /videos/{videoId} {
       // Allow anyone to read public videos
       allow read: if true;
+
+      // DEBUG: Allow all subcollections
+      match /{allPaths=**} {
+        allow read, write: if true;
+      }
       
       // Allow authenticated users to create videos (flexible field check)
       allow create: if isAuthenticated() && 
@@ -92,7 +112,8 @@ service cloud.firestore {
       allow update: if isAuthenticated() && 
                        (resource.data.uploaderId == request.auth.uid ||
                         resource.data.userId == request.auth.uid ||
-                        resource.data.ownerId == request.auth.uid);
+                        resource.data.ownerId == request.auth.uid) &&
+                       !request.resource.data.diff(resource.data).affectedKeys().hasAny(['likeCount', 'dislikeCount']);
       
       // Allow owners to delete their videos
       allow delete: if isAuthenticated() && 
@@ -227,10 +248,31 @@ service cloud.firestore {
       allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
     
+    // Trending Searches Collection
+    match /trending_searches/{searchId} {
+      allow read: if true;
+      allow write: if false; // System only
+    }
+    
     // Feedback Collection
     match /feedback/{feedbackId} {
       allow create: if true;
       allow read, update, delete: if false;
+    }
+
+    // Reports Collection
+    match /reports/{reportId} {
+      allow create: if isAuthenticated() && 
+                       (request.resource.data.userId == request.auth.uid || 
+                        request.resource.data.reporterId == request.auth.uid);
+      
+      allow read: if isAuthenticated() && 
+                     (resource.data.userId == request.auth.uid || 
+                      resource.data.reporterId == request.auth.uid ||
+                      (resource.data.channelId != null && 
+                       resource.data.channelId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.ownedChannels));
+      
+      allow update, delete: if false; // Only admins can manage reports
     }
     
     // Comments Collection
@@ -278,7 +320,7 @@ service cloud.firestore {
     // Playlists Collection
     match /playlists/{playlistId} {
       // Allow anyone to read public playlists
-      allow read: if resource.data.isPublic == true || 
+      allow read: if resource.data.visibility == 'public' || 
                      (isAuthenticated() && resource.data.ownerId == request.auth.uid);
       
       // Allow authenticated users to create playlists

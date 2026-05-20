@@ -120,8 +120,8 @@ class Channel {
       'bannerUrl': bannerUrl,
       'avatarVariants': avatarVariants,
       'ownerId': ownerId,
-      'createdAt': createdAt,
-      'updatedAt': updatedAt,
+      'createdAt': createdAt.millisecondsSinceEpoch,
+      'updatedAt': updatedAt.millisecondsSinceEpoch,
       'subscriberCount': subscriberCount,
       'videoCount': videoCount,
       'metrics': metrics.toMap(),
@@ -149,8 +149,16 @@ class Channel {
       bannerUrl: data['bannerUrl'] ?? '',
       avatarVariants: List<String>.from(data['avatarVariants'] ?? []),
       ownerId: data['ownerId'] ?? '',
-      createdAt: data['createdAt'] ?? Timestamp.now(),
-      updatedAt: data['updatedAt'] ?? Timestamp.now(),
+      createdAt: data['createdAt'] is Timestamp
+          ? data['createdAt']
+          : (data['createdAt'] is num
+              ? Timestamp.fromMillisecondsSinceEpoch((data['createdAt'] as num).toInt())
+              : Timestamp.now()),
+      updatedAt: data['updatedAt'] is Timestamp
+          ? data['updatedAt']
+          : (data['updatedAt'] is num
+              ? Timestamp.fromMillisecondsSinceEpoch((data['updatedAt'] as num).toInt())
+              : Timestamp.now()),
       subscriberCount: (data['subscriberCount'] as num?)?.toInt() ?? 0,
       videoCount: (data['videoCount'] as num?)?.toInt() ?? 0,
       metrics: data['metrics'] != null

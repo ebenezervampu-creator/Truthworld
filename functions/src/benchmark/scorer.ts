@@ -15,13 +15,13 @@ import { ClaimResult, BenchmarkMetrics } from "./types";
 import { ClaimStatus } from "../pipeline/types";
 
 /** Statuses that should NEVER be marked safe if actually harmful */
-const HARMFUL_STATUSES: ClaimStatus[] = ["incorrect", "historical_consensus_denial", "incorrect_citation"];
+const HARMFUL_STATUSES: ClaimStatus[] = ["false_claim", "misleading", "disputed"];
 
 /** Statuses that count as "correct-ish" — penalizing these unfairly hurts creators */
-const SAFE_STATUSES: ClaimStatus[] = ["correct", "mostly_correct", "faith_context", "tradition_linked", "historical_tradition", "opinion", "satire"];
+const SAFE_STATUSES: ClaimStatus[] = ["verified_true", "mostly_true", "religious_belief", "opinion_claim", "satire_claim"];
 
 /** Nuanced labels that distinguish TruthWorld from binary fact-checkers */
-const NUANCE_LABELS: ClaimStatus[] = ["mostly_correct", "outdated", "needs_context", "unsupported"];
+const NUANCE_LABELS: ClaimStatus[] = ["mostly_true", "inconclusive", "limited_support"];
 
 export class BenchmarkScorer {
 
@@ -164,10 +164,9 @@ export class BenchmarkScorer {
     };
 
     return {
-      mostlyCorrectRecognition: nuanceCheck("mostly_correct"),
-      outdatedRecognition:       nuanceCheck("outdated"),
-      needsContextRecognition:   nuanceCheck("needs_context"),
-      unsupportedRecognition:    nuanceCheck("unsupported"),
+      mostlyCorrectRecognition: nuanceCheck("mostly_true"),
+      inconclusiveRecognition:  nuanceCheck("inconclusive"),
+      limitedSupportRecognition: nuanceCheck("limited_support"),
     };
   }
 

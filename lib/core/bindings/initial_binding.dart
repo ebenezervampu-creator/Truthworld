@@ -6,6 +6,9 @@ import 'package:truthworld/features/analytics/data/services/video_analytics_serv
 import 'package:truthworld/features/analytics/data/services/viewer_identity_service.dart';
 import 'package:truthworld/features/analytics/data/services/impression_tracking_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
+import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
+import 'package:truthworld/features/settings/presentation/controllers/settings_controller.dart';
+
 
 class InitialBinding extends Bindings {
   @override
@@ -23,8 +26,15 @@ class InitialBinding extends Bindings {
     // Controllers (lazy for performance)
     Get.lazyPut(() => MainController(), fenix: true);
     Get.lazyPut(() => PlaylistController(), fenix: true);
+    Get.lazyPut(() => AppSettingsController(), fenix: true);
+    Get.lazyPut(
+      () => MiniplayerController(),
+      tag: 'miniplayer',
+      fenix: true,
+    );
   }
 }
+
 
 
 

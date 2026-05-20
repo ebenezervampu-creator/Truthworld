@@ -445,7 +445,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                   child: Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                        icon: const Icon(Icons.arrow_back_ios_new, size: 18),
                         onPressed: () => controller.selectVideo(null),
                       ),
                       Expanded(
@@ -544,7 +544,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              Icons.arrow_back_rounded,
+              Icons.arrow_back_ios_new,
               size: 48,
               color: textSecondaryColor,
             ),
@@ -748,6 +748,38 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                   );
                 }),
               ),
+
+              // View Requests Action
+              Obx(() => Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.mark_chat_read_outlined),
+                    color: AppColors.brand,
+                    tooltip: 'View Language Requests',
+                    onPressed: () => controller.showLanguageRequestsDialog(context),
+                  ),
+                  if (controller.languageRequests.isNotEmpty)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: AppColors.error,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          '${controller.languageRequests.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              )),
 
               // Add Track Layer Popup
               PopupMenuButton<String>(

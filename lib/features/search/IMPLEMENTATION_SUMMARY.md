@@ -2,7 +2,7 @@
 
 ## 🎯 What Was Implemented
 
-A **production-ready, low-latency search system** for Truthworld platform designed to handle **20K+ concurrent users** without relying on third-party search services like Algolia.
+A **production-ready, low-latency search system** for Truthworld platform designed to handle **20K+ concurrent users** natively on Firestore.
 
 ### Core Components
 
@@ -201,21 +201,14 @@ Memory size: ~2-3MB (negligible)
 
 ## 🔄 Future Upgrade Path
 
-**When to upgrade to Algolia:**
-- 100K+ concurrent users
-- Need advanced relevance ranking
-- Complex search filters
-- Real-time suggestions
+**Native Evolution:**
+- Built to easily adopt **Firestore Native Search** once GA.
+- Compatible with **Vector Search** for semantic results.
 
 **Migration is easy:**
 ```dart
 // Only change SearchService implementation
 // UI, Controller, Widgets → NO CHANGES ✅
-
-// Swap backend:
-// Before: Firestore queries
-// After: Algolia client
-// Same function signature, different implementation
 ```
 
 ---
@@ -264,12 +257,11 @@ Memory size: ~2-3MB (negligible)
 4. **Lightweight payloads** reduce network overhead
 5. **Dual queries** handle typos and variations without complexity
 
-### Why Not Algolia Day 1
-- Algolia costs $50-300/month
-- Overkill for 20K users
-- Setup complexity not needed yet
-- This system proves you don't need external search
-- Can upgrade later when needed
+### Why Native Firestore Search
+- Zero additional cost (included in plan)
+- Zero external dependencies
+- Seamless data consistency (no sync lag)
+- Ready for Native Full-Text Search (Preview)
 
 ### MVP Philosophy
 > "Don't optimize for scale until you have scale. Smart query discipline beats expensive infrastructure."
@@ -282,7 +274,7 @@ Memory size: ~2-3MB (negligible)
 ✅ **Scalability**: Handles 20K+ concurrent users  
 ✅ **Cost**: <$5/month Firestore costs  
 ✅ **Maintainability**: No external dependencies  
-✅ **Future-ready**: Upgradeable to Algolia without UI changes  
+✅ **Future-ready**: Forward-compatible with Firestore Native Search  
 ✅ **User Experience**: Feels instant (debounce + cache)  
 
 All criteria met.

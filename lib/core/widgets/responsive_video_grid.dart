@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/core/widgets/modern_video_card.dart';
+import 'package:truthworld/core/widgets/video_card.dart';
 
 class ResponsiveVideoGrid extends StatelessWidget {
   final List<Video> videos;
@@ -52,7 +52,7 @@ class ResponsiveVideoGrid extends StatelessWidget {
       separatorBuilder: (context, index) => SizedBox(height: context.spacing),
       itemBuilder: (context, index) {
         final video = videos[index];
-        return ModernVideoListCard(
+        return VideoListCard(
           video: video,
           index: index,
           colorScheme: Theme.of(context).colorScheme,
@@ -82,7 +82,7 @@ class ResponsiveVideoGrid extends StatelessWidget {
         itemCount: videos.length,
         itemBuilder: (context, index) {
           final video = videos[index];
-          return ModernVideoGridCard(
+          return VideoGridCard(
             video: video,
             index: index,
             colorScheme: Theme.of(context).colorScheme,
@@ -282,7 +282,7 @@ class ResponsiveVideoCarousel extends StatelessWidget {
 
           return SizedBox(
             width: cardWidth,
-            child: ModernVideoGridCard(
+            child: VideoGridCard(
               video: video,
               index: index,
               colorScheme: Theme.of(context).colorScheme,

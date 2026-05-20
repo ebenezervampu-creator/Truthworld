@@ -509,8 +509,21 @@ export class PerformanceLayer {
   }
 
   // ─── Private helpers ─────────────────────────────────────────────────────
+  
+  /**
+   * v11.5: Institutional-grade normalization for stable caching.
+   * Strips punctuation, collapses whitespace, and trims.
+   */
+  private normalizeClaim(text: string): string {
+    // v11.6: Aggressive normalization (Strip emojis, special chars, normalize whitespace)
+    return text.toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, "") // Remove all non-alphanumeric/non-whitespace (including emojis)
+      .replace(/\s{2,}/g, " ") // Collapse multiple spaces
+      .trim();
+  }
 
   private hashClaim(claimText: string): string {
-    return crypto.createHash("md5").update(claimText).digest("hex");
+    const normalized = this.normalizeClaim(claimText);
+    return crypto.createHash("md5").update(normalized).digest("hex");
   }
 }

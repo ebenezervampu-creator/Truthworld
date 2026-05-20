@@ -187,7 +187,7 @@ class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> {
             leading: isDesktop
                 ? IconButton(
                     icon: Icon(
-                      Icons.arrow_back_ios_new_rounded,
+                      Icons.arrow_back_ios_new,
                       color: Theme.of(context).iconTheme.color,
                     ),
                     onPressed: () => Get.back(),

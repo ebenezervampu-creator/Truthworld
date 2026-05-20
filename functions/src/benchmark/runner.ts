@@ -132,7 +132,7 @@ export class BenchmarkRunner {
           v.text?.includes(bc.claim.substring(0, 20))
         );
 
-        const predictedLabel = (vc?.status || "unverifiable") as ClaimStatus;
+        const predictedLabel = (vc?.status || "unverified") as ClaimStatus;
         const wasRouted = hasSensitive ? "pro" as const : "flash" as const;
 
         const exactMatch      = predictedLabel === bc.groundTruth;
@@ -141,14 +141,14 @@ export class BenchmarkRunner {
 
         // False accusation: system says incorrect, but truth is safe
         const isFalseAccusation = (
-          ["incorrect", "historical_consensus_denial", "incorrect_citation"].includes(predictedLabel) &&
-          ["correct", "mostly_correct", "needs_context", "outdated"].includes(bc.groundTruth)
+          ["false_claim", "misleading", "disputed"].includes(predictedLabel) &&
+          ["verified_true", "mostly_true", "inconclusive", "limited_support"].includes(bc.groundTruth)
         );
 
         // False leniency: system says safe, but truth is harmful
         const isFalseLeniency = (
-          ["correct", "mostly_correct"].includes(predictedLabel) &&
-          ["incorrect", "historical_consensus_denial", "incorrect_citation"].includes(bc.groundTruth)
+          ["verified_true", "mostly_true"].includes(predictedLabel) &&
+          ["false_claim", "misleading", "disputed"].includes(bc.groundTruth)
         );
 
         const result: ClaimResult = {
@@ -189,7 +189,7 @@ export class BenchmarkRunner {
           claim:            bc.claim,
           domain:           bc.domain,
           groundTruth:      bc.groundTruth,
-          predictedLabel:   "unverifiable" as ClaimStatus,
+          predictedLabel:   "unverified" as ClaimStatus,
           acceptableLabels: bc.acceptableLabels,
           confidence:       0,
           reasoning:        `Verification failed: ${String(error)}`,
@@ -198,7 +198,7 @@ export class BenchmarkRunner {
           shouldUsePro:     bc.shouldUsePro,
           latencyMs:        Date.now() - t0,
           exactMatch:       false,
-          acceptableMatch:  bc.acceptableLabels.includes("unverifiable"),
+          acceptableMatch:  bc.acceptableLabels.includes("unverified"),
           routingCorrect:   false,
           isFalseAccusation: false,
           isFalseLeniency:   false,

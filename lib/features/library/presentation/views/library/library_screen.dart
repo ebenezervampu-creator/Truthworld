@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
@@ -14,7 +15,7 @@ import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/features/watchhistory/presentation/controllers/watch_history_controller.dart';
 
 // ==========================================================================
-// YOUTUBE-STYLE THEME COLORS
+// TRUTHWORLD THEME COLORS
 // ==========================================================================
 
 final Color bgColor = Colors.black;
@@ -34,7 +35,7 @@ const double kTabletBreakpoint = 1000.0;
 const double kDesktopBreakpoint = 1200.0;
 
 // ==========================================================================
-// MODERNIZED LIBRARY SCREEN
+// LIBRARY SCREEN
 // ==========================================================================
 
 class LibraryScreen extends StatefulWidget {
@@ -172,9 +173,6 @@ class LibraryScreenState extends State<LibraryScreen>
             flex: 7,
             child: _buildMainContent(context, userId, isDesktop: true),
           ),
-          // Sidebar with Quick Actions
-          if (!widget.isDashboard)
-            Expanded(flex: 3, child: _buildSidebar(context, userId)),
         ],
       ),
     );
@@ -189,7 +187,9 @@ class LibraryScreenState extends State<LibraryScreen>
 
     return Scaffold(
       backgroundColor: bgColor,
-      appBar: !widget.isDashboard ? _buildModernAppBar(context, isTablet: true) : null,
+      appBar: !widget.isDashboard
+          ? _buildAppBar(context, isTablet: true)
+          : null,
       body: _buildMainContent(context, userId, isTablet: true),
     );
   }
@@ -207,7 +207,7 @@ class LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  PreferredSizeWidget _buildModernAppBar(
+  PreferredSizeWidget _buildAppBar(
     BuildContext context, {
     bool isTablet = false,
   }) {
@@ -396,9 +396,7 @@ class LibraryScreenState extends State<LibraryScreen>
         physics: const BouncingScrollPhysics(),
         slivers: [
           // 1. Profile Header
-          SliverToBoxAdapter(
-            child: _buildProfileHeader(userId),
-          ),
+          SliverToBoxAdapter(child: _buildProfileHeader(userId)),
 
           SliverPadding(
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -448,7 +446,9 @@ class LibraryScreenState extends State<LibraryScreen>
                 radius: 40,
                 backgroundColor: buttonBg,
                 backgroundImage: user?.photoURL != null
-                    ? CachedNetworkImageProvider(user!.photoURL!)
+                    ? (kIsWeb
+                          ? NetworkImage(user!.photoURL!) as ImageProvider
+                          : CachedNetworkImageProvider(user!.photoURL!))
                     : null,
                 child: user?.photoURL == null
                     ? Icon(Icons.person, color: primaryText, size: 40)
@@ -468,91 +468,16 @@ class LibraryScreenState extends State<LibraryScreen>
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Text(
-                          handle,
-                          style: GoogleFonts.roboto(
-                            fontSize: 14,
-                            color: secondaryText,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        InkWell(
-                          onTap: () {
-                            // Navigate to channel
-                          },
-                          child: Text(
-                            "View channel",
-                            style: GoogleFonts.roboto(
-                              fontSize: 14,
-                              color: secondaryText,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                        Icon(
-                          Icons.chevron_right,
-                          color: secondaryText,
-                          size: 16,
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 20),
-          Row(
-            children: [
-              _buildHeaderButton(
-                icon: Icons.account_circle_outlined,
-                label: "Switch account",
-                onPressed: () {},
-              ),
-              const SizedBox(width: 8),
-              _buildHeaderButton(
-                icon: Icons.account_box_outlined,
-                label: "Google Account",
-                onPressed: () {},
-              ),
-            ],
-          ),
         ],
       ),
     );
   }
-
-  Widget _buildHeaderButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onPressed,
-  }) {
-    return Expanded(
-      child: OutlinedButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 18, color: primaryText),
-        label: Text(
-          label,
-          style: GoogleFonts.roboto(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: primaryText,
-          ),
-        ),
-        style: OutlinedButton.styleFrom(
-          backgroundColor: buttonBg,
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-        ),
-      ),
-    );
-  }
-
 
   Widget _buildSectionHeader({
     required String title,
@@ -644,7 +569,7 @@ class LibraryScreenState extends State<LibraryScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: videos.length,
                 itemBuilder: (context, index) {
-                  return _buildYouTubeVideoCard(videos[index]);
+                  return _buildVideoCardLibrary(videos[index]);
                 },
               ),
             );
@@ -654,7 +579,7 @@ class LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  Widget _buildYouTubeVideoCard(Video video) {
+  Widget _buildVideoCardLibrary(Video video) {
     return Container(
       width: 160,
       margin: const EdgeInsets.only(right: 12),
@@ -679,7 +604,10 @@ class LibraryScreenState extends State<LibraryScreen>
                   bottom: 6,
                   right: 6,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(4),
@@ -711,10 +639,7 @@ class LibraryScreenState extends State<LibraryScreen>
             const SizedBox(height: 4),
             Text(
               "${video.channelName} • ${video.views} views",
-              style: GoogleFonts.roboto(
-                fontSize: 11,
-                color: secondaryText,
-              ),
+              style: GoogleFonts.roboto(fontSize: 11, color: secondaryText),
             ),
           ],
         ),
@@ -753,7 +678,7 @@ class LibraryScreenState extends State<LibraryScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: playlists.length,
                 itemBuilder: (context, index) {
-                  return _buildYouTubePlaylistCard(playlists[index]);
+                  return _buildPlaylistCardLibrary(playlists[index]);
                 },
               ),
             );
@@ -763,7 +688,7 @@ class LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  Widget _buildYouTubePlaylistCard(PlaylistModel playlist) {
+  Widget _buildPlaylistCardLibrary(PlaylistModel playlist) {
     return Container(
       width: 140,
       margin: const EdgeInsets.only(right: 16),
@@ -816,7 +741,10 @@ class LibraryScreenState extends State<LibraryScreen>
                   bottom: 6,
                   right: 6,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(4),
@@ -824,7 +752,11 @@ class LibraryScreenState extends State<LibraryScreen>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.playlist_play, color: Colors.white, size: 14),
+                        const Icon(
+                          Icons.playlist_play,
+                          color: Colors.white,
+                          size: 14,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           "${playlist.videoIds.length}",
@@ -854,10 +786,7 @@ class LibraryScreenState extends State<LibraryScreen>
             const SizedBox(height: 4),
             Text(
               "Playlist",
-              style: GoogleFonts.roboto(
-                fontSize: 11,
-                color: secondaryText,
-              ),
+              style: GoogleFonts.roboto(fontSize: 11, color: secondaryText),
             ),
           ],
         ),
@@ -893,7 +822,7 @@ class LibraryScreenState extends State<LibraryScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: videos.length,
                 itemBuilder: (context, index) {
-                  return _buildYouTubeVideoCard(videos[index]);
+                  return _buildVideoCardLibrary(videos[index]);
                 },
               ),
             );
@@ -907,10 +836,7 @@ class LibraryScreenState extends State<LibraryScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader(
-          title: "Clips",
-          onViewAll: () {},
-        ),
+        _buildSectionHeader(title: "Clips", onViewAll: () {}),
         StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('users')
@@ -972,10 +898,10 @@ class LibraryScreenState extends State<LibraryScreen>
             channelImage: '',
             duration: '0:00',
           );
-          Get.toNamed('/videoscreen', arguments: {
-            'video': videoShell,
-            'clip': clip,
-          });
+          Get.toNamed(
+            '/videoscreen',
+            arguments: {'video': videoShell, 'clip': clip},
+          );
         },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1001,14 +927,21 @@ class LibraryScreenState extends State<LibraryScreen>
                       color: Colors.black.withValues(alpha: 0.6),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.content_cut_rounded, color: Colors.white, size: 14),
+                    child: Icon(
+                      Icons.content_cut_rounded,
+                      color: Colors.white,
+                      size: 14,
+                    ),
                   ),
                 ),
                 Positioned(
                   bottom: 8,
                   right: 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(4),
@@ -1041,10 +974,7 @@ class LibraryScreenState extends State<LibraryScreen>
               clip.videoTitle,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.roboto(
-                fontSize: 11,
-                color: secondaryText,
-              ),
+              style: GoogleFonts.roboto(fontSize: 11, color: secondaryText),
             ),
           ],
         ),
@@ -1087,7 +1017,7 @@ class LibraryScreenState extends State<LibraryScreen>
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 itemCount: videos.length,
                 itemBuilder: (context, index) {
-                  return _buildYouTubeVideoCard(videos[index]);
+                  return _buildVideoCardLibrary(videos[index]);
                 },
               ),
             );
@@ -1096,8 +1026,6 @@ class LibraryScreenState extends State<LibraryScreen>
       ],
     );
   }
-
-
 
   // Dialog Methods (Preserved and enhanced)
   void _showSearchDialog(BuildContext context) {
@@ -1131,10 +1059,7 @@ class LibraryScreenState extends State<LibraryScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: secondaryText),
-            ),
+            child: Text('Cancel', style: TextStyle(color: secondaryText)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
@@ -1179,10 +1104,7 @@ class LibraryScreenState extends State<LibraryScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: secondaryText),
-            ),
+            child: Text('Cancel', style: TextStyle(color: secondaryText)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -1287,10 +1209,7 @@ class LibraryScreenState extends State<LibraryScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: secondaryText),
-            ),
+            child: Text('Cancel', style: TextStyle(color: secondaryText)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -1307,263 +1226,4 @@ class LibraryScreenState extends State<LibraryScreen>
       ),
     );
   }
-
-  Widget _buildSidebar(BuildContext context, String userId) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        border: Border(
-          left: BorderSide(
-            color: Colors.white.withValues(alpha: 0.05),
-            width: 1,
-          ),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSidebarHeader(),
-          const SizedBox(height: 32),
-          _buildSidebarSearch(),
-          const SizedBox(height: 40),
-          _buildSidebarQuickActions(),
-          const SizedBox(height: 40),
-          Expanded(child: _buildSidebarPlaylists(userId)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSidebarHeader() {
-    final user = FirebaseAuth.instance.currentUser;
-    return Row(
-      children: [
-        CircleAvatar(
-          radius: 24,
-          backgroundColor: buttonBg,
-          backgroundImage: user?.photoURL != null
-              ? CachedNetworkImageProvider(user!.photoURL!)
-              : null,
-          child: user?.photoURL == null
-              ? const Icon(Icons.person, color: Colors.white, size: 24)
-              : null,
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                user?.displayName ?? "User",
-                style: GoogleFonts.roboto(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: primaryText,
-                ),
-              ),
-              Text(
-                user?.email ?? "",
-                style: GoogleFonts.roboto(
-                  fontSize: 12,
-                  color: secondaryText,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSidebarSearch() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: buttonBg,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: TextField(
-        style: GoogleFonts.roboto(color: primaryText, fontSize: 14),
-        decoration: InputDecoration(
-          hintText: "Search in library...",
-          hintStyle: GoogleFonts.roboto(color: secondaryText),
-          border: InputBorder.none,
-          icon: Icon(Icons.search_rounded, color: secondaryText, size: 20),
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSidebarQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          "Quick Actions",
-          style: GoogleFonts.roboto(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: secondaryText,
-            letterSpacing: 1.2,
-          ),
-        ),
-        const SizedBox(height: 16),
-        _buildSidebarAction(
-          icon: Icons.add_box_rounded,
-          title: "New Playlist",
-          onTap: () => _showCreatePlaylistDialog(context),
-        ),
-        _buildSidebarAction(
-          icon: Icons.history_rounded,
-          title: "Watch History",
-          onTap: () => Get.toNamed('/watchhistory'),
-        ),
-        _buildSidebarAction(
-          icon: Icons.video_library_rounded,
-          title: "My Videos",
-          onTap: () => Get.toNamed('/myvideos'),
-        ),
-        _buildSidebarAction(
-          icon: Icons.thumb_up_rounded,
-          title: "Liked Videos",
-          onTap: () => Get.toNamed('/likedvideos'),
-        ),
-        _buildSidebarAction(
-          icon: Icons.settings_rounded,
-          title: "Settings",
-          onTap: () => Get.toNamed('/settings'),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSidebarAction({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-          child: Row(
-            children: [
-              Icon(icon, color: primaryText, size: 20),
-              const SizedBox(width: 16),
-              Text(
-                title,
-                style: GoogleFonts.roboto(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: primaryText,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSidebarPlaylists(String userId) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          "PLAYLISTS",
-          style: GoogleFonts.roboto(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: secondaryText,
-            letterSpacing: 1.2,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .doc(userId)
-                .collection('playlists')
-                .orderBy('createdAt', descending: true)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return Text(
-                  "No playlists yet",
-                  style: GoogleFonts.roboto(color: secondaryText, fontSize: 13),
-                );
-              }
-
-              final docs = snapshot.data!.docs;
-              return ListView.builder(
-                padding: EdgeInsets.zero,
-                itemCount: docs.length,
-                itemBuilder: (context, index) {
-                  final playlist = PlaylistModel.fromDocumentSnapshot(docs[index]);
-                  return _buildSidebarPlaylistTile(playlist);
-                },
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSidebarPlaylistTile(PlaylistModel playlist) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-      leading: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: buttonBg,
-          borderRadius: BorderRadius.circular(6),
-          image: playlist.thumbnailUrl.isNotEmpty
-              ? DecorationImage(
-                  image: CachedNetworkImageProvider(playlist.thumbnailUrl),
-                  fit: BoxFit.cover,
-                )
-              : null,
-        ),
-        child: playlist.thumbnailUrl.isEmpty
-            ? const Icon(Icons.playlist_play, color: Colors.white, size: 16)
-            : null,
-      ),
-      title: Text(
-        playlist.playlistName,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: GoogleFonts.roboto(
-          fontSize: 14,
-          color: primaryText,
-        ),
-      ),
-      onTap: () {
-        // Check if HomeController is available (we're in home screen context)
-        if (Get.isRegistered<HomeController>()) {
-          final homeController = Get.find<HomeController>();
-          homeController.navigateToPlaylistDetail(playlist);
-        } else {
-          // Navigate to home first, then show playlist detail
-          Get.toNamed('/', arguments: {'openPlaylist': playlist});
-        }
-      },
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    );
-  }
 }
-
-
-
-
-
-

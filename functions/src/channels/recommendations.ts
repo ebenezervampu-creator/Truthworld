@@ -73,13 +73,14 @@ export const getHomeFeed = onRequest(
     // const now = Date.now();
 
     try {
-      // 1. Fetch user context (Following & Interests)
-      let following: string[] = [];
+      // 1. Fetch user context (Subscriptions & Interests)
+      let subscriptions: string[] = [];
+
       if (userId) {
         try {
           const userSnap = await db().collection("users").doc(userId).get();
           if (userSnap.exists) {
-            following = userSnap.data()?.following || [];
+            subscriptions = userSnap.data()?.subscriptions || [];
           }
         } catch (err) {
           logger.warn("[getHomeFeed] Failed to fetch user data:", err);
@@ -108,11 +109,12 @@ export const getHomeFeed = onRequest(
         .limit(10)
         .get();
 
-      // Pool D: Following (If user logged in)
+      // Pool D: Subscriptions (If user logged in)
+      // Highest priority retention pool
       let followingPool: admin.firestore.QuerySnapshot | null = null;
-      if (userId && following.length > 0) {
+      if (userId && subscriptions.length > 0) {
         followingPool = await db().collection("videos")
-          .where("channelId", "in", following.slice(0, 10))
+          .where("channelId", "in", subscriptions.slice(0, 10))
           .orderBy("createdAt", "desc")
           .limit(20)
           .get();
@@ -170,7 +172,7 @@ export const getHomeFeed = onRequest(
         if (!data) return; // Skip if document has no data
         
         const channel = channelsMap[data.channelId] || {};
-        const isSubscribed = following.includes(data.channelId || "");
+        const isSubscribed = subscriptions.includes(data.channelId || "");
         
         // Calculate engagement (Likes/Views)
         const views = data.viewCount || 1;
@@ -194,7 +196,7 @@ export const getHomeFeed = onRequest(
           ...data,
           discoveryScore,
           tier: channel.tier || "basic",
-          recommendationReason: isSubscribed ? "Following" : 
+          recommendationReason: isSubscribed ? "Subscribed" : 
                                (data.viewCount <= 1000 && data.trustScore >= 8.0 ? "Rising Star" :
                                (data.trustScore >= 9.0 ? "Elite Credibility" : 
                                (data.momentum > 0.5 ? "Rising Fast" : "For You")))

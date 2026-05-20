@@ -115,10 +115,9 @@ function printReport(run: BenchmarkRun): void {
   console.log(`\n┌─────────────────────────────────────────────────────────────────┐`);
   console.log(`│  🧠 NUANCE RECOGNITION (Competitive Differentiator)           │`);
   console.log(`├─────────────────────────────────────────────────────────────────┤`);
-  console.log(`│  mostly_correct:   ${padR(m.nuance.mostlyCorrectRecognition + "%", 8)}                                │`);
-  console.log(`│  outdated:         ${padR(m.nuance.outdatedRecognition + "%", 8)}                                │`);
-  console.log(`│  needs_context:    ${padR(m.nuance.needsContextRecognition + "%", 8)}                                │`);
-  console.log(`│  unsupported:      ${padR(m.nuance.unsupportedRecognition + "%", 8)}                                │`);
+  console.log(`│  mostly_true:      ${padR(m.nuance.mostlyCorrectRecognition + "%", 8)}                                │`);
+  console.log(`│  inconclusive:     ${padR(m.nuance.inconclusiveRecognition + "%", 8)}                                │`);
+  console.log(`│  limited_support:  ${padR(m.nuance.limitedSupportRecognition + "%", 8)}                                │`);
   console.log(`└─────────────────────────────────────────────────────────────────┘`);
 
   // ─── TruthWorld Metrics ────────────────────────────────────────────────

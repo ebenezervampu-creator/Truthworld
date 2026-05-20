@@ -32,7 +32,7 @@ class ViewsPage extends StatelessWidget {
         backgroundColor: const Color(0xFF0A0A0F),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
           onPressed: () => Get.back(),
         ),
         title: const Text(
@@ -110,7 +110,7 @@ class ViewsPage extends StatelessWidget {
     final isPositive = viewsChange.startsWith('+');
     final totalViews = controller.selectedVideoId.value.isNotEmpty
         ? controller.videoAnalytics.value?.totalViews ?? 0
-        : controller.channelAnalytics.value?.totalVideoWatches ?? 0;
+        : controller.realtimeChannelViews.value ?? controller.channelAnalytics.value?.totalVideoWatches ?? 0;
     final title = controller.selectedVideoId.value.isNotEmpty
         ? (controller.videoAnalytics.value?.title ?? 'Video Analytics')
         : 'Total Channel Views';

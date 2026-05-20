@@ -60,10 +60,9 @@ class Reply {
     };
   }
 
-  factory Reply.fromDocumentSnapshot(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    factory Reply.fromMap(Map<String, dynamic> data, [String? id]) {
     return Reply(
-      id: doc.id,
+      id: id ?? data['id'] ?? '',
       commentId: data['commentId'] ?? '',
       videoId: data['videoId'] ?? '',
       userId: data['userId'] ?? '',
@@ -76,10 +75,18 @@ class Reply {
       likeCount: data['likeCount'] ?? 0,
       dislikeCount: data['dislikeCount'] ?? 0,
       reportCount: data['reportCount'] ?? 0,
-      createdAt: data['createdAt'] ?? Timestamp.now(),
+      createdAt: (data['createdAt'] is Timestamp)
+          ? data['createdAt']
+          : (data['createdAt'] is num
+              ? Timestamp.fromMillisecondsSinceEpoch((data['createdAt'] as num).toInt())
+              : Timestamp.now()),
       likedBy: Map<String, bool>.from(data['likedBy'] ?? {}),
       dislikedBy: Map<String, bool>.from(data['dislikedBy'] ?? {}),
     );
+  }
+
+  factory Reply.fromDocumentSnapshot(DocumentSnapshot doc) {
+    return Reply.fromMap(doc.data() as Map<String, dynamic>, doc.id);
   }
 
   Reply copyWith({

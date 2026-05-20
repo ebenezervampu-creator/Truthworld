@@ -391,6 +391,15 @@ const VERIFIABLE_PREDICATE_PATTERNS: RegExp[] = [
   // 📱 Product/SaaS Launches (v5.1)
   new RegExp(`\\b(?:${PRODUCT_ACTIONS.join('|')})\\b`, 'i'),
 
+  // 📜 Historical & Cultural Innovations (v12.0 Hardening)
+  /\b(?:invented|discovered|founded|established|created|pioneered|built|developed|designed|authored|composed|mapped|calculated|proven|proven by|recorded in)\b/i,
+  /\b(?:dynasty|empire|civilization|period|era|century|bce|ace|ancient)\b/i,
+  /\b(?:originated in|first seen in|earliest record|ancestors of)\b/i,
+
+  // 🧪 Scientific & Empirical Facts (v12.0 Hardening)
+  /\b(?:consists of|contains|made of|boils at|freezes at|weighs|measures|distance|speed|velocity|acceleration|gravity|orbit|planet|element|molecule|atom|dna|species|habitat)\b/i,
+  /\b(?:study found|research shows|confirmed by|data indicates|statistics prove)\b/i,
+
   // 📦 Product/Company actions: "X launched/released/announced Y"
   /\b(?:launched|released|announced|introduced|unveiled|deployed|shipped|rolled out)\b/i,
   // 🛠 Capability claims: "can generate/build/create/support/handle"
@@ -400,9 +409,9 @@ const VERIFIABLE_PREDICATE_PATTERNS: RegExp[] = [
   /\$\d+/,
   /\b\d+(?:\.\d+)?\s*(?:languages?|users?|countries|models?|tokens?|gb|mb|tb|fps|ms|seconds?)\b/i,
   // 🏗 Organizational facts: "built by", "created by", "developed by"
-  /\b(?:built|created|developed|designed|made|founded|owned|acquired)\s+by\b/i,
+  /\b(?:built|created|developed|designed|made|founded|owned|acquired)\b\s+(?:in|by|during)\b/i,
   // 🔍 Existence claims: "X is a/an Y" (entity definition)
-  /\b(?:is|are|was|were)\s+(?:a|an|the)\s+(?:tool|product|platform|service|company|feature|api|model|framework|app|application|extension|plugin|library)\b/i,
+  /\b(?:is|are|was|were)\s+(?:a|an|the)\s+(?:tool|product|platform|service|company|feature|api|model|framework|app|application|extension|plugin|library|city|country|nation|continent|planet|star|galaxy|animal|plant|organism|element|isotope)\b/i,
   // 🤝 Partnership/Integration: "works with", "integrates with", "compatible with"
   /\b(?:works?|integrates?|compatible|partnered?)\s+with\b/i,
   // 🌍 Availability: "available on/in/for", "open source"
@@ -410,6 +419,7 @@ const VERIFIABLE_PREDICATE_PATTERNS: RegExp[] = [
   /\bopen[- ]?source\b/i,
   // 📅 Temporal facts: "founded in", "since 2020", "as of"
   /\b(?:founded|started|established|since|as of)\s+(?:in\s+)?\d{4}\b/i,
+  /\b(?:during|throughout|following|preceding)\b\s+(?:the|a)\b\s+\d{4}\b/i,
 ];
 
 /**

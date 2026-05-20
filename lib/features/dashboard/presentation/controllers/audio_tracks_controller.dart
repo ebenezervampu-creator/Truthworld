@@ -7,6 +7,11 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/models/language_request.dart';
+import 'package:intl/intl.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Internal Audio Track layout representation for the studio preview editor
 class AudioTrackItem {
@@ -52,6 +57,10 @@ class AudioTracksController extends BaseController {
   final isLoadingTracks = false.obs;
   final hasUnsavedChanges = false.obs;
 
+  // Language requests for the active video
+  final languageRequests = <LanguageRequest>[].obs;
+  StreamSubscription? _requestsSubscription;
+
   // Pre-configured multi-language code dictionary mapping
   final supportedLanguages = const [
     (code: 'en', name: 'English (Base)'),
@@ -70,6 +79,7 @@ class AudioTracksController extends BaseController {
   @override
   void onClose() {
     _videosSubscription?.cancel();
+    _requestsSubscription?.cancel();
     super.onClose();
   }
 
@@ -188,8 +198,12 @@ class AudioTracksController extends BaseController {
       availableLanguages.clear();
       selectedLanguage.value = '';
       currentTracks.clear();
+      languageRequests.clear();
+      _requestsSubscription?.cancel();
       return;
     }
+
+    _listenToLanguageRequests(video.id);
 
     logger.info(
       'Selected video for audio tracks editing session: ${video.title}',
@@ -354,6 +368,133 @@ class AudioTracksController extends BaseController {
   String getLanguageName(String code) {
     final match = supportedLanguages.firstWhereOrNull((l) => l.code == code);
     return match?.name ?? code.toUpperCase();
+  }
+
+  void _listenToLanguageRequests(String videoId) {
+    _requestsSubscription?.cancel();
+    _requestsSubscription = _firestore
+        .collection('videos')
+        .doc(videoId)
+        .collection('language_requests')
+        .snapshots()
+        .listen((snapshot) {
+      languageRequests.value = snapshot.docs
+          .map((doc) => LanguageRequest.fromMap(doc.data(), doc.id))
+          .toList();
+    }, onError: (e) {
+      logger.error('Error fetching language requests for video $videoId',
+          error: e, tag: _tag);
+    });
+  }
+
+  void showLanguageRequestsDialog(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    Get.dialog(
+      Obx(() => AlertDialog(
+        backgroundColor: isDarkMode ? AppColors.bgSurface : Colors.white,
+        title: Row(
+          children: [
+            const Icon(Icons.language, color: AppColors.brand),
+            const SizedBox(width: 12),
+            Text(
+              'Language Requests',
+              style: GoogleFonts.roboto(
+                fontWeight: FontWeight.bold,
+                color: isDarkMode ? Colors.white : AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 500,
+          child: languageRequests.isEmpty
+              ? _buildEmptyRequestsState(isDarkMode)
+              : _buildRequestsList(isDarkMode),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text(
+              'Close',
+              style: GoogleFonts.roboto(color: AppColors.brand),
+            ),
+          ),
+        ],
+      )),
+    );
+  }
+
+  Widget _buildEmptyRequestsState(bool isDarkMode) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.mark_chat_read_outlined,
+            size: 64, color: isDarkMode ? Colors.white10 : Colors.grey[200]),
+        const SizedBox(height: 16),
+        Text(
+          'No requests yet',
+          style: GoogleFonts.roboto(
+            color: isDarkMode ? Colors.white54 : Colors.grey[600],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRequestsList(bool isDarkMode) {
+    return ListView.separated(
+      shrinkWrap: true,
+      itemCount: languageRequests.length,
+      separatorBuilder: (context, index) =>
+          Divider(color: isDarkMode ? Colors.white10 : Colors.grey[100]),
+      itemBuilder: (context, index) {
+        final req = languageRequests[index];
+        return ListTile(
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.brand.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              req.type == 'audio' ? Icons.audiotrack : Icons.subtitles,
+              size: 16,
+              color: AppColors.brand,
+            ),
+          ),
+          title: Text(
+            req.language,
+            style: GoogleFonts.roboto(
+              fontWeight: FontWeight.bold,
+              color: isDarkMode ? Colors.white : AppColors.textPrimary,
+            ),
+          ),
+          subtitle: Text(
+            'Requested ${DateFormat('MMM d, yyyy').format(req.createdAt.toDate())}',
+            style: GoogleFonts.roboto(
+              fontSize: 12,
+              color: isDarkMode ? Colors.white38 : Colors.grey[500],
+            ),
+          ),
+          trailing: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.brand.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              req.type.toUpperCase(),
+              style: GoogleFonts.roboto(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: AppColors.brand,
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 

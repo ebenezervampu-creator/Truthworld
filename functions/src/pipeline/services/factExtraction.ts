@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 import * as admin from "firebase-admin";
 import { PIPELINE_CONFIG } from "../config";
 import { 
@@ -13,6 +13,15 @@ import { registryService } from "../registry/RegistryService";
 import { isSubjectiveClaim, containsVerifiablePredicate } from "./contentIntentDetector";
 import { logger } from "../utils/logger";
 import { withAiRetry } from "../utils/ai-utils";
+
+// v14.0: Safety settings for fact-checking engine.
+// TruthWorld must process content about violence, politics, assassination, etc.
+const FACT_CHECK_SAFETY_SETTINGS = [
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+];
 
 /**
  * 🔹 A. Fact Extraction Service
@@ -171,13 +180,14 @@ export class FactExtractionService {
 A claim is FACTUAL if an external source (news archive, official record, scientific data) could confirm or refute it, even if presented dramatically, emotionally, sarcastically, or persuasively. Tone ≠ Falsity. 
 
 ### CRITICAL RULES:
-1. Extract atomic claims (statements that can be verified or identified as belief/myth).
-3. For each claim, detect its **ClaimNature** (the "Domain of Truth"):
-    - "FACTUAL": Empirically testable claims, current events, statistics.
-    - "OPINION": Subjective preferences or value judgments.
-    - "PREDICTION": Future-oriented claims or projections.
-    - "THEORY": Explanatory frameworks or hypotheses.
-    - "BELIEF": Faith-based or non-empirical claims.
+1.1. **HISTORICAL & SCIENTIFIC TRIVIA**: Always extract claims about inventions, discoveries, geographical facts, animal trivia, and scientific constants. These are BUCKET 1 (VERIFIABLE_FACT).
+1.2. **NO EMOJIS**: Do NOT include emojis (like 🔍, ✅, ❌) in the "text" field of the JSON. Extract the raw text only.
+### THE FOUR BUCKETS:
+Each claim MUST be classified into one of these buckets:
+    - "VERIFIABLE_FACT" (Bucket 1): Empirically testable claims, current events, statistics, historical records, inventions, scientific constants.
+    - "OPINION" (Bucket 2): Subjective preferences, values, or moral judgments ("This is good", "I prefer X").
+    - "BELIEF" (Bucket 3): Faith-based, scriptural, or miraculous claims ("God created the world").
+    - "ESTIMATION" (Bucket 4): Projections, future-oriented claims, or theoretical guesses.
     - "SATIRE": Non-literal or parody content.
 
 4. Detect **FramingStyle** (How the speaker presents the claim):
@@ -187,11 +197,10 @@ A claim is FACTUAL if an external source (news archive, official record, scienti
     - "ABSOLUTE": Use of "proven", "guaranteed", "obvious fact", "without question". (Penalty if evidence weak)
     - "MANIPULATIVE": Use of rage-bait, fear-mongering, or emotional coercion. (Severe penalty)
 
-3. **🚨 ANTI-SUPPRESSION RULE (v5.2) — LANGUAGE AGNOSTIC**:
-    - Identify [Actor] + [Action] + [Object] structures as factual regardless of the source language.
-    - Set "isVerifiableEvent": true if the claim describes a checkable real-world incident, announcement, or status change.
-    - Examples (Factual): "Iran attacked ships", "Apple launched iPhone", "GDP fell 2%".
-    - Examples (Opinion): "This is amazing", "I feel happy", "It might be bad".
+3. **🚨 ANTI-SUPPRESSION RULE (v12.0) — HISTORICAL & SCIENTIFIC**:
+    - Identify [Innovation/Event] + [Actor] + [Date/Place] as factual.
+    - Examples (Factual): "India invented buttons", "Diamonds were first found in India", "Sugar was crystallized in 350 AD".
+    - Examples (Opinion): "India is the best country", "I love this history", "It was a great time".
 
 4. **Subjective Language Filtering**:
     - Do NOT extract purely subjective adjectives as claims.
@@ -221,7 +230,7 @@ Return a JSON response with this structure:
   "claims": [
     {
       "text": "Exact claim from transcript",
-      "nature": "FACTUAL|OPINION|PREDICTION|THEORY|BELIEF|SATIRE",
+      "nature": "VERIFIABLE_FACT|OPINION|BELIEF|ESTIMATION|SATIRE",
       "framing": "HEDGED|BALANCED|ASSERTIVE|ABSOLUTE|MANIPULATIVE",
       "confidence": 0.95,
       "importance": 0.8,
@@ -242,7 +251,7 @@ Return ONLY valid JSON, no explanations.`;
       forcePrimary: true
     };
     return withAiRetry(async (modelId: string) => {
-      const activeModel = this.genAI.getGenerativeModel({ model: modelId });
+      const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
       const response = await activeModel.generateContent(prompt);
       const text = response.response.text();
 
@@ -274,7 +283,7 @@ Return ONLY valid JSON, no explanations.`;
           }
 
           return {
-            text: claim.text,
+            text: claim.text.replace(/^[🔍\s]+/, '').trim(),
             nature,
             framing: claim.framing as any,
             confidence: claim.confidence,
@@ -348,11 +357,11 @@ RULES:
     };
 
     return withAiRetry(async (modelId: string) => {
-      const activeModel = this.genAI.getGenerativeModel({ model: modelId });
+      const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
       const response = await activeModel.generateContent(prompt);
       const text = response.response.text();
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      const res = jsonMatch ? JSON.parse(jsonMatch[0]) : { domain: "General", stance: "Mixed", cautionLevel: "medium", isLaunchNews: false };
+      const jsonMatch = this.extractJSON(text);
+      const res = jsonMatch ? JSON.parse(jsonMatch) : { domain: "General", stance: "Mixed", cautionLevel: "medium", isLaunchNews: false };
       
       if (!res.isLaunchNews) {
         const freshKeywords = ["launch", "announce", "released", "today", "new product"];
@@ -524,6 +533,7 @@ RULES:
       speakerCount: number;
       speakerIdentities?: Record<string, any>;
       speakerPriors?: Record<string, any>;
+      evaluationHealth?: any; // v11.5: Pass health for honest synthesis
     } = { pipelineMode: "solo", speakerCount: 1 }
   ): Promise<SynthesisResult> {
     if (!utterances || utterances.length === 0) {
@@ -568,7 +578,7 @@ RULES:
           const segmentText = segment.segmentUtterances.map(u => `${u.speaker || 'Speaker'}: ${u.text}`).join("\n");
           const segmentChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
           return withAiRetry(async (modelId: string) => {
-            const activeModel = this.genAI.getGenerativeModel({ model: modelId });
+            const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
             const res = await activeModel.generateContent(`Summarize this transcript segment briefly (focus on core arguments and key facts):\n\n${segmentText.substring(0, 10000)}`);
             return `SEGMENT ${Math.floor(segment.index/segmentSize) + 1} SUMMARY:\n${res.response.text()}`;
           }, segmentChain, { maxAttempts: 4, instanceId: `SegmentSummary-${segment.index}` }).catch(() => "Segment summary unavailable.");
@@ -614,6 +624,15 @@ ${priorsInfo}`;
       ? "Divide transcript into fixed 10-minute trust windows." 
       : "Perform SEMANTIC chaptering: detect topic shifts and assign a trustIndex to each chapter.";
 
+    const health = context.evaluationHealth;
+    const healthBlob = health ? `
+### EVALUATION HEALTH: ${health.healthStatus.toUpperCase()}
+- Extracted Claims: ${health.extractedClaims}
+- Factual Claims Routed: ${health.factualRouted}
+- Successfully Evaluated: ${health.evaluatedClaims}
+${health.healthStatus === 'critical' ? 'CRITICAL OPERATIONAL FAILURE: Most factual claims failed verification due to system timeouts. DO NOT use the term "Unsupported" (which implies a successful search with no results). Instead, use "Inconclusive due to Operational Timeout". State clearly that verification coverage was insufficient to form a reliable verdict.' : ''}
+` : "";
+
     const prompt = `You are a ${personas[tier]}. Produce an institutional-grade Trust Report.
     
 ### CORE PRINCIPLE: EVIDENCE-BOUNDED SYNTHESIS (v10.0)
@@ -621,6 +640,7 @@ Your summary and conclusion MUST be strictly derived from the provided transcrip
 1. DO NOT use your own external training data to verify facts.
 2. DO NOT make definitive statements that are not supported by the "Verified Claims" list.
 3. If no claims were verified, explicitly state that the analysis is structural only.
+4. If EVALUATION HEALTH is CRITICAL, explicitly state that the truth index is inconclusive.
 
 ### INPUT DATA
 1. TRANSCRIPT (Sanitized):
@@ -632,6 +652,8 @@ ${transcriptSnippet}
 ${verificationSummary.substring(0, 5000)}
 
 3. ${consistencyBlob}
+
+${healthBlob}
 
 ${modeInstruction}
 
@@ -646,7 +668,10 @@ Produce a JSON response with:
 5. knowledgeDensity: 0.0-1.0.
 6. keyThemes: 3-5 major topics.
 7. viewerNote: Strategic pro-tip/warning.
-8. manipulationScore: 0.0-1.0.
+8. manipulationScore: 0.0-1.0. 
+   - **NUANCE RULE (v12.0)**: Distinguish between "Expressive Narration" (Patriotic pride, educational enthusiasm, storytelling tone) and "Deceptive Manipulation" (Rage-bait, fear-mongering, emotional coercion). 
+   - Enthusiastic history/science narration should be scored LOW (0.1-0.2). 
+   - Only score HIGH (>0.5) if there is clear evidence of misleading framing or harmful emotional triggers.
 9. manipulationSignals: Explicitly label as "Hype/Promotion", "Rage-bait", "Fear-mongering", or "Political Spin".
 10. chapters: ${chapterInstruction}
 11. speakerRoles: Map each speaker to a detected role (Host|Guest|Expert|Caller|Other).
@@ -664,7 +689,7 @@ Return ONLY valid JSON according to:
   "knowledgeDensity": 0.85,
   "keyThemes": ["..."],
   "viewerNote": "...",
-  "manipulationScore": 0.4,
+  "manipulationScore": 0.15,
   "manipulationSignals": ["..."],
   "chapters": [
     { "index": 0, "title": "...", "start": 0, "end": 600000, "trustIndex": 8.5, "primaryTopics": ["..."] }
@@ -672,17 +697,18 @@ Return ONLY valid JSON according to:
   "speakerRoles": { "Speaker A": "Host" }
 }
 
-#### RATIONAL NEUTRALITY RULES:
-1. If content is religious/scriptural: Use status "faith_context" if it is a miracle/tradition. 
-2. If it is sacred geography/history: Use status "tradition_linked".
-3. Use the following reasoning: "This claim is rooted in religious belief and scripture. It carries significance within faith traditions, but no independently verified empirical evidence currently confirms it as a historical event."
-4. DO NOT use "faith_context" for modern factual claims (e.g., vaccines, financial advice) even if religion is mentioned.
-5. MANIPULATION CLASSIFICATION: Distinguish between "Marketing Hype" (stunning, crazy, amazing) and "Rage-bait" (outrageous, corrupt, woke, dangerous). Marketing hype should yield a lower manipulationScore than rage-bait.
-6. INTELLIGENT NEUTRALITY: If the transcript is primarily legal or political questions, inquiries, or interpretations, ensure the viewerNote is neutral and educational. Suggest specific types of sources for research (e.g., "consult court rulings", "check parliamentary records") rather than making definitive conclusions.`;
+#### RATIONAL NEUTRALITY RULES (TRUTHWORLD PATH 1):
+1. THE CORE RULE: A Fact is a Fact. A Belief is a Belief.
+2. BUCKET 1 (Verifiable Fact): Treat as empirical. Distinguish between "Unproven" (no evidence found) and "False" (contradicted by evidence). "Unproven" should NOT be penalized as heavily as "False".
+3. BUCKET 2/3 (Opinion/Belief): Respect fully. DO NOT attempt to verify for truth.
+4. HONESTY FLAG: The ONLY violation for Bucket 2/3 is framing. If a speaker says "Scientists have proven [Belief]" or "It is a verified fact that [Opinion]", flag as a FRAMING VIOLATION.
+5. SCRIPTURAL CONTEXT: "You can say Jesus walked on water. We label it as religious belief. But note: no archaeological or scientific evidence exists to date." This is transparency, not an attack.
+6. MANIPULATION: Distinguish between "Marketing Hype" (scored low) and "Rage-bait" (scored high).
+7. INTELLIGENT NEUTRALITY: If the transcript is primarily legal or political inquiries, suggest specific types of sources (e.g., "consult court rulings") rather than making definitive conclusions.`;
 
     const narrativeChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
     return withAiRetry(async (modelId: string) => {
-      const activeModel = this.genAI.getGenerativeModel({ model: modelId });
+      const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
       const response = await activeModel.generateContent(prompt);
       const text = response.response.text();
       const jsonMatch = this.extractJSON(text);
@@ -710,31 +736,54 @@ Return ONLY valid JSON according to:
    * Cross-references claims across chunk boundaries to find stance shifts.
    */
   public async detectInternalContradictions(claims: VerifiedClaim[]): Promise<{ hasContradiction: boolean; details: string; claimNature: ClaimNature }> {
-    if (claims.length < 5) return { hasContradiction: false, details: "", claimNature: ClaimNature.FACTUAL };
+    if (claims.length < 3) return { hasContradiction: false, details: "", claimNature: ClaimNature.VERIFIABLE_FACT };
 
-    const claimSummary = claims
+    // Filter for factual claims only to reduce token noise
+    const factualClaims = claims.filter(c => 
+      c.nature === ClaimNature.VERIFIABLE_FACT || 
+      c.status === 'verified_true' || 
+      c.status === 'false_claim'
+    ).slice(0, 20); // Cap at top 20 for consistency check performance
+
+    if (factualClaims.length < 2) return { hasContradiction: false, details: "", claimNature: ClaimNature.VERIFIABLE_FACT };
+
+    const claimSummary = factualClaims
       .map(c => `[Speaker: ${c.speaker}] Claim: "${c.text}" | Timestamp: ${c.start}ms`)
       .join("\n");
 
     const prompt = `You are a Logical Consistency Auditor. Compare the following claims from the same transcript.
-Do any claims made later contradict or significantly reverse claims made earlier?
+Identify any "Internal Contradictions" where a speaker reverses their stance or contradicts a previously stated fact.
 
 Claims:
 ${claimSummary}
 
-Return a JSON array of strings, each describing a specific contradiction found.
-Format: ["At 12:05 Speaker A said X, but at 44:20 they said Y."]
-If no contradictions, return [].
+Return a JSON object:
+{
+  "hasContradiction": boolean,
+  "details": "Summary of contradiction or empty string",
+  "claimNature": "VERIFIABLE_FACT"
+}
 Return ONLY valid JSON.`;
 
     const contradictionChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
     return withAiRetry(async (modelId: string) => {
-      const activeModel = this.genAI.getGenerativeModel({ model: modelId });
+      const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
       const response = await activeModel.generateContent(prompt);
       const text = response.response.text();
       const jsonMatch = this.extractJSON(text);
-      return jsonMatch ? JSON.parse(jsonMatch) : [];
-    }, contradictionChain, { maxAttempts: 3, instanceId: "InternalContradictions" }).catch(() => []);
+      if (!jsonMatch) return { hasContradiction: false, details: "", claimNature: ClaimNature.VERIFIABLE_FACT };
+      
+      const parsed = JSON.parse(jsonMatch);
+      return {
+        hasContradiction: !!parsed.hasContradiction,
+        details: parsed.details || "",
+        claimNature: ClaimNature.VERIFIABLE_FACT
+      };
+    }, contradictionChain, { maxAttempts: 2, instanceId: "InternalContradictions" }).catch(() => ({
+      hasContradiction: false,
+      details: "",
+      claimNature: ClaimNature.VERIFIABLE_FACT
+    }));
   }
 
   /**
@@ -743,11 +792,33 @@ Return ONLY valid JSON.`;
   private extractJSON(text: string): string | null {
     // 1. Try to find JSON within code blocks first
     const codeBlockMatch = text.match(/```json\s*(\{[\s\S]*?\})\s*```/);
-    if (codeBlockMatch) return codeBlockMatch[1];
+    let raw = codeBlockMatch ? codeBlockMatch[1] : null;
 
     // 2. Fallback to finding first { and last }
-    const match = text.match(/\{[\s\S]*\}/);
-    return match ? match[0] : null;
+    if (!raw) {
+      const match = text.match(/\{[\s\S]*\}/);
+      raw = match ? match[0] : null;
+    }
+
+    if (!raw) return null;
+
+    // v14.0: Sanitize common LLM JSON output issues before parsing.
+    // LLMs frequently produce:
+    //   - Trailing commas: {"a": 1,}
+    //   - Single-line comments: // comment
+    //   - Multi-line comments: /* comment */
+    //   - Unquoted keys (rare but possible)
+    let sanitized = raw
+      // Remove single-line comments (// ...)
+      .replace(/\/\/[^\n]*/g, '')
+      // Remove multi-line comments (/* ... */)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      // Remove trailing commas before } or ]
+      .replace(/,\s*([\]}])/g, '$1')
+      // Remove any BOM or zero-width chars
+      .replace(/[\uFEFF\u200B]/g, '');
+
+    return sanitized;
   }
   /**
    * 🏷 v7: Identity Extraction (Quick Pass)
@@ -765,7 +836,7 @@ Return ONLY JSON.`;
 
     const speakerChain = { primary: PIPELINE_CONFIG.GEMINI_MODELS?.extraction || "gemini-2.5-flash", fallback: null, forcePrimary: true };
     return withAiRetry(async (modelId: string) => {
-      const activeModel = this.genAI.getGenerativeModel({ model: modelId });
+      const activeModel = this.genAI.getGenerativeModel({ model: modelId, safetySettings: FACT_CHECK_SAFETY_SETTINGS });
       const res = await activeModel.generateContent(prompt);
       const text = res.response.text();
       const match = text.match(/\{[\s\S]*\}/);

@@ -200,7 +200,7 @@ class DiscoverChannelsPage extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+            icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.textPrimary),
             onPressed: () => controller.selectCategory('All'),
           ),
           Text(

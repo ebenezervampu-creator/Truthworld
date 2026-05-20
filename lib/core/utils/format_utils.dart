@@ -12,13 +12,40 @@ class FormatUtils {
   }
 
   static String formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, "0");
-    String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
-    String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
-    if (duration.inHours > 0) {
-      return "${duration.inHours}:$twoDigitMinutes:$twoDigitSeconds";
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+    final seconds = duration.inSeconds.remainder(60);
+
+    final String minutesStr =
+        hours > 0 ? minutes.toString().padLeft(2, '0') : minutes.toString();
+    final String secondsStr = seconds.toString().padLeft(2, '0');
+
+    if (hours > 0) {
+      return '$hours:$minutesStr:$secondsStr';
     }
-    return "$twoDigitMinutes:$twoDigitSeconds";
+    return '$minutesStr:$secondsStr';
+  }
+
+  static Duration parseDuration(String? s) {
+    if (s == null || s.isEmpty) return Duration.zero;
+    final parts = s.split(':');
+    try {
+      if (parts.length == 3) {
+        return Duration(
+          hours: int.parse(parts[0]),
+          minutes: int.parse(parts[1]),
+          seconds: int.parse(parts[2]),
+        );
+      } else if (parts.length == 2) {
+        return Duration(
+          minutes: int.parse(parts[0]),
+          seconds: int.parse(parts[1]),
+        );
+      } else if (parts.length == 1) {
+        return Duration(seconds: int.parse(parts[0]));
+      }
+    } catch (_) {}
+    return Duration.zero;
   }
 
   static String formatDate(DateTime date) {

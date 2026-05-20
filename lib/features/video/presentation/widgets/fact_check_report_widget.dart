@@ -635,7 +635,7 @@ class FactCheckReportWidget extends StatelessWidget {
         Divider(color: Colors.white.withValues(alpha: 0.05)),
         const SizedBox(height: 16),
         Text(
-          'TruthWorld employs multi-stage AI verification using institutional-grade data sources. This report represents a point-in-time analysis of the audio-visual content provided.',
+          'Truthworld employs multi-stage AI verification using institutional-grade data sources. This report represents a point-in-time analysis of the audio-visual content provided.',
           style: GoogleFonts.roboto(color: AppColors.textTertiary.withValues(alpha: 0.5), fontSize: 10, height: 1.5),
           textAlign: TextAlign.center,
         ),

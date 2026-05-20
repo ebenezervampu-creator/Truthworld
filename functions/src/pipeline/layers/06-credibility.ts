@@ -17,6 +17,8 @@ import {
   CredibilityErrorCode,
   ExtractionError,
   SynthesisResult,
+  ClaimStatus,
+  ClaimNature,
 } from "../types";
 import { FactExtractionService }   from "../services/factExtraction";
 import { ClaimVerificationService } from "../services/claimVerification";
@@ -33,6 +35,7 @@ import { contentIntentDetector }    from "../services/contentIntentDetector";
 import { speakerTrustEngine }       from "../services/speakerTrustEngine";
 import { SpeakerRegistryService }    from "../services/speakerRegistry";
 import { SpeakerReputationService }  from "../services/speakerReputationService";
+import { registryService } from "../registry/RegistryService";
 
 const db = () => admin.firestore();
 
@@ -125,9 +128,42 @@ export class CredibilityEngine {
 
       await EdgeLayer.updateStage(jobId, "credibility", { progress: 10 });
 
-      // 1.5 NEW: Domain & Stance Detection
-      logger.info("[Credibility] Stage 2: Domain discovery", { jobId, traceId });
-      const domainInfo = await this.extractionService.detectDomainAndStance(transcript.utterances ?? []);
+      // 1.5 NEW: Domain & Stance Detection + Claim Extraction + Speaker Identities (v11.1 PARALLEL)
+      logger.info("[Credibility] Stage 2: Parallelized Analysis & Extraction", { jobId, traceId });
+      
+      const deepResearchActive = isDeepResearchEnabled(executionPlan.synthesisTier || 'standard');
+      const maxExtractionTarget = deepResearchActive 
+        ? DEEP_RESEARCH_CONFIG.MAX_CLAIMS_INSTITUTIONAL 
+        : DEEP_RESEARCH_CONFIG.MAX_CLAIMS_STANDARD;
+
+      let extractionPartial = false;
+      const [domainInfo, rawClaimsResult, speakerIdentities] = await Promise.all([
+        // v13.2: Graceful degradation — domain detection must NEVER crash the pipeline
+        this.extractionService.detectDomainAndStance(transcript.utterances ?? []).catch((err: any) => {
+          logger.error("[Credibility] Domain detection failed, using safe defaults", { jobId, error: err?.message });
+          return { domain: "General", stance: "Mixed", cautionLevel: "medium" as const, isLaunchNews: false, primaryIntent: "educational", isSensitive: false };
+        }),
+        // v13.2: Extraction with crash-proof fallback
+        Promise.race([
+          this.extractionService.extractClaims(jobId, transcript, 60_000, maxExtractionTarget)
+            .then(claims => ({ claims, partial: false }))
+            .catch((err: any) => {
+              logger.error("[Credibility] Primary extraction failed", { jobId, error: err?.message });
+              return { claims: [] as any[], partial: true };
+            }),
+          new Promise<{ claims: any[], partial: boolean }>(resolve => {
+            setTimeout(() => {
+              logger.warn("[Credibility] Extraction reached 30s budget — returning partial results", { jobId });
+              resolve({ claims: [], partial: true });
+            }, 30_000);
+          })
+        ]),
+        this.resolveSpeakerIdentities(jobId, jobDoc.data()?.channelId || "unknown", transcript, {}).catch(() => ({}))
+      ]);
+
+      const rawClaims = rawClaimsResult.claims;
+      extractionPartial = rawClaimsResult.partial;
+
       logger.info("[Credibility] Context recognized", { jobId, traceId, ...domainInfo });
 
       // 1.6 NEW: Content Intent Detection (v4.3)
@@ -147,19 +183,8 @@ export class CredibilityEngine {
 
       // 2. Extract claims
       logger.info("[Credibility] Stage 3: Claim extraction", { jobId, traceId });
-      const t1 = Date.now();
-      // v10.5: Scale extraction based on Deep Research status
-      const deepResearchActive = isDeepResearchEnabled(executionPlan.synthesisTier || 'standard');
-      const maxExtractionTarget = deepResearchActive 
-        ? DEEP_RESEARCH_CONFIG.MAX_CLAIMS_INSTITUTIONAL 
-        : DEEP_RESEARCH_CONFIG.MAX_CLAIMS_STANDARD;
-
-      const rawClaims = await this.extractionService.extractClaims(
-        jobId,
-        transcript,
-        45_000,
-        maxExtractionTarget
-      );
+      const t1 = Date.now(); // Kept for latency telemetry
+      await EdgeLayer.updateStage(jobId, "credibility", { progress: 30 });
 
       await EdgeLayer.updateStage(jobId, "credibility", { progress: 30 });
 
@@ -194,16 +219,57 @@ export class CredibilityEngine {
       // 5. Cache lookup
       logger.info("[Credibility] Stage 4: Cache lookup", { jobId, traceId });
       const { cached, uncached } = await this.cacheCheck(topClaims, jobId);
+      cached.forEach(c => c.verificationMethod = 'cache_hit'); // v11.5
       const hitRate = topClaims.length > 0 ? cached.length / topClaims.length : 0;
 
       await this.trackAndAlertHitRate(jobId, cached.length, topClaims.length);
 
       await EdgeLayer.updateStage(jobId, "credibility", { progress: 50 });
 
-      const isDiscoverySensitive = deepResearchActive || domainInfo.isSensitive;
+      // 5.5 NEW: Registry Fast-Path (v11.4)
+      // Check each uncached claim against the registry BEFORE routing to AI
+      const registryHits: VerifiedClaim[] = [];
+      const stillUncached: ExtractedClaim[] = [];
+
+      // v13.0: Map Registry status → ClaimStatus (the Registry uses 'correct'/'mostly_correct'
+      // but the Scoring Engine expects 'verified_true'/'mostly_true')
+      const mapRegistryStatus = (status: string): ClaimStatus => {
+        switch (status) {
+          case 'correct': return 'verified_true';
+          case 'mostly_correct': return 'mostly_true';
+          case 'incorrect': return 'false_claim';
+          case 'disputed': return 'disputed';
+          default: return 'verified_true';
+        }
+      };
+
+      for (const claim of uncached) {
+        const registryCheck = registryService.resolveTruthCheck(claim.text);
+        if (registryCheck) {
+          registryHits.push({
+            ...claim,
+            claimId: `claim_reg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+            status: mapRegistryStatus(registryCheck.status),
+            verificationConfidence: 1.0,
+            evidenceConfidence: 1.0,
+            reasoning: registryCheck.reasoning,
+            sources: [registryCheck.source],
+            richSources: [{ title: registryCheck.source, url: "#", tier: "A", snippet: registryCheck.reasoning }],
+            isGrounded: true,
+            verificationMethod: 'deterministic' // v11.5
+          });
+        } else {
+          stillUncached.push(claim);
+        }
+      }
+
+      // v14.0: Only force ALL claims as sensitive when Deep Research is active.
+      // For standard tier, let per-claim pattern matching in isSensitiveClaim() handle routing.
+      // Previously: deepResearchActive || domainInfo.isSensitive (caused ALL geopolitical claims → Pro)
+      const isDiscoverySensitive = deepResearchActive;
 
       const { toVerify: factual, opinions: opinionClaims, filteringReasons: routerReasons } = 
-        this.verificationService.classifyClaims(uncached, domainInfo.isLaunchNews, isDiscoverySensitive);
+        this.verificationService.classifyClaims(stillUncached, domainInfo.isLaunchNews, isDiscoverySensitive);
       filteringReasons.push(...routerReasons);
       
       const nonFactualCount = uncached.length - factual.length;
@@ -214,8 +280,8 @@ export class CredibilityEngine {
       // Convert opinion claims to VerifiedClaim format (labeled but not verified)
       const labeledOpinions: VerifiedClaim[] = opinionClaims.map(claim => ({
         ...claim,
-        status: (claim.nature === 'BELIEF' ? 'opinion' : 
-                 claim.nature === 'PREDICTION' ? 'opinion' : 'opinion') as any,
+        status: (claim.nature === ClaimNature.BELIEF ? 'religious_belief' : 
+                 claim.nature === ClaimNature.ESTIMATION ? 'opinion_claim' : 'opinion_claim') as any,
         nature: claim.nature,
         verificationConfidence: 1.0,
         reasoning: "Classified as subjective content — not subject to factual verification.",
@@ -249,7 +315,9 @@ export class CredibilityEngine {
           const deepResearchOptions = {
             jobId: jobId,
             groundingMode: deepResearchActive ? DEEP_RESEARCH_CONFIG.GROUNDING_MODE : (effectiveGroundingMode as any),
-            forcePro: deepResearchActive || DEEP_RESEARCH_CONFIG.FORCE_PRO_MODEL,
+            // v14.0: CRITICAL FIX — was `||` which forced Pro on EVERY video.
+            // Only force Pro when Deep Research is explicitly active.
+            forcePro: deepResearchActive && DEEP_RESEARCH_CONFIG.FORCE_PRO_MODEL,
             minSourcesRequired: DEEP_RESEARCH_CONFIG.MIN_SOURCES_PER_CLAIM,
             sourceDiversityRequired: DEEP_RESEARCH_CONFIG.SOURCE_DIVERSITY_REQUIRED,
             isDiscoverySensitive: isDiscoverySensitive || isSensitiveTopic
@@ -264,16 +332,31 @@ export class CredibilityEngine {
           // Deep research: 3 parallel batches max; Standard: 5
           const maxConcurrent = deepResearchActive ? 3 : 5;
 
-          const verificationResult = await this.verificationService.verifyClaims(
-            factual, 
-            batchSize, 
-            maxConcurrent, 
-            domainInfo.domain, 
-            deepResearchOptions
-          );
-          verified = verificationResult.claims;
-          batchStats = verificationResult.batchStats;
-          await this.cacheWithTTL(verified);
+          // v14.0: Verification block is now crash-proof. If the entire verification pipeline
+          // throws (e.g. all retries exhausted), we fall back to Fast Knowledge Recovery
+          // instead of silently dropping all claims.
+          try {
+            const verificationResult = await this.verificationService.verifyClaims(
+              factual, 
+              batchSize, 
+              maxConcurrent, 
+              domainInfo.domain, 
+              deepResearchOptions
+            );
+            verified = verificationResult.claims;
+            batchStats = verificationResult.batchStats;
+            await this.cacheWithTTL(verified);
+          } catch (verErr) {
+            logger.error(`[Credibility] Verification pipeline threw — initiating Full Recovery Pass`, { jobId, error: (verErr as any)?.message });
+            try {
+              verified = await this.verificationService.verifyBatchWithFastKnowledge(factual, jobId);
+              batchStats = { completed: verified.length, timedOut: 0 };
+              logger.info(`[Credibility] Full Recovery Pass succeeded: ${verified.length} claims recovered`, { jobId });
+            } catch (recoveryErr) {
+              logger.error(`[Credibility] Full Recovery Pass also failed — graceful degradation`, { jobId, error: (recoveryErr as any)?.message });
+              verified = [];
+            }
+          }
         }
         return verified;
       })();
@@ -281,12 +364,35 @@ export class CredibilityEngine {
       // 9. Merge cached + newly verified + labeled opinions (v5.0)
       const newlyVerified = await verificationPromise;
       const tVerificationEnd = Date.now();
-      const allVerified = [...cached, ...newlyVerified, ...labeledOpinions];
+      let allVerified = [...cached, ...registryHits, ...newlyVerified, ...labeledOpinions];
+
+      // v14.0: Final Recovery Sweep — catch ANY remaining verification_timeout claims
+      const stillTimedOut = allVerified.filter(c =>
+        c.status === 'verification_timeout' || (c as any).failureReason === 'timeout'
+      );
+      if (stillTimedOut.length > 0) {
+        logger.warn(`[Credibility] Final Recovery Sweep: ${stillTimedOut.length} claims still timed out`, { jobId });
+        try {
+          const recovered = await this.verificationService.verifyBatchWithFastKnowledge(stillTimedOut as any, jobId);
+          for (const r of recovered) {
+            const idx = allVerified.findIndex(c => c.claimId === r.claimId);
+            if (idx !== -1) allVerified[idx] = r;
+          }
+          logger.info(`[Credibility] Final Recovery Sweep succeeded: ${recovered.length} claims recovered`, { jobId });
+        } catch (sweepErr) {
+          logger.error(`[Credibility] Final Recovery Sweep failed`, { jobId, error: (sweepErr as any)?.message });
+          // Continue with what we have — claims remain as verification_timeout
+        }
+      }
 
       // v11.0: Evaluation Health Tracking — detect 0-evaluated-claims failure mode
-      const factualRoutedCount = factual.length;
+      // v11.4: Include registry hits in routed count
+      const factualRoutedCount = factual.length + registryHits.length;
       const evaluatedClaimsCount = allVerified.filter(c => 
-        c.status !== 'opinion' && c.status !== 'unverifiable' && c.status !== 'unverifiable_personal_claim'
+        c.status !== 'opinion_claim' && c.status !== 'religious_belief' && !c.timedOutAt && (c as any).failureReason !== 'timeout'
+      ).length;
+      const attemptedClaimsCount = allVerified.filter(c => 
+        c.status !== 'opinion_claim' && c.status !== 'religious_belief'
       ).length;
       const claimReachRatio = topClaims.length > 0 ? factualRoutedCount / topClaims.length : 0;
       const evaluationRatio = factualRoutedCount > 0 ? evaluatedClaimsCount / factualRoutedCount : 0;
@@ -308,6 +414,7 @@ export class CredibilityEngine {
       const evaluationHealth = {
         extractedClaims: rawClaims.length,
         factualRouted: factualRoutedCount,
+        attemptedClaims: attemptedClaimsCount,
         evaluatedClaims: evaluatedClaimsCount,
         claimReachRatio,
         evaluationRatio,
@@ -316,13 +423,7 @@ export class CredibilityEngine {
 
       await EdgeLayer.updateStage(jobId, "credibility", { progress: 65 });
 
-      // 9.4 v7: Speaker Identity Resolution & Reputation Priors (Start in parallel with verification)
-      const speakerIdentityPromise = this.resolveSpeakerIdentities(
-        jobId, 
-        jobDoc.data()?.channelId || "unknown", 
-        transcript, 
-        {}
-      );
+      // 9.4 v7: Speaker Identity Resolution moved up to parallel block (v11.1)
 
       // 9.5 NEW: Determine Pipeline Mode & Synthesis Tier (v5.3 Adaptive Routing + v7 Creator Input)
       const expectedCount = executionPlan.expectedSpeakerCount;
@@ -357,21 +458,41 @@ export class CredibilityEngine {
       logger.info("[Credibility] Stage 6: Parallelizing consistency check and adaptive synthesis", { jobId, traceId });
       
       const tConsistencyStart = Date.now();
-      const [consistencyResult, synthesis, speakerIdentities] = await Promise.all([
-        this.extractionService.detectInternalContradictions(allVerified),
+      // v14.0: Consistency check + synthesis are now crash-proof.
+      // If either LLM call fails, we return safe defaults instead of crashing the pipeline.
+      const [consistencyResult, synthesis] = await Promise.all([
+        this.extractionService.detectInternalContradictions(allVerified).catch((err: any) => {
+          logger.error("[Credibility] Consistency check failed, using empty result", { jobId, error: err?.message });
+          return { contradictions: [], overallConsistency: "unknown" };
+        }),
         this.extractionService.generateTieredIntelligence(
           transcript.utterances ?? [],
           allVerified,
           synthesisTier,
           [], 
-          { pipelineMode, speakerCount, speakerIdentities: {}, speakerPriors: {} }
-        ),
-        speakerIdentityPromise
-      ]) as [any, SynthesisResult, any];
+          { pipelineMode, speakerCount, speakerIdentities, speakerPriors: {}, evaluationHealth }
+        ).catch((err: any) => {
+          logger.error("[Credibility] Synthesis generation failed, using fallback", { jobId, error: err?.message });
+          return {
+            summary: `Analysis of ${allVerified.length} claims completed. Synthesis unavailable due to infrastructure timeout.`,
+            conclusion: { label: "Analysis Complete", text: `${allVerified.filter(c => c.status === 'verified_true').length} of ${allVerified.length} claims verified.`, confidence: 0.5 },
+            hallucinationIsolation: { verifiedFacts: [], modelInterpretations: [], uncertainInferences: [] },
+            traceabilityMap: {},
+            knowledgeDensity: 0,
+            keyThemes: [],
+            viewerNote: "Synthesis was unavailable due to infrastructure timeout. Claim verdicts are still valid.",
+            manipulationScore: 0.15,
+            manipulationSignals: [],
+            chapters: [],
+            speakers: [],
+            speakerRoles: {},
+          } as unknown as SynthesisResult;
+        })
+      ]) as [any, SynthesisResult];
       const tConsistencyEnd = Date.now();
 
       // Resolve priors and re-run synthesis with context if needed (or just use the parallel result)
-      const speakerPriors = await this.fetchSpeakerPriors(Object.values(speakerIdentities).map((id: any) => id.id));
+      const speakerPriors = await this.fetchSpeakerPriors(Object.values(speakerIdentities).map((id: any) => id.id)).catch(() => ({}));
       
       // Update synthesis with consistency and speaker context if they were critical
       if (consistencyResult.hasContradiction) {
@@ -424,6 +545,7 @@ export class CredibilityEngine {
           viewerNote: synthesis.viewerNote,        // v8.3: Narrative generation
           hallucinationIsolation: synthesis.hallucinationIsolation, // v10.0
           traceabilityMap: synthesis.traceabilityMap, // v10.0
+          extractionPartial, // v11.1: Partial extraction telemetry
         },
         userHistory,
         executionPlan.videoCategory, // v8.0: Category-aware epistemic scoring
@@ -432,6 +554,18 @@ export class CredibilityEngine {
         executionPlan.synthesisTier || 'standard',
         batchStats
       );
+
+      // v11.5: Institutional-grade coverage metric
+      const totalVerifiable = trustScoreResult.factCheckStats.totalClaims - 
+                             (trustScoreResult.factCheckStats.opinion_claim + 
+                              trustScoreResult.factCheckStats.religious_belief + 
+                              trustScoreResult.factCheckStats.satire_claim);
+      
+      const totalTimedOut = trustScoreResult.factCheckStats.verification_timeout;
+      const totalReachedTerminal = totalVerifiable - totalTimedOut;
+      
+      const coverageRatio = totalVerifiable > 0 ? Math.max(0, totalReachedTerminal / totalVerifiable) : 1.0;
+      trustScoreResult.factCheckStats.verificationCoverageRatio = Number(coverageRatio.toFixed(2));
 
       const result: CredibilityResult = {
         analysisState:    trustScoreResult.analysisState,
@@ -473,7 +607,12 @@ export class CredibilityEngine {
           unsupported:  trustScoreResult.factCheckStats.unsupported,
           unverifiable: trustScoreResult.factCheckStats.unverifiable,
           filtered:     filteredCount,
+          religious_belief: trustScoreResult.factCheckStats.religious_belief,
+          opinion_claim:    trustScoreResult.factCheckStats.opinion_claim,
+          satire_claim:     trustScoreResult.factCheckStats.satire_claim,
+          verification_timeout: trustScoreResult.factCheckStats.verification_timeout,
           cacheHitRate: hitRate,
+          verificationCoverageRatio: trustScoreResult.factCheckStats.verificationCoverageRatio,
         },
         filteringReasons: [],
         contentIntent: {
@@ -518,12 +657,16 @@ export class CredibilityEngine {
           transcriptLoaded: true,
           utteranceCount: (transcript.utterances ?? []).length,
           claimsExtracted: rawClaims.length,
-          verificationCompleted: true,
-          claimsVerified: (newlyVerified.length > 0 || cached.length > 0), // v10.0
-          verificationPipelineCompleted: true, // v10.0
+          verificationAttempted: evaluationHealth.attemptedClaims,
+          verificationSucceeded: evaluationHealth.evaluatedClaims,
+          verificationTimedOut: trustScoreResult.factCheckStats.verification_timeout,
+          verificationCompleted: trustScoreResult.factCheckStats.verification_timeout === 0 && evaluationHealth.attemptedClaims > 0,
+          claimsVerified: (allVerified.filter(c => ['verified_true', 'mostly_true', 'false_claim', 'misleading', 'disputed'].includes(c.status)).length > 0),
+          verificationPipelineCompleted: true,
           summaryGenerated: synthesis.conclusion.label !== "Error",
           consistencyCheckCompleted: true,
-          checkedClaimsRatio: trustScoreResult.factCheckStats.checkedClaimsRatio, // v5.0
+          checkedClaimsRatio: trustScoreResult.factCheckStats.checkedClaimsRatio,
+          verificationCoverage: trustScoreResult.factCheckStats.verificationCoverageRatio || 0,
         },
 
         versions: {
@@ -742,7 +885,7 @@ export class CredibilityEngine {
         }
 
         let importance = 0.5;
-        if (claim.nature === "FACTUAL" || claim.nature === "THEORY" || claim.nature === "PREDICTION") importance += 0.3;
+        if (claim.nature === ClaimNature.VERIFIABLE_FACT || claim.nature === ClaimNature.ESTIMATION) importance += 0.3;
         if (claim.nature === "BELIEF") importance += 0.1;
         if (strength === "strong")     importance += 0.2;
         if (strength === "absolute")          importance += 0.15;

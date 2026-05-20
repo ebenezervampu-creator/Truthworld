@@ -76,7 +76,7 @@ class SeoHelpers {
   static void updateSearchSeo(String query, int resultCount) {
     SeoRouteListener.updateSeo(
       title: 'Search Results for "$query"',
-      description: 'Found $resultCount results for "$query" on TruthWorld',
+      description: 'Found $resultCount results for "$query" on Truthworld',
       url: '/search?q=${query.replaceAll(' ', '+')}',
       keywords: query,
     );
@@ -87,7 +87,7 @@ class SeoHelpers {
     SeoRouteListener.updateSeo(
       title: '$categoryName Videos',
       description:
-          'Browse $videoCount videos in the $categoryName category on TruthWorld',
+          'Browse $videoCount videos in the $categoryName category on Truthworld',
       url: '/category/$categoryName',
       keywords: categoryName.toLowerCase(),
     );
@@ -100,7 +100,7 @@ class SeoHelpers {
   /// Convert relative URL to absolute URL
   static String _toAbsoluteUrl(String? url) {
     if (url == null || url.isEmpty) {
-      return 'https://www.truthworld.in/og-image.png';
+      return 'https://www.Truthworld.in/og-image.png';
     }
 
     // Already absolute URL
@@ -115,11 +115,11 @@ class SeoHelpers {
 
     // Relative URL - prepend domain
     if (url.startsWith('/')) {
-      return 'https://www.truthworld.in$url';
+      return 'https://www.Truthworld.in$url';
     }
 
     // Relative path without slash
-    return 'https://www.truthworld.in/$url';
+    return 'https://www.Truthworld.in/$url';
   }
 
   /// Parse duration string (e.g., "01:23:45" or "123") to Duration

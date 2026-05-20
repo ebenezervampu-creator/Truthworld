@@ -234,7 +234,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
             children: [
               IconButton(
                 onPressed: () => controller.clearSelection(),
-                icon: const Icon(Icons.arrow_back),
+                icon: const Icon(Icons.arrow_back_ios_new),
                 color: AppColors.textPrimary,
               ),
               const SizedBox(width: 8),

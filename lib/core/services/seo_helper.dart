@@ -7,8 +7,8 @@ import 'package:universal_html/html.dart' as html;
 /// Manages meta tags, Open Graph, and page metadata
 class SeoHelper {
   static const String _appName = 'Truthworld';
-  static const String _appUrl = 'https://www.truthworld.in';
-  static const String _defaultImage = 'https://www.truthworld.in/og-image.png';
+  static const String _appUrl = 'https://www.Truthworld.in';
+  static const String _defaultImage = 'https://www.Truthworld.in/og-image.png';
 
   /// Convert relative URL to absolute URL
   static String _toAbsoluteUrl(String? url) {

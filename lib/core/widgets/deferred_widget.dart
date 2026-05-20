@@ -21,19 +21,39 @@ class DeferredWidget extends StatefulWidget {
 
 class _DeferredWidgetState extends State<DeferredWidget> {
   bool _loaded = false;
+  LibraryLoader? _currentLoader;
 
   @override
   void initState() {
     super.initState();
+    _currentLoader = widget.loader;
     _load();
   }
 
-  Future<void> _load() async {
-    await widget.loader();
-    if (mounted) {
+  @override
+  void didUpdateWidget(DeferredWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.loader != oldWidget.loader) {
       setState(() {
-        _loaded = true;
+        _loaded = false;
+        _currentLoader = widget.loader;
       });
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    final loader = _currentLoader;
+    if (loader == null) return;
+    try {
+      await loader();
+      if (mounted && _currentLoader == loader) {
+        setState(() {
+          _loaded = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading deferred library: $e');
     }
   }
 

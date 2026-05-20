@@ -1,5 +1,5 @@
 import * as admin from "firebase-admin";
-import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentUpdated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { logger } from "firebase-functions/v2";
 import { notifyUser } from "./notifications";
@@ -8,13 +8,31 @@ const db = admin.firestore();
 
 /**
  * 🔔 TRIGGER: ON NEW VIDEO
- * Notifies followers when a creator uploads a new video.
+ * Notifies subscribers when a creator uploads a new video.
  */
-export const onNewVideoFromFollowed = onDocumentCreated("videos/{videoId}", async (event) => {
-  const video = event.data?.data();
-  if (!video) return;
+export const onNewVideoFromSubscribed = onDocumentWritten("videos/{videoId}", async (event) => {
+  const before = event.data?.before.data();
+  const after = event.data?.after.data();
 
+  // If the document was deleted, skip
+  if (!after) return;
+
+  const wasPublishedBefore = before?.status === "published";
+  const isPublishedAfter = after?.status === "published";
+
+  // Trigger ONLY when the video transitions to 'published' status
+  if (!isPublishedAfter || wasPublishedBefore) {
+    logger.info(`[Trigger] Video ${event.params.videoId} status update skipped. Was published before: ${wasPublishedBefore}, Is published now: ${isPublishedAfter}`);
+    return;
+  }
+
+  const video = after;
   const { channelId, title, creatorName } = video;
+  if (!channelId) {
+    logger.warn(`[Trigger] Video ${event.params.videoId} transitioned to 'published' but is missing channelId. Skipping.`);
+    return;
+  }
+
   const channelNameStr = creatorName || video.channelName || "Unknown Channel";
 
   try {
@@ -28,7 +46,7 @@ export const onNewVideoFromFollowed = onDocumentCreated("videos/{videoId}", asyn
     const notifications: Promise<any>[] = [];
 
     subscribersSnap.docs.forEach(doc => {
-      const { userId } = doc.data();
+      const { userId, notificationPreference } = doc.data();
       if (!userId) return;
 
       // Materialize video reference into the user's explicit feed inbox subcollection
@@ -40,7 +58,7 @@ export const onNewVideoFromFollowed = onDocumentCreated("videos/{videoId}", asyn
         channelImage: video.channelImage || "",
         title: title || "Untitled Video",
         thumbnailUrl: video.thumbnailUrl || "",
-        uploadedAt: video.uploadedAt || video.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+        uploadedAt: video.publishedAt || video.uploadedAt || video.createdAt || admin.firestore.FieldValue.serverTimestamp(),
         views: video.views || 0,
         duration: video.duration || "0:00",
         category: video.category || "General",
@@ -49,28 +67,32 @@ export const onNewVideoFromFollowed = onDocumentCreated("videos/{videoId}", asyn
       }, { merge: true });
 
       // Dispatch real-time system notification alert
-      notifications.push(
-        notifyUser({
-          userId,
-          type: "new_video_followed",
-          severity: "info",
-          title: `New Video from ${channelNameStr}`,
-          message: `${channelNameStr} just uploaded: ${title}`,
-          actionUrl: `/video/${event.params.videoId}`,
-          metadata: { 
-            channelId, 
-            videoId: event.params.videoId,
-            thumbnailUrl: video.thumbnailUrl 
-          }
-        })
-      );
+      if (notificationPreference !== "none") {
+        notifications.push(
+          notifyUser({
+            userId,
+            type: "new_video_subscribed",
+            severity: "info",
+            title: `New Video from ${channelNameStr}`,
+            message: `${channelNameStr} just uploaded: ${title}`,
+            actionUrl: `/video/${event.params.videoId}`,
+            metadata: { 
+              channelId, 
+              videoId: event.params.videoId,
+              thumbnailUrl: video.thumbnailUrl 
+            }
+          })
+        );
+      } else {
+        logger.info(`[Trigger] Muted real-time push alert for user ${userId} because notificationPreference is set to 'none'`);
+      }
     });
 
     await batch.commit();
     await Promise.all(notifications);
     logger.info(`[Trigger] Fan-Out Materialized & Notified ${subscribersSnap.size} subscribers for video ${event.params.videoId}`);
   } catch (err) {
-    logger.error("[Trigger] onNewVideoFromFollowed Error:", err);
+    logger.error(`[Trigger] Fan-out failure for video ${event.params.videoId}:`, err);
   }
 });
 

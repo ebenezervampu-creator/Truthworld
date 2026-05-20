@@ -52,7 +52,7 @@ class PlaylistLoaderController extends GetxController {
         SeoHelper.setPage(
           title: playlist.playlistName,
           description:
-              '${playlist.playlistName} — ${playlist.videoIds.length} videos on TruthWorld',
+              '${playlist.playlistName} — ${playlist.videoIds.length} videos on Truthworld',
           url: '/playlist/${playlist.id}',
           image: playlist.thumbnailUrl,
         );

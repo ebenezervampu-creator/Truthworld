@@ -78,8 +78,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   // Section: Explore
   static const int indexHome = 0;
   static const int indexSubscriptions = 1;
-  static const int indexTrending = 2;
-  static const int indexDiscover = 3;
+  static const int indexDiscover = 2;
 
   // Section: You
   static const int indexLibrary = 4;
@@ -169,7 +168,6 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
   final recommendedVideos = <Video>[].obs;
   final musicVideos = <Video>[].obs;
-  final trendingVideos = <Video>[].obs;
   final isCarouselLoading = true.obs;
 
   // ========================================================================
@@ -200,7 +198,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
         .listen((results) {
       final isConnected = results.any((r) => r != ConnectivityResult.none);
       // If we were showing an error or empty state due to offline, reload
-      if (isConnected && (videos.isEmpty || trendingVideos.isEmpty)) {
+      if (isConnected && videos.isEmpty) {
         debugPrint('[HomeController] 🌐 Internet restored. Reloading feed...');
         _loadInitialData();
         fetchSubscribedChannels();
@@ -352,13 +350,11 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
       final results = await Future.wait([
         _fetchPublicVideos(limit: 10), // Recommended
         _fetchCategoryVideos('Music', limit: 10), // Music
-        _fetchPublicVideos(limit: 10), // Trending
       ]);
 
       // Fetch results
       recommendedVideos.assignAll(results[0]);
       musicVideos.assignAll(results[1]);
-      trendingVideos.assignAll(results[2]);
 
       clearError();
     } catch (e) {
@@ -557,14 +553,15 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
       final channelsData = channelsSnapshot.docs.map((doc) {
         final data = doc.data();
+        final name = data['name'] ?? data['channelName'] ?? 'Unknown';
         String avatarUrl = data['avatarUrl']?.toString() ?? '';
         if (avatarUrl.isEmpty) {
           avatarUrl =
-              'https://ui-avatars.com/api/?name=${Uri.encodeComponent(data['channelName'] ?? 'Channel')}&background=random';
+              'https://ui-avatars.com/api/?name=${Uri.encodeComponent(name)}&background=random';
         }
         return {
           'id': doc.id,
-          'name': data['channelName'] ?? 'Unknown',
+          'name': name,
           'avatar': avatarUrl,
         };
       }).toList();

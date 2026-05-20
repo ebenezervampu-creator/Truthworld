@@ -20,7 +20,7 @@ import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 // ==========================================================================
-// ENHANCED UPLOAD SCREEN - YOUTUBE-LIKE FLOW
+// ENHANCED UPLOAD SCREEN - TRUTHWORLD-LIKE FLOW
 // ==========================================================================
 
 class EnhancedUploadScreen extends StatefulWidget {
@@ -236,7 +236,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
               length: 2,
               child: Column(
                 children: [
-                  _buildModernTabBar(isDark),
+                  _buildTabBar(isDark),
                   Expanded(
                     child: TabBarView(
                       children: [
@@ -1664,7 +1664,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
                 ),
                 child: OutlinedButton.icon(
                   onPressed: _goToPreviousStep,
-                  icon: const Icon(Icons.arrow_back_rounded, size: 20),
+                  icon: const Icon(Icons.arrow_back_ios_new, size: 20),
                   label: Text(
                     'Back',
                     style: GoogleFonts.roboto(
@@ -2675,7 +2675,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
             ),
           ),
           child: Icon(
-            Icons.arrow_back_rounded,
+            Icons.arrow_back_ios_new,
             size: 20,
             color: isDark ? Colors.white : const Color(0xFF0F172A),
           ),
@@ -2823,7 +2823,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
     }
   }
 
-  Widget _buildModernTabBar(bool isDark) {
+  Widget _buildTabBar(bool isDark) {
     return Container(
       margin: EdgeInsets.symmetric(horizontal: responsivePadding, vertical: 20),
       padding: EdgeInsets.all(4),

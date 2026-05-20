@@ -1,3 +1,4 @@
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 
 import 'package:google_fonts/google_fonts.dart';
@@ -73,7 +74,7 @@ class JobStatusWidget extends StatelessWidget {
       statusColor = Colors.green;
       statusText = 'Completed';
     } else if (jobStatus.isFailed) {
-      statusColor = Colors.red;
+      statusColor = AppColors.brand;
       statusText = 'Failed';
     } else if (jobStatus.isProcessing) {
       statusColor = Colors.orange;
@@ -118,7 +119,7 @@ class JobStatusWidget extends StatelessWidget {
         backgroundColor: Colors.grey[200],
         valueColor: AlwaysStoppedAnimation<Color>(
           jobStatus.isFailed
-              ? Colors.red
+              ? AppColors.brand
               : jobStatus.isCompleted
               ? Colors.green
               : Colors.blue,
@@ -168,7 +169,7 @@ class JobStatusWidget extends StatelessWidget {
         statusIcon = '—';
         break;
       case StageStatus.failed:
-        statusColor = Colors.red;
+        statusColor = AppColors.brand;
         statusIcon = '✗';
         break;
     }
@@ -236,20 +237,20 @@ class JobStatusWidget extends StatelessWidget {
           Container(
             padding: EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.red.shade50,
-              border: Border.all(color: Colors.red.shade200),
+              color: AppColors.brand.withValues(alpha: 0.1),
+              border: Border.all(color: AppColors.brand.withValues(alpha: 0.3)),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               children: [
-                const Icon(Icons.error, color: Colors.red, size: 20),
+                Icon(Icons.error, color: AppColors.brand, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     jobStatus.errorMessage!,
                     style: GoogleFonts.roboto(
                       fontSize: 12,
-                      color: Colors.red.shade700,
+                      color: AppColors.brand,
                     ),
                   ),
                 ),
@@ -298,7 +299,7 @@ class JobStatusWidget extends StatelessWidget {
             child: ElevatedButton.icon(
               icon: const Icon(Icons.close),
               label: const Text('Cancel'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand),
               onPressed: onCancel,
             ),
           ),
@@ -409,7 +410,7 @@ class VerificationWidget extends StatelessWidget {
         statusText = 'Approved';
         break;
       case VerificationStatus.rejected:
-        statusColor = Colors.red;
+        statusColor = AppColors.brand;
         statusText = 'Rejected';
         break;
       case VerificationStatus.needsReview:
@@ -549,7 +550,7 @@ class VerificationWidget extends StatelessWidget {
             child: Row(
               children: [
                 if (item.hasFailed)
-                  const Icon(Icons.close, color: Colors.red, size: 20)
+                  Icon(Icons.close, color: AppColors.brand, size: 20)
                 else if (item.isComplete)
                   const Icon(Icons.check_circle, color: Colors.green, size: 20)
                 else
@@ -630,7 +631,7 @@ class VerificationWidget extends StatelessWidget {
         if (result.detectedWords.isNotEmpty)
           Text(
             'Words detected: ${result.detectedWords.length}',
-            style: GoogleFonts.roboto(fontSize: 12, color: Colors.red),
+            style: GoogleFonts.roboto(fontSize: 12, color: AppColors.brand),
           ),
       ],
     );

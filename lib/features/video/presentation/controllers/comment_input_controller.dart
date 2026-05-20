@@ -7,7 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 class CommentInputController extends BaseController {
   final String videoId;
   final bool enableComments;
-  
+
   CommentInputController({required this.videoId, required this.enableComments});
 
   // State Variables as observables
@@ -43,14 +43,16 @@ class CommentInputController extends BaseController {
   }
 
   Future<void> submitComment() async {
-    if (commentController.text.trim().isEmpty || !enableComments || isSubmitting.value) {
+    if (commentController.text.trim().isEmpty ||
+        !enableComments ||
+        isSubmitting.value) {
       return;
     }
 
     await safeExecute(() async {
       isSubmitting.value = true;
       final user = FirebaseAuth.instance.currentUser!;
-      
+
       await _mainController.addComment(
         videoId: videoId,
         userId: user.uid,
@@ -63,7 +65,7 @@ class CommentInputController extends BaseController {
       focusNode.unfocus();
       showSuccess('Comment posted successfully');
     }, showLoading: false);
-    
+
     isSubmitting.value = false;
   }
 
@@ -74,8 +76,3 @@ class CommentInputController extends BaseController {
     super.onClose();
   }
 }
-
-
-
-
-

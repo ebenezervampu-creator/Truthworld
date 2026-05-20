@@ -11,7 +11,7 @@ import 'package:truthworld/data/models/playlist_model.dart';
 final playlistController = Get.put(PlaylistController());
 final playlistDialogController = Get.put(PlaylistDialogController());
 
-void showModernizedPlaylistDialog({
+void showPlaylistDialog({
   required BuildContext context,
   required String videoId,
 }) {
@@ -29,7 +29,7 @@ void showModernizedPlaylistDialog({
             brightness: Theme.of(context).brightness,
           ),
         ),
-        child: _ModernizedPlaylistDialog(
+        child: _PlaylistDialog(
           videoId: videoId,
           animation: animation,
         ),
@@ -47,21 +47,21 @@ void showModernizedPlaylistDialog({
   );
 }
 
-class _ModernizedPlaylistDialog extends StatefulWidget {
+class _PlaylistDialog extends StatefulWidget {
   final String videoId;
   final Animation<double> animation;
 
-  const _ModernizedPlaylistDialog({
+  const _PlaylistDialog({
     required this.videoId,
     required this.animation,
   });
 
   @override
-  State<_ModernizedPlaylistDialog> createState() =>
-      _ModernizedPlaylistDialogState();
+  State<_PlaylistDialog> createState() =>
+      _PlaylistDialogState();
 }
 
-class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
+class _PlaylistDialogState extends State<_PlaylistDialog>
     with TickerProviderStateMixin {
   final TextEditingController newPlaylistCtrl = TextEditingController();
   late PlaylistDialogController _dialogController;

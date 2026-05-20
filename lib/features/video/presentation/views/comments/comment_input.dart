@@ -1,27 +1,28 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 
-/// Modern, responsive, and adaptive CommentInput with enhanced UI/UX
+/// Responsive, and adaptive CommentInput with enhanced UI/UX
 /// Preserves all original backend functionality while providing premium user experience
-class ModernCommentInput extends StatefulWidget {
+class CommentInput extends StatefulWidget {
   final String videoId;
   final bool enableComments;
 
-  const ModernCommentInput({
+  const CommentInput({
     required this.videoId,
     super.key,
     required this.enableComments,
   });
 
   @override
-  State<ModernCommentInput> createState() => _ModernCommentInputState();
+  State<CommentInput> createState() => _CommentInputState();
 }
 
-class _ModernCommentInputState extends State<ModernCommentInput>
+class _CommentInputState extends State<CommentInput>
     with TickerProviderStateMixin {
   final TextEditingController _commentController = TextEditingController();
   final MainController _mainController = Get.find();
@@ -280,7 +281,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
           right: 16,
         ),
         duration: const Duration(seconds: 3),
-        backgroundColor: Colors.red.shade600,
+        backgroundColor: AppColors.brand,
         action: SnackBarAction(
           label: 'Retry',
           textColor: Colors.white,
@@ -712,7 +713,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                             color: _characterCount > 450
                                 ? Colors.orange
                                 : _characterCount > 480
-                                ? Colors.red
+                                ? AppColors.brand
                                 : theme.colorScheme.onSurfaceVariant
                                       .withValues(alpha: 0.6),
                             fontSize: 11,

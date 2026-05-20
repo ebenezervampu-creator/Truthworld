@@ -36,7 +36,70 @@ export async function notifyUser(params: {
 
     await db.collection(COL_NOTIFICATIONS).doc(notificationId).set(notification);
     
-    // TODO: Trigger push notification via FCM if user has token
+    // Trigger push notification via FCM if user has active tokens
+    try {
+      const tokensSnap = await db.collection("users").doc(params.userId).collection("fcm_tokens").get();
+      const tokens = tokensSnap.docs
+        .map(doc => doc.data().token || doc.id)
+        .filter(t => typeof t === "string" && t.length > 0);
+
+      if (tokens.length > 0) {
+        const messagePayload = {
+          tokens: tokens,
+          notification: {
+            title: params.title,
+            body: params.message,
+          },
+          data: {
+            actionUrl: params.actionUrl || "",
+            type: params.type,
+            severity: params.severity,
+            ...(params.metadata ? { metadata: JSON.stringify(params.metadata) } : {}),
+          },
+          apns: {
+            payload: {
+              aps: {
+                sound: "default",
+              },
+            },
+          },
+          android: {
+            notification: {
+              sound: "default",
+            },
+          },
+        };
+
+        const response = await admin.messaging().sendEachForMulticast(messagePayload);
+        logger.info(`[notifyUser FCM] Dispatched to ${tokens.length} tokens. Success: ${response.successCount}, Failure: ${response.failureCount}`);
+
+        // Cleanup invalid/expired tokens to keep the database tidy
+        if (response.failureCount > 0) {
+          const batchCleanup = db.batch();
+          let needsCleanup = false;
+          response.responses.forEach((resp, idx) => {
+            if (!resp.success && resp.error) {
+              const code = resp.error.code;
+              if (
+                code === "messaging/invalid-registration-token" ||
+                code === "messaging/registration-token-not-registered"
+              ) {
+                const badToken = tokens[idx];
+                const tokenRef = db.collection("users").doc(params.userId).collection("fcm_tokens").doc(badToken);
+                batchCleanup.delete(tokenRef);
+                needsCleanup = true;
+              }
+            }
+          });
+          if (needsCleanup) {
+            await batchCleanup.commit();
+            logger.info(`[notifyUser FCM] Cleaned up failed registration tokens`);
+          }
+        }
+      }
+    } catch (fcmErr) {
+      logger.error("[notifyUser FCM] Push delivery error:", fcmErr);
+    }
     
     return notificationId;
   } catch (err) {

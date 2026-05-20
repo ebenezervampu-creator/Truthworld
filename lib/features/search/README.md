@@ -23,7 +23,7 @@
 ✅ **Intelligent fallback** → Prefix search if keywords fail  
 ✅ **Local sorting** → Views + recency  
 ✅ **Minimal payloads** → 5 fields per result  
-✅ **Future-ready** → Upgrade to Algolia without UI changes  
+✅ **Future-ready** → Optimized for Native Firestore Search  
 
 ---
 
@@ -163,7 +163,7 @@ Unique searches/hour: ~3,000
 With cache (70% miss rate): ~900 queries/hour
 With debounce (70% reduction): ~270 Firestore reads/hour
 
-Cost: ~$2-5/month (vs $50+ for Algolia)
+Cost: ~$2-5/month (Native Firestore)
 ```
 
 ---
@@ -177,20 +177,19 @@ Cost: ~$2-5/month (vs $50+ for Algolia)
 
 ---
 
-## 🔄 Algolia Migration Path
+## 🔄 Native Evolution
 
 When you scale to 100K+ users:
 
 ```dart
-// Today: Firestore
+// Today: Firestore Keywords/Prefix
 SearchService → _primaryQuery() → Firestore
 
-// Tomorrow: Algolia
-SearchService → _primaryQuery() → Algolia client
-// Same UI, same controller, same everything ✅
+// Tomorrow: Firestore Native Text/Vector
+SearchService → _primaryQuery() → Firestore.search()
 ```
 
-Preparation already done → only backend swap needed.
+Preparation already done → only query operator swap needed.
 
 ---
 
@@ -298,7 +297,7 @@ The implementation is heavily commented. Key points:
 - Local sorting > remote sorts
 - Small payloads > feature-rich results
 
-This system proves you don't need Algolia day 1.
+This system proves Native Firestore is the optimal choice.
 
 ---
 

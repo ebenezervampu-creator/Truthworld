@@ -445,12 +445,11 @@ class UploadControllerV2 extends GetxController {
   Future<int> _getVideoDuration(PlatformFile videoFile) async {
     try {
       if (kIsWeb) {
-        final blob = html.Blob([videoFile.bytes]);
-        final url = html.Url.createObjectUrlFromBlob(blob);
+        final url = videoFile.xFile.path;
         final video = html.VideoElement()..src = url;
         await video.onLoadedMetadata.first;
         final duration = video.duration.floor();
-        html.Url.revokeObjectUrl(url);
+        if (duration <= 0) return _estimateDurationInSeconds(videoFile);
         return duration;
       } else {
         final file = File(videoFile.path!);
@@ -458,12 +457,22 @@ class UploadControllerV2 extends GetxController {
         await controller.initialize();
         final duration = controller.value.duration.inSeconds;
         await controller.dispose();
+        if (duration <= 0) return _estimateDurationInSeconds(videoFile);
         return duration;
       }
     } catch (e) {
-      debugPrint('❌ Error getting video duration: $e');
-      return 0;
+      debugPrint('❌ Error getting video duration, using estimated fallback: $e');
+      return _estimateDurationInSeconds(videoFile);
     }
+  }
+
+  int _estimateDurationInSeconds(PlatformFile file) {
+    final sizeInMb = file.size / (1024 * 1024);
+    if (sizeInMb <= 0) return 135; // 2m 15s
+    int seconds = (sizeInMb * 40).round();
+    if (seconds < 15) seconds = 15;
+    if (seconds > 600) seconds = 245;
+    return seconds;
   }
 
   Future<void> initializeVideoPlayer() async {
@@ -475,8 +484,7 @@ class UploadControllerV2 extends GetxController {
       }
 
       if (kIsWeb) {
-        final blob = html.Blob([pickedVideo.value!.bytes]);
-        final url = html.Url.createObjectUrlFromBlob(blob);
+        final url = pickedVideo.value!.xFile.path;
         videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(url));
       } else {
         videoPlayerController = VideoPlayerController.file(
@@ -635,7 +643,13 @@ class UploadControllerV2 extends GetxController {
     final videoRef = _firebaseStorage.ref().child('videos/$videoId/original.mp4');
     final metadata = SettableMetadata(contentType: 'video/mp4');
 
-    _videoUploadTask = videoRef.putData(videoFile.bytes!, metadata);
+    final Uint8List uploadBytes;
+    if (kIsWeb) {
+      uploadBytes = videoFile.bytes ?? await videoFile.xFile.readAsBytes();
+    } else {
+      uploadBytes = videoFile.bytes ?? await File(videoFile.path!).readAsBytes();
+    }
+    _videoUploadTask = videoRef.putData(uploadBytes, metadata);
 
     _videoUploadTask!.snapshotEvents.listen(
       (event) {
@@ -800,6 +814,8 @@ class UploadControllerV2 extends GetxController {
 
       final updateData = {
         'title': title.trim(),
+        'titleLowercase': title.trim().toLowerCase(),
+        'title_lower': title.trim().toLowerCase(),
         'description': description.trim(),
         'videoUrl': videoUrl.value,
         'thumbnailUrl': thumbnailUrl.value.isNotEmpty

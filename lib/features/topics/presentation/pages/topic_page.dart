@@ -149,7 +149,7 @@ class _TopicPageState extends State<TopicPage> {
             // Back button
             IconButton(
               onPressed: () => Get.back(),
-              icon: const Icon(Icons.arrow_back_rounded),
+              icon: const Icon(Icons.arrow_back_ios_new),
               color: AppColors.textPrimary,
               splashRadius: 20,
             ),

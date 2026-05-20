@@ -5,7 +5,7 @@ import 'package:get/get.dart';
 /// Optimized Firestore Service
 ///
 /// Implements efficient querying strategies, pagination, caching,
-/// and offline persistence for YouTube-scale video platform.
+/// and offline persistence for TruthWorld-scale video platform.
 class FirestoreService extends GetxService {
   late FirebaseFirestore _firestore;
   static const int pageSize = 12; // Videos per page
@@ -83,33 +83,6 @@ class FirestoreService extends GetxService {
     }
   }
 
-  /// Fetch trending videos
-  ///
-  /// Queries pre-computed hourly/daily trending collection
-  /// for instant results without complex calculations.
-  Future<List<Map<String, dynamic>>> getTrendingVideos({
-    bool isDaily = false,
-  }) async {
-    try {
-      final now = DateTime.now();
-      final timeKey = isDaily
-          ? 'daily_${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}'
-          : 'hourly_${now.hour.toString().padLeft(2, '0')}';
-
-      final snapshot = await _firestore
-          .collection('videos/trending')
-          .doc(timeKey)
-          .collection('videos')
-          .orderBy('views', descending: true)
-          .limit(50)
-          .get();
-
-      return snapshot.docs.map((d) => d.data()).toList();
-    } catch (e) {
-      debugPrint('Error fetching trending videos: $e');
-      return [];
-    }
-  }
 
   /// Fetch videos by channel with pagination
   Future<({List<Map<String, dynamic>> videos, DocumentSnapshot? lastDoc})>

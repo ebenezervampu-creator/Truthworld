@@ -37,6 +37,7 @@ class PlaylistItem {
 class PlaylistModel {
   final String id;
   final String name;
+  final String nameLowercase; // For search efficiency
   final String description;
   final String ownerId;
   final String channelId;
@@ -70,6 +71,7 @@ class PlaylistModel {
     dynamic updatedAt, // Accept Timestamp or DateTime
     this.sortIndex = 0,
   }) : name = name ?? playlistName ?? '',
+       nameLowercase = (name ?? playlistName ?? '').toLowerCase(),
        visibility =
            visibility ??
            (isPublic == true
@@ -90,6 +92,7 @@ class PlaylistModel {
     return {
       'id': id,
       'name': name,
+      'nameLowercase': nameLowercase,
       'playlistName': name, // Store both for backward compatibility
       'description': description,
       'ownerId': ownerId,

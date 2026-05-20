@@ -187,7 +187,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
         ),
         leading: IconButton(
           icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
+            Icons.arrow_back_ios_new,
             color: AppColors.textPrimary,
           ),
           onPressed: () => Get.back(),
@@ -246,7 +246,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Tell us how we can make TruthWorld better for you.',
+          'Tell us how we can make Truthworld better for you.',
           style: GoogleFonts.roboto(
             fontSize: 15,
             color: AppColors.textSecondary,

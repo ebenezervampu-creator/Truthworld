@@ -17,9 +17,7 @@ import 'package:truthworld/features/playlist/presentation/views/playlist/playlis
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_loader_screen.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_screen.dart' deferred as playlist_screen;
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
-import 'package:truthworld/features/search/presentation/pages/search_page.dart';
-import 'package:truthworld/features/search/presentation/controllers/search_controller.dart'
-    as app;
+import 'package:truthworld/features/search/search.dart';
 
 import 'package:truthworld/features/category/presentation/views/category/category_page.dart';
 import 'package:truthworld/features/topics/presentation/pages/topic_page.dart';
@@ -34,10 +32,9 @@ import 'package:truthworld/features/video/presentation/views/downloadpage/downlo
 import 'package:truthworld/features/video/presentation/views/upload/upload_screen.dart' deferred as upload;
 import 'package:truthworld/features/video/presentation/views/video_screen.dart' deferred as video_screen;
 import 'package:truthworld/features/video/presentation/views/videoloader_screen.dart';
-import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart' deferred as history;
+import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart' deferred as watch_history;
 import 'package:truthworld/features/miniplayer/presentation/bindings/miniplayer_binding.dart';
 import 'package:truthworld/features/watchtime/presentation/pages/watchtime_details_page.dart';
-import 'package:truthworld/features/trending/presentation/views/trending/trending_page.dart';
 import 'package:truthworld/features/video/presentation/views/clips/clips_page.dart';
 // import 'package:truthworld/features/watchlater/presentation/views/watchlater/watchlater_screen.dart';
 
@@ -80,8 +77,8 @@ class AppPages {
     GetPage(
       name: "/history",
       page: () => DeferredWidget(
-        loader: history.loadLibrary,
-        builder: () => history.WatchHistory(),
+        loader: watch_history.loadLibrary,
+        builder: () => watch_history.WatchHistory(),
       ),
       transition: Transition.rightToLeftWithFade,
       transitionDuration: const Duration(milliseconds: 300),
@@ -201,7 +198,6 @@ class AppPages {
       page: () => SettingsScreen(),
       transition: Transition.leftToRightWithFade,
       transitionDuration: const Duration(milliseconds: 300),
-      middlewares: [AuthGuard()],
     ),
     GetPage(
       name: '/feedback',
@@ -260,9 +256,7 @@ class AppPages {
       page: () => const SearchPage(),
       transition: Transition.fade,
       transitionDuration: const Duration(milliseconds: 400),
-      binding: BindingsBuilder(() {
-        Get.lazyPut(() => app.SearchController());
-      }),
+      binding: SearchBinding(),
     ),
     GetPage(
       name: "/watchtimedetails",
@@ -271,12 +265,6 @@ class AppPages {
         isDarkMode: false,
       ), // channelId and isDarkMode should be set dynamically
       transition: Transition.rightToLeftWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
-    ),
-    GetPage(
-      name: "/trending",
-      page: () => TrendingVideosPage(),
-      transition: Transition.leftToRightWithFade,
       transitionDuration: const Duration(milliseconds: 300),
     ),
     GetPage(

@@ -49,14 +49,8 @@ class MiniplayerVideoInfo {
 
 /// Enum representing the visual state of the miniplayer panel.
 enum MiniplayerMode {
-  /// Floating YouTube-style miniplayer (default).
+  /// Floating TruthWorld-style miniplayer (default).
   collapsed,
-
-  /// Dragging between collapsed and expanded.
-  dragging,
-
-  /// Fully expanded to fill screen.
-  expanded,
 
   /// Transitioning to full video screen page.
   transitioning,
@@ -71,7 +65,7 @@ enum MiniplayerMode {
 
 /// Immutable configuration for the miniplayer.
 ///
-/// Sizing matches YouTube's web miniplayer: a 16:9 video frame approximately
+/// Sizing matches TruthWorld's web miniplayer: a 16:9 video frame approximately
 /// 400px wide with a compact info row beneath. The whole panel is draggable
 /// around the viewport, dismissable, and expandable to fullscreen.
 @immutable
@@ -82,7 +76,7 @@ class MiniplayerConfig {
   final bool pauseOnClose;
   final bool enableDrag;
 
-  // ── YouTube-style sizing (logical pixels) ──
+  // ── TruthWorld-style sizing (logical pixels) ──
   /// Default width of the floating miniplayer card.
   static const double defaultWidth = 400.0;
 
@@ -122,10 +116,7 @@ class MiniplayerConfig {
   static const Curve animationCurve = Curves.easeOutCubic;
 
   // ── Thresholds ──
-  /// Drag distance (fraction of screen) to commit expand/collapse.
-  static const double snapThreshold = 0.3;
-
-  /// Drag distance (fraction of screen height) to dismiss when already collapsed.
+  /// Drag distance (fraction of screen height) to dismiss.
   static const double dismissThreshold = 0.15;
 
   // ── Styling ──
@@ -133,8 +124,9 @@ class MiniplayerConfig {
   static const double elevation = 24.0;
 
   /// Compute the total panel height for a given width (16:9 video + info row).
+  /// Adds 2.0px to account for the top/bottom border.
   static double heightForWidth(double width) =>
-      width / videoAspectRatio + infoBarHeight;
+      (width / videoAspectRatio) + infoBarHeight + 2.0;
 
   /// Compute a responsive miniplayer width clamped between [minWidth]/[maxWidth].
   static double widthForScreen(double screenWidth) {

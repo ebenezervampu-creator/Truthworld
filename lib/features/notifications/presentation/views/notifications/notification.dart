@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 import 'package:truthworld/features/notifications/data/services/user_notification_service.dart';
+import 'package:truthworld/core/services/fcm_notification_service.dart';
 
 // Extension for capitalize (top-level)
 extension StringExtension on String {
@@ -448,17 +449,19 @@ class UserNotificationController extends GetxController {
   }
 
   void _listenToCloudNotifications() {
+    fetchFromCloudFunction();
+  }
+
+  Future<void> fetchFromCloudFunction() async {
     isLoading.value = true;
-    _subscription = _service.getNotificationsStream(userId, limit: 100).listen(
-      (list) {
-        notifications.value = list;
-        isLoading.value = false;
-      },
-      onError: (err) {
-        debugPrint('Error streaming cloud notifications: $err');
-        isLoading.value = false;
-      },
-    );
+    try {
+      final list = await _service.fetchNotificationsViaCallable(limit: 100);
+      notifications.value = list;
+    } catch (e) {
+      debugPrint('Error fetching cloud notifications via Cloud Function: $e');
+    } finally {
+      isLoading.value = false;
+    }
   }
 
   void setSeverityFilter(String severity) {
@@ -491,11 +494,14 @@ class UserNotificationController extends GetxController {
 
   Future<void> refreshNotifications() async {
     isLoading.value = true;
-    final fresh = await _service.fetchNotificationsViaCallable(limit: 100);
-    if (fresh.isNotEmpty) {
+    try {
+      final fresh = await _service.fetchNotificationsViaCallable(limit: 100);
       notifications.value = fresh;
+    } catch (e) {
+      debugPrint('Error refreshing cloud notifications: $e');
+    } finally {
+      isLoading.value = false;
     }
-    isLoading.value = false;
   }
 
   List<UserNotification> get filteredNotifications {
@@ -593,21 +599,34 @@ class _VideoFeedNotificationScreenState
       body: Center(
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: maxContentWidth),
-          child: CustomScrollView(
-            controller: _scrollController,
-            slivers: [
-              _buildAppBar(),
-              SliverToBoxAdapter(child: _buildTabsHeader()),
-              Obx(() => SliverToBoxAdapter(
-                    child: _selectedTabIndex.value == 0
-                        ? _buildFilters()
-                        : _buildCloudAlertsFilters(),
-                  )),
-              const SliverToBoxAdapter(child: SizedBox(height: 8)),
-              Obx(() => _selectedTabIndex.value == 0
-                  ? _buildContent()
-                  : _buildCloudAlertsContent()),
-            ],
+          child: RefreshIndicator(
+            color: const Color(0xFF6366F1),
+            backgroundColor: AppColors.bgSurface,
+            onRefresh: () async {
+              if (_selectedTabIndex.value == 0) {
+                await controller.refreshNotifications();
+              } else {
+                await userNotificationController.refreshNotifications();
+              }
+            },
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              controller: _scrollController,
+              slivers: [
+                _buildAppBar(),
+                SliverToBoxAdapter(child: _buildTabsHeader()),
+                SliverToBoxAdapter(child: _buildFcmControlPanel()),
+                Obx(() => SliverToBoxAdapter(
+                      child: _selectedTabIndex.value == 0
+                          ? _buildFilters()
+                          : _buildCloudAlertsFilters(),
+                    )),
+                const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                Obx(() => _selectedTabIndex.value == 0
+                    ? _buildContent()
+                    : _buildCloudAlertsContent()),
+              ],
+            ),
           ),
         ),
       ),
@@ -623,7 +642,7 @@ class _VideoFeedNotificationScreenState
       backgroundColor: AppColors.bgInput,
       elevation: 0,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white),
+        icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
         onPressed: () => Get.back(),
       ),
       flexibleSpace: FlexibleSpaceBar(
@@ -2135,6 +2154,188 @@ class _VideoFeedNotificationScreenState
 
   void _navigateToVideo(Video notification) {
     Get.toNamed("/videoscreen", arguments: {'video': notification});
+  }
+
+  Widget _buildFcmControlPanel() {
+    final fcmService = Get.find<FcmNotificationService>();
+    return Obx(() {
+      final status = fcmService.permissionStatus.value;
+      final token = fcmService.fcmToken.value;
+      final isInit = fcmService.isInitializing.value;
+
+      Color statusColor = Colors.grey;
+      String statusText = 'Notifications Disabled';
+      IconData statusIcon = Icons.notifications_off_rounded;
+
+      if (status == 'granted') {
+        statusColor = const Color(0xFF10B981);
+        statusText = 'Push Alerts Active';
+        statusIcon = Icons.notifications_active_rounded;
+      } else if (status == 'denied') {
+        statusColor = const Color(0xFFEF4444);
+        statusText = 'Notifications Blocked';
+        statusIcon = Icons.notifications_paused_rounded;
+      }
+
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: (status == 'granted' ? const Color(0xFF8B5CF6) : Colors.white10).withOpacity(0.2),
+          ),
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFF1E1B4B).withOpacity(0.4),
+              const Color(0xFF0F0F1A).withOpacity(0.3),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: (status == 'granted' ? const Color(0xFF8B5CF6) : Colors.white10).withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(statusIcon, color: status == 'granted' ? const Color(0xFF8B5CF6) : Colors.white60, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Web Push Notifications',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            statusText,
+                            style: TextStyle(fontSize: 11, color: statusColor, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (status != 'granted') ...[
+                  ElevatedButton.icon(
+                    onPressed: isInit ? null : () => fcmService.requestPushPermission(context),
+                    icon: isInit
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.flash_on_rounded, size: 14),
+                    label: Text(isInit ? 'Enabling...' : 'Enable Alerts'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF8B5CF6),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ] else ...[
+                  IconButton(
+                    onPressed: () {
+                      fcmService.removeFcmToken();
+                      Get.snackbar(
+                        'Alerts Unsubscribed',
+                        'Push tokens cleared successfully.',
+                        backgroundColor: Colors.black54,
+                        colorText: Colors.white,
+                      );
+                    },
+                    icon: const Icon(Icons.do_not_disturb_on_rounded, color: Colors.redAccent, size: 20),
+                    tooltip: 'Revoke Device Registration',
+                  ),
+                ],
+              ],
+            ),
+            if (token.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              const Divider(color: Colors.white10, height: 1),
+              const SizedBox(height: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'ACTIVE WEB FCM TOKEN (DEVELOPER CONSOLE SYNC)',
+                        style: TextStyle(fontSize: 9, color: Colors.white30, letterSpacing: 0.5, fontWeight: FontWeight.bold),
+                      ),
+                      InkWell(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: token));
+                          Get.snackbar(
+                            'Token Copied!',
+                            'Device FCM registration token copied to clipboard.',
+                            snackPosition: SnackPosition.BOTTOM,
+                            backgroundColor: const Color(0xFF10B981),
+                            colorText: Colors.white,
+                          );
+                        },
+                        child: Row(
+                          children: const [
+                            Icon(Icons.copy_rounded, color: Color(0xFF8B5CF6), size: 12),
+                            SizedBox(width: 4),
+                            Text(
+                              'COPY TOKEN',
+                              style: TextStyle(fontSize: 9, color: Color(0xFF8B5CF6), fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black26,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white10),
+                    ),
+                    child: Text(
+                      token,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 9,
+                        color: Colors.white60,
+                        height: 1.3,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      );
+    });
   }
 }
 

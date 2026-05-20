@@ -299,26 +299,14 @@ Network transfer: 2.5KB vs 25KB = **10x faster**
 
 ---
 
-## 🔄 Future Upgrade: Algolia
+## 🔄 Future Scalability: Native Firestore Search
 
-**Today (Firestore)**:
-```dart
-await searchService.search("flutter");
-```
+The current system is built on **Native Firestore Search**, which is continuously improving. As Firebase introduces new native full-text and vector search features, this system will integrate them directly without requiring third-party services like Algolia.
 
-**Tomorrow (Algolia)**:
-```dart
-// Only file that changes:
-// data/services/search_service.dart
-
-// UI, Controller, Widgets → NO CHANGE ✅
-```
-
-**Migration Steps**:
-1. Create Algolia index from Firestore docs
-2. Setup Cloud Function to sync new videos → Algolia
-3. Swap `SearchService.search()` implementation
-4. Deploy — that's it!
+**Scalability Path**:
+1. Optimize text indexes for larger datasets.
+2. Integrate **Firestore Vector Search** for semantic understanding.
+3. Utilize **Cloud Firestore Native Full-Text Search** (currently in Preview) as it becomes GA.
 
 ---
 
@@ -342,7 +330,7 @@ Monthly: 6K × 720 hours = 4.3M reads
 Pricing: $0.06/100K reads → $2.60/month
 
 With large platform:
-→ Upgrade to Algolia ($50/month)
+→ Upgrade to Firestore Native Full-Text Search ($0/month)
 → But still use Firestore for other features
 ```
 
@@ -423,6 +411,6 @@ A: Yes, but creates expensive index. Better to sort locally (10ms)
 **Q: Does cache help with offline?**
 A: Yes! Cached searches work offline entirely
 
-**Q: When should I upgrade to Algolia?**
+**Q: When should I upgrade to Native Full-Text Search?**
 A: When you hit 100K+ users or need advanced ranking
 

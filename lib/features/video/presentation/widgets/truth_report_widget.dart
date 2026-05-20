@@ -113,7 +113,7 @@ class TruthReportWidget extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'TruthWorld is currently evaluating this content.',
+            'Truthworld is currently evaluating this content.',
             style: GoogleFonts.roboto(color: AppColors.textSecondary),
           ),
         ],

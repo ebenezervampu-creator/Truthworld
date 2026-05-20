@@ -483,7 +483,7 @@ class CategoryController extends GetxController {
 }
 
 // ==========================================================================
-// MODERNIZED CATEGORY PAGE
+// CATEGORY PAGE
 // ==========================================================================
 
 class CategoryPage extends StatefulWidget {
@@ -725,7 +725,7 @@ class _CategoryPageState extends State<CategoryPage>
               controller: _scrollController,
               slivers: [
                 if (!widget.isDashboard)
-                  _buildModernAppBar(
+                  _buildAppBar(
                     context,
                     isDesktop: isDesktop,
                     isTablet: isTablet,
@@ -746,7 +746,7 @@ class _CategoryPageState extends State<CategoryPage>
     );
   }
 
-  Widget _buildModernAppBar(
+  Widget _buildAppBar(
     BuildContext context, {
     bool isDesktop = false,
     bool isTablet = false,
@@ -769,7 +769,7 @@ class _CategoryPageState extends State<CategoryPage>
         ),
         child: IconButton(
           icon: Icon(
-            Icons.arrow_back_rounded,
+            Icons.arrow_back_ios_new,
             color: Theme.of(context).colorScheme.onSurface,
           ),
           onPressed: () => Get.back(),

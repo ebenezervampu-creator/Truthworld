@@ -136,95 +136,102 @@ class VideoCard extends StatelessWidget {
         ? BorderRadius.vertical(top: Radius.circular(AppTheme.radius.lg))
         : AppTheme.radius.circularLg;
 
-    return Hero(
-      tag: '${heroPrefix}_${video.id}',
-      child: ClipRRect(
-        borderRadius: borderRadius,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            CachedNetworkImage(
-              imageUrl: video.thumbnailUrl,
-              fit: BoxFit.cover,
-              width: width,
-              height: height,
-              memCacheWidth: AppTheme.sizes.imageCacheMediumWidth,
-              memCacheHeight: AppTheme.sizes.imageCacheMediumHeight,
-              placeholder: (context, url) => Shimmer.fromColors(
-                baseColor: AppTheme.colors.surface,
-                highlightColor: AppTheme.colors.border,
-                child: Container(color: AppTheme.colors.surface),
-              ),
-              errorWidget: (context, url, error) => Container(
-                color: AppTheme.colors.surface,
-                child: Icon(
-                  Icons.play_circle_outline,
-                  size: AppTheme.sizes.iconLg,
-                  color: AppTheme.colors.primary,
+    // Use SizedBox to constrain the Stack if finite dimensions are provided.
+    // This prevents "BoxConstraints forces an infinite width and infinite height"
+    // when the card is used in unconstrained contexts like Rows inside ListViews.
+    return SizedBox(
+      width: (width != null && width.isFinite) ? width : null,
+      height: (height != null && height.isFinite) ? height : null,
+      child: Hero(
+        tag: '${heroPrefix}_${video.id}',
+        child: ClipRRect(
+          borderRadius: borderRadius,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              CachedNetworkImage(
+                imageUrl: video.thumbnailUrl,
+                fit: BoxFit.cover,
+                width: width,
+                height: height,
+                memCacheWidth: AppTheme.sizes.imageCacheMediumWidth,
+                memCacheHeight: AppTheme.sizes.imageCacheMediumHeight,
+                placeholder: (context, url) => Shimmer.fromColors(
+                  baseColor: AppTheme.colors.surface,
+                  highlightColor: AppTheme.colors.border,
+                  child: Container(color: AppTheme.colors.surface),
                 ),
-              ),
-            ),
-            // Duration badge
-            Positioned(
-              bottom: AppTheme.spacing.xs,
-              right: AppTheme.spacing.xs,
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: AppTheme.spacing.xs,
-                  vertical: AppTheme.spacing.xs / 2,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.85),
-                  borderRadius: AppTheme.radius.circularMd,
-                ),
-                child: Text(
-                  video.duration,
-                  style: GoogleFonts.robotoMono(
-                    color: AppTheme.colors.textPrimary,
-                    fontWeight: FontWeight.w500,
-                    fontSize: 11,
+                errorWidget: (context, url, error) => Container(
+                  color: AppTheme.colors.surface,
+                  child: Icon(
+                    Icons.play_circle_outline,
+                    size: AppTheme.sizes.iconLg,
+                    color: AppTheme.colors.primary,
                   ),
-                  maxLines: 1,
                 ),
               ),
-            ),
-            // Watch progress bar (YouTube style)
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Obx(() {
-                final progress = WatchHistoryService.to.getProgress(video.id);
-                if (progress <= 0) return const SizedBox.shrink();
+              // Duration badge
+              Positioned(
+                bottom: AppTheme.spacing.xs,
+                right: AppTheme.spacing.xs,
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppTheme.spacing.xs,
+                    vertical: AppTheme.spacing.xs / 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.85),
+                    borderRadius: AppTheme.radius.circularMd,
+                  ),
+                  child: Text(
+                    video.duration,
+                    style: GoogleFonts.robotoMono(
+                      color: AppTheme.colors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 11,
+                    ),
+                    maxLines: 1,
+                  ),
+                ),
+              ),
+              // Watch progress bar (TruthWorld style)
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: Obx(() {
+                  final progress = WatchHistoryService.to.getProgress(video.id);
+                  if (progress <= 0) return const SizedBox.shrink();
 
-                return Container(
-                  height: 3,
-                  width: double.infinity,
-                  color: Colors.white.withValues(alpha: 0.2),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: FractionallySizedBox(
-                      widthFactor: (progress / 100).clamp(0.0, 1.0),
-                      child: Container(
-                        color: Colors.red,
+                  return Container(
+                    height: 3,
+                    width: double.infinity,
+                    color: Colors.white.withValues(alpha: 0.2),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: FractionallySizedBox(
+                        widthFactor: (progress / 100).clamp(0.0, 1.0),
+                        child: Container(
+                          color: Colors.red,
+                        ),
                       ),
                     ),
-                  ),
-                );
-              }),
-            ),
-          ],
+                  );
+                }),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildDetails(BuildContext context, {bool isGrid = false}) {
-    // YouTube-style layout: avatar on left, title and metadata on right
+    // TruthWorld-style layout: avatar on left, title and metadata on right
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Channel Avatar (shown in both grid and list for YouTube style)
+        // Channel Avatar (shown in both grid and list for TruthWorld style)
         _buildChannelAvatar(),
         SizedBox(width: AppTheme.spacing.sm),
         // Title and metadata

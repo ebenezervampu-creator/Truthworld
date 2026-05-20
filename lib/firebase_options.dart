@@ -64,7 +64,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '768266102263',
     projectId: 'truthworld-1',
     storageBucket: 'truthworld-1.firebasestorage.app',
-    iosBundleId: 'com.example.truthworld',
+    iosClientId: '768266102263-hbtemsacolkd51lk7515nld3m707eooo.apps.googleusercontent.com',
+    iosBundleId: 'com.example.Truthworld',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -73,7 +74,8 @@ class DefaultFirebaseOptions {
     messagingSenderId: '768266102263',
     projectId: 'truthworld-1',
     storageBucket: 'truthworld-1.firebasestorage.app',
-    iosBundleId: 'com.example.truthworld',
+    iosClientId: '768266102263-hbtemsacolkd51lk7515nld3m707eooo.apps.googleusercontent.com',
+    iosBundleId: 'com.example.Truthworld',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
@@ -86,14 +88,3 @@ class DefaultFirebaseOptions {
     measurementId: 'G-W1RKKN8F3C',
   );
 }
-
-
-
-
-
-
-
-
-
-
-

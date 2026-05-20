@@ -7,6 +7,7 @@ import '../../data/models/watch_event_model.dart';
 import '../../data/services/geolocation_service.dart';
 import '../../data/services/video_analytics_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/data/models/channel.dart';
 
 /// Controller for creator analytics dashboard.
 /// Reads from pre-aggregated daily stats for cost efficiency.
@@ -70,6 +71,10 @@ class CreatorAnalyticsController extends GetxController {
   final urbanPercentage = RxDouble(0.0);
   final ruralPercentage = RxDouble(0.0);
 
+  // Real-time channel totals
+  StreamSubscription? _channelSubscription;
+  final realtimeChannelViews = RxnInt();
+
   // Live viewer polling timer
   Timer? _liveViewerTimer;
 
@@ -88,9 +93,13 @@ class CreatorAnalyticsController extends GetxController {
       if (channelId.isNotEmpty) {
         loadChannelAnalytics(channelId);
         fetchChannelVideos(channelId);
+        _listenToChannelRealtime(channelId);
         if (selectedVideoId.isEmpty) {
           _startChannelLiveViewerPolling(channelId);
         }
+      } else {
+        _channelSubscription?.cancel();
+        realtimeChannelViews.value = null;
       }
     });
 
@@ -108,6 +117,7 @@ class CreatorAnalyticsController extends GetxController {
   @override
   void onClose() {
     _liveViewerTimer?.cancel();
+    _channelSubscription?.cancel();
     super.onClose();
   }
 
@@ -225,6 +235,25 @@ class CreatorAnalyticsController extends GetxController {
         }
       },
     );
+  }
+
+  void _listenToChannelRealtime(String channelId) {
+    _channelSubscription?.cancel();
+    _channelSubscription = _firestore
+        .collection('channels')
+        .doc(channelId)
+        .snapshots()
+        .listen((snapshot) {
+      if (snapshot.exists) {
+        try {
+          final channel = Channel.fromDocumentSnapshot(snapshot);
+          realtimeChannelViews.value = channel.viewCount;
+        } catch (e, stackTrace) {
+          logger.error('Error parsing real-time channel doc: $e',
+              stackTrace: stackTrace, tag: _tag);
+        }
+      }
+    });
   }
 
   // ---------------------------------------------------------------------------

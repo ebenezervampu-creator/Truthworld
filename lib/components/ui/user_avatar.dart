@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class UserAvatar extends StatelessWidget {
   final String? photoUrl;
@@ -44,16 +45,25 @@ class UserAvatar extends StatelessWidget {
       ),
       child: ClipOval(
         child: photoUrl != null && photoUrl!.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: photoUrl!,
-                width: radius * 2,
-                height: radius * 2,
-                fit: BoxFit.cover,
-                memCacheWidth: (radius * 2 * MediaQuery.of(context).devicePixelRatio).toInt(),
-                memCacheHeight: (radius * 2 * MediaQuery.of(context).devicePixelRatio).toInt(),
-                placeholder: (context, url) => _buildPlaceholder(initial, effectiveTextColor, effectiveFontSize),
-                errorWidget: (context, url, error) => _buildPlaceholder(initial, effectiveTextColor, effectiveFontSize),
-              )
+            ? (kIsWeb
+                ? Image.network(
+                    photoUrl!,
+                    width: radius * 2,
+                    height: radius * 2,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) =>
+                        _buildPlaceholder(initial, effectiveTextColor, effectiveFontSize),
+                  )
+                : CachedNetworkImage(
+                    imageUrl: photoUrl!,
+                    width: radius * 2,
+                    height: radius * 2,
+                    fit: BoxFit.cover,
+                    memCacheWidth: (radius * 2 * MediaQuery.of(context).devicePixelRatio).toInt(),
+                    memCacheHeight: (radius * 2 * MediaQuery.of(context).devicePixelRatio).toInt(),
+                    placeholder: (context, url) => _buildPlaceholder(initial, effectiveTextColor, effectiveFontSize),
+                    errorWidget: (context, url, error) => _buildPlaceholder(initial, effectiveTextColor, effectiveFontSize),
+                  ))
             : _buildPlaceholder(initial, effectiveTextColor, effectiveFontSize),
       ),
     );

@@ -58,6 +58,12 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
   final controller = Get.put(DownloadsController());
 
   @override
+  void initState() {
+    super.initState();
+    controller.loadVideos();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bgPage,
@@ -204,7 +210,23 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
             );
           }
 
-          final groupedVideos = controller.groupVideosByDate(videos);
+          List<OfflineVideo> displayVideos = List.from(videos);
+          if (controller.selectedCategory.value != 'All') {
+            if (controller.selectedCategory.value == 'Recent') {
+              final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+              displayVideos = displayVideos.where((v) => v.downloadedAt.isAfter(sevenDaysAgo)).toList();
+            } else if (controller.selectedCategory.value == 'Offline' || controller.selectedCategory.value == 'Videos') {
+              // All downloads are videos and offline by definition
+            } else {
+              final catLower = controller.selectedCategory.value.toLowerCase();
+              displayVideos = displayVideos.where((v) {
+                return v.channelName.toLowerCase().contains(catLower) ||
+                       v.title.toLowerCase().contains(catLower);
+              }).toList();
+            }
+          }
+
+          final groupedVideos = controller.groupVideosByDate(displayVideos);
 
           return SliverList(
             delegate: SliverChildBuilderDelegate((context, index) {
@@ -418,7 +440,7 @@ class _DownloadVideoListCard extends StatelessWidget {
             _buildOptionItem(
               icon: Icons.delete_outline_rounded,
               label: 'Delete from downloads',
-              color: Colors.red,
+              color: AppColors.brand,
               onTap: () {
                 Get.back();
                 _showDeleteConfirmation(context);

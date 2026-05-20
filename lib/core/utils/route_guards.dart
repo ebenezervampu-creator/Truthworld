@@ -7,7 +7,7 @@ class AuthGuard extends GetMiddleware {
   @override
   int? get priority => 9; // High priority to execute early
 
-  final AuthService _authService = Get.find<AuthService>();
+  AuthService get _authService => Get.find<AuthService>();
 
   /// List of routes that require authentication
   static const List<String> protectedRoutes = [
@@ -15,23 +15,21 @@ class AuthGuard extends GetMiddleware {
     '/dashboard',
     '/uploadscreen',
     '/myvideos',
-    '/settings',
     '/subscriptions',
   ];
 
   @override
-  GetPage? onPageCalled(GetPage? page) {
-    // Check if current route is protected
-    if (page != null && protectedRoutes.contains(page.name)) {
+  RouteSettings? redirect(String? route) {
+    if (route != null && protectedRoutes.contains(route)) {
       // Check if user is authenticated
       if (!_authService.isAuthenticated.value) {
         // Show auth required dialog
         _showAuthRequiredDialog();
-        // Return null to prevent navigation
-        return null;
+        // Redirect safely back to home screen instead of returning null to avoid router crash
+        return const RouteSettings(name: '/');
       }
     }
-    return page;
+    return null;
   }
 
   /// Show dialog informing user to sign in

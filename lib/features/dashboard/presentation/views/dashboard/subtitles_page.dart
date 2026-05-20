@@ -278,7 +278,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                   children: [
                     IconButton(
                       icon: Icon(
-                        Icons.arrow_back_rounded,
+                        Icons.arrow_back_ios_new,
                         color: AppColors.brand,
                       ),
                       onPressed: () => controller.selectVideo(null),
@@ -779,6 +779,38 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                   );
                 }),
               ),
+
+              // View Requests Button
+              Obx(() => Stack(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.mark_chat_unread_outlined),
+                    color: AppColors.brand,
+                    tooltip: 'View Language Requests',
+                    onPressed: () => controller.showLanguageRequestsDialog(context),
+                  ),
+                  if (controller.languageRequests.isNotEmpty)
+                    Positioned(
+                      right: 8,
+                      top: 8,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: AppColors.error,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          '${controller.languageRequests.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              )),
 
               // Add Track Dropdown/Action
               IconButton(

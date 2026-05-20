@@ -132,7 +132,7 @@ class _CommentReportDialogState extends State<CommentReportDialog> {
                   children: [
                     Icon(
                       Icons.flag_outlined,
-                      color: Colors.red[400],
+                      color: AppColors.brand,
                       size: 24,
                     ),
                     const SizedBox(width: 12),

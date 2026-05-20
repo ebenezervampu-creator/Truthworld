@@ -20,7 +20,6 @@ enum ContentFilter {
 }
 
 enum SortFilter {
-  trending,
   popular,
   newest,
   oldest,
@@ -52,7 +51,7 @@ class SubscriptionController extends GetxController {
   final RxList<Channel> subscribedChannels = <Channel>[].obs;
 
   final RxString selectedContentFilter = ContentFilter.all.name.obs;
-  final RxString selectedSortFilter = SortFilter.trending.name.obs;
+  final RxString selectedSortFilter = SortFilter.popular.name.obs;
   final RxString selectedDurationFilter = DurationFilter.all.name.obs;
   final RxString selectedDateRangeFilter = DateRangeFilter.all.name.obs;
 
@@ -254,7 +253,7 @@ class SubscriptionController extends GetxController {
         final snapshot = await _firestore
             .collection('playlists')
             .where('channelId', whereIn: batch)
-            .where('isPublic', isEqualTo: true)
+            .where('visibility', isEqualTo: 'public')
             .orderBy('createdAt', descending: true)
             .limit(30)
             .get();
@@ -264,7 +263,7 @@ class SubscriptionController extends GetxController {
       final snapshot = await _firestore
           .collection('playlists')
           .where('channelId', whereIn: channelIds)
-          .where('isPublic', isEqualTo: true)
+          .where('visibility', isEqualTo: 'public')
           .orderBy('createdAt', descending: true)
           .limit(30)
           .get();
@@ -385,13 +384,10 @@ class SubscriptionController extends GetxController {
     // Apply sorting
     final sortFilter = SortFilter.values.firstWhere(
       (e) => e.name == selectedSortFilter.value,
-      orElse: () => SortFilter.trending,
+      orElse: () => SortFilter.popular,
     );
     
     switch (sortFilter) {
-      case SortFilter.trending:
-        filteredContent.sort((a, b) => b.algorithmicScore.compareTo(a.algorithmicScore));
-        break;
       case SortFilter.popular:
         filteredContent.sort((a, b) {
           final aEngagement = _getEngagementScore(a);
@@ -457,10 +453,13 @@ class SubscriptionController extends GetxController {
         return;
       }
 
-      await _firestore.collection('subscriptions').add({
+      final subDocId = '${channelId}_$currentUserId';
+      await _firestore.collection('subscriptions').doc(subDocId).set({
         'userId': currentUserId,
         'channelId': channelId,
         'timestamp': FieldValue.serverTimestamp(),
+        'subscribedAt': FieldValue.serverTimestamp(),
+        'notificationPreference': 'personalized',
       });
 
       await loadSubscriptions();
@@ -479,6 +478,10 @@ class SubscriptionController extends GetxController {
     if (currentUserId == null) return;
 
     try {
+      final subDocId = '${channelId}_$currentUserId';
+      await _firestore.collection('subscriptions').doc(subDocId).delete();
+
+      // Clean up any legacy randomly-named documents just in case
       final snapshot = await _firestore
           .collection('subscriptions')
           .where('userId', isEqualTo: currentUserId)
@@ -486,7 +489,9 @@ class SubscriptionController extends GetxController {
           .get();
 
       for (var doc in snapshot.docs) {
-        await doc.reference.delete();
+        if (doc.id != subDocId) {
+          await doc.reference.delete();
+        }
       }
 
       await loadSubscriptions();

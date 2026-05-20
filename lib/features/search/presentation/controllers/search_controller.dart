@@ -11,6 +11,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/search/domain/enums/search_state.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 
 /// SearchController: Business logic & debouncing layer
@@ -48,8 +49,8 @@ class SearchController extends GetxController {
   /// Search results (empty list when idle)
   final RxList<SearchResult> searchResults = <SearchResult>[].obs;
 
-  /// Loading state
-  final RxBool isLoading = false.obs;
+  /// UI state
+  final Rx<SearchState> state = SearchState.idle.obs;
 
   /// Error message (if any)
   final RxString errorMessage = ''.obs;
@@ -68,6 +69,17 @@ class SearchController extends GetxController {
   final RxInt currentPage = 0.obs;
   final RxBool hasMoreResults = false.obs;
   final RxBool isLoadingMore = false.obs;
+  final RxBool isSearching = false.obs;
+  final RxInt searchDurationMs = 0.obs;
+  
+  /// Search filters
+  final RxString selectedSearchType = 'all'.obs;
+  final RxString selectedSortBy = 'relevance'.obs;
+  final RxString selectedCategory = 'all'.obs;
+  final RxString selectedUploadDate = 'any'.obs; // 'any', 'today', 'week', 'month', 'year'
+  final RxString selectedDuration = 'any'.obs; // 'any', 'short', 'medium', 'long'
+  final RxBool filterPanelOpen = false.obs;
+  final RxList<String> trendingSearches = <String>[].obs;
 
   // ══════════════════════════════════════════════════════════════
   // PROBLEM 1 & 7: REQUEST CANCELLATION & MOBILE-ADAPTIVE DEBOUNCE
@@ -133,7 +145,8 @@ class SearchController extends GetxController {
     _initializeAdaptiveDebounce();
     _loadPersistentCache();
     _loadRecentSearches();
-    fetchTrendingSuggestions();
+    fetchPopularSuggestions();
+    warmupCache(); // Pre-warm cache with trending terms
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -329,8 +342,9 @@ class SearchController extends GetxController {
     int resultCount,
     int latencyMs,
     bool wasCached,
-    String? error,
-  ) async {
+    String? error, {
+    Map<String, dynamic>? extraParams,
+  }) async {
     try {
       await FirebaseAnalytics.instance.logEvent(
         name: 'search_executed',
@@ -338,9 +352,8 @@ class SearchController extends GetxController {
           'query': query,
           'results_count': resultCount,
           'latency_ms': latencyMs,
-          'was_cached': wasCached
-              ? 1
-              : 0, // 💡 Problem 8: Must be num or string
+          'was_cached': wasCached ? 1 : 0,
+          'fallback_used': extraParams?['fallback_used'] ?? 0, // Track primary vs fallback
           'error': error ?? 'none',
           'query_timestamp': DateTime.now().toIso8601String(),
         },
@@ -415,6 +428,7 @@ class SearchController extends GetxController {
     // If query is empty, clear results and stop
     if (query.isEmpty) {
       _clearResults();
+      state.value = SearchState.idle;
       return;
     }
 
@@ -435,6 +449,69 @@ class SearchController extends GetxController {
       _executeSearch(sanitized);
     });
   }
+
+  /// Set search query (public method for UI)
+  void setSearchQuery(String query) {
+    searchQuery.value = query;
+    onSearchChanged(query);
+  }
+
+  /// Add to recent searches (public method)
+  void addToRecentSearches(String query) {
+    _addToRecentSearches(query);
+  }
+
+  /// Load more results (alias for loadNextPage)
+  Future<void> loadMoreResults() async {
+    await loadNextPage();
+  }
+
+  /// Update search type filter
+  void updateSearchType(String type) {
+    selectedSearchType.value = type;
+    _applyFiltersAndSort();
+  }
+
+  /// Update sort by filter
+  void updateSortBy(String sort) {
+    selectedSortBy.value = sort;
+    _applyFiltersAndSort();
+  }
+
+  /// Update category filter
+  void updateCategory(String category) {
+    selectedCategory.value = category;
+    _applyFiltersAndSort();
+  }
+
+  /// Update upload date filter
+  void updateUploadDate(String date) {
+    selectedUploadDate.value = date;
+    _applyFiltersAndSort();
+  }
+
+  /// Update duration filter
+  void updateDuration(String duration) {
+    selectedDuration.value = duration;
+    _applyFiltersAndSort();
+  }
+
+  /// Toggle filter panel
+  void toggleFilterPanel() {
+    filterPanelOpen.value = !filterPanelOpen.value;
+  }
+
+  /// Get computed property for hasResults
+  bool get hasResults => searchResults.isNotEmpty;
+
+  /// Get computed property for shouldShowTrending
+  bool get shouldShowTrending => searchQuery.isEmpty && trendingSearches.isNotEmpty;
+
+  /// Get computed property for shouldShowRecent
+  bool get shouldShowRecent => searchQuery.isEmpty && recentSearches.isNotEmpty;
+
+  /// Get computed property for shouldShowSuggestions
+  bool get shouldShowSuggestions => searchQuery.isNotEmpty && suggestions.isNotEmpty && state.value == SearchState.loading;
 
   /// Execute the actual search query (called after debounce)
   Future<void> _executeSearch(String query) async {
@@ -458,7 +535,8 @@ class SearchController extends GetxController {
 
     // Show loading state only if not cached
     if (!_searchService.isCached(normalized)) {
-      isLoading.value = true;
+      state.value = SearchState.loading;
+      isSearching.value = true;
     }
 
     errorMessage.value = '';
@@ -480,9 +558,11 @@ class SearchController extends GetxController {
       // Update UI with results
       _allResults = results;
       _savePersistentCache(); // Save results to persistent disk cache
-      _loadPage(0); // Load first page
+      _applyFiltersAndSort(); // Apply filters and sort
 
-      isLoading.value = false;
+      state.value = searchResults.isEmpty ? SearchState.empty : SearchState.results;
+      isSearching.value = false;
+      searchDurationMs.value = stopwatch.elapsedMilliseconds;
 
       // Add to recent searches (Problem 3: Persistent)
       _addToRecentSearches(normalized);
@@ -511,7 +591,9 @@ class SearchController extends GetxController {
     } catch (e) {
       stopwatch.stop();
 
-      isLoading.value = false;
+      state.value = SearchState.error;
+      isSearching.value = false;
+      searchDurationMs.value = stopwatch.elapsedMilliseconds;
       errorMessage.value = 'Search failed. Please try again.';
 
       // Track error to analytics
@@ -529,6 +611,16 @@ class SearchController extends GetxController {
 
   /// Add query to recent searches (with deduplication)
   void _addToRecentSearches(String query) {
+    try {
+      final isPaused = GetStorage().read<bool>('search_history_paused') ?? false;
+      if (isPaused) {
+        debugPrint('📝 [Search] Recent searches skipped (Paused)');
+        return;
+      }
+    } catch (e) {
+      debugPrint('⚠️ [Search] Failed to check search history paused state: $e');
+    }
+
     // Remove if already exists (to avoid duplicates)
     recentSearches.removeWhere((q) => q.toLowerCase() == query.toLowerCase());
 
@@ -551,38 +643,112 @@ class SearchController extends GetxController {
     searchResults.clear();
     _allResults.clear();
     errorMessage.value = '';
-    isLoading.value = false;
+    state.value = SearchState.idle;
     searchQuery.value = '';
     currentPage.value = 0;
     hasMoreResults.value = false;
     debugPrint('🧹 [Search] Results cleared');
   }
 
-  // ══════════════════════════════════════════════════════════════
-  // PROBLEM 4: PAGINATION
-  // ══════════════════════════════════════════════════════════════
+  /// Apply filters and sorting to the fetched results
+  void _applyFiltersAndSort() {
+    List<SearchResult> filtered = List.from(_allResults);
+
+    // 1. Filter by Type
+    if (selectedSearchType.value != 'all') {
+      filtered = filtered.where((r) => r.type.toString().split('.').last == selectedSearchType.value).toList();
+    }
+
+    // 2. Filter by Upload Date
+    if (selectedUploadDate.value != 'any') {
+      final now = DateTime.now();
+      filtered = filtered.where((r) {
+        final diff = now.difference(r.createdAt.toDate());
+        switch (selectedUploadDate.value) {
+          case 'today':
+            return diff.inDays == 0;
+          case 'week':
+            return diff.inDays <= 7;
+          case 'month':
+            return diff.inDays <= 30;
+          case 'year':
+            return diff.inDays <= 365;
+          default:
+            return true;
+        }
+      }).toList();
+    }
+
+    // 3. Filter by Duration
+    if (selectedDuration.value != 'any') {
+      filtered = filtered.where((r) {
+        if (r.type != ResultType.video) return true;
+        final seconds = r.durationSeconds;
+        switch (selectedDuration.value) {
+          case 'short':
+            return seconds < 240; // < 4 mins
+          case 'medium':
+            return seconds >= 240 && seconds <= 1200; // 4-20 mins
+          case 'long':
+            return seconds > 1200; // > 20 mins
+          default:
+            return true;
+        }
+      }).toList();
+    }
+
+    // 4. Sort
+    filtered.sort((a, b) {
+      switch (selectedSortBy.value) {
+        case 'date':
+          return b.createdAt.compareTo(a.createdAt);
+        case 'views':
+          return b.views.compareTo(a.views);
+        case 'relevance':
+        default:
+          // Relevance is the default order from service (currently views+date)
+          return 0; 
+      }
+    });
+
+    // Update displayed results
+    currentPage.value = 0;
+    _displayedFilteredResults = filtered;
+    _loadPage(0);
+    
+    state.value = filtered.isEmpty ? SearchState.empty : SearchState.results;
+  }
+
+  List<SearchResult> _displayedFilteredResults = [];
 
   /// Load specific page of results
   void _loadPage(int page) {
     final startIndex = page * resultsPerPage;
     final endIndex = (page + 1) * resultsPerPage;
 
-    if (startIndex >= _allResults.length) {
-      searchResults.clear();
+    if (startIndex >= _displayedFilteredResults.length) {
+      if (page == 0) {
+        searchResults.clear();
+      }
       hasMoreResults.value = false;
       return;
     }
 
-    final endIndexCapped = endIndex > _allResults.length
-        ? _allResults.length
+    final endIndexCapped = endIndex > _displayedFilteredResults.length
+        ? _displayedFilteredResults.length
         : endIndex;
 
-    searchResults.value = _allResults.sublist(startIndex, endIndexCapped);
-    hasMoreResults.value = endIndexCapped < _allResults.length;
+    final newItems = _displayedFilteredResults.sublist(startIndex, endIndexCapped);
+    if (page == 0) {
+      searchResults.assignAll(newItems);
+    } else {
+      searchResults.addAll(newItems);
+    }
+    hasMoreResults.value = endIndexCapped < _displayedFilteredResults.length;
 
     debugPrint(
       '📄 [Search] Loaded page $page '
-      '(${searchResults.length} results shown, more: ${hasMoreResults.value})',
+      '(${searchResults.length} total results shown, more: ${hasMoreResults.value})',
     );
   }
 
@@ -610,11 +776,22 @@ class SearchController extends GetxController {
     debugPrint('🧹 [Search] Search cleared');
   }
 
-  /// Quick search from recent searches
-  void searchFromRecent(String query) {
-    debugPrint('⚡ [Search] Quick search from recent: "$query"');
-    searchQuery.value = query;
-    _executeSearch(query);
+  /// Quick search from suggestion
+  void searchFromSuggestion(String suggestion) {
+    debugPrint('⚡ [Search] Quick search from suggestion: "$suggestion"');
+    searchQuery.value = suggestion;
+    _executeSearch(suggestion);
+  }
+
+  /// Reset all filters to defaults
+  void resetFilters() {
+    selectedSearchType.value = 'all';
+    selectedSortBy.value = 'relevance';
+    selectedCategory.value = 'all';
+    selectedUploadDate.value = 'any';
+    selectedDuration.value = 'any';
+    debugPrint('🔄 [Search] Filters reset to defaults');
+    _applyFiltersAndSort();
   }
 
   /// Clear recent searches history
@@ -624,12 +801,22 @@ class SearchController extends GetxController {
     debugPrint('🗑️ [Search] Recent searches cleared');
   }
 
-  /// Load trending suggestions (Problem 9: Resource Cleanup)
-  Future<void> fetchTrendingSuggestions() async {
+  /// Remove individual recent search
+  void removeRecentSearch(String query) {
+    recentSearches.remove(query);
+    _saveRecentSearches();
+    debugPrint('🗑️ [Search] Removed recent search: "$query"');
+  }
+
+  /// Load popular suggestions (Problem 9: Resource Cleanup)
+  Future<void> fetchPopularSuggestions() async {
     try {
-      debugPrint('📈 [Search] Loading trending suggestions...');
-      final trending = await _searchService.getTrendingSuggestions();
-      suggestions.value = trending;
+      debugPrint('📈 [Search] Loading popular suggestions...');
+      final popular = await _searchService.getPopularSuggestions();
+      suggestions.value = popular;
+      
+      // Set trending searches
+      trendingSearches.value = popular.take(5).toList();
 
       // Also fetch some recommended videos for the empty state
       final recommended = await _searchService.getRecommended();

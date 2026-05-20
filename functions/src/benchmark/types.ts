@@ -115,10 +115,9 @@ export interface BenchmarkMetrics {
 
   // Nuance Recognition
   nuance: {
-    mostlyCorrectRecognition: number;   // % of mostly_correct claims caught
-    outdatedRecognition:       number;   // % of outdated claims caught
-    needsContextRecognition:   number;   // % of needs_context claims caught
-    unsupportedRecognition:    number;   // % of unsupported claims caught
+    mostlyCorrectRecognition: number;   // % of mostly_true claims caught
+    inconclusiveRecognition:  number;   // % of inconclusive claims caught
+    limitedSupportRecognition: number;  // % of limited_support claims caught
   };
 
   // Cost & Performance

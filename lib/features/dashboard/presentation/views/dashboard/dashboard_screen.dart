@@ -32,6 +32,9 @@ import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/features/analytics/presentation/pages/watch_time_page.dart';
 import 'package:truthworld/features/analytics/presentation/pages/views_page.dart';
 import 'package:truthworld/features/analytics/presentation/pages/subscribers_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/reports_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/studio_notifications_page.dart';
+
 
 class AnalyticsData {
   final DateTime date;
@@ -41,7 +44,7 @@ class AnalyticsData {
 }
 
 // ==========================================================================
-// MODERNIZED DASHBOARD SCREEN - NOW WITH LIVE ANALYTICS AND SYNCFUSION CHARTS
+// DASHBOARD SCREEN - NOW WITH LIVE ANALYTICS AND SYNCFUSION CHARTS
 // ==========================================================================
 
 class DashboardController extends GetxController {
@@ -67,6 +70,9 @@ class DashboardController extends GetxController {
   StreamSubscription? _analyticsSubscription;
   StreamSubscription? _channelSubscription;
   StreamSubscription? _copyrightSubscription;
+
+  Channel? _latestChannel;
+  Map<String, dynamic>? _latestSummary;
 
   /// Get filtered videos based on search query
   List<Video> get filteredVideos {
@@ -120,26 +126,55 @@ class DashboardController extends GetxController {
     });
   }
 
+  void _updateChannelStats() {
+    final Map<String, dynamic> stats = {};
+
+    // 1. Start with summary data if available
+    if (_latestSummary != null) {
+      stats['views'] = _formatNumber((_latestSummary!['totalViews'] as num?)?.toInt() ?? 0);
+      stats['watchTime'] = _formatWatchTime(_latestSummary!['totalWatchTimeMinutes']);
+      stats['subscribers'] = _formatNumber((_latestSummary!['subscribers'] as num?)?.toInt() ?? 0);
+      stats['revenue'] = _latestSummary!['revenue'] ?? '\$0.00';
+      stats['viewsChange'] = _latestSummary!['viewsChange'] ?? '+0%';
+      stats['watchTimeChange'] = _latestSummary!['watchTimeChange'] ?? '+0%';
+      stats['subscribersChange'] = _latestSummary!['subscribersChange'] ?? '+0';
+      stats['revenueChange'] = _latestSummary!['revenueChange'] ?? '+\$0.00';
+    } else {
+      stats['revenue'] = '\$0.00';
+      stats['viewsChange'] = '+0%';
+      stats['watchTimeChange'] = '+0%';
+      stats['subscribersChange'] = '+0';
+      stats['revenueChange'] = '+\$0.00';
+    }
+
+    // 2. Override with real-time channel totals if channel is loaded
+    if (_latestChannel != null) {
+      stats['views'] = _formatNumber(_latestChannel!.viewCount);
+      stats['subscribers'] = _formatNumber(_latestChannel!.subscriberCount);
+      stats['watchTime'] = _formatWatchTime(_latestChannel!.metrics.totalWatchTimeMinutes);
+    }
+
+    // 3. Fallback view count from recent videos if still zero or null
+    final viewsVal = stats['views'];
+    if ((viewsVal == '0' || viewsVal == null) && recentVideos.isNotEmpty) {
+      int totalViews = recentVideos.fold(0, (acc, v) => acc + v.viewCount);
+      if (totalViews > 0) {
+        stats['views'] = _formatNumber(totalViews);
+      }
+    }
+
+    if (stats.isNotEmpty) {
+      channelStats.value = stats;
+    }
+  }
+
   void _loadChannelStats() {
     // 1. Listen to the main channel document for real-time totals (subs, views)
     final channelRef = _firestore.collection('channels').doc(channelId);
     _channelSubscription = channelRef.snapshots().listen((snapshot) {
       if (snapshot.exists) {
-        final channel = Channel.fromDocumentSnapshot(snapshot);
-        // Only update if summary stats are missing or zeros
-        if (channelStats.isEmpty || (channelStats['views'] == '0' && channel.viewCount > 0)) {
-          channelStats.value = {
-            ...channelStats,
-            'views': _formatNumber(channel.viewCount),
-            'subscribers': _formatNumber(channel.subscriberCount),
-            'watchTime': _formatWatchTime(channel.metrics.totalWatchTimeMinutes),
-            'revenue': channelStats['revenue'] ?? '\$0.00',
-            'viewsChange': channelStats['viewsChange'] ?? '+0%',
-            'watchTimeChange': channelStats['watchTimeChange'] ?? '+0%',
-            'subscribersChange': channelStats['subscribersChange'] ?? '+0',
-            'revenueChange': channelStats['revenueChange'] ?? '+\$0.00',
-          };
-        }
+        _latestChannel = Channel.fromDocumentSnapshot(snapshot);
+        _updateChannelStats();
       }
     });
 
@@ -152,17 +187,8 @@ class DashboardController extends GetxController {
     _statsSubscription = summaryRef.snapshots().listen(
       (snapshot) {
         if (snapshot.exists) {
-          final data = snapshot.data() as Map<String, dynamic>;
-          channelStats.value = {
-            'views': _formatNumber(data['totalViews'] ?? 0),
-            'watchTime': _formatWatchTime(data['totalWatchTimeMinutes'] ?? 0),
-            'subscribers': _formatNumber(data['subscribers'] ?? 0),
-            'revenue': '\$0.00',
-            'viewsChange': '+0%',
-            'watchTimeChange': '+0%',
-            'subscribersChange': '+0',
-            'revenueChange': '+\$0.00',
-          };
+          _latestSummary = snapshot.data() as Map<String, dynamic>;
+          _updateChannelStats();
         }
       },
       onError: (error) {
@@ -183,16 +209,8 @@ class DashboardController extends GetxController {
             .map((doc) => Video.fromDocumentSnapshot(doc))
             .toList();
             
-        // Fallback view count from recent videos if still zero
-        if ((channelStats['views'] == '0' || channelStats['views'] == null) && recentVideos.isNotEmpty) {
-          int totalViews = recentVideos.fold(0, (acc, v) => acc + v.viewCount);
-          if (totalViews > 0) {
-            channelStats.value = {
-              ...channelStats,
-              'views': _formatNumber(totalViews),
-            };
-          }
-        }
+        // Trigger stats update to apply fallback if needed
+        _updateChannelStats();
       },
       onError: (error) {
         errorMessage.value = "Failed to load recent videos.";
@@ -540,7 +558,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         children: [
           IconButton(
             icon: Icon(
-              Icons.arrow_back_ios_new_rounded,
+              Icons.arrow_back_ios_new,
               size: 20,
               color: isDarkMode ? Colors.white70 : AppColors.textSecondary,
             ),
@@ -1263,6 +1281,13 @@ class _DashboardScreenState extends State<DashboardScreen>
         'target': 4,
       },
       {
+        'icon': Icons.notifications_active_rounded,
+        'label': 'Notifications',
+        'color': Color(0xFFEC4899),
+        'action': 'select',
+        'target': 11,
+      },
+      {
         'icon': Icons.people_rounded,
         'label': 'Audience',
         'color': Color(0xFF14B8A6),
@@ -1313,6 +1338,13 @@ class _DashboardScreenState extends State<DashboardScreen>
         'color': Color(0xFFFF9800),
         'action': 'select',
         'target': 13,
+      },
+      {
+        'icon': Icons.flag_rounded,
+        'label': 'Reports',
+        'color': Color(0xFFEF4444),
+        'action': 'select',
+        'target': 14,
       },
     ];
 
@@ -1617,6 +1649,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   );
                 }
                 return _buildNoChannelSelected(isDarkMode);
+              case 11:
+                return const StudioNotificationsPage();
               case 12:
                 final currentChannel = channel;
                 if (currentChannel != null) {
@@ -1642,6 +1676,16 @@ class _DashboardScreenState extends State<DashboardScreen>
                     Get.put(VideoRatingController(channelId: channelId));
                   }
                   return const VideoRatingPage();
+                }
+                return _buildNoChannelSelected(isDarkMode);
+              case 14:
+                final currentChannel = channel;
+                if (currentChannel != null) {
+                  final channelId = (currentChannel is Map
+                          ? currentChannel['id']
+                          : (currentChannel as DocumentSnapshot).id)
+                      as String;
+                  return ReportsPage(channelId: channelId);
                 }
                 return _buildNoChannelSelected(isDarkMode);
               default:

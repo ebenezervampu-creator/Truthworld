@@ -29,9 +29,31 @@ class DownloadsController extends GetxController {
     errorMessage.value = '';
     try {
       final data = await getAllVideosData();
-      videos.value = data
+      final allVideos = data
           .map((e) => OfflineVideo.fromJson(e['meta'] as Map<String, dynamic>))
           .toList();
+
+      // Clean up sample/mock videos and filter actual ones
+      final actualVideos = <OfflineVideo>[];
+      for (var video in allVideos) {
+        final titleLower = video.title.toLowerCase();
+        final channelLower = video.channelName.toLowerCase();
+        final idLower = video.id.toLowerCase();
+
+        if (titleLower.contains('sample') ||
+            titleLower.contains('mock') ||
+            channelLower.contains('sample') ||
+            channelLower.contains('mock') ||
+            idLower.contains('sample') ||
+            idLower.contains('mock')) {
+          // Delete from IndexedDB to permanently clear sample/mock videos
+          await deleteVideo(video.id);
+        } else {
+          actualVideos.add(video);
+        }
+      }
+
+      videos.value = actualVideos;
 
       // Sort locally based on downloadedAt
       videos.sort((a, b) => b.downloadedAt.compareTo(a.downloadedAt));
@@ -109,6 +131,20 @@ class DownloadsController extends GetxController {
 
   List<OfflineVideo> get filteredVideos {
     var filtered = videos.toList();
+
+    // Additional safety: exclude any sample/mock videos that might be lingering
+    filtered = filtered.where((v) {
+      final titleLower = v.title.toLowerCase();
+      final channelLower = v.channelName.toLowerCase();
+      final idLower = v.id.toLowerCase();
+      return !titleLower.contains('sample') &&
+             !titleLower.contains('mock') &&
+             !channelLower.contains('sample') &&
+             !channelLower.contains('mock') &&
+             !idLower.contains('sample') &&
+             !idLower.contains('mock');
+    }).toList();
+
     if (searchQuery.isNotEmpty) {
       filtered = filtered
           .where(

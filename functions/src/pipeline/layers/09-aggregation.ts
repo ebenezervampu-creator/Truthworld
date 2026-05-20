@@ -455,6 +455,7 @@ export class AggregationLayer {
               correct: cred.factCheckStats.correct,
               incorrect: cred.factCheckStats.incorrect,
               unverifiable: cred.factCheckStats.unverifiable,
+              extractionPartial: cred.factCheckStats.extractionPartial || false
             } : null,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
@@ -554,6 +555,7 @@ export class AggregationLayer {
               correct: cred.factCheckStats.correct,
               incorrect: cred.factCheckStats.incorrect,
               unverifiable: cred.factCheckStats.unverifiable,
+              extractionPartial: cred.factCheckStats.extractionPartial || false
             };
           }
           

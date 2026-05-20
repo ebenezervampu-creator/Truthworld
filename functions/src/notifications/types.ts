@@ -1,9 +1,9 @@
 export type NotificationType =
   | "ranking_change"
   | "milestone_achieved"
-  | "new_video_followed"
+  | "new_video_subscribed"
   | "trust_score_change"
-  | "new_follower"
+  | "new_subscriber"
   | "weekly_digest"
   | "tier_promotion"
   | "tier_downgrade"

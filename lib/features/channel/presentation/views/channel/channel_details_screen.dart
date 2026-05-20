@@ -17,19 +17,19 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 
 // ==========================================================================
-// YOUTUBE THEME COLORS
+// TRUTHWORLD THEME COLORS
 // ==========================================================================
-const Color ytBackground = AppColors.bgPage;
-const Color ytSurface = Color(0xFF1A1A1A);
-const Color ytSurfaceLight = Color(0xFF262626);
-const Color ytTextPrimary = Colors.white;
-const Color ytTextSecondary = AppColors.textSecondary;
-const Color ytTextTertiary = AppColors.textTertiary;
-const Color ytSubscribeBtn = Colors.white;
-const Color ytSubscribeBtnText = AppColors.bgPage;
-const Color ytSubscribedBtn = Color(0xFF262626);
-const Color ytLinkBlue = AppColors.textLink;
-const Color ytBorder = AppColors.searchBorder;
+const Color background = AppColors.bgPage;
+const Color surface = Color(0xFF1A1A1A);
+const Color surfaceLight = Color(0xFF262626);
+const Color textPrimary = Colors.white;
+const Color textSecondary = AppColors.textSecondary;
+const Color textTertiary = AppColors.textTertiary;
+const Color subscribeBtn = Colors.white;
+const Color subscribeBtnText = AppColors.bgPage;
+const Color subscribedBtn = Color(0xFF262626);
+const Color linkBlue = AppColors.textLink;
+const Color border = AppColors.searchBorder;
 
 // ==========================================================================
 // RESPONSIVE BREAKPOINTS
@@ -58,7 +58,7 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    return Container(color: ytBackground, child: child);
+    return Container(color: background, child: child);
   }
 
   @override
@@ -67,7 +67,7 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
 }
 
 // ==========================================================================
-// CHANNEL DETAILS PAGE - YOUTUBE STYLE
+// CHANNEL DETAILS PAGE - TRUTHWORLD STYLE
 // ==========================================================================
 class ChannelDetailsPage extends GetView<ChannelController> {
   final Channel? channel;
@@ -81,7 +81,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     final Channel? targetChannel = channel ?? (args != null && args['channel'] is Channel ? args['channel'] : null);
     if (targetChannel == null) {
       return Scaffold(
-        backgroundColor: ytBackground,
+        backgroundColor: background,
         body: _buildErrorState('Channel data is missing.', () => Get.back()),
       );
     }
@@ -104,8 +104,8 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     return Obx(() {
       if (controller.selectedChannel.value == null) {
         return Scaffold(
-          backgroundColor: ytBackground,
-          body: Center(child: CircularProgressIndicator(color: ytTextPrimary)),
+          backgroundColor: background,
+          body: Center(child: CircularProgressIndicator(color: textPrimary)),
         );
       }
       final channel = controller.selectedChannel.value;
@@ -134,7 +134,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
 
   Widget _buildDesktopLayout(BuildContext context, Channel channel) {
     return Scaffold(
-      backgroundColor: ytBackground,
+      backgroundColor: background,
       body: Row(
         children: [
           Expanded(
@@ -149,14 +149,14 @@ class ChannelDetailsPage extends GetView<ChannelController> {
 
   Widget _buildTabletLayout(BuildContext context, Channel channel) {
     return Scaffold(
-      backgroundColor: ytBackground,
+      backgroundColor: background,
       body: _buildMainContent(context, channel, isTablet: true),
     );
   }
 
   Widget _buildMobileLayout(BuildContext context, Channel channel) {
     return Scaffold(
-      backgroundColor: ytBackground,
+      backgroundColor: background,
       body: _buildMainContent(context, channel),
     );
   }
@@ -168,7 +168,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     bool isTablet = false,
   }) {
     return DefaultTabController(
-      length: 8,
+      length: 4,
       child: NestedScrollView(
         controller: controller.scrollController,
         headerSliverBuilder: (context, innerBoxIsScrolled) {
@@ -191,7 +191,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
             SliverPersistentHeader(
               pinned: true,
               delegate: _SliverTabBarDelegate(
-                _buildYouTubeTabBar(),
+                _buildTabBar(),
                 maxHeight: 48.0,
               ),
             ),
@@ -257,18 +257,18 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                     imageUrl: channel.bannerImageUrl,
                     fit: BoxFit.cover,
                     placeholder: (context, url) => Container(
-                      color: ytSurface,
+                      color: surface,
                       child: Center(
                         child: CircularProgressIndicator(
-                          color: ytTextSecondary,
+                          color: textSecondary,
                           strokeWidth: 2,
                         ),
                       ),
                     ),
                     errorWidget: (context, url, error) => Container(
-                      color: ytSurface,
+                      color: surface,
                       child: Center(
-                        child: Icon(Icons.image_not_supported, color: ytTextTertiary),
+                        child: Icon(Icons.image_not_supported, color: textTertiary),
                       ),
                     ),
                   ),
@@ -283,7 +283,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                         shape: BoxShape.circle,
                       ),
                       child: IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
                         tooltip: 'Back',
                         onPressed: () {
                           if (isDashboard && Get.isRegistered<HomeController>()) {
@@ -316,7 +316,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     final avatarSize = isDesktop ? 120.0 : (isTablet ? 100.0 : 80.0);
 
     return Container(
-      color: ytBackground,
+      color: background,
       padding: EdgeInsets.symmetric(
         horizontal: horizontalPadding,
         vertical: 16,
@@ -334,25 +334,25 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                   height: avatarSize,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: ytSurfaceLight, width: 1),
+                    border: Border.all(color: surfaceLight, width: 1),
                   ),
                   child: ClipOval(
                     child: CachedNetworkImage(
                       imageUrl: channel.avatarUrl,
                       fit: BoxFit.cover,
                       placeholder: (context, url) => Container(
-                        color: ytSurface,
+                        color: surface,
                         child: Icon(
                           Icons.person,
-                          color: ytTextTertiary,
+                          color: textTertiary,
                           size: avatarSize * 0.4,
                         ),
                       ),
                       errorWidget: (context, url, error) => Container(
-                        color: ytSurface,
+                        color: surface,
                         child: Icon(
                           Icons.person,
-                          color: ytTextTertiary,
+                          color: textTertiary,
                           size: avatarSize * 0.4,
                         ),
                       ),
@@ -373,7 +373,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                             style: GoogleFonts.roboto(
                               fontSize: isDesktop ? 32 : (isTablet ? 28 : 24),
                               fontWeight: FontWeight.w700,
-                              color: ytTextPrimary,
+                              color: textPrimary,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -382,7 +382,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                           SizedBox(width: 8),
                           Icon(
                             Icons.check_circle,
-                            color: ytTextSecondary,
+                            color: textSecondary,
                             size: isDesktop ? 24 : 20,
                           ),
                         ],
@@ -397,7 +397,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                         '$handle • ${controller.formattedSubscribers} subscribers • ${channel.videoCount} videos',
                         style: GoogleFonts.roboto(
                           fontSize: isDesktop ? 14 : 12,
-                          color: ytTextSecondary,
+                          color: textSecondary,
                         ),
                       );
                     }),
@@ -441,14 +441,14 @@ class ChannelDetailsPage extends GetView<ChannelController> {
           children: [
             TextSpan(
               text: text,
-              style: GoogleFonts.roboto(fontSize: 12, color: ytTextSecondary),
+              style: GoogleFonts.roboto(fontSize: 12, color: textSecondary),
             ),
             if (text.length > 80)
               TextSpan(
                 text: ' ...more',
                 style: GoogleFonts.roboto(
                   fontSize: 12,
-                  color: ytTextPrimary,
+                  color: textPrimary,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -471,12 +471,12 @@ class ChannelDetailsPage extends GetView<ChannelController> {
         children: [
           Text(
             domain,
-            style: GoogleFonts.roboto(fontSize: 12, color: ytLinkBlue),
+            style: GoogleFonts.roboto(fontSize: 12, color: linkBlue),
           ),
           if (channel.socialLinks?.isNotEmpty == true) ...[
             Text(
               ' and ${channel.socialLinks!.length} more links',
-              style: GoogleFonts.roboto(fontSize: 12, color: ytTextSecondary),
+              style: GoogleFonts.roboto(fontSize: 12, color: textSecondary),
             ),
           ],
         ],
@@ -499,7 +499,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
               Container(
                 height: 36,
                 decoration: BoxDecoration(
-                  color: isSubscribed ? ytSubscribedBtn : ytSubscribeBtn,
+                  color: isSubscribed ? subscribedBtn : subscribeBtn,
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Material(
@@ -527,8 +527,8 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                                 ? Icons.notifications_active
                                 : Icons.notifications,
                             color: isSubscribed
-                                ? ytTextPrimary
-                                : ytSubscribeBtnText,
+                                ? textPrimary
+                                : subscribeBtnText,
                             size: 18,
                           ),
                           SizedBox(width: 6),
@@ -538,8 +538,8 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
                               color: isSubscribed
-                                  ? ytTextPrimary
-                                  : ytSubscribeBtnText,
+                                  ? textPrimary
+                                  : subscribeBtnText,
                             ),
                           ),
                         ],
@@ -554,7 +554,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                   height: 36,
                   width: 36,
                   decoration: BoxDecoration(
-                    color: ytSubscribedBtn,
+                    color: subscribedBtn,
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: Material(
@@ -564,7 +564,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                       borderRadius: BorderRadius.circular(18),
                       child: Icon(
                         Icons.expand_more,
-                        color: ytTextPrimary,
+                        color: textPrimary,
                         size: 20,
                       ),
                     ),
@@ -578,7 +578,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
         Container(
           height: 36,
           decoration: BoxDecoration(
-            color: ytSurfaceLight,
+            color: surfaceLight,
             borderRadius: BorderRadius.circular(18),
           ),
           child: Material(
@@ -590,14 +590,14 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                 padding: EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: [
-                    Icon(Icons.share, color: ytTextPrimary, size: 18),
+                    Icon(Icons.share, color: textPrimary, size: 18),
                     SizedBox(width: 6),
                     Text(
                       'Share',
                       style: GoogleFonts.roboto(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
-                        color: ytTextPrimary,
+                        color: textPrimary,
                       ),
                     ),
                   ],
@@ -611,20 +611,20 @@ class ChannelDetailsPage extends GetView<ChannelController> {
   }
 
   // ==========================================================================
-  // YOUTUBE TAB BAR
+  // TAB BAR
   // ==========================================================================
-  Widget _buildYouTubeTabBar() {
+  Widget _buildTabBar() {
     final tabs = ['Home', 'Videos', 'Playlists', 'Posts'];
 
     return Container(
-      color: ytBackground,
+      color: background,
       child: TabBar(
         isScrollable: true,
-        indicatorColor: ytTextPrimary,
+        indicatorColor: textPrimary,
         indicatorWeight: 2,
         indicatorSize: TabBarIndicatorSize.label,
-        labelColor: ytTextPrimary,
-        unselectedLabelColor: ytTextSecondary,
+        labelColor: textPrimary,
+        unselectedLabelColor: textSecondary,
         labelStyle: GoogleFonts.roboto(
           fontSize: 14,
           fontWeight: FontWeight.w500,
@@ -642,7 +642,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     showDialog(
       context: context,
       builder: (context) => Dialog(
-        backgroundColor: ytSurface,
+        backgroundColor: surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Padding(
           padding: EdgeInsets.all(24),
@@ -654,14 +654,14 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                 style: GoogleFonts.roboto(
                   fontSize: 18,
                   fontWeight: FontWeight.w500,
-                  color: ytTextPrimary,
+                  color: textPrimary,
                 ),
               ),
               SizedBox(height: 8),
               Text(
                 "You will no longer see this channel's content in your feed.",
                 textAlign: TextAlign.center,
-                style: GoogleFonts.roboto(fontSize: 14, color: ytTextSecondary),
+                style: GoogleFonts.roboto(fontSize: 14, color: textSecondary),
               ),
               SizedBox(height: 24),
               Row(
@@ -672,7 +672,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                       child: Text(
                         'Cancel',
                         style: GoogleFonts.roboto(
-                          color: ytTextPrimary,
+                          color: textPrimary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -686,8 +686,8 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                         controller.toggleSubscription(channel.channelId);
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: ytTextPrimary,
-                        foregroundColor: ytBackground,
+                        backgroundColor: textPrimary,
+                        foregroundColor: background,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
@@ -721,8 +721,8 @@ class ChannelDetailsPage extends GetView<ChannelController> {
 
     return RefreshIndicator(
       onRefresh: () => controller.loadInitialVideos(),
-      color: ytTextPrimary,
-      backgroundColor: ytSurface,
+      color: textPrimary,
+      backgroundColor: surface,
       child: SingleChildScrollView(
         child: Padding(
           padding: EdgeInsets.symmetric(
@@ -767,8 +767,8 @@ class ChannelDetailsPage extends GetView<ChannelController> {
 
     return RefreshIndicator(
       onRefresh: () => controller.loadInitialVideos(),
-      color: ytTextPrimary,
-      backgroundColor: ytSurface,
+      color: textPrimary,
+      backgroundColor: surface,
       child: SingleChildScrollView(
         child: Padding(
           padding: EdgeInsets.symmetric(
@@ -857,7 +857,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
       style: GoogleFonts.roboto(
         fontSize: 20,
         fontWeight: FontWeight.w700,
-        color: ytTextPrimary,
+        color: textPrimary,
       ),
     );
   }
@@ -880,7 +880,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            color: ytSurface,
+            color: surface,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -893,9 +893,9 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                     imageUrl: video.thumbnailUrl,
                     fit: BoxFit.cover,
                     placeholder: (context, url) =>
-                        Container(color: ytSurfaceLight),
+                        Container(color: surfaceLight),
                     errorWidget: (context, url, error) =>
-                        Icon(Icons.error, color: ytTextSecondary),
+                        Icon(Icons.error, color: textSecondary),
                   ),
                 ),
               ),
@@ -911,7 +911,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                       style: GoogleFonts.roboto(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
-                        color: ytTextPrimary,
+                        color: textPrimary,
                       ),
                     ),
                     SizedBox(height: 4),
@@ -919,7 +919,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                       '${_formatViews(video.views)} views • ${timeago.format(video.uploadedAt.toDate())}',
                       style: GoogleFonts.roboto(
                         fontSize: 12,
-                        color: ytTextSecondary,
+                        color: textSecondary,
                       ),
                     ),
                   ],
@@ -989,12 +989,12 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                     height: (isDesktop ? 280 : 160) * 9 / 16,
                     fit: BoxFit.cover,
                     placeholder: (context, url) =>
-                        Container(color: ytSurfaceLight),
+                        Container(color: surfaceLight),
                     errorWidget: (context, url, error) => Container(
-                      color: ytSurfaceLight,
+                      color: surfaceLight,
                       child: Icon(
                         Icons.play_circle_outline,
-                        color: ytTextSecondary,
+                        color: textSecondary,
                       ),
                     ),
                   ),
@@ -1030,7 +1030,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.roboto(
-                      color: ytTextPrimary,
+                      color: textPrimary,
                       fontSize: isDesktop ? 16 : 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -1039,7 +1039,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                   Text(
                     '${_formatViews(video.views)} views • ${timeago.format(video.uploadedAt.toDate())}',
                     style: GoogleFonts.roboto(
-                      color: ytTextSecondary,
+                      color: textSecondary,
                       fontSize: 12,
                     ),
                   ),
@@ -1066,16 +1066,16 @@ class ChannelDetailsPage extends GetView<ChannelController> {
             onSelected: (selected) {
               if (selected) controller.setVideoSortFilter(filter);
             },
-            backgroundColor: ytSurface,
-            selectedColor: ytTextPrimary,
+            backgroundColor: surface,
+            selectedColor: textPrimary,
             labelStyle: GoogleFonts.roboto(
-              color: isSelected ? ytBackground : ytTextPrimary,
+              color: isSelected ? background : textPrimary,
               fontSize: 14,
             ),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(8),
               side: BorderSide(
-                color: isSelected ? ytTextPrimary : ytSurfaceLight,
+                color: isSelected ? textPrimary : surfaceLight,
               ),
             ),
           );
@@ -1156,7 +1156,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
-                  color: ytSurface,
+                  color: surface,
                 ),
                 child: Stack(
                   children: [
@@ -1222,12 +1222,12 @@ class ChannelDetailsPage extends GetView<ChannelController> {
               style: GoogleFonts.roboto(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: ytTextPrimary,
+                color: textPrimary,
               ),
             ),
             Text(
               'View full playlist',
-              style: GoogleFonts.roboto(fontSize: 12, color: ytTextSecondary),
+              style: GoogleFonts.roboto(fontSize: 12, color: textSecondary),
             ),
           ],
         ),
@@ -1272,21 +1272,21 @@ class ChannelDetailsPage extends GetView<ChannelController> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 64, color: ytTextTertiary),
+          Icon(icon, size: 64, color: textTertiary),
           SizedBox(height: 16),
           Text(
             title,
             style: GoogleFonts.roboto(
               fontSize: 20,
               fontWeight: FontWeight.w500,
-              color: ytTextPrimary,
+              color: textPrimary,
             ),
           ),
           SizedBox(height: 8),
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: GoogleFonts.roboto(fontSize: 14, color: ytTextSecondary),
+            style: GoogleFonts.roboto(fontSize: 14, color: textSecondary),
           ),
         ],
       ),
@@ -1295,8 +1295,8 @@ class ChannelDetailsPage extends GetView<ChannelController> {
 
   Widget _buildShimmerGrid({bool isDesktop = false, bool isTablet = false}) {
     return Shimmer.fromColors(
-      baseColor: ytSurface,
-      highlightColor: ytSurfaceLight,
+      baseColor: surface,
+      highlightColor: surfaceLight,
       child: ListView.builder(
         shrinkWrap: true,
         physics: NeverScrollableScrollPhysics(),
@@ -1309,7 +1309,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                 width: isDesktop ? 280 : 160,
                 height: (isDesktop ? 280 : 160) * 9 / 16,
                 decoration: BoxDecoration(
-                  color: ytSurfaceLight,
+                  color: surfaceLight,
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
@@ -1318,9 +1318,9 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(height: 16, color: ytSurfaceLight),
+                    Container(height: 16, color: surfaceLight),
                     SizedBox(height: 8),
-                    Container(height: 12, width: 100, color: ytSurfaceLight),
+                    Container(height: 12, width: 100, color: surfaceLight),
                   ],
                 ),
               ),
@@ -1333,27 +1333,27 @@ class ChannelDetailsPage extends GetView<ChannelController> {
 
   Widget _buildChannelSidebar(BuildContext context, Channel channel) {
     return Container(
-      color: ytSurface,
+      color: surface,
       child: Column(
         children: [
           Container(
             padding: EdgeInsets.all(20),
             child: Row(
               children: [
-                Icon(Icons.analytics_outlined, color: ytTextPrimary, size: 24),
+                Icon(Icons.analytics_outlined, color: textPrimary, size: 24),
                 SizedBox(width: 12),
                 Text(
                   'Stats',
                   style: GoogleFonts.roboto(
                     fontSize: 18,
                     fontWeight: FontWeight.w500,
-                    color: ytTextPrimary,
+                    color: textPrimary,
                   ),
                 ),
               ],
             ),
           ),
-          Divider(color: ytBorder, height: 1),
+          Divider(color: border, height: 1),
           Expanded(
             child: SingleChildScrollView(
               padding: EdgeInsets.all(16),
@@ -1392,12 +1392,12 @@ class ChannelDetailsPage extends GetView<ChannelController> {
   }) {
     return Row(
       children: [
-        Icon(icon, color: ytTextSecondary, size: 20),
+        Icon(icon, color: textSecondary, size: 20),
         SizedBox(width: 12),
         Expanded(
           child: Text(
             label,
-            style: GoogleFonts.roboto(fontSize: 14, color: ytTextSecondary),
+            style: GoogleFonts.roboto(fontSize: 14, color: textSecondary),
           ),
         ),
         Text(
@@ -1405,7 +1405,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
           style: GoogleFonts.roboto(
             fontSize: 14,
             fontWeight: FontWeight.w500,
-            color: ytTextPrimary,
+            color: textPrimary,
           ),
         ),
       ],
@@ -1417,19 +1417,19 @@ class ChannelDetailsPage extends GetView<ChannelController> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, size: 48, color: ytTextSecondary),
+          Icon(Icons.error_outline, size: 48, color: textSecondary),
           SizedBox(height: 16),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: GoogleFonts.roboto(fontSize: 16, color: ytTextSecondary),
+            style: GoogleFonts.roboto(fontSize: 16, color: textSecondary),
           ),
           SizedBox(height: 16),
           ElevatedButton(
             onPressed: onRetry,
             style: ElevatedButton.styleFrom(
-              backgroundColor: ytTextPrimary,
-              foregroundColor: ytBackground,
+              backgroundColor: textPrimary,
+              foregroundColor: background,
             ),
             child: Text('Retry'),
           ),
@@ -1462,7 +1462,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
   void _showNotificationsDialog(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: ytSurface,
+      backgroundColor: surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
@@ -1475,7 +1475,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: ytTextTertiary,
+                color: textTertiary,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1485,23 +1485,23 @@ class ChannelDetailsPage extends GetView<ChannelController> {
               style: GoogleFonts.roboto(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,
-                color: ytTextPrimary,
+                color: textPrimary,
               ),
             ),
             SizedBox(height: 16),
             ListTile(
-              leading: Icon(Icons.notifications_active, color: ytTextPrimary),
+              leading: Icon(Icons.notifications_active, color: textPrimary),
               title: Text(
                 'All notifications',
-                style: GoogleFonts.roboto(color: ytTextPrimary),
+                style: GoogleFonts.roboto(color: textPrimary),
               ),
               onTap: () => Navigator.pop(context),
             ),
             ListTile(
-              leading: Icon(Icons.notifications_none, color: ytTextPrimary),
+              leading: Icon(Icons.notifications_none, color: textPrimary),
               title: Text(
                 'None',
-                style: GoogleFonts.roboto(color: ytTextPrimary),
+                style: GoogleFonts.roboto(color: textPrimary),
               ),
               onTap: () => Navigator.pop(context),
             ),

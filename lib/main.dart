@@ -1,8 +1,7 @@
 import 'dart:async';
-// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'dart:js' as js;
 import 'package:flutter/foundation.dart';
-import 'package:truthworld/core/utils/url_strategy/url_strategy.dart';
+import 'package:truthworld/core/utils/url_strategy/url_strategy_stub.dart'
+    if (dart.library.js_util) 'package:truthworld/core/utils/url_strategy/url_strategy_web.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -16,8 +15,11 @@ import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/core/services/app_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
+import 'package:truthworld/core/services/fcm_notification_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/miniplayer_overlay_manager.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:web/web.dart' as web;
 
 /// Global error handler for production
 void _handleFlutterError(FlutterErrorDetails details) {
@@ -43,154 +45,77 @@ void _handleFlutterError(FlutterErrorDetails details) {
 
 /// Initialize and run the application with proper error handling
 void main() {
-  // Catch errors outside of Flutter's error handling
+  // 1. 🚀 CRITICAL: Set URL strategy before ANY other operation on Web
+  // This must happen at the very entry point to prevent routing issues.
+  if (kIsWeb) {
+    try {
+      setPathUrlStrategy();
+    } catch (e) {
+      // Ignore if already set (common during hot restart)
+      debugPrint('URL strategy note: $e');
+    }
+  }
+
+  // 2. 🔥 Catch errors outside of Flutter's synchronous error handling
   runZonedGuarded(
     () async {
-      // CRITICAL: Initialize Flutter bindings first inside the zone!
-      // This must be the very first line to avoid "Binding has not yet been initialized" on Web
-      // and "Zone mismatch" error when using runZonedGuarded.
+      // Step A: Engine Initialization
       WidgetsFlutterBinding.ensureInitialized();
 
-      // Enable the Flutter semantics tree for Lighthouse Accessibility score.
+      // Enable accessibility semantics for high Lighthouse scores on Web
       if (kIsWeb) {
         SemanticsBinding.instance.ensureSemantics();
       }
 
-      // Initialize logger first - before anything else
+      // Step B: Core Infrastructure (Logger)
       logger.init(
         enableCrashlytics: !kDebugMode,
-        minLogLevel: kDebugMode ? 2 : 4, // Verbose in debug, Info in production
+        minLogLevel: kDebugMode ? 2 : 4,
       );
-
       FlutterError.onError = _handleFlutterError;
+      logger.info('❅ Startup Sequence Initiated', tag: 'Startup');
 
       try {
-        // Initialize Firebase with error handling
-        try {
-          await Firebase.initializeApp(
-            options: DefaultFirebaseOptions.currentPlatform,
-          );
-          logger.info('Firebase initialized successfully', tag: 'Startup');
+        // Step C: Parallel High-Priority Inits
+        // We start storage and Firebase in parallel to minimize blocking time
+        final storageInit = GetStorage.init();
 
-          // Use path strategy for clean URLs (removes # from URLs)
-          try {
-            setPathUrlStrategy();
-          } catch (e) {
-            logger.warning('URL strategy error: $e', tag: 'Startup');
-          }
-        } on FirebaseException catch (e) {
-          logger.error(
-            'Firebase initialization error: ${e.code} - ${e.message}',
-            tag: 'Firebase',
-            error: e,
-          );
-          rethrow;
-        } catch (e) {
-          logger.error(
-            'Firebase initialization unknown error',
-            tag: 'Firebase',
-            error: e,
-          );
-          rethrow;
-        }
+        await Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        );
+        logger.info('✓ Firebase Ready', tag: 'Startup');
 
-        // Run the app ASAP after Firebase is ready
+        // Step D: Unified Service Registration
+        // Using putAsync ensures dependencies are resolved in order
+        await Get.putAsync(() => AuthService().init(), permanent: true);
+        await Get.putAsync(() => AppService().init(), permanent: true);
+        await Get.putAsync(() => ConnectivityService().init(), permanent: true);
+        await Get.putAsync(() => FcmNotificationService().init(), permanent: true);
+
+        // Wait for storage as well
+        await storageInit;
+        logger.info('✓ Core Services Online', tag: 'Startup');
+
+        // Step E: Launch Application
         runApp(const Truthworld());
-
-        // Initialize local storage and services in parallel in the background
-        Future.wait([
-          GetStorage.init().catchError((e) {
-            logger.warning('GetStorage error: $e');
-            return false;
-          }),
-          Get.put(AuthService(), permanent: true).init(),
-          Get.put(AppService(), permanent: true).init(),
-          Get.put(ConnectivityService(), permanent: true).init(),
-        ]).then((_) {
-          logger.info('All background services initialized', tag: 'Startup');
-        });
-
-        // Notify that app is ready (for JavaScript in index.html)
-        // We use addPostFrameCallback to ensure the first frame is rendered
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _notifyAppReady();
-        });
+        logger.info('🚀 Application Launched', tag: 'Startup');
       } catch (error, stackTrace) {
         logger.wtf(
-          'Fatal error during initialization',
+          'FATAL STARTUP ERROR',
           error: error,
           stackTrace: stackTrace,
           tag: 'Startup',
         );
-        _notifyAppError('Initialization failed: $error');
-
-        // Show error UI
-        runApp(
-          MaterialApp(
-            home: Scaffold(
-              body: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.error_outline,
-                      size: 64,
-                      color: Colors.red,
-                    ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'Application Error',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Failed to initialize: ${error.toString()}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                    const SizedBox(height: 30),
-                    ElevatedButton(
-                      onPressed: () {
-                        // Restart the app
-                        runApp(const Truthworld());
-                      },
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
+        _notifyAppError('Init failed: $error');
+        runApp(AppErrorWidget(error: error.toString()));
       }
     },
     (error, stackTrace) {
-      // Catch ALL errors outside of Flutter's zone
-      debugPrint('Zone error caught: $error');
+      debugPrint('💥 Unhandled Global Error: $error');
       debugPrintStack(stackTrace: stackTrace);
-      _notifyAppError('Unhandled error: $error');
+      _notifyAppError('Global fault: $error');
     },
   );
-}
-
-void _notifyAppReady() {
-  if (!kIsWeb) return;
-  
-  try {
-    // Direct call to global appReady function defined in index.html
-    js.context.callMethod('appReady');
-    debugPrint('App ready notification sent to browser');
-  } catch (e) {
-    // Fallback if appReady is not directly accessible
-    try {
-      js.context.callMethod('eval', ["if(window.appReady) window.appReady();"]);
-    } catch (e2) {
-      debugPrint('Note: appReady notification failed: $e2');
-    }
-  }
 }
 
 /// Notify JavaScript about app errors
@@ -202,6 +127,104 @@ void _notifyAppError(String message) {
     }
   } catch (e) {
     debugPrint('Could not notify app error: $e');
+  }
+}
+
+/// Premium Error UI Widget
+class AppErrorWidget extends StatelessWidget {
+  final String error;
+  const AppErrorWidget({super.key, required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: buildAppTheme(),
+      home: Scaffold(
+        backgroundColor: const Color(0xFF0F0F0F),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.error_outline_rounded,
+                  size: 80,
+                  color: Color(0xFFDC143C),
+                ).animate().shake(duration: 500.ms).fadeIn(),
+                const SizedBox(height: 24),
+                const Text(
+                  'SYSTEM FAULT',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 4,
+                    color: Colors.white,
+                  ),
+                ).animate().slideY(begin: 0.2, end: 0),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.1),
+                    ),
+                  ),
+                  child: Text(
+                    error,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ).animate().fadeIn(delay: 200.ms),
+                const SizedBox(height: 48),
+                SizedBox(
+                  width: 220,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      if (kIsWeb) {
+                        web.window.location.reload();
+                      } else {
+                        // Re-run the entire initialization sequence
+                        main();
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFDC143C),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(28),
+                      ),
+                      elevation: 8,
+                      shadowColor: const Color(
+                        0xFFDC143C,
+                      ).withValues(alpha: 0.5),
+                    ),
+                    child: const Text(
+                      'REBOOT SYSTEM',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                ).animate().scale(delay: 400.ms, curve: Curves.elasticOut),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -224,11 +247,19 @@ class Truthworld extends StatelessWidget {
       getPages: AppPages.routes,
       builder: (context, child) {
         return MediaQuery(
-          data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(1.0)),
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(1.0)),
           child: Stack(
             children: [
               child!,
-              const MiniplayerOverlayManager(),
+              Overlay(
+                initialEntries: [
+                  OverlayEntry(
+                    builder: (context) => const MiniplayerOverlayManager(),
+                  ),
+                ],
+              ),
             ],
           ),
         );
@@ -236,7 +267,3 @@ class Truthworld extends StatelessWidget {
     );
   }
 }
-
-
-
-

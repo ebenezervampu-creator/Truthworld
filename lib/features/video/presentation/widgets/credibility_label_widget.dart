@@ -114,14 +114,14 @@ class CredibilityLabelWidget extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 24),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.red.withValues(alpha: 0.15),
+        color: AppColors.brand.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+        border: Border.all(color: AppColors.brand.withValues(alpha: 0.3)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+          const Icon(Icons.warning_amber_rounded, color: AppColors.brand),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -131,7 +131,7 @@ class CredibilityLabelWidget extends StatelessWidget {
                   'SAFETY VETO APPLIED',
                   style: GoogleFonts.outfit(
                     fontWeight: FontWeight.bold,
-                    color: Colors.redAccent,
+                    color: AppColors.brand,
                     fontSize: 14,
                   ),
                 ),
@@ -236,7 +236,7 @@ class CredibilityLabelWidget extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.3),
+                          color: AppColors.brand.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
@@ -244,7 +244,7 @@ class CredibilityLabelWidget extends StatelessWidget {
                           style: GoogleFonts.roboto(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: Colors.redAccent,
+                            color: AppColors.brand,
                           ),
                         ),
                       ),
@@ -622,7 +622,7 @@ class CredibilityLabelWidget extends StatelessWidget {
           children: [
             _buildStatBox('Claims', stats.totalClaims.toString()),
             _buildStatBox('Correct', stats.correct.toString(), color: Colors.greenAccent),
-            _buildStatBox('Incorrect', stats.incorrect.toString(), color: Colors.redAccent),
+            _buildStatBox('Incorrect', stats.incorrect.toString(), color: AppColors.brand),
             _buildStatBox('Unverified', stats.unverifiable.toString(), color: Colors.orangeAccent),
           ],
         ),
@@ -707,7 +707,7 @@ class CredibilityLabelWidget extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'This automated report is based on cross-referencing transcripts against institutional databases. TruthWorld maintains doctrinal neutrality in all faith-based scoring.',
+                  'This automated report is based on cross-referencing transcripts against institutional databases. Truthworld maintains doctrinal neutrality in all faith-based scoring.',
                   style: GoogleFonts.roboto(fontSize: 10, color: Colors.white38),
                 ),
               ),
@@ -723,8 +723,8 @@ class CredibilityLabelWidget extends StatelessWidget {
     if (score >= 75) return const Color(0xFFA3E635);
     if (score >= 60) return Colors.yellowAccent;
     if (score >= 45) return Colors.orangeAccent;
-    if (score >= 30) return Colors.redAccent;
-    return const Color(0xFF991B1B);
+    if (score >= 30) return AppColors.brand;
+    return AppColors.brand.withValues(alpha: 0.8);
   }
 }
 

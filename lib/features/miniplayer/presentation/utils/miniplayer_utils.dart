@@ -11,7 +11,7 @@ import 'package:truthworld/core/services/logger_service.dart';
 /// These are convenience wrappers around `MiniplayerController.to`
 /// for use from places that don't hold a direct controller reference.
 /// 
-/// Implements YouTube-style miniplayer with professional exception handling.
+/// Implements TruthWorld-style miniplayer with professional exception handling.
 class MiniplayerNavigationHelper {
   MiniplayerNavigationHelper._();
 
@@ -79,8 +79,8 @@ class MiniplayerNavigationHelper {
       );
 
       if (autoShow) {
-        // Collapse to show the miniplayer (not expanded)
-        ctrl.collapse();
+        // Ensure miniplayer is in collapsed mode (floating card)
+        ctrl.mode.value = MiniplayerMode.collapsed;
       }
 
       logger.info(
@@ -234,9 +234,9 @@ class MiniplayerNavigationHelper {
       // Step 4: Wait for miniplayer to finish loading in background
       await showMiniplayer;
 
-      // Step 5: Auto-collapse miniplayer to bottom bar
+      // Step 5: Ensure miniplayer is in collapsed mode (floating card)
       if (miniplayerCtrl.mode.value != MiniplayerMode.dismissed) {
-        miniplayerCtrl.collapse();
+        miniplayerCtrl.mode.value = MiniplayerMode.collapsed;
       }
 
       logger.info(

@@ -3,7 +3,7 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
-/// Custom Cache Manager for TruthWorld
+/// Custom Cache Manager for Truthworld
 ///
 /// Implements optimized caching for images and media with:
 /// - Long retention (30 days for immutable content)
@@ -11,7 +11,7 @@ import 'dart:io';
 /// - SQLite database for metadata
 /// - Automatic cleanup of expired items
 class CustomCacheManager {
-  static const String key = 'truthworld_image_cache';
+  static const String key = 'Truthworld_image_cache';
   static CacheManager? _instance;
 
   static CacheManager get instance {
@@ -98,7 +98,7 @@ class CustomCacheManager {
 ///
 /// Specialized cache for video thumbnails with aggressive caching.
 class ThumbnailCacheManager {
-  static const String key = 'truthworld_thumbnail_cache';
+  static const String key = 'Truthworld_thumbnail_cache';
   static CacheManager? _instance;
 
   static CacheManager get instance {

@@ -1,22 +1,43 @@
 import 'search_result.dart';
 
+/// Cache entry with timestamp for TTL
+class _CacheEntry {
+  final List<SearchResult> results;
+  final DateTime timestamp;
+
+  _CacheEntry(this.results, this.timestamp);
+}
+
 /// In-memory cache for search queries
 ///
 /// Benefits:
 /// - <50ms response for repeated searches
 /// - Reduces Firestore hits by ~70%
 /// - Simple LRU-like eviction
+/// - TTL-based invalidation for freshness
 class SearchCache {
   static const int maxCacheSize = 50;
-  final Map<String, List<SearchResult>> _cache = {};
+  static const Duration defaultTTL = Duration(minutes: 15);
+  
+  final Map<String, _CacheEntry> _cache = {};
   final List<String> _accessOrder = [];
 
-  /// Get cached results (if exist)
+  /// Get cached results (if exist and not expired)
   List<SearchResult>? get(String query) {
     final normalized = query.toLowerCase().trim();
+    
     if (_cache.containsKey(normalized)) {
+      final entry = _cache[normalized]!;
+      
+      // Check TTL
+      if (DateTime.now().difference(entry.timestamp) > defaultTTL) {
+        _cache.remove(normalized);
+        _accessOrder.remove(normalized);
+        return null;
+      }
+      
       _updateAccessOrder(normalized);
-      return _cache[normalized];
+      return entry.results;
     }
     return null;
   }
@@ -24,7 +45,7 @@ class SearchCache {
   /// Store results in cache
   void put(String query, List<SearchResult> results) {
     final normalized = query.toLowerCase().trim();
-    _cache[normalized] = results;
+    _cache[normalized] = _CacheEntry(results, DateTime.now());
     _updateAccessOrder(normalized);
 
     // Simple LRU: evict least recently used if cache too large
@@ -50,22 +71,15 @@ class SearchCache {
   Map<String, dynamic> getStats() => {
     'size': _cache.length,
     'maxSize': maxCacheSize,
-    'hitRate': _calculateHitRate(),
+    'ttl': defaultTTL.inMinutes,
   };
 
-  double _calculateHitRate() {
-    // Placeholder for hit rate calculation
-    // In production, track hits/misses in controller
-    return 0.0;
-  }
-
-  /// Returns true if query is cached
+  /// Returns true if query is cached and not expired
   bool isCached(String query) {
-    return _cache.containsKey(query.toLowerCase().trim());
+    final normalized = query.toLowerCase().trim();
+    if (!_cache.containsKey(normalized)) return false;
+    
+    final entry = _cache[normalized]!;
+    return DateTime.now().difference(entry.timestamp) <= defaultTTL;
   }
 }
-
-
-
-
-

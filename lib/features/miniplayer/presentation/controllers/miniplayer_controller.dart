@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -29,19 +28,8 @@ class MiniplayerController extends GetxController
   // SINGLETON ACCESSOR
   // ═══════════════════════════════════════════════════════════════════════════
 
-  static MiniplayerController get to {
-    try {
-      return Get.find<MiniplayerController>(tag: 'miniplayer');
-    } catch (e) {
-      // If not registered, register it on the fly (failsafe)
-      debugPrint('MiniplayerController.to: Controller not found, registering failsafe.');
-      return Get.put<MiniplayerController>(
-        MiniplayerController(),
-        tag: 'miniplayer',
-        permanent: true,
-      );
-    }
-  }
+  static MiniplayerController get to =>
+      Get.find<MiniplayerController>(tag: 'miniplayer');
 
   // ═══════════════════════════════════════════════════════════════════════════
   // REACTIVE STATE — granular, minimal-rebuild design
@@ -84,7 +72,7 @@ class MiniplayerController extends GetxController
   final Rxn<Offset> dragOffset = Rxn<Offset>();
 
   /// Whether the pointer is currently hovering the miniplayer (web/desktop).
-  /// Used to fade controls in/out like YouTube.
+  /// Used to fade controls in/out like TruthWorld.
   final RxBool isHovering = false.obs;
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -116,12 +104,14 @@ class MiniplayerController extends GetxController
     _connectivitySubscription = Get.find<ConnectivityService>()
         .onConnectivityChanged
         .listen((results) {
-      final isConnected = results.any((r) => r != ConnectivityResult.none);
-      if (isConnected && error.value.isNotEmpty) {
-        debugPrint('[MiniplayerController] 🌐 Internet restored. Attempting recovery...');
-        attemptRecovery();
-      }
-    });
+          final isConnected = results.any((r) => r != ConnectivityResult.none);
+          if (isConnected && error.value.isNotEmpty) {
+            debugPrint(
+              '[MiniplayerController] 🌐 Internet restored. Attempting recovery...',
+            );
+            attemptRecovery();
+          }
+        });
   }
 
   @override
@@ -221,7 +211,8 @@ class MiniplayerController extends GetxController
       final errorMsg = e.toString();
       if (errorMsg.contains('MEDIA_ERR_SRC_NOT_SUPPORTED') ||
           errorMsg.contains('Format error')) {
-        error.value = 'Video format not supported by browser. Please use H.264 encoded videos.';
+        error.value =
+            'Video format not supported by browser. Please use H.264 encoded videos.';
       } else {
         error.value = 'Failed to load video: $e';
       }
@@ -276,65 +267,29 @@ class MiniplayerController extends GetxController
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // VIEW STATE TRANSITIONS (expand / collapse / drag)
+  // VIEW STATE TRANSITIONS (dismiss / pan)
   // ═══════════════════════════════════════════════════════════════════════════
 
-  void expand() {
-    if (mode.value == MiniplayerMode.expanded) return;
-    mode.value = MiniplayerMode.expanded;
-    dragProgress.value = 1.0;
-  }
-
-  void collapse() {
-    if (mode.value == MiniplayerMode.collapsed) return;
-    mode.value = MiniplayerMode.collapsed;
-    dragProgress.value = 0.0;
-  }
-
-  void onDragUpdate(double delta, double screenHeight) {
-    if (mode.value == MiniplayerMode.dismissed) return;
-    mode.value = MiniplayerMode.dragging;
-    // Delta is negative when dragging up (expanding)
-    final newProgress =
-        (dragProgress.value - delta / screenHeight).clamp(0.0, 1.0);
-    dragProgress.value = newProgress;
-  }
-
-  void onDragEnd() {
-    if (mode.value != MiniplayerMode.dragging) return;
-    
-    // If dragging down from collapsed state past dismiss threshold, dismiss
-    if (dragProgress.value < 0.15 && mode.value == MiniplayerMode.dragging) {
-      // Check if we were collapsed and dragged down
-      final previousMode = mode.value;
-      if (previousMode == MiniplayerMode.dragging && dragProgress.value < MiniplayerConfig.dismissThreshold) {
-        dismiss();
-        return;
-      }
-    }
-    
-    // Otherwise, snap to nearest state based on snap threshold
-    if (dragProgress.value > MiniplayerConfig.snapThreshold) {
-      expand();
-    } else {
-      collapse();
-    }
-  }
-
   // ───────────────────────────────────────────────────────────────────────────
-  // Free-positioning drag (YouTube-style: card can be moved anywhere)
+  // Free-positioning drag (TruthWorld-style: card can be moved anywhere)
   // ───────────────────────────────────────────────────────────────────────────
 
   /// Translate the floating card by [delta] pixels, keeping it on-screen.
   /// [cardSize] is the card's logical size and [screenSize] the viewport.
   void onPanCard(Offset delta, Size cardSize, Size screenSize) {
-    if (mode.value != MiniplayerMode.collapsed &&
-        mode.value != MiniplayerMode.dragging) {
+    if (mode.value != MiniplayerMode.collapsed) {
       return;
     }
-    final current = dragOffset.value ?? _defaultDockOffset(cardSize, screenSize);
-    final maxX = (screenSize.width - cardSize.width).clamp(0.0, double.infinity);
-    final maxY = (screenSize.height - cardSize.height).clamp(0.0, double.infinity);
+    final current =
+        dragOffset.value ?? _defaultDockOffset(cardSize, screenSize);
+    final maxX = (screenSize.width - cardSize.width).clamp(
+      0.0,
+      double.infinity,
+    );
+    final maxY = (screenSize.height - cardSize.height).clamp(
+      0.0,
+      double.infinity,
+    );
     dragOffset.value = Offset(
       (current.dx + delta.dx).clamp(0.0, maxX),
       (current.dy + delta.dy).clamp(0.0, maxY),
@@ -346,12 +301,15 @@ class MiniplayerController extends GetxController
   Offset effectiveOffset(Size cardSize, Size screenSize) {
     final stored = dragOffset.value;
     if (stored == null) return _defaultDockOffset(cardSize, screenSize);
-    final maxX = (screenSize.width - cardSize.width).clamp(0.0, double.infinity);
-    final maxY = (screenSize.height - cardSize.height).clamp(0.0, double.infinity);
-    return Offset(
-      stored.dx.clamp(0.0, maxX),
-      stored.dy.clamp(0.0, maxY),
+    final maxX = (screenSize.width - cardSize.width).clamp(
+      0.0,
+      double.infinity,
     );
+    final maxY = (screenSize.height - cardSize.height).clamp(
+      0.0,
+      double.infinity,
+    );
+    return Offset(stored.dx.clamp(0.0, maxX), stored.dy.clamp(0.0, maxY));
   }
 
   Offset _defaultDockOffset(Size cardSize, Size screenSize) {
@@ -376,10 +334,10 @@ class MiniplayerController extends GetxController
     mode.value = MiniplayerMode.transitioning;
 
     // Navigate first, then dismiss so the miniplayer doesn't flash
-    Get.toNamed('/videoscreen', arguments: {
-      'video': video,
-      'resumePosition': pos.inMilliseconds,
-    });
+    Get.toNamed(
+      '/videoscreen',
+      arguments: {'video': video, 'resumePosition': pos.inMilliseconds},
+    );
 
     // Short delay to let the navigation start before disposing
     Future.delayed(const Duration(milliseconds: 100), dismiss);
@@ -461,16 +419,15 @@ class MiniplayerController extends GetxController
     final currentPos = currentPosition.value;
     final wasPlaying = isPlaying.value;
 
-    debugPrint('[MiniplayerController] 🔄 Attempting recovery from ${currentPos.inSeconds}s...');
+    debugPrint(
+      '[MiniplayerController] 🔄 Attempting recovery from ${currentPos.inSeconds}s...',
+    );
 
     error.value = '';
     isBuffering.value = true;
 
     try {
-      await showWithVideo(
-        currentVideo.value!,
-        resumeFromPosition: currentPos,
-      );
+      await showWithVideo(currentVideo.value!, resumeFromPosition: currentPos);
 
       if (wasPlaying) {
         _vpc?.play();
@@ -489,14 +446,8 @@ class MiniplayerController extends GetxController
   }
 
   /// Check if the miniplayer is in a healthy state.
-  bool get isHealthy => 
-      !_isClosed && 
-      error.value.isEmpty && 
+  bool get isHealthy =>
+      !_isClosed &&
+      error.value.isEmpty &&
       (mode.value == MiniplayerMode.dismissed || _vpc != null);
 }
-
-
-
-
-
-

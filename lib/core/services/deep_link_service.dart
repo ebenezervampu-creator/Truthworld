@@ -8,7 +8,7 @@ import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
-/// Centralized deep-link service for TruthWorld.
+/// Centralized deep-link service for Truthworld.
 ///
 /// Single source of truth for:
 /// - Share URL generation (video, channel, playlist)
@@ -25,7 +25,7 @@ class DeepLinkService {
   // CONSTANTS
   // ═══════════════════════════════════════════════════════════════════
 
-  static const String baseUrl = 'https://www.truthworld.in';
+  static const String baseUrl = 'https://www.Truthworld.in';
   static const Duration _loadTimeout = Duration(seconds: 10);
   static const int _maxRetries = 2;
 
@@ -36,15 +36,15 @@ class DeepLinkService {
   // ═══════════════════════════════════════════════════════════════════
 
   /// Generates a shareable video URL.
-  /// Pattern: https://www.truthworld.in/watch/{videoId}
+  /// Pattern: https://www.Truthworld.in/watch/{videoId}
   static String videoUrl(String videoId) => '$baseUrl/watch/$videoId';
 
   /// Generates a shareable channel URL.
-  /// Pattern: https://www.truthworld.in/channel/{channelId}
+  /// Pattern: https://www.Truthworld.in/channel/{channelId}
   static String channelUrl(String channelId) => '$baseUrl/channel/$channelId';
 
   /// Generates a shareable playlist URL.
-  /// Pattern: https://www.truthworld.in/playlist/{playlistId}
+  /// Pattern: https://www.Truthworld.in/playlist/{playlistId}
   static String playlistUrl(String playlistId) =>
       '$baseUrl/playlist/$playlistId';
 
@@ -59,7 +59,7 @@ class DeepLinkService {
       // ignore: deprecated_member_use
       await SharePlus.instance.share(
         ShareParams(
-          text: 'Check out "$videoTitle" on TruthWorld:\n$url',
+          text: 'Check out "$videoTitle" on Truthworld:\n$url',
           subject: videoTitle,
         ),
       );
@@ -73,13 +73,13 @@ class DeepLinkService {
     try {
       final url = channelUrl(channelId);
       final text = channelName != null
-          ? 'Check out "$channelName" on TruthWorld:\n$url'
-          : 'Check out this channel on TruthWorld:\n$url';
+          ? 'Check out "$channelName" on Truthworld:\n$url'
+          : 'Check out this channel on Truthworld:\n$url';
       // ignore: deprecated_member_use
       await SharePlus.instance.share(
         ShareParams(
           text: text,
-          subject: channelName ?? 'TruthWorld Channel',
+          subject: channelName ?? 'Truthworld Channel',
         ),
       );
     } catch (e) {
@@ -94,7 +94,7 @@ class DeepLinkService {
       // ignore: deprecated_member_use
       await SharePlus.instance.share(
         ShareParams(
-          text: 'Check out "$playlistName" playlist on TruthWorld:\n$url',
+          text: 'Check out "$playlistName" playlist on Truthworld:\n$url',
           subject: playlistName,
         ),
       );

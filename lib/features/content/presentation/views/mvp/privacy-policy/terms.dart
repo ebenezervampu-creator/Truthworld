@@ -182,7 +182,7 @@ class _TermsAndConditionsPageState extends State<TermsAndConditionsPage> {
             leading: isDesktop
                 ? IconButton(
                     icon: Icon(
-                      Icons.arrow_back_ios_new_rounded,
+                      Icons.arrow_back_ios_new,
                       color: Theme.of(context).iconTheme.color,
                     ),
                     onPressed: () => Get.back(),

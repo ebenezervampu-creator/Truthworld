@@ -62,6 +62,7 @@ class MainController extends BaseController {
   // ========================================================================
 
   final videoLikes = <String, int>{}.obs;
+  final videoDislikes = <String, int>{}.obs;
   final isReporting = false.obs;
 
   // Client-side guard for rapid tapping (race condition prevention)
@@ -313,42 +314,31 @@ class MainController extends BaseController {
     try {
       final videoRef = _firestore.collection(_videosCollection).doc(videoId);
       final likeRef = videoRef.collection('likes').doc(userId);
-      final dislikeRef = videoRef.collection('dislikes').doc(userId);
-      // Reverse index for efficient "get user's liked videos" queries
       final userLikedRef = _firestore
           .collection('users')
           .doc(userId)
           .collection('likedVideos')
           .doc(videoId);
 
-      await _firestore.runTransaction((transaction) async {
-        final likeDoc = await transaction.get(likeRef);
-        final dislikeDoc = await transaction.get(dislikeRef);
+      // Check current state for optimistic UI or local state management
+      final likeDoc = await likeRef.get();
 
-        // Idempotency: check if operation already done by another concurrent request
-        // This is handled naturally by Firestore transactions, but we add explicit checks
-        if (likeDoc.exists) {
-          // Unlike - remove from both collections
-          transaction.delete(likeRef);
-          transaction.delete(userLikedRef);
-          transaction.update(videoRef, {'likeCount': FieldValue.increment(-1)});
-        } else {
-          // Like - add to both collections
-          transaction.set(likeRef, {'timestamp': FieldValue.serverTimestamp()});
-          transaction.set(userLikedRef, {
-            'timestamp': FieldValue.serverTimestamp(),
-          });
-          transaction.update(videoRef, {'likeCount': FieldValue.increment(1)});
-
-          // Remove dislike if exists
-          if (dislikeDoc.exists) {
-            transaction.delete(dislikeRef);
-            transaction.update(videoRef, {
-              'dislikeCount': FieldValue.increment(-1),
-            });
-          }
-        }
-      });
+      if (likeDoc.exists) {
+        // Unlike
+        await likeRef.delete();
+        await userLikedRef.delete();
+      } else {
+        // Like
+        await likeRef.set({
+          'timestamp': FieldValue.serverTimestamp(),
+          'videoId': videoId,
+          'userId': userId,
+        });
+        await userLikedRef.set({
+          'timestamp': FieldValue.serverTimestamp(),
+          'videoId': videoId,
+        });
+      }
 
       if (kDebugMode) {
         debugPrint('[Like] Video $videoId toggled successfully');
@@ -382,43 +372,21 @@ class MainController extends BaseController {
 
     try {
       final videoRef = _firestore.collection(_videosCollection).doc(videoId);
-      final likeRef = videoRef.collection('likes').doc(userId);
       final dislikeRef = videoRef.collection('dislikes').doc(userId);
-      final userLikedRef = _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('likedVideos')
-          .doc(videoId);
 
-      await _firestore.runTransaction((transaction) async {
-        final likeDoc = await transaction.get(likeRef);
-        final dislikeDoc = await transaction.get(dislikeRef);
+      final dislikeDoc = await dislikeRef.get();
 
-        if (dislikeDoc.exists) {
-          // Remove dislike
-          transaction.delete(dislikeRef);
-          transaction.update(videoRef, {
-            'dislikeCount': FieldValue.increment(-1),
-          });
-        } else {
-          // Add dislike
-          transaction.set(dislikeRef, {
-            'timestamp': FieldValue.serverTimestamp(),
-          });
-          transaction.update(videoRef, {
-            'dislikeCount': FieldValue.increment(1),
-          });
-
-          // Remove like if exists (from both collections)
-          if (likeDoc.exists) {
-            transaction.delete(likeRef);
-            transaction.delete(userLikedRef);
-            transaction.update(videoRef, {
-              'likeCount': FieldValue.increment(-1),
-            });
-          }
-        }
-      });
+      if (dislikeDoc.exists) {
+        // Remove dislike
+        await dislikeRef.delete();
+      } else {
+        // Add dislike
+        await dislikeRef.set({
+          'timestamp': FieldValue.serverTimestamp(),
+          'videoId': videoId,
+          'userId': userId,
+        });
+      }
 
       if (kDebugMode) {
         debugPrint('[Dislike] Video $videoId toggled successfully');
@@ -1492,8 +1460,6 @@ class MainController extends BaseController {
       final reportData = {
         'videoId': videoId,
         'channelId': channelId,
-        'userId': user.uid,
-        'userEmail': user.email ?? 'unknown',
         'reason': {
           'id': reason.toLowerCase().replaceAll(' ', '_'),
           'label': reason,
@@ -1503,10 +1469,15 @@ class MainController extends BaseController {
         'createdAt': FieldValue.serverTimestamp(),
       };
 
+      // 1. Store in root collection for global moderation
+      await _firestore.collection(_reportsCollection).add(reportData);
+
+      // 2. Store in channel-specific subcollection for creator dashboard
       await _firestore
-          .collection(_reportsCollection)
-          .add(reportData)
-          .timeout(_defaultTimeout);
+          .collection('channels')
+          .doc(channelId)
+          .collection('reports')
+          .add(reportData);
 
       showSuccess(
         'Report submitted successfully. Thank you for your feedback.',
@@ -1514,6 +1485,9 @@ class MainController extends BaseController {
 
       if (kDebugMode) {
         debugPrint('MainController: Report submitted for video $videoId');
+        debugPrint(
+          'MainController: Subcollection path: channels/$channelId/reports',
+        );
       }
     } on app_exceptions.TimeoutException {
       rethrow;

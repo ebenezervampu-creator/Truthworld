@@ -11,9 +11,9 @@ import '../models/search_cache.dart';
 /// - Sort results locally
 /// - Manage cache
 ///
-/// Query Strategy (low-latency MVP):
+/// Query Strategy (Latest Native Firestore Search):
 /// 1. Check cache (instant)
-/// 2. Primary: keyword search (fast)
+/// 2. Primary: keyword search (fast, native indexing)
 /// 3. Fallback: prefix search (if no results)
 /// 4. Sort locally
 /// 5. Cache result
@@ -87,35 +87,131 @@ class SearchService {
 
   /// 🎬 VIDEO SEARCH (INTERNAL - with fallback strategy, cost-effective)
   Future<List<SearchResult>> _searchVideos(String query) async {
-    // 1. Try keywords (fast, indexed query)
-    var results = await _firestore
-        .collection('videos')
-        .where('keywords', arrayContains: query)
-        .where('status', isEqualTo: 'processed')
-        .limit(20)
-        .get()
-        .then(
-          (s) => s.docs
-              .map((d) => SearchResult.fromFirestore(d, type: ResultType.video))
-              .toList(),
-        );
+    List<SearchResult> results = [];
 
-    // 2. Fallback to prefix search (title)
-    if (results.isEmpty) {
+    // 1. Try keywords (fast, indexed query) with 'published'
+    try {
       results = await _firestore
           .collection('videos')
-          .where('title', isGreaterThanOrEqualTo: query)
-          .where('title', isLessThanOrEqualTo: '$query\uf8ff')
-          .where('status', isEqualTo: 'processed')
+          .where('keywords', arrayContains: query)
+          .where('status', isEqualTo: 'published')
           .limit(20)
           .get()
           .then(
             (s) => s.docs
-                .map(
-                  (d) => SearchResult.fromFirestore(d, type: ResultType.video),
-                )
+                .map((d) => SearchResult.fromFirestore(d, type: ResultType.video))
                 .toList(),
           );
+    } catch (e) {
+      debugPrint('⚠️ [Search] Keywords query with status published failed: $e');
+    }
+
+    // Try keywords with legacy 'processed' if no results yet
+    if (results.isEmpty) {
+      try {
+        results = await _firestore
+            .collection('videos')
+            .where('keywords', arrayContains: query)
+            .where('status', isEqualTo: 'processed')
+            .limit(20)
+            .get()
+            .then(
+              (s) => s.docs
+                  .map((d) => SearchResult.fromFirestore(d, type: ResultType.video))
+                  .toList(),
+            );
+      } catch (e) {
+        debugPrint('⚠️ [Search] Keywords query with status processed failed: $e');
+      }
+    }
+
+    // 2. Fallback to prefix search (title) with 'published'
+    if (results.isEmpty) {
+      try {
+        results = await _firestore
+            .collection('videos')
+            .where('titleLowercase', isGreaterThanOrEqualTo: query)
+            .where('titleLowercase', isLessThanOrEqualTo: '$query\uf8ff')
+            .where('status', isEqualTo: 'published')
+            .limit(20)
+            .get()
+            .then(
+              (s) => s.docs
+                  .map(
+                    (d) => SearchResult.fromFirestore(d, type: ResultType.video),
+                  )
+                  .toList(),
+            );
+      } catch (e) {
+        debugPrint('⚠️ [Search] Prefix search with status published failed: $e');
+      }
+    }
+
+    // Try prefix search with legacy 'processed'
+    if (results.isEmpty) {
+      try {
+        results = await _firestore
+            .collection('videos')
+            .where('titleLowercase', isGreaterThanOrEqualTo: query)
+            .where('titleLowercase', isLessThanOrEqualTo: '$query\uf8ff')
+            .where('status', isEqualTo: 'processed')
+            .limit(20)
+            .get()
+            .then(
+              (s) => s.docs
+                  .map(
+                    (d) => SearchResult.fromFirestore(d, type: ResultType.video),
+                  )
+                  .toList(),
+            );
+      } catch (e) {
+        debugPrint('⚠️ [Search] Prefix search with status processed failed: $e');
+      }
+    }
+
+    // 3. Ultra fallback: simple prefix search without status filter
+    if (results.isEmpty) {
+      try {
+        results = await _firestore
+            .collection('videos')
+            .where('titleLowercase', isGreaterThanOrEqualTo: query)
+            .where('titleLowercase', isLessThanOrEqualTo: '$query\uf8ff')
+            .limit(20)
+            .get()
+            .then(
+              (s) => s.docs
+                  .map(
+                    (d) => SearchResult.fromFirestore(d, type: ResultType.video),
+                  )
+                  .toList(),
+            );
+      } catch (e) {
+        debugPrint('❌ [Search] Ultra fallback search without status failed: $e');
+      }
+    }
+
+    // 4. Client-side search fallback (guarantees results for single letter queries or missing fields)
+    if (results.isEmpty) {
+      try {
+        debugPrint('🔍 [Search] Trying client-side search fallback for videos...');
+        final snapshot = await _firestore
+            .collection('videos')
+            .limit(100)
+            .get();
+        
+        final allVideos = snapshot.docs
+            .map((d) => SearchResult.fromFirestore(d, type: ResultType.video))
+            .toList();
+            
+        results = allVideos.where((v) {
+          final titleLower = v.title.toLowerCase();
+          return titleLower.startsWith(query) || titleLower.contains(query);
+        }).toList();
+        
+        debugPrint('✅ [Search] Video client-side fallback found ${results.length} results');
+      } catch (e) {
+        debugPrint('❌ [Search] Video client-side search fallback failed: $e');
+      }
     }
 
     return results;
@@ -154,8 +250,8 @@ class SearchService {
       // 1. Try channelName prefix (indexed)
       var results = await _firestore
           .collection('channels')
-          .where('channelName', isGreaterThanOrEqualTo: query)
-          .where('channelName', isLessThanOrEqualTo: '$query\uf8ff')
+          .where('nameLowercase', isGreaterThanOrEqualTo: query)
+          .where('nameLowercase', isLessThanOrEqualTo: '$query\uf8ff')
           .limit(10)
           .get()
           .then(
@@ -170,8 +266,8 @@ class SearchService {
       if (results.isEmpty) {
         results = await _firestore
             .collection('channels')
-            .where('handle', isGreaterThanOrEqualTo: query)
-            .where('handle', isLessThanOrEqualTo: '$query\uf8ff')
+            .where('handleLowercase', isGreaterThanOrEqualTo: query)
+            .where('handleLowercase', isLessThanOrEqualTo: '$query\uf8ff')
             .limit(10)
             .get()
             .then(
@@ -182,6 +278,27 @@ class SearchService {
                   .toList(),
             );
       }
+
+      // 3. Client-side fallback for channels
+      if (results.isEmpty) {
+        try {
+          debugPrint('🔍 [Search] Trying client-side search fallback for channels...');
+          final snapshot = await _firestore.collection('channels').limit(50).get();
+          final allChannels = snapshot.docs
+              .map((d) => SearchResult.fromFirestore(d, type: ResultType.channel))
+              .toList();
+              
+          results = allChannels.where((c) {
+            final nameLower = c.title.toLowerCase();
+            return nameLower.startsWith(query) || nameLower.contains(query);
+          }).toList();
+          
+          debugPrint('✅ [Search] Channel client-side fallback found ${results.length} results');
+        } catch (e) {
+          debugPrint('❌ [Search] Channel client-side fallback failed: $e');
+        }
+      }
+
       return results;
     } catch (e) {
       debugPrint('⚠️ [Search] Channel query failed: $e');
@@ -219,11 +336,11 @@ class SearchService {
   /// 📂 PLAYLIST SEARCH (INTERNAL - cost-effective)
   Future<List<SearchResult>> _searchPlaylists(String query) async {
     try {
-      return await _firestore
+      var results = await _firestore
           .collection('playlists')
-          .where('title', isGreaterThanOrEqualTo: query)
-          .where('title', isLessThanOrEqualTo: '$query\uf8ff')
-          .where('visibility', isEqualTo: 'Public')
+          .where('nameLowercase', isGreaterThanOrEqualTo: query)
+          .where('nameLowercase', isLessThanOrEqualTo: '$query\uf8ff')
+          .where('visibility', isEqualTo: 'public')
           .limit(10)
           .get()
           .then(
@@ -234,6 +351,33 @@ class SearchService {
                 )
                 .toList(),
           );
+
+      // Client-side fallback for playlists
+      if (results.isEmpty) {
+        try {
+          debugPrint('🔍 [Search] Trying client-side search fallback for playlists...');
+          final snapshot = await _firestore
+              .collection('playlists')
+              .where('visibility', isEqualTo: 'public')
+              .limit(50)
+              .get();
+              
+          final allPlaylists = snapshot.docs
+              .map((d) => SearchResult.fromFirestore(d, type: ResultType.playlist))
+              .toList();
+              
+          results = allPlaylists.where((p) {
+            final nameLower = p.title.toLowerCase();
+            return nameLower.startsWith(query) || nameLower.contains(query);
+          }).toList();
+          
+          debugPrint('✅ [Search] Playlist client-side fallback found ${results.length} results');
+        } catch (e) {
+          debugPrint('❌ [Search] Playlist client-side fallback failed: $e');
+        }
+      }
+
+      return results;
     } catch (e) {
       debugPrint('⚠️ [Search] Playlist query failed: $e');
       return [];
@@ -244,33 +388,56 @@ class SearchService {
   /// Returns top 5 most viewed videos
   Future<List<SearchResult>> getRecommended() async {
     try {
+      // Try with 'published' status first (production status)
       final snapshot = await _firestore
           .collection('videos')
-          .where('status', isEqualTo: 'processed')
-          .where('visibility', isEqualTo: 'Public')
+          .where('status', isEqualTo: 'published')
+          .where('visibility', isEqualTo: 'public')
           .orderBy('views', descending: true)
           .limit(5)
           .get();
 
-      return snapshot.docs
-          .map((doc) => SearchResult.fromFirestore(doc))
-          .toList();
-    } catch (e) {
-      debugPrint('⚠️ [Search] Recommended fetch failed: $e');
-      // Final fallback: just get any 5 videos if views-ordering requires an index
-      try {
-        final snapshot = await _firestore.collection('videos').limit(5).get();
+      if (snapshot.docs.isNotEmpty) {
         return snapshot.docs
             .map((doc) => SearchResult.fromFirestore(doc))
             .toList();
-      } catch (_) {
-        return [];
       }
+    } catch (e) {
+      debugPrint('⚠️ [Search] Recommended fetch with published status failed: $e');
+    }
+
+    try {
+      // Try legacy 'processed' status
+      final snapshot = await _firestore
+          .collection('videos')
+          .where('status', isEqualTo: 'processed')
+          .where('visibility', isEqualTo: 'public')
+          .orderBy('views', descending: true)
+          .limit(5)
+          .get();
+
+      if (snapshot.docs.isNotEmpty) {
+        return snapshot.docs
+            .map((doc) => SearchResult.fromFirestore(doc))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint('⚠️ [Search] Recommended fetch with processed status failed: $e');
+    }
+
+    // Final fallback: just get any 5 videos
+    try {
+      final snapshot = await _firestore.collection('videos').limit(5).get();
+      return snapshot.docs
+          .map((doc) => SearchResult.fromFirestore(doc))
+          .toList();
+    } catch (_) {
+      return [];
     }
   }
 
-  /// Fetch trending search queries from Firestore
-  Future<List<String>> getTrendingSuggestions() async {
+  /// Fetch popular search queries from Firestore
+  Future<List<String>> getPopularSuggestions() async {
     try {
       final snapshot = await _firestore
           .collection('trending_searches')

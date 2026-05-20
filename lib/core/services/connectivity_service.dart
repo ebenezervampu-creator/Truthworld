@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:get/get.dart';
+
 
 /// Service to monitor network connectivity across the entire application.
 /// Essential for high-scale apps to handle offline states and retry logic.
@@ -15,17 +17,27 @@ class ConnectivityService extends GetxService {
   late StreamSubscription<List<ConnectivityResult>> _subscription;
 
   Future<ConnectivityService> init() async {
-    final results = await _connectivity.checkConnectivity();
-    _connectionStatus.value = _getFirstResult(results);
+    try {
+      final results = await _connectivity.checkConnectivity();
+      _connectionStatus.value = _getFirstResult(results);
+    } catch (e) {
+      debugPrint('ConnectivityService: Failed to check connectivity: $e');
+      _connectionStatus.value = ConnectivityResult.wifi; // Default to wifi to allow startup
+    }
 
-    _subscription = _connectivity.onConnectivityChanged.listen((List<ConnectivityResult> results) {
-      final result = _getFirstResult(results);
-      _connectionStatus.value = result;
-      _handleStatusChange(result);
-    });
+    try {
+      _subscription = _connectivity.onConnectivityChanged.listen((List<ConnectivityResult> results) {
+        final result = _getFirstResult(results);
+        _connectionStatus.value = result;
+        _handleStatusChange(result);
+      });
+    } catch (e) {
+      debugPrint('ConnectivityService: Failed to subscribe to changes: $e');
+    }
 
     return this;
   }
+
 
   ConnectivityResult _getFirstResult(List<ConnectivityResult> results) {
     if (results.isEmpty) return ConnectivityResult.none;

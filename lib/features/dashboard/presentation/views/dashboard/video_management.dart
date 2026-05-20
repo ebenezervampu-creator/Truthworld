@@ -37,8 +37,8 @@ class VideoManagementController extends GetxController {
     required bool enableComments,
     required bool allowRatings,
   }) async {
-    if (videoFile.bytes == null || imageFile.bytes == null) {
-      Get.snackbar("Error", "Video or thumbnail data is missing.");
+    if (imageFile.bytes == null) {
+      Get.snackbar("Error", "Thumbnail data is missing.");
       return;
     }
 
@@ -60,7 +60,14 @@ class VideoManagementController extends GetxController {
       final videoRef = _firebaseStorage.ref().child(videoFileName);
       final imageRef = _firebaseStorage.ref().child(imageFileName);
 
-      final videoUploadTask = videoRef.putData(videoFile.bytes!);
+      final Uint8List videoBytes;
+      if (kIsWeb) {
+        videoBytes = videoFile.bytes ?? await videoFile.xFile.readAsBytes();
+      } else {
+        videoBytes = videoFile.bytes ?? await File(videoFile.path!).readAsBytes();
+      }
+
+      final videoUploadTask = videoRef.putData(videoBytes);
       final imageUploadTask = imageRef.putData(imageFile.bytes!);
 
       videoUploadTask.snapshotEvents.listen((event) {
@@ -167,27 +174,28 @@ class VideoManagementController extends GetxController {
   Future<String> _getVideoDurationFormatted(PlatformFile videoFile) async {
     if (kIsWeb) {
       final completer = Completer<String>();
-      final blob = html.Blob([videoFile.bytes!]);
-      final url = html.Url.createObjectUrlFromBlob(blob);
+      final url = videoFile.xFile.path;
       final videoElement = html.VideoElement()
         ..src = url
         ..preload = 'metadata';
 
       videoElement.onLoadedMetadata.listen((event) {
         final duration = Duration(seconds: videoElement.duration.floor());
-        html.Url.revokeObjectUrl(url);
         completer.complete(_formatDuration(duration));
       });
 
       videoElement.onError.listen((event) {
-        html.Url.revokeObjectUrl(url);
         completer.completeError("Failed to load video metadata.");
       });
       return completer.future;
     } else {
       final tempDir = await getTemporaryDirectory();
       final tempFile = File('${tempDir.path}/${videoFile.name}');
-      await tempFile.writeAsBytes(videoFile.bytes!);
+      if (videoFile.bytes != null) {
+        await tempFile.writeAsBytes(videoFile.bytes!);
+      } else {
+        await tempFile.writeAsBytes(await File(videoFile.path!).readAsBytes());
+      }
       final controller = VideoPlayerController.file(tempFile);
       await controller.initialize();
       final duration = controller.value.duration;

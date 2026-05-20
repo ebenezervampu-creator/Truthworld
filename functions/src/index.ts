@@ -1044,9 +1044,9 @@ export {
 } from "./channels/discovery";
 
 export {
-  followChannel,
-  unfollowChannel,
-  getFollowingFeed
+  subscribeChannel,
+  unsubscribeChannel,
+  getSubscriptionsFeed
 } from "./channels/social";
 
 export {
@@ -1060,7 +1060,7 @@ export {
 } from "./notifications/notifications";
 
 export {
-  onNewVideoFromFollowed,
+  onNewVideoFromSubscribed,
   onChannelStateChange,
   weeklyDigest
 } from "./notifications/triggers";
@@ -1199,3 +1199,90 @@ export const syncJobToShard = onDocumentWritten(
     await db.collection(`video_jobs_${shard}`).doc(jobId).set(replicaData, { merge: true });
   }
 );
+
+/**
+ * 🔄 Trigger re-verification for a video (Path 1)
+ */
+export const reVerifyVideo = onRequest(
+  {
+    cors: true,
+    region: "asia-south1",
+    timeoutSeconds: 30,
+    memory: "256MiB",
+    minInstances: 0,
+    maxInstances: 5,
+  },
+  async (req, res) => {
+    try {
+      const { videoId } = req.body;
+      if (!videoId) {
+        res.status(400).json({ error: "Missing videoId" });
+        return;
+      }
+
+      const db = admin.firestore();
+      const videoDoc = await db.collection("videos").doc(videoId).get();
+      if (!videoDoc.exists) {
+        res.status(404).json({ error: "Video not found" });
+        return;
+      }
+
+      const videoData = videoDoc.data()!;
+      const jobId = videoData.jobId;
+      if (!jobId) {
+        res.status(400).json({ error: "Video has no associated pipeline job" });
+        return;
+      }
+
+      const jobDoc = await db.collection("video_jobs").doc(jobId).get();
+      if (!jobDoc.exists) {
+        res.status(404).json({ error: "Pipeline job not found" });
+        return;
+      }
+
+      const jobData = jobDoc.data()!;
+      const executionPlan = jobData.executionPlan as any;
+
+      // Force re-analysis by disabling cache and prioritizing Path 1
+      executionPlan.skipCache = true;
+      executionPlan.enablePath1 = true;
+      executionPlan.enableTruthEngine = true;
+
+      const eventId = uuidv4();
+      await distributionLayer.publish("video-uploaded", {
+        eventId,
+        eventType: "video-uploaded",
+        jobId,
+        userId: jobData.userId,
+        timestamp: Date.now(),
+        retryCount: 0,
+        source: "reVerifyVideo",
+        data: {
+          videoUrl: jobData.videoUrl,
+          executionPlan,
+        },
+      });
+
+      // Update job status to pending
+      await db.collection("video_jobs").doc(jobId).update({
+        status: "accepted",
+        "stages.credibility.status": "pending",
+        updatedAt: Date.now(),
+      });
+
+      res.status(200).json({ success: true, jobId });
+    } catch (error) {
+      logger.error("[reVerifyVideo] Error", { error: String(error) });
+      res.status(500).json({ error: String(error) });
+    }
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FEATURE 5: ENGAGEMENT — Scalable Likes & Dislikes
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export {
+  onVideoLikeChange,
+  onVideoDislikeChange,
+} from "./community/engagement";

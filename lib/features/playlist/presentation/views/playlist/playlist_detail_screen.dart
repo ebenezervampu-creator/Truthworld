@@ -14,20 +14,20 @@ import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_uti
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 
 // ==========================================================================
-// YOUTUBE THEME COLORS
+// TRUTHWORLD THEME COLORS
 // ==========================================================================
-const Color ytBackground = AppColors.bgPage;
-const Color ytSurface = Color(0xFF1A1A1A);
-const Color ytSurfaceLight = Color(0xFF262626);
-const Color ytSurfaceHover = Color(0xFF3D3D3D);
-const Color ytTextPrimary = Colors.white;
-const Color ytTextSecondary = AppColors.textSecondary;
-const Color ytTextTertiary = AppColors.textTertiary;
-const Color ytRed = Color(0xFFFF0000);
-const Color ytBorder = AppColors.searchBorder;
+const Color background = AppColors.bgPage;
+const Color surface = Color(0xFF1A1A1A);
+const Color surfaceLight = Color(0xFF262626);
+const Color surfaceHover = Color(0xFF3D3D3D);
+const Color textPrimary = Colors.white;
+const Color textSecondary = AppColors.textSecondary;
+const Color textTertiary = AppColors.textTertiary;
+const Color red = Color(0xFFFF0000);
+const Color border = AppColors.searchBorder;
 
 // ==========================================================================
-// PLAYLIST DETAIL SCREEN - YOUTUBE STYLE
+// PLAYLIST DETAIL SCREEN - TRUTHWORLD STYLE
 // ==========================================================================
 class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   const PlaylistDetailScreen({super.key});
@@ -38,7 +38,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
     if (!Get.isRegistered<PlaylistDetailController>()) {
       Get.put(PlaylistDetailController());
     }
-    
+
     final args = Get.arguments;
     if (args == null || args['playlist'] is! PlaylistModel) {
       return _buildErrorState('Playlist data is missing.', () => Get.back());
@@ -48,7 +48,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
     controller.reset();
 
     return Scaffold(
-      backgroundColor: ytBackground,
+      backgroundColor: background,
       body: _buildContent(context, playlist),
     );
   }
@@ -57,12 +57,17 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final bool isDesktop = constraints.maxWidth >= 1000;
-        final bool isTablet = constraints.maxWidth >= 600 && constraints.maxWidth < 1000;
+        final bool isTablet =
+            constraints.maxWidth >= 600 && constraints.maxWidth < 1000;
 
         if (isDesktop) {
           return _buildDesktopLayout(context, playlist);
         } else {
-          return _buildMobileTabletLayout(context, playlist, isTablet: isTablet);
+          return _buildMobileTabletLayout(
+            context,
+            playlist,
+            isTablet: isTablet,
+          );
         }
       },
     );
@@ -77,7 +82,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
         // Left sidebar with playlist info
         Container(
           width: 360,
-          color: ytSurface,
+          color: surface,
           child: _buildPlaylistSidebar(context, playlist, isDesktop: true),
         ),
         // Right side video list
@@ -91,7 +96,11 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   // MOBILE/TABLET LAYOUT (stacked)
   // ==========================================================================
-  Widget _buildMobileTabletLayout(BuildContext context, PlaylistModel playlist, {bool isTablet = false}) {
+  Widget _buildMobileTabletLayout(
+    BuildContext context,
+    PlaylistModel playlist, {
+    bool isTablet = false,
+  }) {
     return CustomScrollView(
       slivers: [
         // Playlist header section
@@ -101,10 +110,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
         // Filter tabs
         SliverPersistentHeader(
           pinned: true,
-          delegate: _FilterTabDelegate(
-            _buildFilterTabs(),
-            maxHeight: 48,
-          ),
+          delegate: _FilterTabDelegate(_buildFilterTabs(), maxHeight: 48),
         ),
         // Video list
         SliverToBoxAdapter(
@@ -117,7 +123,11 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   // PLAYLIST SIDEBAR (Desktop)
   // ==========================================================================
-  Widget _buildPlaylistSidebar(BuildContext context, PlaylistModel playlist, {bool isDesktop = false}) {
+  Widget _buildPlaylistSidebar(
+    BuildContext context,
+    PlaylistModel playlist, {
+    bool isDesktop = false,
+  }) {
     return SingleChildScrollView(
       padding: EdgeInsets.all(24),
       child: Column(
@@ -132,7 +142,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
             style: GoogleFonts.roboto(
               fontSize: 24,
               fontWeight: FontWeight.w700,
-              color: ytTextPrimary,
+              color: textPrimary,
             ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
@@ -148,8 +158,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
           _buildActionButtons(context, playlist, isDesktop: true),
           SizedBox(height: 16),
           // Description
-          if (playlist.description.isNotEmpty)
-            _buildDescription(playlist),
+          if (playlist.description.isNotEmpty) _buildDescription(playlist),
         ],
       ),
     );
@@ -158,7 +167,11 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   // PLAYLIST HEADER (Mobile/Tablet)
   // ==========================================================================
-  Widget _buildPlaylistHeader(BuildContext context, PlaylistModel playlist, {bool isTablet = false}) {
+  Widget _buildPlaylistHeader(
+    BuildContext context,
+    PlaylistModel playlist, {
+    bool isTablet = false,
+  }) {
     final horizontalPadding = isTablet ? 24.0 : 16.0;
 
     return Container(
@@ -179,7 +192,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                   style: GoogleFonts.roboto(
                     fontSize: isTablet ? 22 : 20,
                     fontWeight: FontWeight.w700,
-                    color: ytTextPrimary,
+                    color: textPrimary,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -207,7 +220,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(8),
-          color: ytSurfaceLight,
+          color: surfaceLight,
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(8),
@@ -226,7 +239,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
 
   Widget _buildThumbnail(PlaylistModel playlist, {bool isTablet = false}) {
     final width = isTablet ? 200.0 : 160.0;
-    
+
     return SizedBox(
       width: width,
       child: AspectRatio(
@@ -234,7 +247,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            color: ytSurfaceLight,
+            color: surfaceLight,
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(8),
@@ -254,13 +267,9 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
 
   Widget _buildPlaceholder() {
     return Container(
-      color: ytSurfaceLight,
+      color: surfaceLight,
       child: Center(
-        child: Icon(
-          Icons.playlist_play,
-          size: 48,
-          color: ytTextTertiary,
-        ),
+        child: Icon(Icons.playlist_play, size: 48, color: textTertiary),
       ),
     );
   }
@@ -277,10 +286,12 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
       builder: (context, snapshot) {
         String channelName = 'Unknown Channel';
         String avatarUrl = '';
-        
+
         if (snapshot.hasData && snapshot.data!.exists) {
           final channelData = snapshot.data!.data() as Map<String, dynamic>;
-          channelName = (channelData['name'] ?? channelData['channelName']) ?? 'Unknown Channel';
+          channelName =
+              (channelData['name'] ?? channelData['channelName']) ??
+              'Unknown Channel';
           avatarUrl = channelData['avatarUrl'] ?? '';
         }
 
@@ -293,14 +304,14 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
               if (avatarUrl.isNotEmpty)
                 CircleAvatar(
                   radius: 16,
-                  backgroundColor: ytSurfaceLight,
+                  backgroundColor: surfaceLight,
                   backgroundImage: CachedNetworkImageProvider(avatarUrl),
                 )
               else
                 CircleAvatar(
                   radius: 16,
-                  backgroundColor: ytSurfaceLight,
-                  child: Icon(Icons.person, size: 18, color: ytTextSecondary),
+                  backgroundColor: surfaceLight,
+                  child: Icon(Icons.person, size: 18, color: textSecondary),
                 ),
               SizedBox(width: 8),
               Flexible(
@@ -308,7 +319,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                   channelName,
                   style: GoogleFonts.roboto(
                     fontSize: 14,
-                    color: ytTextSecondary,
+                    color: textSecondary,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -328,17 +339,14 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
       future: _fetchVideos(playlist.videoIds),
       builder: (context, snapshot) {
         final videoCount = playlist.videoIds.length;
-        final viewCount = snapshot.hasData 
+        final viewCount = snapshot.hasData
             ? snapshot.data!.fold<int>(0, (total, v) => total + v.views)
             : 0;
         final lastUpdated = timeago.format(playlist.updatedAt.toDate());
 
         return Text(
           '$videoCount videos • ${_formatViews(viewCount)} views • Updated $lastUpdated',
-          style: GoogleFonts.roboto(
-            fontSize: 12,
-            color: ytTextTertiary,
-          ),
+          style: GoogleFonts.roboto(fontSize: 12, color: textTertiary),
         );
       },
     );
@@ -347,7 +355,12 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   // ACTION BUTTONS
   // ==========================================================================
-  Widget _buildActionButtons(BuildContext context, PlaylistModel playlist, {bool isDesktop = false, bool isTablet = false}) {
+  Widget _buildActionButtons(
+    BuildContext context,
+    PlaylistModel playlist, {
+    bool isDesktop = false,
+    bool isTablet = false,
+  }) {
     return Row(
       children: [
         // Play all button (white)
@@ -356,7 +369,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
           child: Container(
             height: 36,
             decoration: BoxDecoration(
-              color: ytTextPrimary,
+              color: textPrimary,
               borderRadius: BorderRadius.circular(18),
             ),
             child: Material(
@@ -367,14 +380,14 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.play_arrow, color: ytBackground, size: 20),
+                    Icon(Icons.play_arrow, color: background, size: 20),
                     SizedBox(width: 4),
                     Text(
                       'Play all',
                       style: GoogleFonts.roboto(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
-                        color: ytBackground,
+                        color: background,
                       ),
                     ),
                   ],
@@ -390,7 +403,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
           child: Container(
             height: 36,
             decoration: BoxDecoration(
-              color: ytSurfaceLight,
+              color: surfaceLight,
               borderRadius: BorderRadius.circular(18),
             ),
             child: Material(
@@ -401,14 +414,14 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.shuffle, color: ytTextPrimary, size: 18),
+                    Icon(Icons.shuffle, color: textPrimary, size: 18),
                     SizedBox(width: 4),
                     Text(
                       'Shuffle',
                       style: GoogleFonts.roboto(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
-                        color: ytTextPrimary,
+                        color: textPrimary,
                       ),
                     ),
                   ],
@@ -465,10 +478,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
     return Container(
       width: 36,
       height: 36,
-      decoration: BoxDecoration(
-        color: ytSurfaceLight,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: surfaceLight, shape: BoxShape.circle),
       child: Material(
         color: Colors.transparent,
         type: MaterialType.circle,
@@ -477,11 +487,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
           customBorder: const CircleBorder(),
           child: Tooltip(
             message: tooltip,
-            child: Icon(
-              icon,
-              color: ytTextPrimary,
-              size: 18,
-            ),
+            child: Icon(icon, color: textPrimary, size: 18),
           ),
         ),
       ),
@@ -499,7 +505,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
           playlist.description,
           style: GoogleFonts.roboto(
             fontSize: 14,
-            color: ytTextSecondary,
+            color: textSecondary,
             height: 1.4,
           ),
           maxLines: 3,
@@ -517,7 +523,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
               'Show more',
               style: GoogleFonts.roboto(
                 fontSize: 12,
-                color: ytTextPrimary,
+                color: textPrimary,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -532,12 +538,12 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   Widget _buildFilterTabs() {
     return Obx(() {
       final filters = ['All', 'Videos', 'Shorts'];
-      final selectedFilter = controller.filterValue.value.isEmpty 
-          ? 'All' 
+      final selectedFilter = controller.filterValue.value.isEmpty
+          ? 'All'
           : controller.filterValue.value;
 
       return Container(
-        color: ytBackground,
+        color: background,
         padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: filters.map((filter) {
@@ -552,16 +558,16 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                     controller.setFilterValue(filter == 'All' ? '' : filter);
                   }
                 },
-                backgroundColor: ytSurface,
-                selectedColor: ytTextPrimary,
+                backgroundColor: surface,
+                selectedColor: textPrimary,
                 labelStyle: GoogleFonts.roboto(
-                  color: isSelected ? ytBackground : ytTextPrimary,
+                  color: isSelected ? background : textPrimary,
                   fontSize: 14,
                 ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                   side: BorderSide(
-                    color: isSelected ? ytTextPrimary : Colors.transparent,
+                    color: isSelected ? textPrimary : Colors.transparent,
                   ),
                 ),
                 padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -576,12 +582,16 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   // VIDEO LIST SECTION
   // ==========================================================================
-  Widget _buildVideoListSection(BuildContext context, PlaylistModel playlist, {bool isDesktop = false}) {
+  Widget _buildVideoListSection(
+    BuildContext context,
+    PlaylistModel playlist, {
+    bool isDesktop = false,
+  }) {
     return Column(
       children: [
         // Filter tabs
         _buildFilterTabs(),
-        Divider(color: ytBorder, height: 1),
+        Divider(color: border, height: 1),
         // Video list
         Expanded(
           child: _buildVideoList(context, playlist, isDesktop: isDesktop),
@@ -593,7 +603,12 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   // VIDEO LIST
   // ==========================================================================
-  Widget _buildVideoList(BuildContext context, PlaylistModel playlist, {bool isDesktop = false, bool isTablet = false}) {
+  Widget _buildVideoList(
+    BuildContext context,
+    PlaylistModel playlist, {
+    bool isDesktop = false,
+    bool isTablet = false,
+  }) {
     if (playlist.videoIds.isEmpty) {
       return _buildEmptyState();
     }
@@ -606,11 +621,14 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
         }
 
         if (snapshot.hasError || !snapshot.hasData) {
-          return _buildErrorState('Failed to load videos', () => controller.setLoading(true));
+          return _buildErrorState(
+            'Failed to load videos',
+            () => controller.setLoading(true),
+          );
         }
 
         final videos = snapshot.data!;
-        
+
         // Apply filter
         final filteredVideos = videos.where((video) {
           final filter = controller.filterValue.value.toLowerCase();
@@ -677,7 +695,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                   '$index',
                   style: GoogleFonts.roboto(
                     fontSize: 12,
-                    color: ytTextSecondary,
+                    color: textSecondary,
                   ),
                 ),
               ),
@@ -695,13 +713,16 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                     placeholder: (context, url) => Container(
                       width: thumbnailWidth,
                       height: thumbnailWidth * 9 / 16,
-                      color: ytSurfaceLight,
+                      color: surfaceLight,
                     ),
                     errorWidget: (context, url, error) => Container(
                       width: thumbnailWidth,
                       height: thumbnailWidth * 9 / 16,
-                      color: ytSurfaceLight,
-                      child: Icon(Icons.play_circle_outline, color: ytTextSecondary),
+                      color: surfaceLight,
+                      child: Icon(
+                        Icons.play_circle_outline,
+                        color: textSecondary,
+                      ),
                     ),
                   ),
                 ),
@@ -738,7 +759,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: GoogleFonts.roboto(
-                      color: ytTextPrimary,
+                      color: textPrimary,
                       fontSize: isDesktop ? 16 : 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -747,7 +768,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                   Text(
                     '${video.channelName} • ${_formatViews(video.views)} views • ${timeago.format(video.uploadedAt.toDate())}',
                     style: GoogleFonts.roboto(
-                      color: ytTextSecondary,
+                      color: textSecondary,
                       fontSize: 12,
                     ),
                     maxLines: 1,
@@ -758,7 +779,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
             ),
             // More options button
             IconButton(
-              icon: Icon(Icons.more_vert, color: ytTextSecondary, size: 20),
+              icon: Icon(Icons.more_vert, color: textSecondary, size: 20),
               onPressed: () => _showVideoOptions(context, video),
               padding: EdgeInsets.zero,
               constraints: BoxConstraints(),
@@ -774,8 +795,8 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   Widget _buildVideoShimmer() {
     return Shimmer.fromColors(
-      baseColor: ytSurface,
-      highlightColor: ytSurfaceLight,
+      baseColor: surface,
+      highlightColor: surfaceLight,
       child: ListView.builder(
         padding: EdgeInsets.all(16),
         itemCount: 5,
@@ -788,7 +809,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                 width: 140,
                 height: 79,
                 decoration: BoxDecoration(
-                  color: ytSurfaceLight,
+                  color: surfaceLight,
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
@@ -797,9 +818,9 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(height: 16, color: ytSurfaceLight),
+                    Container(height: 16, color: surfaceLight),
                     SizedBox(height: 8),
-                    Container(height: 12, width: 100, color: ytSurfaceLight),
+                    Container(height: 12, width: 100, color: surfaceLight),
                   ],
                 ),
               ),
@@ -815,23 +836,20 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.playlist_remove, size: 64, color: ytTextTertiary),
+          Icon(Icons.playlist_remove, size: 64, color: textTertiary),
           SizedBox(height: 16),
           Text(
             'No videos found',
             style: GoogleFonts.roboto(
               fontSize: 18,
               fontWeight: FontWeight.w500,
-              color: ytTextPrimary,
+              color: textPrimary,
             ),
           ),
           SizedBox(height: 8),
           Text(
             'This playlist is empty',
-            style: GoogleFonts.roboto(
-              fontSize: 14,
-              color: ytTextSecondary,
-            ),
+            style: GoogleFonts.roboto(fontSize: 14, color: textSecondary),
           ),
         ],
       ),
@@ -843,22 +861,19 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, size: 48, color: ytTextTertiary),
+          Icon(Icons.error_outline, size: 48, color: textTertiary),
           SizedBox(height: 16),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: GoogleFonts.roboto(
-              fontSize: 16,
-              color: ytTextSecondary,
-            ),
+            style: GoogleFonts.roboto(fontSize: 16, color: textSecondary),
           ),
           SizedBox(height: 16),
           ElevatedButton(
             onPressed: onRetry,
             style: ElevatedButton.styleFrom(
-              backgroundColor: ytTextPrimary,
-              foregroundColor: ytBackground,
+              backgroundColor: textPrimary,
+              foregroundColor: background,
             ),
             child: Text('Retry'),
           ),
@@ -888,7 +903,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   void _showVideoOptions(BuildContext context, Video video) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: ytSurface,
+      backgroundColor: surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
@@ -901,29 +916,41 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: ytTextTertiary,
+                color: textTertiary,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             SizedBox(height: 16),
             ListTile(
-              leading: Icon(Icons.play_arrow, color: ytTextPrimary),
-              title: Text('Play next', style: GoogleFonts.roboto(color: ytTextPrimary)),
+              leading: Icon(Icons.play_arrow, color: textPrimary),
+              title: Text(
+                'Play next',
+                style: GoogleFonts.roboto(color: textPrimary),
+              ),
               onTap: () => Navigator.pop(context),
             ),
             ListTile(
-              leading: Icon(Icons.playlist_add, color: ytTextPrimary),
-              title: Text('Add to queue', style: GoogleFonts.roboto(color: ytTextPrimary)),
+              leading: Icon(Icons.playlist_add, color: textPrimary),
+              title: Text(
+                'Add to queue',
+                style: GoogleFonts.roboto(color: textPrimary),
+              ),
               onTap: () => Navigator.pop(context),
             ),
             ListTile(
-              leading: Icon(Icons.download, color: ytTextPrimary),
-              title: Text('Download', style: GoogleFonts.roboto(color: ytTextPrimary)),
+              leading: Icon(Icons.download, color: textPrimary),
+              title: Text(
+                'Download',
+                style: GoogleFonts.roboto(color: textPrimary),
+              ),
               onTap: () => Navigator.pop(context),
             ),
             ListTile(
-              leading: Icon(Icons.share, color: ytTextPrimary),
-              title: Text('Share', style: GoogleFonts.roboto(color: ytTextPrimary)),
+              leading: Icon(Icons.share, color: textPrimary),
+              title: Text(
+                'Share',
+                style: GoogleFonts.roboto(color: textPrimary),
+              ),
               onTap: () => Navigator.pop(context),
             ),
           ],
@@ -937,14 +964,16 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   Future<List<Video>> _fetchVideos(List<String> videoIds) async {
     if (videoIds.isEmpty) return [];
-    
+
     final snapshot = await FirebaseFirestore.instance
         .collection('videos')
         .where(FieldPath.documentId, whereIn: videoIds.take(10).toList())
         .get();
-    
-    final videos = snapshot.docs.map((doc) => Video.fromDocumentSnapshot(doc)).toList();
-    
+
+    final videos = snapshot.docs
+        .map((doc) => Video.fromDocumentSnapshot(doc))
+        .toList();
+
     // Sort by original order
     final videoMap = {for (var v in videos) v.id: v};
     return videoIds.map((id) => videoMap[id]).whereType<Video>().toList();
@@ -980,18 +1009,10 @@ class _FilterTabDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    return Container(
-      color: ytBackground,
-      child: child,
-    );
+    return Container(color: background, child: child);
   }
 
   @override
   bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) =>
       true;
 }
-
-
-
-
-

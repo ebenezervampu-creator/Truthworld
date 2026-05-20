@@ -1,3 +1,4 @@
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
@@ -19,7 +20,6 @@ import 'package:truthworld/features/miniplayer/presentation/controllers/miniplay
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/video/presentation/widgets/sliver_tab_bar_delegate.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import '../controllers/video_controller.dart';
 import '../controllers/custom_play.dart';
 import '../../../channel/presentation/controllers/channel_controller_unified.dart';
@@ -27,6 +27,8 @@ import '../widgets/truth_index_badge.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/clip_controller.dart';
 import 'package:truthworld/components/ui/video_card.dart';
+import 'package:truthworld/features/video/presentation/widgets/video_report_dialog.dart';
+
 
 class VideoScreen extends GetView<VideoController> {
   final String? videoTag;
@@ -320,10 +322,16 @@ class VideoScreen extends GetView<VideoController> {
         surfaceTintColor: Colors.transparent,
         automaticallyImplyLeading: false,
         titleSpacing: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+          onPressed: () => Get.back(),
+          tooltip: 'Back',
+        ),
         title: _buildHomeStyleHeader(context),
         actions: _buildHomeStyleActions(context),
       );
     }
+
 
     // Default minimal app bar for other sources
     return AppBar(
@@ -347,7 +355,7 @@ class VideoScreen extends GetView<VideoController> {
   // Exact replica of home screen header
   Widget _buildHomeStyleHeader(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+      padding: EdgeInsets.symmetric(horizontal: 4.0, vertical: 8.0),
       child: Row(
         children: [
           // Logo
@@ -358,21 +366,10 @@ class VideoScreen extends GetView<VideoController> {
               padding: EdgeInsets.symmetric(vertical: 8.0),
               child: Row(
                 children: [
-                  Container(
-                    padding: EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Color(0xFF3B82F6), Color(0xFF8B5CF6)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      Icons.play_circle_fill_rounded,
-                      color: Colors.white,
-                      size: 32,
-                    ),
+                  Image.asset(
+                    'assets/logo.png',
+                    height: 38,
+                    width: 38,
                   ),
                   SizedBox(width: 12),
                   Text(
@@ -559,7 +556,7 @@ class VideoScreen extends GetView<VideoController> {
                 padding: const EdgeInsets.only(top: 16),
                 child: _buildTruthIndexBadge(),
               ),
-            _buildModernActionButtons(context),
+            _buildActionButtons(context),
             const SizedBox(height: 16),
             _buildDescriptionBox(context),
             if (!isDesktop &&
@@ -967,11 +964,33 @@ class VideoScreen extends GetView<VideoController> {
                   ],
                 ),
               ),
+
+            // --- Floating Back Button (Mobile/Web UX) ---
+            Positioned(
+              top: 16,
+              left: 16,
+              child: SafeArea(
+                child: Material(
+                  color: Colors.black.withValues(alpha: 0.4),
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                    onPressed: () => Get.back(),
+                    tooltip: 'Back',
+                  ),
+                ),
+              ),
+            ),
           ],
         );
       }),
     );
   }
+
 
   Widget _buildVideoTitle() {
     return Text(
@@ -1351,7 +1370,7 @@ class VideoScreen extends GetView<VideoController> {
     );
   }
 
-  Widget _buildModernActionButtons(BuildContext context) {
+  Widget _buildActionButtons(BuildContext context) {
     final bool isUserSignedIn = FirebaseAuth.instance.currentUser != null;
 
     return Row(
@@ -1364,11 +1383,11 @@ class VideoScreen extends GetView<VideoController> {
             child: Row(
               children: [
                 // Like & Dislike Group
-                _buildModernLikeDislikeGroup(),
+                _buildLikeDislikeGroup(),
                 const SizedBox(width: 8),
 
                 // Share
-                _buildModernCapsuleButton(
+                _buildCapsuleButton(
                   icon: Icons.share_rounded,
                   label: 'Share',
                   onTap: () {
@@ -1385,7 +1404,7 @@ class VideoScreen extends GetView<VideoController> {
                 Obx(() {
                   final double rating = controller.video.videoRating;
                   if (rating > 0) {
-                    return _buildModernCapsuleButton(
+                    return _buildCapsuleButton(
                       icon: Icons.auto_awesome_rounded,
                       label: '${rating.toInt()} Rating',
                       onTap: () => controller.fetchFullDisclosure(),
@@ -1396,7 +1415,7 @@ class VideoScreen extends GetView<VideoController> {
                     final isInWatchLater = _playlistController.isInWatchLater(
                       controller.video.id,
                     );
-                    return _buildModernCapsuleButton(
+                    return _buildCapsuleButton(
                       icon: isInWatchLater
                           ? Icons.watch_later
                           : Icons.watch_later_outlined,
@@ -1450,7 +1469,7 @@ class VideoScreen extends GetView<VideoController> {
                       ),
                     );
                   }
-                  return _buildModernCapsuleButton(
+                  return _buildCapsuleButton(
                     icon: Icons.bookmark_border_rounded,
                     label: 'Save',
                     onTap: () =>
@@ -1460,7 +1479,7 @@ class VideoScreen extends GetView<VideoController> {
                 const SizedBox(width: 8),
 
                 // More
-                _buildModernMoreButton(context),
+                _buildMoreButton(context),
               ],
             ),
           ),
@@ -1605,37 +1624,95 @@ class VideoScreen extends GetView<VideoController> {
               // Subscribe Button - White pill
               Obx(() {
                 final isSubscribed = _channelController.isSubscribed.value;
-                return ElevatedButton(
-                  onPressed: () {
-                    if (!isUserSignedIn) return _showSignInPrompt();
-                    _channelController.toggleSubscription(
-                      controller.video.channelId,
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isSubscribed
-                        ? Colors.grey.shade800
-                        : Colors.white,
-                    foregroundColor: isSubscribed ? Colors.white : Colors.black,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                final preference = _channelController.notificationPreference.value;
+                
+                if (isSubscribed) {
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ElevatedButton(
+                        onPressed: () {
+                          if (!isUserSignedIn) return _showSignInPrompt();
+                          _channelController.toggleSubscription(
+                            controller.video.channelId,
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.grey.shade800,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 10,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          elevation: 0,
+                        ),
+                        child: Text(
+                          'Subscribed',
+                          style: GoogleFonts.roboto(
+                            fontWeight: FontWeight.w500,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: () {
+                          if (!isUserSignedIn) return _showSignInPrompt();
+                          _showNotificationPreferencesSheet(
+                            context,
+                            controller.video.channelId,
+                          );
+                        },
+                        icon: Icon(
+                          _getBellIcon(preference),
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.grey.shade800,
+                          padding: const EdgeInsets.all(10),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ],
+                  );
+                } else {
+                  return ElevatedButton(
+                    onPressed: () {
+                      if (!isUserSignedIn) return _showSignInPrompt();
+                      _channelController.toggleSubscription(
+                        controller.video.channelId,
+                      );
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 10,
+                      ),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      elevation: 0,
                     ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 10,
+                    child: Text(
+                      'Subscribe',
+                      style: GoogleFonts.roboto(
+                        fontWeight: FontWeight.w500,
+                        fontSize: 14,
+                      ),
                     ),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    isSubscribed ? 'Subscribed' : 'Subscribe',
-                    style: GoogleFonts.roboto(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 14,
-                    ),
-                  ),
-                );
+                  );
+                }
               }),
             ],
           ),
@@ -1644,7 +1721,132 @@ class VideoScreen extends GetView<VideoController> {
     );
   }
 
-  Widget _buildModernLikeDislikeGroup() {
+  IconData _getBellIcon(String preference) {
+    switch (preference) {
+      case 'all':
+        return Icons.notifications_active;
+      case 'none':
+        return Icons.notifications_off_outlined;
+      case 'personalized':
+      default:
+        return Icons.notifications_none_outlined;
+    }
+  }
+
+  void _showNotificationPreferencesSheet(BuildContext context, String channelId) {
+    Get.bottomSheet(
+      Container(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        decoration: const BoxDecoration(
+          color: Color(0xFF16132D),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border(
+            top: BorderSide(color: Colors.white10, width: 1),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Obx(() {
+              final activePref = _channelController.notificationPreference.value;
+              return Column(
+                children: [
+                  _buildPreferenceOption(
+                    context: context,
+                    icon: Icons.notifications_active,
+                    title: 'All',
+                    subtitle: 'Receive all notifications for uploads',
+                    isSelected: activePref == 'all',
+                    onTap: () {
+                      Get.back();
+                      _channelController.updateNotificationPreference(channelId, 'all');
+                    },
+                  ),
+                  _buildPreferenceOption(
+                    context: context,
+                    icon: Icons.notifications_none_outlined,
+                    title: 'Personalized',
+                    subtitle: 'Receive notifications based on watch patterns',
+                    isSelected: activePref == 'personalized',
+                    onTap: () {
+                      Get.back();
+                      _channelController.updateNotificationPreference(channelId, 'personalized');
+                    },
+                  ),
+                  _buildPreferenceOption(
+                    context: context,
+                    icon: Icons.notifications_off_outlined,
+                    title: 'None',
+                    subtitle: 'Mute all notifications for this channel',
+                    isSelected: activePref == 'none',
+                    onTap: () {
+                      Get.back();
+                      _channelController.updateNotificationPreference(channelId, 'none');
+                    },
+                  ),
+                ],
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPreferenceOption({
+    required BuildContext context,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      onTap: onTap,
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF6366F1).withOpacity(0.15) : Colors.transparent,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(
+          icon,
+          color: isSelected ? const Color(0xFF6366F1) : Colors.white70,
+          size: 22,
+        ),
+      ),
+      title: Text(
+        title,
+        style: GoogleFonts.roboto(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: GoogleFonts.roboto(
+          color: Colors.white60,
+          fontSize: 12,
+        ),
+      ),
+      trailing: isSelected
+          ? const Icon(Icons.check, color: Color(0xFF6366F1), size: 20)
+          : null,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+    );
+  }
+
+  Widget _buildLikeDislikeGroup() {
     final bool isUserSignedIn = FirebaseAuth.instance.currentUser != null;
 
     return Container(
@@ -1674,18 +1876,28 @@ class VideoScreen extends GetView<VideoController> {
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      isLiked
-                          ? Icons.thumb_up_rounded
-                          : Icons.thumb_up_outlined,
-                      size: 20,
-                      color: isLiked ? primary : textPrimary,
+                    TweenAnimationBuilder<double>(
+                      duration: const Duration(milliseconds: 300),
+                      tween: Tween(begin: 1.0, end: isLiked ? 1.2 : 1.0),
+                      curve: Curves.elasticOut,
+                      builder: (context, value, child) {
+                        return Transform.scale(
+                          scale: value,
+                          child: Icon(
+                            isLiked
+                                ? Icons.thumb_up_rounded
+                                : Icons.thumb_up_outlined,
+                            size: 20,
+                            color: isLiked ? primary : textPrimary,
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(width: 8),
                     Text(
                       FormatUtils.formatCount(
                         _mainController.videoLikes[controller.video.id] ??
-                            controller.video.likes,
+                            controller.video.likeCount,
                       ),
                       style: GoogleFonts.roboto(
                         fontSize: 13,
@@ -1721,12 +1933,23 @@ class VideoScreen extends GetView<VideoController> {
                   horizontal: 16,
                   vertical: 8,
                 ),
-                child: Icon(
-                  isDisliked
-                      ? Icons.thumb_down_rounded
-                      : Icons.thumb_down_outlined,
-                  size: 20,
-                  color: isDisliked ? primary : textPrimary,
+                child: TweenAnimationBuilder<double>(
+                  duration: const Duration(milliseconds: 300),
+                  tween: Tween(begin: 1.0, end: isDisliked ? 1.2 : 1.0),
+                  curve: Curves.elasticOut,
+                  child: const SizedBox.shrink(),
+                  builder: (context, value, child) {
+                    return Transform.scale(
+                      scale: value,
+                      child: Icon(
+                        isDisliked
+                            ? Icons.thumb_down_rounded
+                            : Icons.thumb_down_outlined,
+                        size: 20,
+                        color: isDisliked ? primary : textPrimary,
+                      ),
+                    );
+                  },
                 ),
               ),
             );
@@ -1736,7 +1959,7 @@ class VideoScreen extends GetView<VideoController> {
     );
   }
 
-  Widget _buildModernCapsuleButton({
+  Widget _buildCapsuleButton({
     required IconData icon,
     required String label,
     required VoidCallback onTap,
@@ -1769,7 +1992,7 @@ class VideoScreen extends GetView<VideoController> {
     );
   }
 
-  Widget _buildModernMoreButton(BuildContext context) {
+  Widget _buildMoreButton(BuildContext context) {
     return Material(
       color: AppColors.bgSurface,
       shape: const CircleBorder(),
@@ -1790,12 +2013,9 @@ class VideoScreen extends GetView<VideoController> {
               if (FirebaseAuth.instance.currentUser == null) {
                 _showSignInPrompt();
               } else {
-                _mainController.reportVideo(
+                VideoReportDialog.show(
                   context: context,
-                  videoId: controller.video.id,
-                  channelId: controller.video.channelId,
-                  reason: 'User reported',
-                  comment: '',
+                  video: controller.video,
                 );
               }
               break;
@@ -2432,7 +2652,7 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                                     : Icons.thumb_up_outlined,
                                 size: 16,
                                 color: isLiked
-                                    ? Colors.red
+                                    ? AppColors.brand
                                     : widget.textSecondary,
                               ),
                               const SizedBox(width: 4),
@@ -2441,7 +2661,7 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: isLiked
-                                      ? Colors.red
+                                      ? AppColors.brand
                                       : widget.textSecondary,
                                 ),
                               ),
@@ -2468,7 +2688,7 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                                     : Icons.thumb_down_outlined,
                                 size: 16,
                                 color: isDisliked
-                                    ? Colors.red
+                                    ? AppColors.brand
                                     : widget.textSecondary,
                               ),
                               const SizedBox(width: 4),
@@ -2478,7 +2698,7 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: isDisliked
-                                        ? Colors.red
+                                        ? AppColors.brand
                                         : widget.textSecondary,
                                   ),
                                 ),
@@ -2507,7 +2727,7 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                             style: TextStyle(
                               fontSize: 12,
                               color: isReplying
-                                  ? Colors.red
+                                  ? AppColors.brand
                                   : widget.textSecondary,
                               fontWeight: isReplying
                                   ? FontWeight.w500
@@ -2580,7 +2800,7 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                       Icons.send,
                       size: 20,
                       color: replyController.text.isNotEmpty
-                          ? Colors.red
+                          ? AppColors.brand
                           : widget.textSecondary,
                     ),
                     padding: EdgeInsets.zero,
@@ -2659,14 +2879,14 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
         },
         child: Row(
           children: [
-            Icon(Icons.expand_more, size: 18, color: Colors.red),
+            Icon(Icons.expand_more, size: 18, color: AppColors.brand),
             const SizedBox(width: 4),
             Text(
               'Show all $totalCount replies',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
-                color: Colors.red,
+                color: AppColors.brand,
               ),
             ),
           ],

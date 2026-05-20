@@ -328,16 +328,11 @@ If you do NOT cache:
 ├─ All 72,000 searches hit Firestore: 72,000 reads
 ├─ Cost: 72,000 × $0.06 / 100K = $0.43/month
 └─ Still cheap! But your latency would be 400ms always
-
-If you use Algolia:
-├─ Pricing: $49/month (Pro plan)
-├─ Best for: 1M+ queries/month
-└─ Overkill for your stage (but great once you scale)
 ```
 
 ---
 
-## Future Upgrade: Algolia Integration
+## Future Upgrade: Native Full-Text Search
 
 ```
 TODAY (Firestore-only):
@@ -351,34 +346,10 @@ TODAY (Firestore-only):
 │ Firestore    │
 └──────────────┘
 
-TOMORROW (Algolia):
-┌──────────────┐
-│ SearchPage   │
-│     ↓        │
-│ SearchCtrl   │──[NO CHANGE]
-│     ↓        │
-│ SearchService├→ Algolia Client
-│     ↓        │
-│ Algolia      │
-└──────────────┘
-
-MIDDLE LAYER (stays the same):
-├─ Controller debouncing: SAME
-├─ Cache strategy: SAME
-├─ UI components: SAME
-└─ Error handling: SAME
-
-ONLY SearchService changes:
-├─ _primaryQuery(): Call Algolia instead of Firestore
-├─ _fallbackQuery(): Maybe unused (Algolia handles it)
-├─ _sortResults(): Maybe unused (Algolia pre-sorted)
-└─ Rest of logic: UNCHANGED
-
-Migration effort: ~2-4 hours
-UI rework needed: ZERO ✅
-```
-
----
+TOMORROW (Native):
+1. Use `Firestore.search()` operator
+2. Leverage native full-text indexes
+3. Zero latency overhead
 
 ## Monitoring Dashboard Layout
 

@@ -209,7 +209,11 @@ export enum VerificationState {
   VERIFIED             = 'VERIFIED',              // High factual density, comprehensive evidence
   PARTIALLY_VERIFIED   = 'PARTIALLY_VERIFIED',    // Some claims checked, others unverified
   STRUCTURAL_ONLY      = 'STRUCTURAL_ONLY',       // Zero factual claims — honesty/consistency only
-  INSUFFICIENT_EVIDENCE = 'INSUFFICIENT_EVIDENCE' // Claims found but no reliable data available
+  INSUFFICIENT_EVIDENCE = 'INSUFFICIENT_EVIDENCE', // Claims found but no reliable data available
+  ANALYSIS_INCOMPLETE  = 'ANALYSIS_INCOMPLETE',   // Verification timed out for significant portion
+  FORCE_INCOMPLETE     = 'FORCE_INCOMPLETE',      // v11.5: Injected during critical operational failure
+  FORCE_TIMEOUT        = 'FORCE_TIMEOUT',         // v11.5
+  FORCE_OPERATIONAL_FAILURE = 'FORCE_OPERATIONAL_FAILURE' // v11.5
 }
 
 /**
@@ -221,11 +225,10 @@ export enum ErrorState {
 
 
 export enum ClaimNature {
-  FACTUAL = 'FACTUAL',
-  OPINION = 'OPINION',
-  PREDICTION = 'PREDICTION',
-  THEORY = 'THEORY',
-  BELIEF = 'BELIEF',
+  VERIFIABLE_FACT = 'VERIFIABLE_FACT',   // Bucket 1: Empirical/Historical
+  OPINION = 'OPINION',                   // Bucket 2: Subjective preference
+  BELIEF = 'BELIEF',                     // Bucket 3: Faith/Scripture/Miracle
+  ESTIMATION = 'ESTIMATION',             // Bucket 4: Projection/Prediction
   SATIRE = 'SATIRE'
 }
 
@@ -293,6 +296,7 @@ export interface ExtractedClaim {
   assertiveness?: ClaimAssertiveness;
   claimStrength?: ClaimStrength;
   honestyWashingRisk?: boolean; // v8.1
+  isFramingViolation?: boolean; // NEW: Belief/Opinion presented as Fact
   start?: number;
   end?: number;
   chunkIndex: number;
@@ -302,7 +306,8 @@ export interface FilteredClaim extends ExtractedClaim {
   claimId: string;
 }
 
-export type SourceTier = 'A' | 'B' | 'C' | 'D';
+export type SourceTier = 'A' | 'B' | 'C' | 'D' | 'E';
+export type VerificationMethod = 'grounded' | 'deterministic' | 'cache_hit' | 'llm_training' | 'not_verified';
 
 export interface RichSource {
   title: string;
@@ -333,32 +338,24 @@ export type ClaimAssertiveness = 'casual' | 'moderate' | 'confident' | 'authorit
 export type ClaimStrength = 'hedged' | 'moderate' | 'strong' | 'absolute';
 
 export type ClaimStatus = 
-  | "correct" 
-  | "mostly_correct"               // NEW: Broadly true but approximate (numbers, dates, durations)
-  | "incorrect" 
-  | "outdated"                      // NEW: Was true but time-sensitive and stale
-  | "unsupported"                   // NEW: No evidence found (NOT the same as false)
-  | "unverified"                    // v5.0: No verification was attempted
-  | "needs_context"                 // NEW: True only in specific context
-  | "unverifiable" 
-  | "faith_based"     // v4.1 Faith-based claim
-  | "faith_context"   // spiritual context
-  | "tradition_linked"              // sacred geography/history
-  | "historical_tradition" 
-  | "historical_consensus_denial" 
-  | "incorrect_citation" 
-  | "contested_interpretation" 
-  | "opinion" 
-  | "anecdotal_experience"           // Personal testimony/experience
-  | "value_judgment"                // "This is terrible/great"
-  | "preference_statement"           // "I like/don't like"
-  | "unverifiable_personal_claim"    // "I got a headache from this"
-  | "satire"
-  | "speculation"
-  | "developing_story";
+  | "verified_true"     // Verified against Tier A-D
+  | "mostly_true"      // Broadly true but approximate
+  | "disputed"         // Contradictory evidence exists
+  | "unproven"         // Evidence missing but not contradicted (Neutral)
+  | "misleading"       // Technically true but framed to deceive
+  | "false_claim"      // Contradicted by evidence
+  | "religious_belief" // Bucket 3: Respected faith claim
+  | "opinion_claim"    // Bucket 2: Respected subjective claim
+  | "satire_claim"     // Satire
+  | "verification_timeout" // NEW: Search/Model timed out
+  | "unverified"      // No verification attempted
+  | "inconclusive"    // Evidence retrieval failed or search was weak
+  | "limited_support"; // Trivia/Common knowledge with weak formal citations
 
 export interface VerifiedClaim extends FilteredClaim {
   status: ClaimStatus; // Pipeline state
+  displayLabel?: string; // NEW: Semantic override for UI (e.g., "Popular Claim")
+  isLowRiskTrivia?: boolean; // NEW: Marker for science/animal/geography facts
   evidenceLevel?: EvidenceLevel; // Epistemic classification
   speaker?: string; // Explicitly added to ensure visibility in v5
   verificationConfidence: number;
@@ -387,7 +384,9 @@ export interface VerifiedClaim extends FilteredClaim {
   publicNote?: string;
   recommendedAction?: string;
   timedOutAt?: number;   // v10.6: set when claim timed out, cleared after retry conversion
+  verificationMethod?: VerificationMethod; // v11.5: deterministic | grounded | cache_hit
 }
+
 
 export interface UIDriver {
   text: string;
@@ -439,6 +438,7 @@ export interface UIReport {
       checked: number;
       total: number;
       label: string;   // e.g. "3 of 10 claims verified"
+      isPartial?: boolean; // v11.1: Signal if extraction was timed out
     } | null;          // null for STRUCTURAL_ONLY state
   };
   quickVerdict: string;
@@ -569,9 +569,19 @@ export interface FactCheckResult {
     incorrect: number;
     unsupported: number;
     unverifiable: number;
-    ignored: number;
-    faith: number; // v4.1: Faith-based claims tracking
-    checkedClaimsRatio?: number; // v5.0: transparency metric
+    verified_true: number;
+    mostly_true: number;
+    disputed: number;
+    unproven: number;
+    misleading: number;
+    false_claim: number;
+    religious_belief: number;
+    opinion_claim: number;
+    satire_claim: number;
+    verification_timeout: number;
+    checkedClaimsRatio?: number;
+    extractionPartial?: boolean;
+    verificationCoverageRatio?: number; // v11.5: % of factual claims reaching terminal verification
   };
   
   scoringMethod: 'strict' | 'balanced';
@@ -675,11 +685,13 @@ export interface TrustDeduction {
 }
 
 export type TrustLabel = 
-  | "High Credibility"
-  | "Generally Credible"
-  | "Mixed Credibility"
-  | "Low Evidence Support"
-  | "Significant Concerns"
+  | "Highly Reliable"
+  | "Reliable"
+  | "Mixed"
+  | "Low"
+  | "Misleading"
+  | "Opinion/Belief Content"
+  | "Misleading Framing"
   | "Safety Capped – Significant Concerns"
   | "Confidence Evolving"
   | "Analysis Unavailable"
@@ -754,6 +766,8 @@ export type VideoCategory =
   | 'science'
   | 'science_trivia'
   | 'health'
+  | 'financial'
+  | 'legal'
   | 'news'
   | 'politics'
   | 'history'
@@ -1244,8 +1258,14 @@ export interface CredibilityResult {
     unsupported: number;
     unverifiable: number;
     filtered: number;
+    religious_belief: number;   // v11.5
+    opinion_claim: number;      // v11.5
+    satire_claim: number;       // v11.5
+    verification_timeout: number; // v11.5
     cacheHitRate?: number;
     checkedClaimsRatio?: number; // v5.0: transparency metric
+    extractionPartial?: boolean; // v11.1
+    verificationCoverageRatio?: number; // v11.5
   };
   videoRating?: number; // v4.2 Public score
   contentIntent?: {
@@ -1324,6 +1344,10 @@ export interface CredibilityResult {
     summaryGenerated: boolean;
     consistencyCheckCompleted: boolean;
     checkedClaimsRatio?: number; // v5.0
+    verificationAttempted?: number;   // v11.5: Granular tracking
+    verificationSucceeded?: number;   // v11.5
+    verificationTimedOut?: number;    // v11.5
+    verificationCoverage?: number;    // v12.0
   };
 
   versions: {

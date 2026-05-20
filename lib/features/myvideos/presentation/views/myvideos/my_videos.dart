@@ -586,8 +586,13 @@ class _MyVideosState extends State<MyVideos> with TickerProviderStateMixin {
           // Apply local category filtering
           List<Video> displayVideos = List.from(videos);
           if (controller.selectedCategory.value != 'All') {
+            final catLower = controller.selectedCategory.value.toLowerCase();
             displayVideos = displayVideos
-                .where((v) => v.category == controller.selectedCategory.value)
+                .where((v) {
+                  return v.category.toLowerCase() == catLower ||
+                         v.title.toLowerCase().contains(catLower) ||
+                         v.tags.any((t) => t.toLowerCase().contains(catLower));
+                })
                 .toList();
           }
 

@@ -632,12 +632,12 @@ class PlaylistController extends GetxController {
   // ===================== Share Playlist =====================
   Future<void> sharePlaylist(String playlistId, {String? name}) async {
     try {
-      const baseUrl = 'https://www.truthworld.in';
+      const baseUrl = 'https://www.Truthworld.in';
       final playlistUrl = '$baseUrl/playlist/$playlistId';
 
       final message = name != null && name.trim().isNotEmpty
-          ? 'Check out this playlist "$name" on TruthWorld: $playlistUrl'
-          : 'Check out this playlist on TruthWorld: $playlistUrl';
+          ? 'Check out this playlist "$name" on Truthworld: $playlistUrl'
+          : 'Check out this playlist on Truthworld: $playlistUrl';
 
       final result = await SharePlus.instance.share(
         ShareParams(

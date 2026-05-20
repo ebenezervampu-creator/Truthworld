@@ -216,7 +216,30 @@ class _LikedVideoScreenState extends State<LikedVideoScreen> with TickerProvider
             );
           }
 
-          final groupedVideos = controller.groupVideosByDate(videos);
+          List<Video> displayVideos = List.from(videos);
+          if (controller.selectedCategory.value != 'All') {
+            if (controller.selectedCategory.value == 'Recent') {
+              final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+              displayVideos = displayVideos.where((v) => v.uploadedAt.toDate().isAfter(sevenDaysAgo)).toList();
+            } else if (controller.selectedCategory.value == 'Shorts') {
+              displayVideos = displayVideos.where((v) {
+                return v.title.toLowerCase().contains('short') || v.tags.any((t) => t.toLowerCase().contains('short'));
+              }).toList();
+            } else if (controller.selectedCategory.value == 'Videos') {
+              displayVideos = displayVideos.where((v) {
+                return !v.title.toLowerCase().contains('short') && !v.tags.any((t) => t.toLowerCase().contains('short'));
+              }).toList();
+            } else {
+              final catLower = controller.selectedCategory.value.toLowerCase();
+              displayVideos = displayVideos.where((v) {
+                return v.category.toLowerCase() == catLower ||
+                       v.title.toLowerCase().contains(catLower) ||
+                       v.tags.any((t) => t.toLowerCase().contains(catLower));
+              }).toList();
+            }
+          }
+
+          final groupedVideos = controller.groupVideosByDate(displayVideos);
 
           return SliverList(
             delegate: SliverChildBuilderDelegate((context, index) {

@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <base href="/" />
   <meta charset="UTF-8" />
 
   <!-- ── SEO ─────────────────────────────────────────── -->
   <title>Truthworld</title>
-  <meta name="description" content="Truthworld - News, stories, insights, and discussions." />
+  <meta name="description" content="Truthworld is a premium video-sharing platform that integrates automated content validation into the publishing pipeline, ensuring trustworthy storytelling." />
   <meta name="robots" content="index, follow" />
   <link rel="canonical" href="https://www.truthworld.in/" />
 
@@ -13,7 +14,7 @@
   <meta property="og:type"         content="website" />
   <meta property="og:url"          content="https://www.truthworld.in/" />
   <meta property="og:title"        content="Truthworld" />
-  <meta property="og:description"  content="Truthworld platform for articles and discussions." />
+  <meta property="og:description"  content="Discover verified video stories on Truthworld, the premium platform for trustworthy content creation and discovery." />
   <meta property="og:image"        content="https://www.truthworld.in/icons/og-image.png" />
   <meta property="og:image:width"  content="1200" />
   <meta property="og:image:height" content="630" />
@@ -21,7 +22,7 @@
   <!-- ── Twitter Card ──────────────────────────────────── -->
   <meta name="twitter:card"        content="summary_large_image" />
   <meta name="twitter:title"       content="Truthworld" />
-  <meta name="twitter:description" content="Truthworld platform for articles and discussions." />
+  <meta name="twitter:description" content="Discover verified video stories on Truthworld, the premium platform for trustworthy content creation and discovery." />
   <meta name="twitter:image"       content="https://www.truthworld.in/icons/og-image.png" />
 
   <!-- ── Structured Data (JSON-LD) ────────────────────── -->
@@ -58,99 +59,25 @@
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons|Material+Icons+Rounded|Material+Icons+Outlined&display=swap" rel="stylesheet">
 
-  <!-- ── Inline Splash CSS (zero extra network round-trips) -->
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    html, body {
-      width: 100%; height: 100%;
-      background: #0D0014;
-      overflow: hidden;
-    }
-
-    #splash {
-      position: fixed; inset: 0; z-index: 9999;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      background: radial-gradient(ellipse at 50% 40%,
-        #3D0080 0%, #1A0040 50%, #0D0014 100%);
-      transition: opacity 0.5s ease, visibility 0.5s ease;
-    }
-    #splash.hidden {
-      opacity: 0; visibility: hidden; pointer-events: none;
-    }
-
-    .splash-logo {
-      width: 80px; height: 80px; border-radius: 20px;
-      background: linear-gradient(135deg, #9B30FF, #C87DFF);
-      box-shadow: 0 0 40px rgba(155,48,255,.6), 0 0 80px rgba(155,48,255,.3);
-      display: flex; align-items: center; justify-content: center;
-      margin-bottom: 24px;
-      animation: logoPulse 2s ease-in-out infinite;
-    }
-    .splash-logo svg { width: 44px; height: 44px; fill: #fff; }
-
-    .splash-title {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 28px; font-weight: 700; color: #fff;
-      letter-spacing: -0.5px; margin-bottom: 8px;
-    }
-    .splash-subtitle {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      font-size: 14px; color: rgba(200,125,255,.8); letter-spacing: 0.5px;
-    }
-
-    .splash-progress {
-      position: absolute; bottom: 0; left: 0;
-      width: 0%; height: 3px;
-      background: linear-gradient(90deg, #9B30FF, #C87DFF);
-      border-radius: 0 2px 2px 0;
-      animation: progressBar 3s ease-out forwards;
-    }
-
-    @keyframes logoPulse {
-      0%, 100% { box-shadow: 0 0 40px rgba(155,48,255,.6), 0 0 80px rgba(155,48,255,.3); }
-      50%       { box-shadow: 0 0 60px rgba(155,48,255,.9), 0 0 120px rgba(155,48,255,.5); }
-    }
-    @keyframes progressBar {
-      0%   { width: 0%; }
-      60%  { width: 70%; }
-      100% { width: 92%; }
-    }
-  </style>
-</head>
-
-<body>
-  <!-- Splash Screen — hidden by Flutter once first frame renders -->
-  <div id="splash" role="status" aria-label="Loading Truthworld…">
-    <div class="splash-logo">
-      <!-- Replace the path below with your actual logo SVG -->
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10
-                 10 10 10-4.48 10-10S17.52 2 12 2zm-1
-                 14H9V8h2v8zm4 0h-2V8h2v8z"/>
-      </svg>
-    </div>
-    <div class="splash-title">Truthworld</div>
-    <div class="splash-subtitle">See the world clearly</div>
-    <div class="splash-progress"></div>
-  </div>
-
+  <!-- ── Analytics (Required for Firebase Analytics on Web) ─ -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-2EV456S275"></script>
   <script>
-    // Define appReady globally before Flutter bootstrap loads
-    window.appReady = function () {
-      var splash = document.getElementById('splash');
-      if (splash) {
-        splash.classList.add('hidden');
-        // Remove from DOM after transition ends (keeps a11y tree clean)
-        splash.addEventListener('transitionend', function () {
-          splash.remove();
-        }, { once: true });
-      }
-    };
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-2EV456S275');
   </script>
 
-  <!-- Flutter bootstrap must load after appReady is defined -->
+  <!-- ── Override dynamic Firebase JS SDK version to a stable 10.x release ── -->
+  <script>
+    window.flutterfire_web_sdk_version = '10.13.0';
+  </script>
+
+</head>
+
+
+<body>
+  <!-- Flutter bootstrap loads directly -->
   <script src="flutter_bootstrap.js"></script>
 </body>
 </html>

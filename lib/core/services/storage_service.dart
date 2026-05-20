@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'dart:typed_data';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/feedback/feedback_service.dart';
 
@@ -19,6 +22,31 @@ class StorageService extends GetxService {
     _storage = FirebaseStorage.instance;
   }
 
+  /// Ensure auth context is ready for Storage operations on web
+  Future<void> _ensureStorageAuthReady() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception("User not authenticated");
+      }
+
+      // Get the ID token and ensure it's fresh
+      await user.getIdToken(true);
+
+      // On web, add a small delay to ensure Firebase Storage SDK picks it up
+      if (kIsWeb) {
+        debugPrint('⏳ [StorageService] Waiting for Storage auth context sync...');
+        await Future.delayed(const Duration(milliseconds: 300));
+        debugPrint('✅ [StorageService] Storage auth context synchronized');
+      }
+
+      debugPrint('✅ [StorageService] Storage auth ready for user: ${user.uid}');
+    } catch (e) {
+      debugPrint('❌ [StorageService] Failed to prepare Storage auth: $e');
+      throw Exception("Storage auth preparation failed: $e");
+    }
+  }
+
   /// Upload file from bytes
   Future<String> uploadFileFromBytes({
     required String path,
@@ -30,10 +58,19 @@ class StorageService extends GetxService {
       uploadProgress.value = 0;
       hasError.value = false;
 
+      debugPrint('🚀 [StorageService] Starting uploadFileFromBytes...');
+      debugPrint('📂 [StorageService] Target Path: $path');
+      debugPrint('📦 [StorageService] Payload Bytes: ${bytes.length} bytes');
+      debugPrint('🏷️ [StorageService] MimeType: ${mimeType ?? 'application/octet-stream'}');
+
       DialogService.loading(message: 'Uploading file...');
+
+      // Ensure Storage auth is synchronized on web
+      await _ensureStorageAuthReady();
 
       final ref = _storage.ref().child(path);
 
+      debugPrint('📤 [StorageService] Invoking putData...');
       final uploadTask = ref.putData(
         Uint8List.fromList(bytes),
         SettableMetadata(contentType: mimeType ?? 'application/octet-stream'),
@@ -41,27 +78,34 @@ class StorageService extends GetxService {
 
       uploadTask.snapshotEvents.listen(
         (TaskSnapshot snapshot) {
-          uploadProgress.value =
-              snapshot.bytesTransferred / snapshot.totalBytes;
-          if (uploadProgress.value == 1.0 || uploadProgress.value >= 0.9) {
-            // Near completion
-          }
+          debugPrint('📊 [StorageService] Event -> State: ${snapshot.state}, '
+              'Transferred: ${snapshot.bytesTransferred}/${snapshot.totalBytes} bytes');
+          uploadProgress.value = snapshot.totalBytes > 0
+              ? (snapshot.bytesTransferred / snapshot.totalBytes)
+              : 0.0;
+          debugPrint('📈 [StorageService] Calculated Progress: ${(uploadProgress.value * 100).toStringAsFixed(1)}%');
         },
         onError: (e) {
+          debugPrint('❌ [StorageService] Stream Event Error: $e');
           _handleError(e);
         },
       );
 
-      await uploadTask;
-      DialogService.close();
-      final downloadUrl = await ref.getDownloadURL();
+      debugPrint('⏳ [StorageService] Awaiting uploadTask future completion with 20s timeout...');
+      await uploadTask.timeout(const Duration(seconds: 20));
+      debugPrint('✅ [StorageService] uploadTask completed successfully!');
 
+      final downloadUrl = await ref.getDownloadURL();
+      debugPrint('🔗 [StorageService] Retrieved Download URL: $downloadUrl');
+
+      DialogService.close();
       SnackbarService.success(
         message: 'File uploaded successfully',
         duration: const Duration(seconds: 2),
       );
       return downloadUrl;
     } catch (e) {
+      debugPrint('❌ [StorageService] Critical catch block exception: $e');
       DialogService.close();
       _handleError(e);
       SnackbarService.error(

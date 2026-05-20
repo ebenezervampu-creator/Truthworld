@@ -72,14 +72,13 @@ class Comment {
     };
   }
 
-  factory Comment.fromDocumentSnapshot(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+  factory Comment.fromMap(Map<String, dynamic> data, [String? id, DocumentReference? ref]) {
     final extractedVideoId = (data['videoId'] != null && (data['videoId'] as String).isNotEmpty)
         ? data['videoId'] as String
-        : (doc.reference.parent.parent?.id ?? '');
+        : (ref?.parent.parent?.id ?? '');
 
     return Comment(
-      id: doc.id,
+      id: id ?? data['id'] ?? '',
       videoId: extractedVideoId,
       userId: data['userId'] ?? '',
       userName: data['userName'] ?? '',
@@ -91,16 +90,26 @@ class Comment {
       likeCount: data['likeCount'] ?? 0,
       dislikeCount: data['dislikeCount'] ?? 0,
       reportCount: data['reportCount'] ?? 0,
-      createdAt: data['createdAt'] ?? Timestamp.now(),
+      createdAt: (data['createdAt'] is Timestamp)
+          ? data['createdAt']
+          : (data['createdAt'] is num
+              ? Timestamp.fromMillisecondsSinceEpoch((data['createdAt'] as num).toInt())
+              : Timestamp.now()),
       hasCreatorReply: data['hasCreatorReply'] ?? false,
       creatorReply: data['creatorReply'] != null
-          ? Reply.fromDocumentSnapshot(data['creatorReply'])
+          ? (data['creatorReply'] is Map 
+              ? Reply.fromMap(Map<String, dynamic>.from(data['creatorReply']))
+              : null)
           : null,
       likedBy: Map<String, bool>.from(data['likedBy'] ?? {}),
       dislikedBy: Map<String, bool>.from(data['dislikedBy'] ?? {}),
       isHeartedByCreator: data['isHeartedByCreator'] ?? false,
       creatorHeartName: data['creatorHeartName'],
     );
+  }
+
+  factory Comment.fromDocumentSnapshot(DocumentSnapshot doc) {
+    return Comment.fromMap(doc.data() as Map<String, dynamic>, doc.id, doc.reference);
   }
 
   Comment copyWith({

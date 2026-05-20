@@ -12,6 +12,7 @@ class StudioSettingsController extends BaseController {
 
   final userData = <String, dynamic>{}.obs;
   final isLoadingData = true.obs;
+  final activeTab = 0.obs;
 
   late DocumentReference _userRef;
 

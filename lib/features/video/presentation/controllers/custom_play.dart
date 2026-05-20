@@ -2,7 +2,7 @@ import 'package:truthworld/theme/app_theme.dart';
 // ============================================================
 // tower_custom_player.dart  —  Truthworld Streaming Player v3.0
 // Industry-Standard Flutter Web Video Player
-// Benchmark Target: 10/10 vs YouTube / Netflix
+// Benchmark Target: 10/10 vs TruthWorld / Netflix
 //
 // Features implemented:
 //   ✅ Adaptive Bitrate (ABR) — BOLA + Throughput hybrid
@@ -16,7 +16,7 @@ import 'package:truthworld/theme/app_theme.dart';
 //   ✅ Audio language tracks
 //   ✅ Content rating panel
 //   ✅ Keyboard shortcuts (K/Space/F/M/N/P/←/→/↑/↓)
-//   ✅ Double-tap seek (YouTube-style)
+//   ✅ Double-tap seek (TruthWorld-style)
 //   ✅ Volume slider
 //   ✅ Media Session API (OS lock screen controls)
 //   ✅ Retry on error with exponential backoff
@@ -48,10 +48,11 @@ import 'audio_only_service.dart';
 import 'video_controller.dart';
 import '../../data/models/video.dart';
 import '../../data/models/video_chapter.dart';
+import '../widgets/language_request_dialog.dart';
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 class PT {
-  static const Color primary = Color(0xFFDC143C);
+  static const Color primary = AppColors.brand;
   static const Color bg = AppColors.bgPage;
   static const Color surface = Color(0xFF161616);
   static const Color surfaceHi = Color(0xFF222222);
@@ -229,8 +230,11 @@ class TowerPlayerController extends GetxController {
           return true;
         }
         // Check recommendations
-        final currentIndex = vc.recommendedVideos.indexWhere((v) => v.id == vc.video.id);
-        return currentIndex > 0 || (currentIndex == -1 && vc.recommendedVideos.isNotEmpty);
+        final currentIndex = vc.recommendedVideos.indexWhere(
+          (v) => v.id == vc.video.id,
+        );
+        return currentIndex > 0 ||
+            (currentIndex == -1 && vc.recommendedVideos.isNotEmpty);
       }
     } catch (_) {}
     return false;
@@ -242,12 +246,14 @@ class TowerPlayerController extends GetxController {
       if (Get.isRegistered<VideoController>(tag: tag)) {
         final vc = Get.find<VideoController>(tag: tag);
         // Check playlist first
-        if (vc.playlistVideos.isNotEmpty && 
+        if (vc.playlistVideos.isNotEmpty &&
             vc.currentPlaylistIndex.value < vc.playlistVideos.length - 1) {
           return true;
         }
         // Check recommendations
-        final currentIndex = vc.recommendedVideos.indexWhere((v) => v.id == vc.video.id);
+        final currentIndex = vc.recommendedVideos.indexWhere(
+          (v) => v.id == vc.video.id,
+        );
         if (currentIndex >= 0) {
           return currentIndex < vc.recommendedVideos.length - 1;
         }
@@ -256,7 +262,7 @@ class TowerPlayerController extends GetxController {
     } catch (_) {}
     return false;
   }
-  
+
   // ── Chapters ───────────────────────────────────────────────
   final RxList<VideoChapter> chapters = <VideoChapter>[].obs;
   final Rx<VideoChapter?> currentChapter = Rx<VideoChapter?>(null);
@@ -304,22 +310,23 @@ class TowerPlayerController extends GetxController {
       if (Get.isRegistered<VideoController>(tag: tag)) {
         final vc = Get.find<VideoController>(tag: tag);
         if (vc.availableResolutions.isNotEmpty) {
-          ladder = vc.availableResolutions.reversed.map((v) => ResolutionTier(
-            label: v.label,
-            url: v.url,
-            height: v.height,
-            bitrate: v.bitrate,
-            minBandwidth: (v.bitrate * 1.2).toInt(),
-          )).toList();
+          ladder = vc.availableResolutions.reversed
+              .map(
+                (v) => ResolutionTier(
+                  label: v.label,
+                  url: v.url,
+                  height: v.height,
+                  bitrate: v.bitrate,
+                  minBandwidth: (v.bitrate * 1.2).toInt(),
+                ),
+              )
+              .toList();
         }
       }
     } catch (_) {}
 
-    abr.initialize(
-      ladder: ladder,
-      vpc: videoPlayerController,
-    );
-    
+    abr.initialize(ladder: ladder, vpc: videoPlayerController);
+
     // INDUSTRY STANDARD: Hook ABR tier changes to actual video resolution switching
     // This ensures that when the user selects a quality or ABR auto-switches,
     // the actual video URL is loaded (not just the internal tier index)
@@ -327,27 +334,31 @@ class TowerPlayerController extends GetxController {
       try {
         if (Get.isRegistered<VideoController>(tag: tag)) {
           final vc = Get.find<VideoController>(tag: tag);
-          
+
           // Guard against redundant switches or simultaneous triggers
           if (vc.isSwitchingResolution.value) return;
 
           // Map from ABR tier to available resolution and actually load it
           if (tierIndex >= 0 && tierIndex < abr.resolutionLadder.length) {
             final selectedTier = abr.resolutionLadder[tierIndex];
-            
+
             // Find matching ResolutionV2 based on height
             final matchingRes = vc.availableResolutions.firstWhereOrNull(
               (r) => r.height == selectedTier.height,
             );
-            
+
             if (matchingRes != null) {
               // Ensure we don't switch to the same URL
               if (vc.currentResolution.value?.url != matchingRes.url) {
                 vc.setResolution(matchingRes, isManual: isManual);
-                debugPrint('[TowerPlayer] Resolution switch triggered: ${selectedTier.label} (Index: $tierIndex) | Manual: $isManual');
+                debugPrint(
+                  '[TowerPlayer] Resolution switch triggered: ${selectedTier.label} (Index: $tierIndex) | Manual: $isManual',
+                );
               }
             } else {
-              debugPrint('[TowerPlayer] ⚠️ No matching resolution found for height: ${selectedTier.height}');
+              debugPrint(
+                '[TowerPlayer] ⚠️ No matching resolution found for height: ${selectedTier.height}',
+              );
             }
           }
         }
@@ -471,7 +482,7 @@ class TowerPlayerController extends GetxController {
           audioTracks.assignAll(vc.availableAudioTracks);
           activeAudioLang.value = audioTracks.first.label;
         }
-        
+
         // Sync chapters
         if (vc.video.chapters.isNotEmpty) {
           if (chapters.length != vc.video.chapters.length) {
@@ -563,33 +574,36 @@ class TowerPlayerController extends GetxController {
 
   void playNext() {
     _trackAnalytics(PlayerEvent('next'));
-    
+
     // Industry-standard navigation: Check playlist first, then recommendations
     if (Get.isRegistered<VideoController>(tag: tag)) {
       final vc = Get.find<VideoController>(tag: tag);
-      
+
       // Priority 1: If in a playlist and not at the end, go to next playlist video
-      if (vc.playlistVideos.isNotEmpty && 
+      if (vc.playlistVideos.isNotEmpty &&
           vc.currentPlaylistIndex.value < vc.playlistVideos.length - 1) {
         final nextIndex = vc.currentPlaylistIndex.value + 1;
         final nextVideo = vc.playlistVideos[nextIndex];
         _navigateToVideo(nextVideo, vc);
         return;
       }
-      
+
       // Priority 2: Use recommendations as navigation queue
       if (vc.recommendedVideos.isNotEmpty) {
-        final currentIndex = vc.recommendedVideos.indexWhere((v) => v.id == vc.video.id);
+        final currentIndex = vc.recommendedVideos.indexWhere(
+          (v) => v.id == vc.video.id,
+        );
         Video? nextVideo;
-        
-        if (currentIndex >= 0 && currentIndex < vc.recommendedVideos.length - 1) {
+
+        if (currentIndex >= 0 &&
+            currentIndex < vc.recommendedVideos.length - 1) {
           // Get next video in recommendations list
           nextVideo = vc.recommendedVideos[currentIndex + 1];
         } else if (currentIndex == -1) {
           // Current video not in recommendations, play first recommendation
           nextVideo = vc.recommendedVideos.first;
         }
-        
+
         if (nextVideo != null && nextVideo.id != vc.video.id) {
           _navigateToVideo(nextVideo, vc);
         }
@@ -599,11 +613,11 @@ class TowerPlayerController extends GetxController {
 
   void playPrevious() {
     _trackAnalytics(PlayerEvent('previous'));
-    
+
     // Industry-standard navigation: Check playlist first, then recommendations
     if (Get.isRegistered<VideoController>(tag: tag)) {
       final vc = Get.find<VideoController>(tag: tag);
-      
+
       // Priority 1: If in a playlist and not at the start, go to previous playlist video
       if (vc.playlistVideos.isNotEmpty && vc.currentPlaylistIndex.value > 0) {
         final prevIndex = vc.currentPlaylistIndex.value - 1;
@@ -611,12 +625,14 @@ class TowerPlayerController extends GetxController {
         _navigateToVideo(prevVideo, vc);
         return;
       }
-      
+
       // Priority 2: Use recommendations as navigation queue
       if (vc.recommendedVideos.isNotEmpty) {
-        final currentIndex = vc.recommendedVideos.indexWhere((v) => v.id == vc.video.id);
+        final currentIndex = vc.recommendedVideos.indexWhere(
+          (v) => v.id == vc.video.id,
+        );
         Video? prevVideo;
-        
+
         if (currentIndex > 0) {
           // Get previous video in recommendations list
           prevVideo = vc.recommendedVideos[currentIndex - 1];
@@ -624,7 +640,7 @@ class TowerPlayerController extends GetxController {
           // Current video not in recommendations, play first recommendation
           prevVideo = vc.recommendedVideos.first;
         }
-        
+
         if (prevVideo != null && prevVideo.id != vc.video.id) {
           _navigateToVideo(prevVideo, vc);
         }
@@ -635,14 +651,17 @@ class TowerPlayerController extends GetxController {
   void _navigateToVideo(Video video, VideoController vc) {
     // Pause current video before navigation
     videoPlayerController.pause();
-    
+
     // Navigate to new video screen with proper arguments
     // GetX will handle cleanup of current controller
-    Get.offNamed('/videoscreen', arguments: {
-      'video': video,
-      'playlist': vc.currentPlaylist.value,
-      'heroTag': 'video_${video.id}_${DateTime.now().millisecondsSinceEpoch}',
-    });
+    Get.offNamed(
+      '/videoscreen',
+      arguments: {
+        'video': video,
+        'playlist': vc.currentPlaylist.value,
+        'heroTag': 'video_${video.id}_${DateTime.now().millisecondsSinceEpoch}',
+      },
+    );
   }
 
   void _onTrackEnded() {
@@ -699,7 +718,7 @@ class TowerPlayerController extends GetxController {
       debugPrint('[TowerPlayer] Invalid tier index: $tierIndex');
       return;
     }
-    
+
     abr.setManualTier(tierIndex);
     activePanel.value = '';
     _closeSettings();
@@ -783,10 +802,10 @@ class TowerPlayerController extends GetxController {
       debugPrint('[TowerPlayer] Fetching subtitles: $url');
       final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
-        // Industry Standard: Use utf8.decode on bodyBytes to ensure correct encoding 
+        // Industry Standard: Use utf8.decode on bodyBytes to ensure correct encoding
         // regardless of server headers. Also handle the UTF-8 BOM if present.
         String content = utf8.decode(response.bodyBytes, allowMalformed: true);
-        
+
         // Remove UTF-8 BOM (\uFEFF) if present at the start of the file
         if (content.startsWith('\uFEFF')) {
           content = content.substring(1);
@@ -804,12 +823,14 @@ class TowerPlayerController extends GetxController {
 
   List<SubtitleSegment> _parseSRT(String content) {
     final List<SubtitleSegment> segments = [];
-    
+
     // Normalize line endings and handle WebVTT header
     String normalized = content.replaceAll('\r\n', '\n').trim();
     if (normalized.startsWith('WEBVTT')) {
       // Remove WEBVTT header and any metadata following it until the first blank line
-      normalized = normalized.replaceFirst(RegExp(r'^WEBVTT[^\n]*\n*'), '').trim();
+      normalized = normalized
+          .replaceFirst(RegExp(r'^WEBVTT[^\n]*\n*'), '')
+          .trim();
     }
 
     // Split into blocks by double newline
@@ -838,7 +859,7 @@ class TowerPlayerController extends GetxController {
 
       final start = _parseSRTTime(times[0]);
       final end = _parseSRTTime(times[1]);
-      
+
       if (lines.length <= textStartIndex) continue;
       final text = lines.sublist(textStartIndex).join('\n').trim();
 
@@ -863,8 +884,6 @@ class TowerPlayerController extends GetxController {
     return Duration(hours: h, minutes: m, seconds: s, milliseconds: ms);
   }
 
-
-
   void _disableWebVTT() {
     debugPrint('[TowerPlayer] Subtitles disabled');
   }
@@ -882,7 +901,7 @@ class TowerPlayerController extends GetxController {
         if (Get.isRegistered<VideoController>(tag: tag)) {
           final vc = Get.find<VideoController>(tag: tag);
           final currentRes = vc.currentResolution.value;
-          
+
           // Create a temporary resolution object for the dubbed track
           final dubbedRes = VideoResolutionV2(
             label: '${currentRes?.label ?? 'Auto'} (Dubbed)',
@@ -891,9 +910,11 @@ class TowerPlayerController extends GetxController {
             height: currentRes?.height ?? 0,
             bitrate: currentRes?.bitrate ?? 0,
           );
-          
+
           vc.setResolution(dubbedRes, isManual: true);
-          debugPrint('[TowerPlayer] Switched to dubbed audio/video: ${track.label}');
+          debugPrint(
+            '[TowerPlayer] Switched to dubbed audio/video: ${track.label}',
+          );
         }
       } catch (e) {
         debugPrint('[TowerPlayer] Failed to switch to dubbed audio: $e');
@@ -984,8 +1005,8 @@ class TowerPlayerController extends GetxController {
       onInteraction();
       _trackAnalytics(
         PlayerEvent(
-          chewieController.isFullScreen 
-              ? 'fullscreen_exit' 
+          chewieController.isFullScreen
+              ? 'fullscreen_exit'
               : 'fullscreen_enter',
         ),
       );
@@ -1003,7 +1024,9 @@ class TowerPlayerController extends GetxController {
       if (video == null) return;
       final docJs = js.JsObject.fromBrowserObject(html.document);
       if (docJs['pictureInPictureElement'] == null) {
-        js.JsObject.fromBrowserObject(video).callMethod('requestPictureInPicture', []);
+        js.JsObject.fromBrowserObject(
+          video,
+        ).callMethod('requestPictureInPicture', []);
         isPiP.value = true;
       } else {
         docJs.callMethod('exitPictureInPicture', []);
@@ -1105,6 +1128,31 @@ class TowerPlayerController extends GetxController {
     videoPlayerController.setLooping(isLooping.value);
     chewieController.setLooping(isLooping.value);
   }
+
+  void _showRequestDialog(BuildContext context, String type) {
+    if (Get.isRegistered<VideoController>(tag: tag)) {
+      final vc = Get.find<VideoController>(tag: tag);
+      if (!vc.isAuthenticated) {
+        _showToast('Please login to request languages');
+        return;
+      }
+
+      showDialog(
+        context: context,
+        builder: (context) => LanguageRequestDialog(
+          type: type,
+          onRequested: (lang) async {
+            final success = await vc.requestLanguage(lang, type);
+            if (success) {
+              _showToast('Request submitted for $lang');
+            } else {
+              _showToast('Failed to submit request');
+            }
+          },
+        ),
+      );
+    }
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1141,120 +1189,122 @@ class TowerCustomPlayer extends StatelessWidget {
         return MouseRegion(
           onHover: (_) => c.onInteraction(),
           child: KeyboardListener(
-          focusNode: c.focusNode,
-          autofocus: true,
-          onKeyEvent: c.handleKey,
-          child: GestureDetector(
-            onTap: c.onTap,
-            onDoubleTapDown: (d) {
-              final half = context.size!.width / 2;
-              if (d.localPosition.dx < half) {
-                c.doubleTapLeft();
-              } else {
-                c.doubleTapRight();
-              }
-            },
-            child: Stack(
-              children: [
-                // ── Layer 0: Audio-Only overlay ──────────────────────────────
-                Obx(
-                  () => c.isAudioOnly.value
-                      ? const _AudioOnlyOverlay()
-                      : const SizedBox.shrink(),
-                ),
+            focusNode: c.focusNode,
+            autofocus: true,
+            onKeyEvent: c.handleKey,
+            child: GestureDetector(
+              onTap: c.onTap,
+              onDoubleTapDown: (d) {
+                final half = context.size!.width / 2;
+                if (d.localPosition.dx < half) {
+                  c.doubleTapLeft();
+                } else {
+                  c.doubleTapRight();
+                }
+              },
+              child: Stack(
+                children: [
+                  // ── Layer 0: Audio-Only overlay ──────────────────────────────
+                  Obx(
+                    () => c.isAudioOnly.value
+                        ? const _AudioOnlyOverlay()
+                        : const SizedBox.shrink(),
+                  ),
 
-                // ── Layer 1: Subtitles ───────────────────────────────────────
-                Obx(() {
-                  if (!c.subtitlesEnabled.value) return const SizedBox.shrink();
-                  return Positioned(
-                    bottom: c.controlsVisible.value ? 120 : 60,
-                    left: 40,
-                    right: 40,
-                    child: _SubtitleOverlay(ctrl: c),
-                  );
-                }),
+                  // ── Layer 1: Subtitles ───────────────────────────────────────
+                  Obx(() {
+                    if (!c.subtitlesEnabled.value) {
+                      return const SizedBox.shrink();
+                    }
+                    return Positioned(
+                      bottom: c.controlsVisible.value ? 120 : 60,
+                      left: 40,
+                      right: 40,
+                      child: _SubtitleOverlay(ctrl: c),
+                    );
+                  }),
 
-                // ── Layer 2: Double-tap ripple ───────────────────────────────
-                Obx(
-                  () => c.showDoubleTapLeft.value
-                      ? const _DoubleTapRipple(isLeft: true)
-                      : const SizedBox.shrink(),
-                ),
-                Obx(
-                  () => c.showDoubleTapRight.value
-                      ? const _DoubleTapRipple(isLeft: false)
-                      : const SizedBox.shrink(),
-                ),
+                  // ── Layer 2: Double-tap ripple ───────────────────────────────
+                  Obx(
+                    () => c.showDoubleTapLeft.value
+                        ? const _DoubleTapRipple(isLeft: true)
+                        : const SizedBox.shrink(),
+                  ),
+                  Obx(
+                    () => c.showDoubleTapRight.value
+                        ? const _DoubleTapRipple(isLeft: false)
+                        : const SizedBox.shrink(),
+                  ),
 
-                // ── Layer 2: Buffering / State overlay ───────────────────────
-                _StateOverlay(ctrl: c),
+                  // ── Layer 2: Buffering / State overlay ───────────────────────
+                  _StateOverlay(ctrl: c),
 
-                // ── Layer 3: Seek preview tooltip ────────────────────────────
-                Obx(
-                  () => c.seekPreviewVis.value
-                      ? _SeekPreviewTooltip(ctrl: c)
-                      : const SizedBox.shrink(),
-                ),
+                  // ── Layer 3: Seek preview tooltip ────────────────────────────
+                  Obx(
+                    () => c.seekPreviewVis.value
+                        ? _SeekPreviewTooltip(ctrl: c)
+                        : const SizedBox.shrink(),
+                  ),
 
-                // ── Layer 4: Toast ───────────────────────────────────────────
-                Obx(
-                  () => c.toastMessage.value.isNotEmpty
-                      ? _Toast(message: c.toastMessage.value)
-                      : const SizedBox.shrink(),
-                ),
+                  // ── Layer 4: Toast ───────────────────────────────────────────
+                  Obx(
+                    () => c.toastMessage.value.isNotEmpty
+                        ? _Toast(message: c.toastMessage.value)
+                        : const SizedBox.shrink(),
+                  ),
 
-                // ── Layer 5: Main controls (auto-hide) ───────────────────────
-                Obx(
-                  () => AnimatedOpacity(
-                    duration: const Duration(milliseconds: 250),
-                    opacity: c.controlsVisible.value ? 1.0 : 0.0,
-                    child: AbsorbPointer(
-                      absorbing: !c.controlsVisible.value,
-                      child: _MainControls(ctrl: c),
+                  // ── Layer 5: Main controls (auto-hide) ───────────────────────
+                  Obx(
+                    () => AnimatedOpacity(
+                      duration: const Duration(milliseconds: 250),
+                      opacity: c.controlsVisible.value ? 1.0 : 0.0,
+                      child: AbsorbPointer(
+                        absorbing: !c.controlsVisible.value,
+                        child: _MainControls(ctrl: c),
+                      ),
                     ),
                   ),
-                ),
 
-                // ── Layer 6: Settings panel ───────────────────────────────────
-                Obx(
-                  () => c.settingsOpen.value
-                      ? _SettingsPanel(ctrl: c)
-                      : const SizedBox.shrink(),
-                ),
-
-                // ── Layer 7: Premium Resolution Switching Overlay ─────────────
-                Obx(() {
-                  // Ensure Obx is not empty
-                  c.isAudioOnly.value;
-
-                  bool isSwitching = false;
-                  bool isManual = false;
-                  try {
-                    if (Get.isRegistered<VideoController>(tag: tag)) {
-                      final vc = Get.find<VideoController>(tag: tag);
-                      isSwitching = vc.isSwitchingResolution.value;
-                      isManual = !vc.isAutoSwitching.value;
-                    }
-                  } catch (_) {}
-
-                  // Industry Standard: ONLY show "Optimizing Quality" for manual switches
-                  final showOverlay = isSwitching && isManual;
-
-                  return AnimatedOpacity(
-                    duration: const Duration(milliseconds: 300),
-                    opacity: showOverlay ? 1.0 : 0.0,
-                    child: showOverlay 
-                        ? const _SwitchingResolutionOverlay() 
+                  // ── Layer 6: Settings panel ───────────────────────────────────
+                  Obx(
+                    () => c.settingsOpen.value
+                        ? _SettingsPanel(ctrl: c)
                         : const SizedBox.shrink(),
-                  );
-                }),
-              ],
+                  ),
+
+                  // ── Layer 7: Premium Resolution Switching Overlay ─────────────
+                  Obx(() {
+                    // Ensure Obx is not empty
+                    c.isAudioOnly.value;
+
+                    bool isSwitching = false;
+                    bool isManual = false;
+                    try {
+                      if (Get.isRegistered<VideoController>(tag: tag)) {
+                        final vc = Get.find<VideoController>(tag: tag);
+                        isSwitching = vc.isSwitchingResolution.value;
+                        isManual = !vc.isAutoSwitching.value;
+                      }
+                    } catch (_) {}
+
+                    // Industry Standard: ONLY show "Optimizing Quality" for manual switches
+                    final showOverlay = isSwitching && isManual;
+
+                    return AnimatedOpacity(
+                      duration: const Duration(milliseconds: 300),
+                      opacity: showOverlay ? 1.0 : 0.0,
+                      child: showOverlay
+                          ? const _SwitchingResolutionOverlay()
+                          : const SizedBox.shrink(),
+                    );
+                  }),
+                ],
+              ),
             ),
           ),
-        ),
-      );
-    },
-  );
+        );
+      },
+    );
   }
 }
 
@@ -1470,7 +1520,9 @@ class _StateOverlay extends StatelessWidget {
       bool isAutoSwitching = false;
       try {
         if (Get.isRegistered<VideoController>(tag: ctrl.tag)) {
-          isAutoSwitching = Get.find<VideoController>(tag: ctrl.tag).isAutoSwitching.value;
+          isAutoSwitching = Get.find<VideoController>(
+            tag: ctrl.tag,
+          ).isAutoSwitching.value;
         }
       } catch (_) {}
 
@@ -1647,49 +1699,49 @@ class _SeekPreviewTooltip extends StatelessWidget {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                Positioned(
-                  left: xPx - 52,
-                  top: 0,
-                  child: Column(
-                    children: [
-                      Container(
-                      width: 104,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: PT.surface,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: PT.border),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.6),
-                            blurRadius: 12,
+                  Positioned(
+                    left: xPx - 52,
+                    top: 0,
+                    child: Column(
+                      children: [
+                        Container(
+                          width: 104,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
                           ),
-                        ],
-                      ),
-                      child: Text(
-                        _fmtDuration(pos),
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.outfit(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                          decoration: BoxDecoration(
+                            color: PT.surface,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: PT.border),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.6),
+                                blurRadius: 12,
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            _fmtDuration(pos),
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.outfit(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
+                  ),
                 ],
               ),
             );
-        },
-      ),
-    );
-  });
-}
+          },
+        ),
+      );
+    });
+  }
 
   String _fmtDuration(Duration d) {
     final h = d.inHours;
@@ -1817,7 +1869,7 @@ class _MainControls extends StatelessWidget {
       child: Row(
         children: [
           _IconBtn(
-            icon: Icons.arrow_back_rounded,
+            icon: Icons.arrow_back_ios_new,
             onTap: ctrl.toggleFullscreen,
           ),
           const SizedBox(width: 12),
@@ -2144,7 +2196,9 @@ class _ProgressBar extends StatelessWidget {
               // Chapter Markers
               if (ctrl.chapters.isNotEmpty && dur.inMilliseconds > 0)
                 ...ctrl.chapters.skip(1).map((VideoChapter chapter) {
-                  final frac = (chapter.startTime.inMilliseconds / dur.inMilliseconds).clamp(0.0, 1.0);
+                  final frac =
+                      (chapter.startTime.inMilliseconds / dur.inMilliseconds)
+                          .clamp(0.0, 1.0);
                   return Align(
                     alignment: Alignment.centerLeft,
                     child: FractionallySizedBox(
@@ -2309,40 +2363,40 @@ class _TimeDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '${_fmt(ctrl.vv.position)} / ${_fmt(ctrl.vv.duration)}',
-              style: GoogleFonts.outfit(
-                color: Colors.white.withValues(alpha: 0.9),
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '${_fmt(ctrl.vv.position)} / ${_fmt(ctrl.vv.duration)}',
+            style: GoogleFonts.outfit(
+              color: Colors.white.withValues(alpha: 0.9),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
             ),
-            if (ctrl.currentChapter.value != null) ...[
-              const SizedBox(width: 8),
-              Text(
-                '•',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  ctrl.currentChapter.value!.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.outfit(
-                    color: PT.primary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
+          ),
+          if (ctrl.currentChapter.value != null) ...[
+            const SizedBox(width: 8),
+            Text(
+              '•',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                ctrl.currentChapter.value!.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.outfit(
+                  color: PT.primary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-            ],
+            ),
           ],
-        );
-      });
+        ],
+      );
+    });
   }
 }
 
@@ -2603,7 +2657,7 @@ class _QualityPanel extends StatelessWidget {
       // Get available resolutions from VideoController (only what exists in video)
       List<VideoResolutionV2> availableResolutions = [];
       bool hasNoResolutions = false;
-      
+
       try {
         if (Get.isRegistered<VideoController>(tag: ctrl.tag)) {
           final vc = Get.find<VideoController>(tag: ctrl.tag);
@@ -2627,11 +2681,7 @@ class _QualityPanel extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    Icons.videocam_off_rounded,
-                    size: 48,
-                    color: PT.primary,
-                  ),
+                  Icon(Icons.videocam_off_rounded, size: 48, color: PT.primary),
                   const SizedBox(height: 16),
                   Text(
                     'Video Not Available',
@@ -2728,20 +2778,23 @@ class _QualityPanel extends StatelessWidget {
           ...tiers.reversed
               .where((tier) {
                 // Only include tiers that have a matching resolution in the video
-                final hasResolution = availableResolutions
-                    .any((res) => res.height == tier.height);
+                final hasResolution = availableResolutions.any(
+                  (res) => res.height == tier.height,
+                );
                 return hasResolution;
               })
               .map(
                 (tier) => _SelectTile(
                   label: tier.label,
                   sublabel: '${tier.bitrate} kbps',
-                  selected: !ctrl.abr.isAutoMode.value &&
+                  selected:
+                      !ctrl.abr.isAutoMode.value &&
                       ctrl.abr.currentTier.height == tier.height,
                   onTap: () {
                     // Find actual tier index
-                    final tierIndex =
-                        tiers.indexWhere((t) => t.height == tier.height);
+                    final tierIndex = tiers.indexWhere(
+                      (t) => t.height == tier.height,
+                    );
                     if (tierIndex >= 0) {
                       ctrl.selectQuality(tierIndex);
                     }
@@ -2776,8 +2829,6 @@ class _QualityPanel extends StatelessWidget {
 class _SubtitlesPanel extends StatelessWidget {
   final TowerPlayerController ctrl;
   const _SubtitlesPanel({required this.ctrl});
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -2825,40 +2876,57 @@ class _SubtitlesPanel extends StatelessWidget {
         ),
         const _Divider(),
 
+        // Request Button
+        _RequestLanguageButton(
+          type: 'subtitle',
+          onTap: () => ctrl._showRequestDialog(context, 'subtitle'),
+        ),
+        const _Divider(),
+
+        // Show Requests Section
         Expanded(
+          flex: 1,
+          child: _LanguageRequestsList(type: 'subtitle', tag: ctrl.tag),
+        ),
+
+        const _Divider(),
+
+        Expanded(
+          flex: 2,
           child: SingleChildScrollView(
-            child: Obx(
-              () {
-                if (ctrl.subtitleTracks.isEmpty) {
-                  return Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Center(
-                      child: Text(
-                        'No subtitles available',
-                        style: GoogleFonts.outfit(color: Colors.white38, fontSize: 13),
+            child: Obx(() {
+              if (ctrl.subtitleTracks.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                    child: Text(
+                      'No subtitles available',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white38,
+                        fontSize: 13,
                       ),
                     ),
-                  );
-                }
-                return Column(
-                  children: ctrl.subtitleTracks
-                      .map(
-                        (t) => _SelectTile(
-                          label: t.label,
-                          badge: t.langCode.toUpperCase(),
-                          selected:
-                              ctrl.subtitlesEnabled.value &&
-                              ctrl.activeSubLang.value == t.label,
-                          dimmed: !ctrl.subtitlesEnabled.value,
-                          onTap: ctrl.subtitlesEnabled.value
-                              ? () => ctrl.setSubtitles(enabled: true, track: t)
-                              : null,
-                        ),
-                      )
-                      .toList(),
+                  ),
                 );
-              },
-            ),
+              }
+              return Column(
+                children: ctrl.subtitleTracks
+                    .map(
+                      (t) => _SelectTile(
+                        label: t.label,
+                        badge: t.langCode.toUpperCase(),
+                        selected:
+                            ctrl.subtitlesEnabled.value &&
+                            ctrl.activeSubLang.value == t.label,
+                        dimmed: !ctrl.subtitlesEnabled.value,
+                        onTap: ctrl.subtitlesEnabled.value
+                            ? () => ctrl.setSubtitles(enabled: true, track: t)
+                            : null,
+                      ),
+                    )
+                    .toList(),
+              );
+            }),
           ),
         ),
         const SizedBox(height: 8),
@@ -2882,36 +2950,51 @@ class _LanguagePanel extends StatelessWidget {
           onBack: () => ctrl.activePanel.value = '',
           onClose: null,
         ),
+
+        // Request Button
+        _RequestLanguageButton(
+          type: 'audio',
+          onTap: () => ctrl._showRequestDialog(context, 'audio'),
+        ),
+        const _Divider(),
+
+        // Show Requests Section
+        Expanded(
+          child: _LanguageRequestsList(type: 'audio', tag: ctrl.tag),
+        ),
+
+        const _Divider(),
         Expanded(
           child: SingleChildScrollView(
-            child: Obx(
-              () {
-                if (ctrl.audioTracks.isEmpty) {
-                  return Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Center(
-                      child: Text(
-                        'Original audio only',
-                        style: GoogleFonts.outfit(color: Colors.white38, fontSize: 13),
+            child: Obx(() {
+              if (ctrl.audioTracks.isEmpty) {
+                return Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                    child: Text(
+                      'Original audio only',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white38,
+                        fontSize: 13,
                       ),
                     ),
-                  );
-                }
-                return Column(
-                  children: ctrl.audioTracks
-                      .map(
-                        (t) => _SelectTile(
-                          label: t.label,
-                          sublabel: t.type,
-                          badge: t.langCode.toUpperCase(),
-                          selected: ctrl.activeAudioLang.value == t.label,
-                          onTap: () => ctrl.setAudioLanguage(t),
-                        ),
-                      )
-                      .toList(),
+                  ),
                 );
-              },
-            ),
+              }
+              return Column(
+                children: ctrl.audioTracks
+                    .map(
+                      (t) => _SelectTile(
+                        label: t.label,
+                        sublabel: t.type,
+                        badge: t.langCode.toUpperCase(),
+                        selected: ctrl.activeAudioLang.value == t.label,
+                        onTap: () => ctrl.setAudioLanguage(t),
+                      ),
+                    )
+                    .toList(),
+              );
+            }),
           ),
         ),
         const SizedBox(height: 8),
@@ -3004,71 +3087,85 @@ class _RatingPanel extends StatelessWidget {
                     ),
                   ],
                 ),
-                
+
                 // NEW: Video Rating Section in Player Settings
-                Builder(builder: (context) {
-                  try {
-                    final vc = Get.find<VideoController>(tag: ctrl.tag);
-                    if (vc.video.videoRating > 0) {
-                      final rating = vc.video.videoRating;
-                      final isHigh = rating > 75;
-                      final Color statusColor = isHigh ? Colors.greenAccent : Colors.orangeAccent;
-                      
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 20),
-                        child: InkWell(
-                          onTap: () {
-                            ctrl.settingsOpen.value = false;
-                            vc.fetchFullDisclosure();
-                          },
-                          borderRadius: BorderRadius.circular(12),
-                          child: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.verified_user_rounded, color: statusColor, size: 20),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Video Rating: ${rating.toStringAsFixed(1)}%',
-                                        style: GoogleFonts.outfit(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
+                Builder(
+                  builder: (context) {
+                    try {
+                      final vc = Get.find<VideoController>(tag: ctrl.tag);
+                      if (vc.video.videoRating > 0) {
+                        final rating = vc.video.videoRating;
+                        final isHigh = rating > 75;
+                        final Color statusColor = isHigh
+                            ? Colors.greenAccent
+                            : Colors.orangeAccent;
+
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 20),
+                          child: InkWell(
+                            onTap: () {
+                              ctrl.settingsOpen.value = false;
+                              vc.fetchFullDisclosure();
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.1),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.verified_user_rounded,
+                                    color: statusColor,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Video Rating: ${rating.toStringAsFixed(1)}%',
+                                          style: GoogleFonts.outfit(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
                                         ),
-                                      ),
-                                      Text(
-                                        'AI Verified Content',
-                                        style: GoogleFonts.roboto(color: Colors.white38, fontSize: 11),
-                                      ),
-                                    ],
+                                        Text(
+                                          'AI Verified Content',
+                                          style: GoogleFonts.roboto(
+                                            color: Colors.white38,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
-                                Text(
-                                  'VIEW REPORT',
-                                  style: GoogleFonts.outfit(
-                                    color: PT.primary,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
+                                  Text(
+                                    'VIEW REPORT',
+                                    style: GoogleFonts.outfit(
+                                      color: PT.primary,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    }
-                  } catch (_) {}
-                  return const SizedBox.shrink();
-                }),
+                        );
+                      }
+                    } catch (_) {}
+                    return const SizedBox.shrink();
+                  },
+                ),
               ],
             ),
           ),
@@ -3242,7 +3339,7 @@ class _PanelHeader extends StatelessWidget {
         children: [
           if (onBack != null)
             _IconBtn(
-              icon: Icons.arrow_back_ios_new_rounded,
+              icon: Icons.arrow_back_ios_new,
               onTap: onBack!,
               size: 18,
             )
@@ -3310,7 +3407,9 @@ class _SettingsTile extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: PT.primary.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: PT.primary.withValues(alpha: 0.4)),
+                    border: Border.all(
+                      color: PT.primary.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: Text(
                     badge!,
@@ -3488,8 +3587,144 @@ class _Divider extends StatelessWidget {
   }
 }
 
+class _RequestLanguageButton extends StatelessWidget {
+  final String type;
+  final VoidCallback onTap;
 
+  const _RequestLanguageButton({required this.type, required this.onTap});
 
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: PT.primary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: PT.primary.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.add_circle_outline_rounded,
+                color: PT.primary,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Request ${type.capitalizeFirst} Language',
+                style: GoogleFonts.outfit(
+                  color: PT.primary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
+class _LanguageRequestsList extends StatelessWidget {
+  final String type;
+  final String? tag;
 
+  const _LanguageRequestsList({required this.type, this.tag});
 
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          child: Text(
+            'Requested Features',
+            style: GoogleFonts.outfit(
+              color: Colors.white70,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Obx(() {
+            if (!Get.isRegistered<VideoController>(tag: tag)) {
+              return const SizedBox.shrink();
+            }
+            final vc = Get.find<VideoController>(tag: tag);
+            final requests = vc.languageRequests
+                .where((r) => r.type == type)
+                .toList();
+
+            if (vc.isLoadingLanguageRequests.value) {
+              return const Center(
+                child: CircularProgressIndicator(strokeWidth: 2),
+              );
+            }
+
+            if (requests.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.all(20),
+                child: Center(
+                  child: Text(
+                    'No requests yet',
+                    style: GoogleFonts.outfit(
+                      color: Colors.white24,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            return ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              itemCount: requests.length,
+              itemBuilder: (context, index) {
+                final req = requests[index];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: ListTile(
+                    dense: true,
+                    leading: const Icon(
+                      Icons.language_rounded,
+                      color: Colors.white38,
+                      size: 18,
+                    ),
+                    title: Text(
+                      req.language,
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 13,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Requested on ${_fmtDate(req.createdAt.toDate())}',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white24,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  String _fmtDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year}';
+  }
+}

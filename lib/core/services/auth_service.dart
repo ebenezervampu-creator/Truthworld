@@ -20,6 +20,7 @@ class AuthService extends GetxService {
   Rxn<User> get currentUser => _user;
 
   User? get user => _user.value;
+  Future<String?> get idToken async => await _auth.currentUser?.getIdToken();
 
   final RxBool _isAuthenticated = false.obs;
   RxBool get isAuthenticated => _isAuthenticated;
@@ -196,7 +197,6 @@ class AuthService extends GetxService {
 
   /// ✅ Synchronizes user data to Firestore 'users' collection
   Future<void> _syncUserToFirestore(User user) async {
-    debugPrint('AuthService: [SYNC] Starting synchronization for UID: ${user.uid}');
     final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
     
     try {
@@ -211,47 +211,35 @@ class AuthService extends GetxService {
         'platform': GetPlatform.isWeb ? 'web' : 'mobile',
       };
 
-      debugPrint('AuthService: [SYNC] Checking document existence for UID: ${user.uid}');
-      final docSnapshot = await userDoc.get().timeout(const Duration(seconds: 10));
+      DocumentSnapshot docSnapshot;
+      try {
+        docSnapshot = await userDoc.get();
+      } on FirebaseException catch (e) {
+        if (e.code == 'unavailable') {
+          debugPrint('AuthService: Firestore server is offline/unavailable. Profile sync deferred.');
+          return;
+        }
+        rethrow;
+      }
       
       if (!docSnapshot.exists) {
-        debugPrint('AuthService: [SYNC] No document found. Initializing NEW user record...');
         final newUser = UserModel.fromFirebaseUser(user).copyWith(
           metadata: metadata,
         );
         
         await userDoc.set(newUser.toFirestoreCreate());
-        debugPrint('AuthService: [SYNC] ✅ NEW user record created successfully');
       } else {
-        debugPrint('AuthService: [SYNC] Document exists. Updating lifecycle timestamps...');
         final currentUser = UserModel.fromFirebaseUser(user).copyWith(
           metadata: metadata,
         );
         
         final updateData = currentUser.toFirestoreUpdate();
-        // Merge metadata into existing doc to preserve platform history if needed
-        // Here we overwrite as it's volatile session metadata
         updateData['metadata'] = metadata;
         
         await userDoc.update(updateData);
-        debugPrint('AuthService: [SYNC] ✅ EXISTING user record updated successfully');
       }
     } catch (e) {
-      debugPrint('AuthService: [SYNC] ⚠️ Sync Warning/Error: $e');
-      logger.error('Sync failure for ${user.uid}: $e', tag: 'AUTH');
-      
-      // Critical Fallback: Use idempotent set() with merge if get() or update() failed
-      try {
-        debugPrint('AuthService: [SYNC] Attempting idempotent fallback (set with merge)...');
-        final fallbackUser = UserModel.fromFirebaseUser(user);
-        await userDoc.set(
-          fallbackUser.toFirestoreCreate(), 
-          SetOptions(merge: true)
-        );
-        debugPrint('AuthService: [SYNC] ✅ Idempotent fallback successful');
-      } catch (fallbackError) {
-        debugPrint('AuthService: [SYNC] ❌ CRITICAL: Fallback also failed: $fallbackError');
-      }
+      logger.warning('Auth sync error for ${user.uid}: $e', tag: 'AUTH');
     }
   }
 }

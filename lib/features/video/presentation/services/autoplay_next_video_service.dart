@@ -1,9 +1,9 @@
 /// ============================================================================
 /// autoplay_next_video_service.dart
-/// Industry-standard Auto-Play Next Video Service (YouTube/Netflix-style)
+/// Industry-standard Auto-Play Next Video Service (TruthWorld/Netflix-style)
 /// ============================================================================
 /// Features:
-///   ✅ Configurable countdown timer (default: 10s, YouTube-style)
+///   ✅ Configurable countdown timer (default: 10s, TruthWorld-style)
 ///   ✅ Smart next video selection from recommendations
 ///   ✅ User dismiss/continue controls
 ///   ✅ Analytics tracking (impression, continue, dismiss)

@@ -1,3 +1,4 @@
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -58,7 +59,7 @@ class ReplyInputController extends BaseController {
         'Error',
         'Please sign in to reply.',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.redAccent,
+        backgroundColor: AppColors.brand,
         colorText: Colors.white,
       );
       isSending.value = false;
@@ -83,7 +84,7 @@ class ReplyInputController extends BaseController {
         'Error',
         'Failed to send reply: $e',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.redAccent,
+        backgroundColor: AppColors.brand,
         colorText: Colors.white,
       );
     } finally {
