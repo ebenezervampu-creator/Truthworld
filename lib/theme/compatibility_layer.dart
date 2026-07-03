@@ -86,6 +86,17 @@ class AppTextStyles {
   static TextStyle get bodyLarge => GoogleFonts.roboto(fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.textPrimary);
   static TextStyle get bodySmall => GoogleFonts.roboto(fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.textSecondary);
   static TextStyle get titleLarge => GoogleFonts.roboto(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
+  static TextStyle get displaySmall => GoogleFonts.roboto(fontSize: 36, fontWeight: FontWeight.w400, color: AppColors.textPrimary);
+  static TextStyle get inputText => GoogleFonts.roboto(fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.textPrimary);
+  static TextStyle get inputHint => GoogleFonts.roboto(fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.textTertiary);
+  static TextStyle get buttonText => GoogleFonts.roboto(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary);
+  static TextStyle get labelLarge => GoogleFonts.roboto(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary);
+  static TextStyle get labelMedium => GoogleFonts.roboto(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textSecondary);
+  static TextStyle get badge => GoogleFonts.roboto(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
+  static TextStyle get pageTitle => GoogleFonts.roboto(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
+  static TextStyle get sectionHeader => GoogleFonts.roboto(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
+  static TextStyle get caption => GoogleFonts.roboto(fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.textTertiary);
+  static TextStyle get captionBold => GoogleFonts.roboto(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textTertiary);
 }
 
 class InteractionStyles {

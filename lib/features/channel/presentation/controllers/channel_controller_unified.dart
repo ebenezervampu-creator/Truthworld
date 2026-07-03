@@ -106,6 +106,7 @@ class ImageData {
 
 class ChannelController extends GetxController
     with GetTickerProviderStateMixin, ContentValidationMixin {
+  static final RxMap<String, int> globalSubscriberCounts = <String, int>{}.obs;
   // Flag to track disposal state and prevent ticker errors
   bool _isDisposed = false;
   @override
@@ -248,6 +249,7 @@ class ChannelController extends GetxController
   final RxBool notificationPlaylist = false.obs;
 
   // Availability Checking
+  final handleSuggestions = <String>[].obs;
   var channelNameAvailability = Rx<AvailabilityStatus>(
     AvailabilityStatus.unknown,
   );
@@ -518,18 +520,43 @@ class ChannelController extends GetxController
     );
   }
 
+  void _updateHandleSuggestions(String baseSlug) {
+    if (baseSlug.trim().isEmpty) {
+      handleSuggestions.clear();
+      return;
+    }
+    final base = baseSlug.length > 25 ? baseSlug.substring(0, 25) : baseSlug;
+    handleSuggestions.value = [
+      base,
+      '${base}123',
+      '${base}_vsp',
+      '${base}777',
+    ];
+  }
+
   void _setupTextFieldListeners() {
     channelName.addListener(() {
       checkChannelNameAvailability(channelName.text);
       // Auto-fill custom URL if it's empty or was previously auto-filled
-      final slug = channelName.text.toLowerCase().trim().replaceAll(
-        RegExp(r'[^a-z0-9]'),
-        '-',
-      );
-      if (customUrl.text.isEmpty || customUrl.text == _lastAutoSlug) {
-        customUrl.text = slug;
-        _lastAutoSlug = slug;
+      final slug = channelName.text.toLowerCase().trim()
+          .replaceAll(RegExp(r'[^a-z0-9_-]'), '-')
+          .replaceAll(RegExp(r'-+'), '-')
+          .replaceAll(RegExp(r'_+'), '_');
+      String cleanSlug = slug;
+      if (cleanSlug.startsWith('-') || cleanSlug.startsWith('_')) {
+        cleanSlug = cleanSlug.substring(1);
       }
+      if (cleanSlug.endsWith('-') || cleanSlug.endsWith('_')) {
+        cleanSlug = cleanSlug.substring(0, cleanSlug.length - 1);
+      }
+      if (customUrl.text.isEmpty || customUrl.text == _lastAutoSlug) {
+        customUrl.text = cleanSlug;
+        _lastAutoSlug = cleanSlug;
+        if (cleanSlug.isNotEmpty) {
+          checkCustomUrlAvailability(cleanSlug);
+        }
+      }
+      _updateHandleSuggestions(cleanSlug);
       formChangeTrigger.value++;
     });
     customUrl.addListener(() {
@@ -960,7 +987,7 @@ class ChannelController extends GetxController
       // 0. Limit Check
       if (channels.length >= maxChannelsPerUser) {
         _showErrorSnackbar(
-          "You have reached the maximum number of channels allowed ($maxChannelsPerUser).",
+          "You can only create one channel per Google account.",
         );
         return;
       }
@@ -1061,6 +1088,8 @@ class ChannelController extends GetxController
         // Core fields matching Channel model (V2)
         "name": channelNameText,
         "nameLowercase": channelNameText.toLowerCase(),
+        "channelName": channelNameText,
+        "channelNameLowercase": channelNameText.toLowerCase(),
         "description": description.text.trim(),
         "bannerUrl": bannerUrl.value.isEmpty ? defaultBanner : bannerUrl.value,
         "avatarUrl": avatarUrl.value.isEmpty
@@ -1080,6 +1109,8 @@ class ChannelController extends GetxController
         // Custom URL mapped to handle
         "handle": customUrlText,
         "handleLowercase": customUrlText.toLowerCase(),
+        "customUrl": customUrlText,
+        "customUrlLowercase": customUrlText.toLowerCase(),
 
         // Moderation lists
         "moderatorIds": [],
@@ -1110,7 +1141,7 @@ class ChannelController extends GetxController
         },
 
         // Status & Metrics
-        "status": "active",
+        "status": "underReview",
         "videoCount": 0,
         "isLive": false,
         "metrics": {
@@ -1146,16 +1177,22 @@ class ChannelController extends GetxController
       hasDraft.value = false;
       draftId.value = null;
 
-      uploadProgress.value = 1.0;
-      await successAnimationController.forward();
-
       _showSuccessSnackbar('Channel "$channelNameText" created successfully!');
       debugPrint('âœ… Channel created with ID: $newChannelId');
       debugPrint('ðŸ“ Channel name: $channelNameText');
 
       _resetForm();
 
-      Timer(const Duration(milliseconds: 1000), () => Get.back());
+      // Navigate directly to Creator Studio with a smooth transition
+      Get.offAllNamed(
+        "/studio",
+        arguments: {
+          'channel': {
+            'id': newChannelId,
+            'name': channelNameText,
+          }
+        },
+      );
     } catch (e) {
       debugPrint('âŒ Error creating channel: $e');
       _showErrorSnackbar("Failed to create channel: $e");

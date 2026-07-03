@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/utils/timestamp_utils.dart';
 
 class VideoClip {
   final String id;
@@ -51,7 +52,7 @@ class VideoClip {
       thumbnailUrl: map['thumbnailUrl'] ?? '',
       videoTitle: map['videoTitle'] ?? '',
       channelName: map['channelName'] ?? '',
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: TimestampUtils.parseToDateTime(map['createdAt']) ?? DateTime.now(),
     );
   }
 

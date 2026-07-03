@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/utils/timestamp_utils.dart';
 
 enum PlaylistVisibility { public, private, unlisted }
 
@@ -29,7 +30,7 @@ class PlaylistItem {
     videoId: map['videoId'] ?? '',
     title: map['title'] ?? '',
     thumbnailUrl: map['thumbnailUrl'] ?? '',
-    addedAt: map['addedAt'] ?? Timestamp.now(),
+    addedAt: TimestampUtils.parse(map['addedAt']),
     position: map['position'] ?? 0,
   );
 }
@@ -75,16 +76,8 @@ class PlaylistModel {
            (isPublic == true
                ? PlaylistVisibility.public
                : PlaylistVisibility.private),
-       createdAt = createdAt is Timestamp
-           ? createdAt
-           : (createdAt is DateTime
-                 ? Timestamp.fromDate(createdAt)
-                 : Timestamp.now()),
-       updatedAt = updatedAt is Timestamp
-           ? updatedAt
-           : (updatedAt is DateTime
-                 ? Timestamp.fromDate(updatedAt)
-                 : Timestamp.now());
+       createdAt = TimestampUtils.parse(createdAt),
+       updatedAt = TimestampUtils.parse(updatedAt);
 
   Map<String, dynamic> toMap() {
     return {

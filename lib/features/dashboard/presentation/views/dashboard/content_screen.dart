@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/edit_videoscreen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/video_pipeline_status.dart';
 
 class ContentScreen extends StatelessWidget {
   final String channelId;
@@ -155,123 +156,132 @@ class ContentScreen extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: EdgeInsets.all(12.0),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Thumbnail
-            Container(
-              width: 120,
-              height: 70,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                image: DecorationImage(
-                  image: CachedNetworkImageProvider(video.thumbnailUrl),
-                  fit: BoxFit.cover,
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
-            // Video Details
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    video.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.roboto(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 16,
-                      color: isDarkMode
-                          ? AppTheme.colors.textPrimary
-                          : AppTheme.colors.background87,
+            Row(
+              children: [
+                // Thumbnail
+                Container(
+                  width: 120,
+                  height: 70,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    image: DecorationImage(
+                      image: CachedNetworkImageProvider(video.thumbnailUrl),
+                      fit: BoxFit.cover,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
+                ),
+                const SizedBox(width: 16),
+                // Video Details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.visibility,
-                        size: 14,
-                        color: AppTheme.colors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
                       Text(
-                        '${video.views} views',
-                        style: TextStyle(
-                          color: AppTheme.colors.textSecondary,
-                          fontSize: 12,
+                        video.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.roboto(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 16,
+                          color: isDarkMode
+                              ? AppTheme.colors.textPrimary
+                              : AppTheme.colors.background87,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Icon(
-                        Icons.calendar_today,
-                        size: 14,
-                        color: AppTheme.colors.textSecondary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        DateFormat(
-                          'MMM d, yyyy',
-                        ).format(video.uploadedAt.toDate()),
-                        style: TextStyle(
-                          color: AppTheme.colors.textSecondary,
-                          fontSize: 12,
-                        ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.visibility,
+                            size: 14,
+                            color: AppTheme.colors.textSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${video.views} views',
+                            style: TextStyle(
+                              color: AppTheme.colors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Icon(
+                            Icons.calendar_today,
+                            size: 14,
+                            color: AppTheme.colors.textSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            DateFormat(
+                              'MMM d, yyyy',
+                            ).format(video.uploadedAt.toDate()),
+                            style: TextStyle(
+                              color: AppTheme.colors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-            // Action Buttons
-            PopupMenuButton<String>(
-              onSelected: (value) {
-                if (value == 'edit') {
-                  Get.to(() => EditVideoScreen(video: video));
-                } else if (value == 'delete') {
-                  Get.defaultDialog(
-                    title: "Delete Video?",
-                    middleText:
-                        "Are you sure you want to delete '${video.title}'? This action cannot be undone.",
-                    textConfirm: "Delete",
-                    textCancel: "Cancel",
-                    confirmTextColor: AppTheme.colors.textPrimary,
-                    onConfirm: () {
-                      controller.deleteVideo(video);
-                      Get.back(); // Close dialog
-                    },
-                  );
-                }
-              },
-              itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-                PopupMenuItem<String>(
-                  value: 'edit',
-                  child: ListTile(
-                    leading: Icon(Icons.edit_outlined),
-                    title: Text('Edit'),
-                  ),
                 ),
-                PopupMenuItem<String>(
-                  value: 'delete',
-                  child: ListTile(
-                    leading: Icon(
-                      Icons.delete_outline,
-                      color: AppTheme.colors.primary,
+                // Action Buttons
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      Get.to(() => EditVideoScreen(video: video));
+                    } else if (value == 'delete') {
+                      Get.defaultDialog(
+                        title: "Delete Video?",
+                        middleText:
+                            "Are you sure you want to delete '${video.title}'? This action cannot be undone.",
+                        textConfirm: "Delete",
+                        textCancel: "Cancel",
+                        confirmTextColor: AppTheme.colors.textPrimary,
+                        onConfirm: () {
+                          controller.deleteVideo(video);
+                          Get.back(); // Close dialog
+                        },
+                      );
+                    }
+                  },
+                  itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                    PopupMenuItem<String>(
+                      value: 'edit',
+                      child: ListTile(
+                        leading: Icon(Icons.edit_outlined),
+                        title: Text('Edit'),
+                      ),
                     ),
-                    title: Text(
-                      'Delete',
-                      style: TextStyle(color: AppTheme.colors.primary),
+                    PopupMenuItem<String>(
+                      value: 'delete',
+                      child: ListTile(
+                        leading: Icon(
+                          Icons.delete_outline,
+                          color: AppTheme.colors.primary,
+                        ),
+                        title: Text(
+                          'Delete',
+                          style: TextStyle(color: AppTheme.colors.primary),
+                        ),
+                      ),
                     ),
+                  ],
+                  icon: Icon(
+                    Icons.more_vert,
+                    color: isDarkMode
+                        ? AppTheme.colors.textPrimary70
+                        : AppTheme.colors.background54,
                   ),
                 ),
               ],
-              icon: Icon(
-                Icons.more_vert,
-                color: isDarkMode
-                    ? AppTheme.colors.textPrimary70
-                    : AppTheme.colors.background54,
-              ),
+            ),
+            VideoPipelineStatusWidget(
+              video: video,
+              isDarkMode: isDarkMode,
             ),
           ],
         ),

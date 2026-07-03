@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'dart:typed_data';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/customization_controller.dart';
 
@@ -107,18 +108,108 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
         } else {
           return Form(
             key: _formKey,
-            child: TabBarView(
-              controller: _tabController,
+            child: Column(
               children: [
-                _buildBrandingTab(),
-                _buildBasicInfoTab(),
-                _buildAdvancedTab(),
-                _buildSettingsTab(),
+                _buildModerationBanner(),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildBrandingTab(),
+                      _buildBasicInfoTab(),
+                      _buildAdvancedTab(),
+                      _buildSettingsTab(),
+                    ],
+                  ),
+                ),
               ],
             ),
           );
         }
       }),
+    );
+  }
+
+  Widget _buildModerationBanner() {
+    final channelStatus = controller.status.value;
+    final reason = controller.moderationReason.value;
+
+    if (channelStatus == 'active') {
+      return const SizedBox.shrink();
+    }
+
+    Color bannerColor;
+    IconData icon;
+    String title;
+    String subtitle;
+
+    if (channelStatus == 'underReview') {
+      bannerColor = const Color(0xFF3B82F6); // Blue
+      icon = Icons.sync_rounded;
+      title = 'Branding Under Gemini AI Moderation';
+      subtitle = 'Gemini is checking your channel details (name, description, tags) against our community guidelines. This usually takes just a few seconds.';
+    } else if (channelStatus == 'verificationRejected') {
+      bannerColor = const Color(0xFFEF4444); // Red
+      icon = Icons.error_outline_rounded;
+      title = 'Branding Verification Rejected by Gemini AI';
+      subtitle = reason.isNotEmpty
+          ? reason
+          : 'Your channel details were rejected. Please update your name, description, or tags to comply with our guidelines.';
+    } else {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: bannerColor.withValues(alpha: 0.1),
+        border: Border(
+          bottom: BorderSide(color: bannerColor.withValues(alpha: 0.3), width: 1),
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (channelStatus == 'underReview')
+            const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+              ),
+            )
+          else
+            Icon(icon, color: bannerColor, size: 24),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.roboto(
+                    color: bannerColor,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.roboto(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

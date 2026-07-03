@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Hardcoded debug token for Firebase App Check to bypass Vivo logcat issues -->
+    <string name="firebase_app_check_debug_token">26B7C98E-FC8F-4580-BA97-455ADBE131BC</string>
+</resources>

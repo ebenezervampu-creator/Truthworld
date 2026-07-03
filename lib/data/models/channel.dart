@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/utils/timestamp_utils.dart';
 
-enum ChannelStatus { active, suspended, underReview, deleted }
+enum ChannelStatus { active, suspended, underReview, deleted, verificationPending, verificationRejected }
 
 enum MonetizationTier { none, eligible, basic, premium, pro }
 
@@ -57,6 +58,7 @@ class Channel {
   final bool isVerified;
   final String category;
   final String language;
+  final String? moderationReason;
 
   // Monetization
   final MonetizationTier monetizationTier;
@@ -80,6 +82,7 @@ class Channel {
   String get bannerImageUrl => bannerUrl;
   bool get isArchived => status == ChannelStatus.deleted;
   String get websiteUrl => socialLinks?['website'] ?? '';
+  String get channelRoute => '/channel/$id';
 
   Channel({
     required this.id,
@@ -106,6 +109,7 @@ class Channel {
     this.brandingSettings,
     this.socialLinks,
     this.featuredVideoIds = const [],
+    this.moderationReason = '',
   }) : metrics = metrics ?? ChannelMetricsV2();
 
   Map<String, dynamic> toMap() {
@@ -134,6 +138,7 @@ class Channel {
       'brandingSettings': brandingSettings,
       'socialLinks': socialLinks,
       'featuredVideoIds': featuredVideoIds,
+      'moderationReason': moderationReason,
     };
   }
 
@@ -149,8 +154,8 @@ class Channel {
       bannerUrl: data['bannerUrl'] ?? '',
       avatarVariants: List<String>.from(data['avatarVariants'] ?? []),
       ownerId: data['ownerId'] ?? '',
-      createdAt: data['createdAt'] ?? Timestamp.now(),
-      updatedAt: data['updatedAt'] ?? Timestamp.now(),
+      createdAt: TimestampUtils.parse(data['createdAt']),
+      updatedAt: TimestampUtils.parse(data['updatedAt']),
       subscriberCount: (data['subscriberCount'] as num?)?.toInt() ?? 0,
       videoCount: (data['videoCount'] as num?)?.toInt() ?? 0,
       metrics: data['metrics'] != null
@@ -171,6 +176,7 @@ class Channel {
       brandingSettings: data['brandingSettings'],
       socialLinks: data['socialLinks'],
       featuredVideoIds: List<String>.from(data['featuredVideoIds'] ?? []),
+      moderationReason: data['moderationReason'] as String?,
     );
   }
 

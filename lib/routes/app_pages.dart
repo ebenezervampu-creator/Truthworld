@@ -3,6 +3,7 @@ import 'package:truthworld/core/widgets/deferred_widget.dart';
 import 'package:truthworld/core/utils/route_guards.dart';
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/privacy_polices.dart';
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/terms.dart';
+import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/community_guidelines.dart';
 import 'package:truthworld/features/about/presentation/views/About/about.dart';
 import 'package:truthworld/features/feedback/presentation/views/feedback/feedbacks.dart';
 import 'package:truthworld/features/feedback/presentation/views/feedback/help.dart';
@@ -66,6 +67,7 @@ class AppPages {
       page: () => ChannelScreen(),
       transition: Transition.leftToRightWithFade,
       transitionDuration: const Duration(milliseconds: 300),
+      middlewares: [ChannelCreationGuard()],
     ),
     GetPage(
       name: "/dashboard",
@@ -239,6 +241,12 @@ class AppPages {
     GetPage(
       name: "/terms",
       page: () => TermsAndConditionsPage(),
+      transition: Transition.leftToRightWithFade,
+      transitionDuration: const Duration(milliseconds: 300),
+    ),
+    GetPage(
+      name: "/community-guidelines",
+      page: () => const CommunityGuidelinesPage(),
       transition: Transition.leftToRightWithFade,
       transitionDuration: const Duration(milliseconds: 300),
     ),

@@ -258,7 +258,206 @@ class TopicRepository {
       return [];
     }
   }
+
+  Future<List<Topic>> fetchFeaturedTopics({int limit = 5}) async {
+    try {
+      final snapshot = await _firestore
+          .collection('topics')
+          .where('isFeatured', isEqualTo: true)
+          .limit(limit)
+          .get();
+      if (snapshot.docs.isNotEmpty) {
+        return snapshot.docs.map((doc) => Topic.fromDocumentSnapshot(doc)).toList();
+      }
+      return getPopularTopics(limit: limit);
+    } catch (e) {
+      debugPrint('Error fetchFeaturedTopics: $e');
+      return getPopularTopics(limit: limit);
+    }
+  }
+
+  Future<List<Topic>> fetchTrendingTopics({
+    int limit = 20,
+    DocumentSnapshot? lastDoc,
+    required String category,
+  }) async {
+    try {
+      Query query = _firestore.collection('topics');
+      if (category.toLowerCase() != 'all') {
+        query = query.where('category', isEqualTo: category);
+      }
+      query = query.orderBy('trendingScore', descending: true).limit(limit);
+      if (lastDoc != null) {
+        query = query.startAfterDocument(lastDoc);
+      }
+      final snapshot = await query.get();
+      return snapshot.docs.map((doc) => Topic.fromDocumentSnapshot(doc)).toList();
+    } catch (e) {
+      debugPrint('Error fetchTrendingTopics: $e');
+      return fetchTopics(limit: limit, lastDoc: lastDoc, category: category);
+    }
+  }
+
+  Future<List<Topic>> fetchTopics({
+    int limit = 20,
+    DocumentSnapshot? lastDoc,
+    required String category,
+  }) async {
+    try {
+      Query query = _firestore.collection('topics');
+      if (category.toLowerCase() != 'all') {
+        query = query.where('category', isEqualTo: category);
+      }
+      query = query.orderBy('videoCount', descending: true).limit(limit);
+      if (lastDoc != null) {
+        query = query.startAfterDocument(lastDoc);
+      }
+      final snapshot = await query.get();
+      return snapshot.docs.map((doc) => Topic.fromDocumentSnapshot(doc)).toList();
+    } catch (e) {
+      debugPrint('Error fetchTopics: $e');
+      return [];
+    }
+  }
+
+  Future<List<Topic>> fetchFollowedTopics(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('savedTopics')
+          .get();
+
+      if (snapshot.docs.isEmpty) return [];
+
+      final topicIds = snapshot.docs.map((doc) => doc.id).toList();
+      return _fetchTopicsByIds(topicIds);
+    } catch (e) {
+      debugPrint('Error fetchFollowedTopics: $e');
+      return [];
+    }
+  }
+
+  Future<List<Topic>> fetchFavoriteTopics(String userId) async {
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('likedTopics')
+          .get();
+
+      if (snapshot.docs.isEmpty) return [];
+
+      final topicIds = snapshot.docs.map((doc) => doc.id).toList();
+      return _fetchTopicsByIds(topicIds);
+    } catch (e) {
+      debugPrint('Error fetchFavoriteTopics: $e');
+      return [];
+    }
+  }
+
+  Future<List<Topic>> _fetchTopicsByIds(List<String> ids) async {
+    if (ids.isEmpty) return [];
+    try {
+      final batchSize = 10;
+      List<Topic> topics = [];
+      for (var i = 0; i < ids.length; i += batchSize) {
+        final batch = ids.skip(i).take(batchSize).toList();
+        final query = await _firestore
+            .collection('topics')
+            .where(FieldPath.documentId, whereIn: batch)
+            .get();
+        topics.addAll(
+          query.docs.map((doc) => Topic.fromDocumentSnapshot(doc)),
+        );
+      }
+      return topics;
+    } catch (e) {
+      debugPrint('Error _fetchTopicsByIds: $e');
+      return [];
+    }
+  }
+
+  Future<bool> isTopicFollowed(String userId, String topicId) async {
+    try {
+      final doc = await _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('savedTopics')
+          .doc(topicId)
+          .get();
+      return doc.exists;
+    } catch (e) {
+      debugPrint('Error isTopicFollowed: $e');
+      return false;
+    }
+  }
+
+  Future<bool> followTopic(String userId, String topicId) async {
+    try {
+      final batch = _firestore.batch();
+      final topicRef = _firestore.collection('topics').doc(topicId);
+      final userSavedRef = _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('savedTopics')
+          .doc(topicId);
+      final topicFollowerRef = topicRef.collection('followers').doc(userId);
+      final legacyFollowRef = _firestore.collection('topic_followers').doc('${topicId}_$userId');
+
+      batch.set(userSavedRef, {
+        'topicId': topicId,
+        'savedAt': FieldValue.serverTimestamp(),
+      });
+      batch.set(topicFollowerRef, {
+        'userId': userId,
+        'savedAt': FieldValue.serverTimestamp(),
+      });
+      batch.set(legacyFollowRef, {
+        'userId': userId,
+        'topicId': topicId,
+        'savedAt': FieldValue.serverTimestamp(),
+      });
+      batch.update(topicRef, {
+        'followerCount': FieldValue.increment(1),
+      });
+
+      await batch.commit();
+      return true;
+    } catch (e) {
+      debugPrint('Error followTopic: $e');
+      return false;
+    }
+  }
+
+  Future<bool> unfollowTopic(String userId, String topicId) async {
+    try {
+      final batch = _firestore.batch();
+      final topicRef = _firestore.collection('topics').doc(topicId);
+      final userSavedRef = _firestore
+          .collection('users')
+          .doc(userId)
+          .collection('savedTopics')
+          .doc(topicId);
+      final topicFollowerRef = topicRef.collection('followers').doc(userId);
+      final legacyFollowRef = _firestore.collection('topic_followers').doc('${topicId}_$userId');
+
+      batch.delete(userSavedRef);
+      batch.delete(topicFollowerRef);
+      batch.delete(legacyFollowRef);
+      batch.update(topicRef, {
+        'followerCount': FieldValue.increment(-1),
+      });
+
+      await batch.commit();
+      return true;
+    } catch (e) {
+      debugPrint('Error unfollowTopic: $e');
+      return false;
+    }
+  }
 }
+
 
 
 

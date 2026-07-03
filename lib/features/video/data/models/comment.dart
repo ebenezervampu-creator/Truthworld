@@ -26,6 +26,9 @@ class Comment {
   final bool isHeartedByCreator;
   final String? creatorHeartName;
 
+  String get displayName => (channelName != null && channelName!.isNotEmpty) ? channelName! : userName;
+  String get avatarUrl => (channelProfilePicUrl != null && channelProfilePicUrl!.isNotEmpty) ? channelProfilePicUrl! : userProfilePicUrl;
+
   Comment({
     required this.id,
     required this.videoId,

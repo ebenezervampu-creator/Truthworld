@@ -23,6 +23,7 @@ class CreatorAnalyticsController extends GetxController {
 
   final selectedVideoId = RxString('');
   final selectedChannelId = RxString('');
+  final selectedGeoTab = RxString('states');
 
   // Date range filter
   final selectedDateRange = Rx<AnalyticsDateRange>(AnalyticsDateRange.last28Days);
@@ -53,6 +54,7 @@ class CreatorAnalyticsController extends GetxController {
 
   // Insights
   final topStates = RxList<StateTrafficStat>();
+  final topCountries = RxList<CountryTrafficStat>();
   final topCities = RxList<CityTrafficStat>();
   final deviceBreakdownStats = RxList<DeviceStatStat>();
   final qualityStats = RxList<QualityStatStat>();
@@ -381,6 +383,19 @@ class CreatorAnalyticsController extends GetxController {
     }
     topStates.value = stateData;
 
+    // Top countries
+    final countryData = <CountryTrafficStat>[];
+    final sortedCountries = analytics.countryTrafficPercentage.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    for (final e in sortedCountries.take(5)) {
+      countryData.add(CountryTrafficStat(
+        countryName: e.key,
+        viewCount: analytics.countryTraffic[e.key] ?? 0,
+        percentage: e.value,
+      ));
+    }
+    topCountries.value = countryData;
+
     // Top cities
     final cityData = <CityTrafficStat>[];
     final sortedCities = analytics.cityTraffic.entries.toList()
@@ -444,6 +459,19 @@ class CreatorAnalyticsController extends GetxController {
       ));
     }
     topStates.value = stateData;
+
+    // Top countries
+    final countryData = <CountryTrafficStat>[];
+    final sortedCountries = analytics.countryTrafficPercentage.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    for (final e in sortedCountries.take(5)) {
+      countryData.add(CountryTrafficStat(
+        countryName: e.key,
+        viewCount: analytics.countryTraffic[e.key] ?? 0,
+        percentage: e.value,
+      ));
+    }
+    topCountries.value = countryData;
 
     // Cities
     final cityData = <CityTrafficStat>[];
@@ -679,6 +707,89 @@ class CreatorAnalyticsController extends GetxController {
         .getAllIndianStates()
         .firstWhere((s) => s.startsWith(stateCode), orElse: () => stateCode);
   }
+
+  List<double>? getCoordinates(String name) {
+    final cleanName = name.trim();
+    if (_geoCoordinates.containsKey(cleanName)) {
+      return _geoCoordinates[cleanName];
+    }
+    final lowerName = cleanName.toLowerCase();
+    for (final entry in _geoCoordinates.entries) {
+      if (entry.key.toLowerCase() == lowerName) {
+        return entry.value;
+      }
+    }
+    return null;
+  }
+
+  static const Map<String, List<double>> _geoCoordinates = {
+    // Indian States/UTs
+    'Andaman and Nicobar': [11.74, 92.65],
+    'Andhra Pradesh': [15.97, 79.74],
+    'Arunachal Pradesh': [28.21, 94.72],
+    'Assam': [26.20, 92.93],
+    'Bihar': [25.09, 85.31],
+    'Chandigarh': [30.73, 76.77],
+    'Chhattisgarh': [21.27, 81.86],
+    'Dadra and Nagar Haveli': [20.18, 73.01],
+    'Daman and Diu': [20.42, 72.83],
+    'Delhi': [28.61, 77.20],
+    'Goa': [15.29, 74.12],
+    'Gujarat': [22.25, 71.19],
+    'Haryana': [29.05, 76.08],
+    'Himachal Pradesh': [31.10, 77.17],
+    'Jammu and Kashmir': [33.77, 76.57],
+    'Jharkhand': [23.61, 85.27],
+    'Karnataka': [15.31, 75.71],
+    'Kerala': [10.85, 76.27],
+    'Ladakh': [34.15, 77.57],
+    'Lakshadweep': [10.57, 72.64],
+    'Madhya Pradesh': [22.97, 78.65],
+    'Maharashtra': [19.75, 75.71],
+    'Manipur': [24.66, 93.90],
+    'Meghalaya': [25.46, 91.36],
+    'Mizoram': [23.16, 92.93],
+    'Nagaland': [26.15, 94.56],
+    'Odisha': [20.95, 85.09],
+    'Puducherry': [11.94, 79.80],
+    'Punjab': [31.14, 75.34],
+    'Rajasthan': [27.02, 74.21],
+    'Sikkim': [27.53, 88.51],
+    'Tamil Nadu': [11.12, 78.65],
+    'Telangana': [18.11, 79.01],
+    'Tripura': [23.94, 91.98],
+    'Uttar Pradesh': [26.84, 80.88],
+    'Uttarakhand': [30.06, 79.01],
+    'West Bengal': [22.98, 87.85],
+
+    // Countries
+    'India': [20.59, 78.96],
+    'IN': [20.59, 78.96],
+    'United States': [37.09, -95.71],
+    'US': [37.09, -95.71],
+    'United Kingdom': [55.37, -3.43],
+    'UK': [55.37, -3.43],
+    'Canada': [56.13, -106.34],
+    'CA': [56.13, -106.34],
+    'Australia': [-25.27, 133.77],
+    'AU': [-25.27, 133.77],
+    'Germany': [51.16, 10.45],
+    'DE': [51.16, 10.45],
+    'France': [46.22, 2.21],
+    'FR': [46.22, 2.21],
+    'Japan': [36.20, 138.25],
+    'JP': [36.20, 138.25],
+    'China': [35.86, 104.19],
+    'CN': [35.86, 104.19],
+    'Brazil': [-14.23, -51.92],
+    'BR': [-14.23, -51.92],
+    'Russia': [61.52, 105.31],
+    'RU': [61.52, 105.31],
+    'Singapore': [1.35, 103.81],
+    'SG': [1.35, 103.81],
+    'United Arab Emirates': [23.42, 53.84],
+    'AE': [23.42, 53.84],
+  };
 }
 
 // =============================================================================
@@ -720,6 +831,18 @@ class StateTrafficStat {
 
   StateTrafficStat({
     required this.stateName,
+    required this.viewCount,
+    required this.percentage,
+  });
+}
+
+class CountryTrafficStat {
+  final String countryName;
+  final int viewCount;
+  final double percentage;
+
+  CountryTrafficStat({
+    required this.countryName,
     required this.viewCount,
     required this.percentage,
   });

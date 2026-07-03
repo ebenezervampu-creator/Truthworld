@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/data/models/user_model.dart';
+import 'package:truthworld/core/utils/timestamp_utils.dart';
 
 /// User profile model for storing user data in Firestore
 class UserProfile {
@@ -54,8 +55,8 @@ class UserProfile {
       displayName: data['displayName'] as String?,
       photoUrl: data['photoUrl'] as String?,
       provider: data['provider'] as String? ?? 'email',
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
-      lastLogin: (data['lastLogin'] as Timestamp).toDate(),
+      createdAt: TimestampUtils.parseToDateTime(data['createdAt']) ?? DateTime.now(),
+      lastLogin: TimestampUtils.parseToDateTime(data['lastLogin']) ?? DateTime.now(),
       isEmailVerified: data['isEmailVerified'] as bool? ?? false,
       isActive: data['isActive'] as bool? ?? true,
       metadata: data['metadata'] as Map<String, dynamic>?,

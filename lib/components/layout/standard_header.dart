@@ -38,7 +38,7 @@ class StandardHeader extends StatelessWidget implements PreferredSizeWidget {
             ),
           ),
           actions: [
-            if (actions != null) ...actions!,
+            ...?actions,
             SizedBox(width: AppTheme.spacing.sm),
           ],
         ),

@@ -135,6 +135,22 @@ class UserProfileException implements Exception {
   String toString() => 'UserProfileException: $message';
 }
 
+class FriendlyErrorTranslator {
+  static String getFriendlyMessage(Object error, {String? defaultActionMessage}) {
+    final action = defaultActionMessage != null ? ' to $defaultActionMessage' : '';
+    if (error is AuthException) {
+      return error.getDisplayMessage();
+    } else if (error is FirestoreException) {
+      return 'Database error: ${error.message}';
+    } else if (error is ValidationException) {
+      return error.message;
+    } else {
+      return 'Failed$action. Please check your network and try again.';
+    }
+  }
+}
+
+
 
 
 

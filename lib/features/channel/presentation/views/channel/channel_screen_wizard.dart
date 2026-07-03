@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/availability_indicator_widget.dart';
 import 'package:truthworld/features/category/presentation/views/category/tandc_for_channel.dart';
@@ -27,139 +28,62 @@ class ChannelScreen extends StatelessWidget {
 
     // Show draft dialog after frame builds (only once)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (controller.hasDraft.value && !draftDialogShown.value) {
+      if (controller.hasDraft.value && !draftDialogShown.value && !AuthService.to.hasChannel.value) {
         draftDialogShown.value = true;
         _showDraftAvailableDialog(isDarkMode);
       }
     });
 
     return Obx(
-      () => PopScope(
-        canPop:
-            _isExiting.value ||
-            (controller.channelName.text.trim().isEmpty &&
-                controller.description.text.trim().isEmpty &&
-                controller.selectedCategories.isEmpty),
-        onPopInvokedWithResult: (didPop, result) {
-          if (didPop) return;
-          _handleClose(isDarkMode);
-        },
-        child: Scaffold(
-          backgroundColor: isDarkMode
-              ? AppColors.bgPage
-              : const Color(0xFFFAFAFA),
-          body: controller.channels.length >= ChannelController.maxChannelsPerUser
-              ? _buildLimitReachedView(isDarkMode)
-              : Stack(
+      () {
+        if (AuthService.to.hasChannel.value) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            Get.offAllNamed('/studio');
+          });
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        return PopScope(
+          canPop:
+              _isExiting.value ||
+              (controller.channelName.text.trim().isEmpty &&
+                  controller.description.text.trim().isEmpty &&
+                  controller.selectedCategories.isEmpty),
+          onPopInvokedWithResult: (didPop, result) {
+            if (didPop) return;
+            _handleClose(isDarkMode);
+          },
+          child: Scaffold(
+            backgroundColor: isDarkMode
+                ? AppColors.bgPage
+                : const Color(0xFFFAFAFA),
+            body: Stack(
+              children: [
+                Column(
                   children: [
-                    Column(
-                      children: [
-                        _buildProgressHeader(isDarkMode),
-                        Expanded(
-                          child: isDesktop
-                              ? _buildDesktopSplitView(isDarkMode)
-                              : _buildMobileView(isDarkMode),
-                        ),
-                        _buildNavigationDock(isDarkMode),
-                      ],
+                    _buildProgressHeader(isDarkMode),
+                    Expanded(
+                      child: isDesktop
+                          ? _buildDesktopSplitView(isDarkMode)
+                          : _buildMobileView(isDarkMode),
                     ),
-                    Obx(
-                      () => controller.uploadProgress.value == 1.0
-                          ? _buildSuccessOverlay(controller, isDarkMode)
-                          : const SizedBox.shrink(),
-                    ),
+                    _buildNavigationDock(isDarkMode),
                   ],
                 ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLimitReachedView(bool isDarkMode) {
-    return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 400),
-        padding: const EdgeInsets.all(32),
-        margin: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: isDarkMode ? AppColors.bgInput : Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: const Color(0xFF6B46C1).withValues(alpha: 0.2),
+                Obx(
+                  () => controller.uploadProgress.value == 1.0
+                      ? _buildSuccessOverlay(controller, isDarkMode)
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 20,
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF6B46C1).withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.warning_amber_rounded,
-                color: Color(0xFF6B46C1),
-                size: 48,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Channel Limit Reached',
-              style: GoogleFonts.roboto(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: isDarkMode ? Colors.white : const Color(0xFF2D3748),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'You have already created a channel. At this time, only one channel is allowed per user to ensure content quality.',
-              style: GoogleFonts.roboto(
-                fontSize: 14,
-                color: isDarkMode ? Colors.white70 : const Color(0xFF718096),
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Get.offAllNamed('/home'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6B46C1),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Text('Back to Home'),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => Get.toNamed('/studio'),
-              child: Text(
-                'Go to Your Studio',
-                style: TextStyle(
-                  color: const Color(0xFF6B46C1),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -256,14 +180,7 @@ class ChannelScreen extends StatelessWidget {
               ),
             ],
           ),
-          Obx(
-            () => ChannelLimitIndicatorWidget(
-              currentCount: controller.channels.length,
-              maxCount: ChannelController.maxChannelsPerUser,
-              isDarkMode: isDarkMode,
-            ),
-          ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           Obx(
             () => Column(
               children: [
@@ -460,6 +377,92 @@ class ChannelScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 24),
+        Obx(
+          () => AvailabilityTextField(
+            controller: controller.customUrl,
+            labelText: "Channel Handle",
+            hintText: "your-unique-handle",
+            icon: Icons.alternate_email_rounded,
+            isDarkMode: isDarkMode,
+            prefixText: '@',
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_-]')),
+            ],
+            onChanged: (value) {},
+            availabilityStatus: controller.customUrlAvailability.value,
+            maxLength: ChannelController.maxCustomUrlLength,
+            isRequired: true,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Channel handle is required';
+              }
+              if (value.length < ChannelController.minCustomUrlLength) {
+                return 'Must be at least ${ChannelController.minCustomUrlLength} characters';
+              }
+              if (!RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(value)) {
+                return 'Invalid characters';
+              }
+              return null;
+            },
+          ),
+        ),
+        Obx(
+          () => AvailabilityMessageWidget(
+            status: controller.customUrlAvailability.value,
+            isDarkMode: isDarkMode,
+          ),
+        ),
+        Obx(() {
+          if (controller.handleSuggestions.isEmpty) return const SizedBox.shrink();
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 8),
+              Text(
+                'Suggested Handles:',
+                style: GoogleFonts.roboto(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: isDarkMode ? Colors.white60 : const Color(0xFF718096),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  children: controller.handleSuggestions.map((suggestion) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8.0),
+                      child: ActionChip(
+                        label: Text(
+                          '@$suggestion',
+                          style: GoogleFonts.roboto(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF6B46C1),
+                          ),
+                        ),
+                        backgroundColor: const Color(0xFF6B46C1).withValues(alpha: 0.1),
+                        side: BorderSide(
+                          color: const Color(0xFF6B46C1).withValues(alpha: 0.3),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        onPressed: () {
+                          controller.customUrl.text = suggestion;
+                          controller.checkCustomUrlAvailability(suggestion);
+                        },
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
+          );
+        }),
+        const SizedBox(height: 24),
         _buildCategoryMultiSelect(controller, isDarkMode),
         const SizedBox(height: 24),
         _buildModernTextField(
@@ -635,36 +638,7 @@ class ChannelScreen extends StatelessWidget {
             },
           ),
         ],
-        const SizedBox(height: 24),
-        Obx(
-          () => AvailabilityTextField(
-            controller: controller.customUrl,
-            labelText: "Custom URL (Optional)",
-            hintText: "your-unique-name",
-            icon: Icons.link_rounded,
-            isDarkMode: isDarkMode,
-            onChanged: (value) {},
-            availabilityStatus: controller.customUrlAvailability.value,
-            maxLength: ChannelController.maxCustomUrlLength,
-            validator: (value) {
-              if (value != null && value.isNotEmpty) {
-                if (value.length < ChannelController.minCustomUrlLength) {
-                  return 'Must be at least ${ChannelController.minCustomUrlLength} characters';
-                }
-                if (!RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(value)) {
-                  return 'Invalid characters';
-                }
-              }
-              return null;
-            },
-          ),
-        ),
-        Obx(
-          () => AvailabilityMessageWidget(
-            status: controller.customUrlAvailability.value,
-            isDarkMode: isDarkMode,
-          ),
-        ),
+        // Custom URL field moved to Step 0
       ],
     );
   }
@@ -958,6 +932,19 @@ class ChannelScreen extends StatelessWidget {
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
+                            if (controller.customUrl.text.isNotEmpty) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                '@${controller.customUrl.text}',
+                                style: GoogleFonts.roboto(
+                                  fontSize: 14,
+                                  color: const Color(0xFF6B46C1),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                             const SizedBox(height: 4),
                             Row(
                               children: [
@@ -1207,6 +1194,7 @@ class ChannelScreen extends StatelessWidget {
     switch (currentStep.value) {
       case 0: // Identity
         return controller.channelName.text.trim().length >= 3 &&
+            controller.customUrl.text.trim().length >= ChannelController.minCustomUrlLength &&
             controller.description.text.trim().isNotEmpty &&
             controller.selectedCategories.isNotEmpty;
 
@@ -1225,7 +1213,7 @@ class ChannelScreen extends StatelessWidget {
     if (!controller.canCreateMoreChannels) {
       Get.snackbar(
         "Limit Reached",
-        "You have reached the maximum number of channels allowed (${ChannelController.maxChannelsPerUser}).",
+        "You can only create one channel per Google account.",
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: const Color(0xFFE53E3E),
         colorText: Colors.white,
@@ -1249,6 +1237,7 @@ class ChannelScreen extends StatelessWidget {
 
       final canProceed =
           controller.channelName.text.trim().length >= 3 &&
+          controller.customUrl.text.trim().length >= ChannelController.minCustomUrlLength &&
           controller.description.text.trim().isNotEmpty &&
           controller.selectedCategories.isNotEmpty;
 

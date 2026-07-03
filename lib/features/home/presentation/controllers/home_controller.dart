@@ -13,6 +13,8 @@ import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
+
 
 // ========================================================================
 // COLOR CONSTANTS
@@ -104,6 +106,8 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   static const int indexAbout = 14;
   static const int indexPrivacy = 15;
   static const int indexTerms = 16;
+  static const int indexExploreTopics = 19;
+  static const int indexCommunityGuidelines = 20;
 
   // ========================================================================
   // AUTHENTICATION STATE
@@ -192,6 +196,23 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     _loadInitialData();
     fetchSubscribedChannels();
     _setupConnectivityListener();
+    _setupBottomNavSync();
+  }
+
+  void _setupBottomNavSync() {
+    ever(sideNavSelectedIndex, (index) {
+      if (index == indexHome) {
+        bottomNavSelectedIndex.value = 0;
+      } else if (index == indexDiscover) {
+        bottomNavSelectedIndex.value = 1;
+      } else if (index == indexExploreTopics) {
+        bottomNavSelectedIndex.value = 2;
+      } else if (index == indexSubscriptions) {
+        bottomNavSelectedIndex.value = 3;
+      } else if (index == indexLibrary) {
+        bottomNavSelectedIndex.value = 4;
+      }
+    });
   }
 
   void _setupConnectivityListener() {
@@ -721,30 +742,35 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
         }
         break;
       case 1:
-        sideNavSelectedIndex.value = indexSubscriptions;
+        sideNavSelectedIndex.value = indexDiscover;
         if (!isAtHome) {
           Get.offAllNamed('/home');
         }
         break;
       case 2:
-        sideNavSelectedIndex.value = indexLibrary;
+        sideNavSelectedIndex.value = indexExploreTopics;
         if (!isAtHome) {
           Get.offAllNamed('/home');
         }
         break;
       case 3:
-        sideNavSelectedIndex.value = indexWatchLater;
+        if (!isAuthenticated) {
+          showSignInSnackbar();
+          return;
+        }
+        sideNavSelectedIndex.value = indexSubscriptions;
         if (!isAtHome) {
           Get.offAllNamed('/home');
         }
         break;
       case 4:
-        if (Get.currentRoute != '/history') {
-          if (isAtHome) {
-            Get.toNamed('/history');
-          } else {
-            Get.offNamed('/history');
-          }
+        if (!isAuthenticated) {
+          showSignInSnackbar();
+          return;
+        }
+        sideNavSelectedIndex.value = indexLibrary;
+        if (!isAtHome) {
+          Get.offAllNamed('/home');
         }
         break;
     }
@@ -849,6 +875,36 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     selectedPlaylist.value = null;
     selectedChannelForDetail.value = null;
     sideNavSelectedIndex.value = previousIndex;
+  }
+
+  /// Navigate to user's channel or creation wizard
+  void navigateToYourChannel() {
+    if (!isAuthenticated) {
+      showSignInSnackbar();
+      return;
+    }
+    if (AuthService.to.hasChannel.value && AuthService.to.userChannel != null) {
+      Get.toNamed('/studio');
+    } else {
+      Get.toNamed('/channelscreen');
+    }
+  }
+
+  /// Navigate to Watch Later playlist detail
+  void navigateToWatchLater() async {
+    if (!isAuthenticated) {
+      showSignInSnackbar();
+      return;
+    }
+    final playlistCtrl = Get.isRegistered<PlaylistController>()
+        ? Get.find<PlaylistController>()
+        : Get.put(PlaylistController());
+    
+    var watchLater = playlistCtrl.getWatchLaterPlaylist();
+    watchLater ??= await playlistCtrl.createPlayList('Watch Later', isPublic: false);
+    if (watchLater != null) {
+      navigateToPlaylistDetail(watchLater);
+    }
   }
 
   /// Get current user email

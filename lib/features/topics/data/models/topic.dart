@@ -1,5 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+enum TopicVisibilityType {
+  public,
+  channelOnly,
+  private;
+
+  String toJson() => name;
+  static TopicVisibilityType fromJson(String name) =>
+      values.firstWhere((v) => v.name == name, orElse: () => public);
+}
+
 /// Topic model representing a knowledge hub for related videos
 ///
 /// Stored in Firestore at: topics/{topicId}
@@ -16,6 +26,15 @@ class Topic {
   final List<String> relatedTopics;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final int likeCount;
+  final int commentCount;
+  final int views;
+  final double trendingScore;
+  final String? channelId;
+  final String? creatorId;
+  final TopicVisibilityType visibilityType;
+  final String? accessCode;
+  final int followerCount;
 
   const Topic({
     required this.id,
@@ -30,6 +49,15 @@ class Topic {
     this.relatedTopics = const [],
     required this.createdAt,
     required this.updatedAt,
+    this.likeCount = 0,
+    this.commentCount = 0,
+    this.views = 0,
+    this.trendingScore = 0.0,
+    this.channelId,
+    this.creatorId,
+    this.visibilityType = TopicVisibilityType.public,
+    this.accessCode,
+    this.followerCount = 0,
   });
 
   /// Create from Firestore document
@@ -48,6 +76,15 @@ class Topic {
       relatedTopics: List<String>.from(data['relatedTopics'] ?? []),
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      likeCount: data['likeCount'] ?? 0,
+      commentCount: data['commentCount'] ?? 0,
+      views: data['views'] ?? 0,
+      trendingScore: (data['trendingScore'] as num?)?.toDouble() ?? 0.0,
+      channelId: data['channelId'],
+      creatorId: data['creatorId'],
+      visibilityType: TopicVisibilityType.fromJson(data['visibilityType'] ?? 'public'),
+      accessCode: data['accessCode'],
+      followerCount: data['followerCount'] ?? 0,
     );
   }
 
@@ -65,6 +102,15 @@ class Topic {
       'relatedTopics': relatedTopics,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
+      'likeCount': likeCount,
+      'commentCount': commentCount,
+      'views': views,
+      'trendingScore': trendingScore,
+      'channelId': channelId,
+      'creatorId': creatorId,
+      'visibilityType': visibilityType.toJson(),
+      'accessCode': accessCode,
+      'followerCount': followerCount,
     };
   }
 
@@ -82,6 +128,15 @@ class Topic {
     List<String>? relatedTopics,
     DateTime? createdAt,
     DateTime? updatedAt,
+    int? likeCount,
+    int? commentCount,
+    int? views,
+    double? trendingScore,
+    String? channelId,
+    String? creatorId,
+    TopicVisibilityType? visibilityType,
+    String? accessCode,
+    int? followerCount,
   }) {
     return Topic(
       id: id ?? this.id,
@@ -96,8 +151,18 @@ class Topic {
       relatedTopics: relatedTopics ?? this.relatedTopics,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      likeCount: likeCount ?? this.likeCount,
+      commentCount: commentCount ?? this.commentCount,
+      views: views ?? this.views,
+      trendingScore: trendingScore ?? this.trendingScore,
+      channelId: channelId ?? this.channelId,
+      creatorId: creatorId ?? this.creatorId,
+      visibilityType: visibilityType ?? this.visibilityType,
+      accessCode: accessCode ?? this.accessCode,
+      followerCount: followerCount ?? this.followerCount,
     );
   }
+
 }
 
 /// Lightweight topic reference for related topics list

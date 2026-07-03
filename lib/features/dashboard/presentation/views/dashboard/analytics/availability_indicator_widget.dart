@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
@@ -92,6 +93,8 @@ class AvailabilityTextField extends StatefulWidget {
   final String? Function(String?)? validator;
   final int? maxLength;
   final bool isRequired;
+  final String? prefixText;
+  final List<TextInputFormatter>? inputFormatters;
 
   const AvailabilityTextField({
     super.key,
@@ -105,6 +108,8 @@ class AvailabilityTextField extends StatefulWidget {
     this.validator,
     this.maxLength,
     this.isRequired = false,
+    this.prefixText,
+    this.inputFormatters,
   });
 
   @override
@@ -165,6 +170,7 @@ class _AvailabilityTextFieldState extends State<AvailabilityTextField>
           child: TextFormField(
             controller: widget.controller,
             maxLength: widget.maxLength,
+            inputFormatters: widget.inputFormatters,
             style: GoogleFonts.roboto(
               fontSize: 16,
               color: widget.isDarkMode ? Colors.white : AppTheme.colors.surface,
@@ -175,6 +181,12 @@ class _AvailabilityTextFieldState extends State<AvailabilityTextField>
                   ? '${widget.labelText} *'
                   : widget.labelText,
               hintText: widget.hintText,
+              prefixText: widget.prefixText,
+              prefixStyle: GoogleFonts.roboto(
+                fontSize: 16,
+                color: widget.isDarkMode ? Colors.white70 : AppTheme.colors.surface,
+                fontWeight: FontWeight.w500,
+              ),
               prefixIcon: Container(
                 margin: EdgeInsets.all(12),
                 padding: EdgeInsets.all(8),

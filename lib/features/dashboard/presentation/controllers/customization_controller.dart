@@ -1,9 +1,10 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:image_picker_web/image_picker_web.dart';
+import 'package:image_picker/image_picker.dart';
 
 class CustomizationController extends GetxController {
   final String channelId;
@@ -13,6 +14,10 @@ class CustomizationController extends GetxController {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
+
+  final RxString status = 'active'.obs;
+  final RxString moderationReason = ''.obs;
+  StreamSubscription<DocumentSnapshot>? _channelSub;
 
   // Loading States
   final RxBool isLoading = false.obs;
@@ -51,10 +56,22 @@ class CustomizationController extends GetxController {
   void onInit() {
     super.onInit();
     loadChannelData();
+    _listenToChannelChanges();
+  }
+
+  void _listenToChannelChanges() {
+    _channelSub = _firestore.collection('channels').doc(channelId).snapshots().listen((snapshot) {
+      if (snapshot.exists) {
+        final data = snapshot.data()!;
+        status.value = data['status'] ?? 'active';
+        moderationReason.value = data['moderationReason'] ?? '';
+      }
+    });
   }
 
   @override
   void onClose() {
+    _channelSub?.cancel();
     channelNameController.dispose();
     descriptionController.dispose();
     customUrlController.dispose();
@@ -112,9 +129,11 @@ class CustomizationController extends GetxController {
 
   Future<void> pickImage(bool isAvatar) async {
     try {
-      final pickedImage = await ImagePickerWeb.getImageAsBytes();
+      final ImagePicker picker = ImagePicker();
+      final XFile? pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
-      if (pickedImage != null) {
+      if (pickedFile != null) {
+        final Uint8List pickedImage = await pickedFile.readAsBytes();
         if (isAvatar) {
           newAvatarBytes.value = pickedImage;
           newAvatarName.value = 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -196,6 +215,8 @@ class CustomizationController extends GetxController {
         'tags': tags,
         'socialLinks': socialLinks.isNotEmpty ? socialLinks : null,
         'updatedAt': FieldValue.serverTimestamp(),
+        'status': 'underReview',
+        'geminiApproved': FieldValue.delete(),
       });
 
       if (updatedAvatarUrl != null) avatarUrl.value = updatedAvatarUrl;

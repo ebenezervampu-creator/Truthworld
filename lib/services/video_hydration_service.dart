@@ -1,5 +1,5 @@
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'dart:js' as js;
+import 'package:universal_html/js.dart' as js;
 import 'package:flutter/foundation.dart';
 
 /// Service to handle video data injection from prerendered HTML pages.
@@ -60,7 +60,7 @@ class VideoHydrationService {
         return null;
       }
 
-      final jsData = js.context['__VIDEO_DATA__'];
+      final dynamic jsData = js.context['__VIDEO_DATA__'];
 
       if (jsData == null || jsData == js.context['undefined']) {
         return null;
@@ -105,7 +105,7 @@ class VideoHydrationService {
         return null;
       }
 
-      final data = js.context['__VIDEO_DATA__'];
+      final dynamic data = js.context['__VIDEO_DATA__'];
       if (data == null || data == js.context['undefined']) {
         return null;
       }

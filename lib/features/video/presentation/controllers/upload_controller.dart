@@ -57,6 +57,17 @@ class UploadController extends GetxController with ContentValidationMixin {
   final RxString finalstatusReason = "".obs;
 
   // ══════════════════════════════════════════════════════════════
+  // VIDEO CONTENT MODERATION STATE (Gemini Audio Analysis)
+  // ══════════════════════════════════════════════════════════════
+  final RxString videoModerationStatus = 'PENDING'.obs;
+  final RxString videoModerationReason = ''.obs;
+  final RxString videoModerationSummary = ''.obs;
+  /// Whether the video content has been approved by Gemini moderation
+  bool get isVideoContentApproved => videoModerationStatus.value == 'APPROVED';
+  /// Whether the video was rejected (blocks Publish button)
+  bool get isVideoContentRejected => videoModerationStatus.value == 'REJECTED';
+
+  // ══════════════════════════════════════════════════════════════
   // AI FEATURE SELECTION STATE
   // ══════════════════════════════════════════════════════════════
   RxBool aiTranscriptEnabled = true.obs; // Always on
@@ -558,6 +569,39 @@ class UploadController extends GetxController with ContentValidationMixin {
     }
   }
 
+  Future<int> getVideoDurationMs(PlatformFile videoFile) async {
+    try {
+      if (kIsWeb) {
+        final blob = html.Blob([videoFile.bytes]);
+        final url = html.Url.createObjectUrlFromBlob(blob);
+
+        final videoElement = html.VideoElement()
+          ..src = url
+          ..preload = 'metadata';
+
+        final durationInSeconds = await videoElement.onLoadedMetadata.first
+            .then((_) => videoElement.duration);
+
+        html.Url.revokeObjectUrl(url);
+
+        return (durationInSeconds * 1000).floor();
+      } else {
+        final tempDir = await getTemporaryDirectory();
+        final tempFile = File('${tempDir.path}/${videoFile.name}');
+        await tempFile.writeAsBytes(videoFile.bytes!);
+
+        final controller = VideoPlayerController.file(tempFile);
+        await controller.initialize();
+        final durationMs = controller.value.duration.inMilliseconds;
+        await controller.dispose();
+
+        return durationMs;
+      }
+    } catch (e) {
+      throw Exception("Failed to get video duration: $e");
+    }
+  }
+
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     final hours = duration.inHours;
@@ -651,6 +695,43 @@ class UploadController extends GetxController with ContentValidationMixin {
             final status = data['status'] as String?;
             debugPrint('📡 Firestore status update: $status');
 
+            // ── Video Content Moderation Status ──────────────────────
+            final moderation = data['moderation'] as Map<String, dynamic>?;
+            if (moderation != null) {
+              final modStatus = (moderation['status'] as String?)?.toUpperCase() ?? 'PENDING';
+              final modReason = moderation['reason'] as String? ?? '';
+              final modSummary = moderation['summary'] as String? ?? '';
+
+              // Only show snackbar on status transition
+              if (modStatus != videoModerationStatus.value) {
+                videoModerationStatus.value = modStatus;
+                videoModerationReason.value = modReason;
+                videoModerationSummary.value = modSummary;
+
+                if (modStatus == 'APPROVED') {
+                  debugPrint('✅ Video content APPROVED by Gemini moderation');
+                  Get.snackbar(
+                    "Content Approved",
+                    "✅ Your video complies with Community Guidelines",
+                    snackPosition: SnackPosition.BOTTOM,
+                    backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.15),
+                    duration: const Duration(seconds: 3),
+                  );
+                } else if (modStatus == 'REJECTED') {
+                  debugPrint('❌ Video content REJECTED: $modReason');
+                  Get.snackbar(
+                    "Content Rejected",
+                    "❌ $modReason",
+                    snackPosition: SnackPosition.BOTTOM,
+                    backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                    duration: const Duration(seconds: 5),
+                  );
+                } else if (modStatus == 'PROCESSING') {
+                  debugPrint('🔍 Video content moderation in progress...');
+                }
+              }
+            }
+
             // Sync URLs from backend if they exist
             if (data['videoUrl'] != null &&
                 (data['videoUrl'] as String).isNotEmpty) {
@@ -679,6 +760,21 @@ class UploadController extends GetxController with ContentValidationMixin {
                 snackPosition: SnackPosition.BOTTOM,
                 backgroundColor: const Color(0xFF10B981),
                 colorText: Colors.white,
+              );
+              statusListener?.cancel();
+            } else if (status == 'rejected') {
+              final reason = data['rejectionReason'] ?? 'Content violates Community Guidelines';
+              debugPrint('❌ Video REJECTED by moderation: $reason');
+              isUploading.value = false;
+              videoUploadProgress.value = 0.0;
+              uploadProgress.value = 0.0;
+              Get.snackbar(
+                "Video Rejected",
+                "$reason",
+                snackPosition: SnackPosition.BOTTOM,
+                backgroundColor: const Color(0xFFEF4444),
+                colorText: Colors.white,
+                duration: const Duration(seconds: 5),
               );
               statusListener?.cancel();
             } else if (status == 'failed') {
@@ -1146,8 +1242,8 @@ class UploadController extends GetxController with ContentValidationMixin {
       final userId = currentUser.uid;
       debugPrint('✅ User authenticated: $userId');
 
-      // Get video duration
-      final formattedDuration = await getVideoDurationFormatted(
+      // Get video duration in milliseconds
+      final durationMs = await getVideoDurationMs(
         pickedVideo.value!,
       );
 
@@ -1217,7 +1313,7 @@ class UploadController extends GetxController with ContentValidationMixin {
             : uploadQuality.value,
         'enableComments': enableComments.value,
         'allowRatings': allowRatings.value,
-        'duration': formattedDuration,
+        'durationMs': durationMs,
         'fileName': pickedVideo.value?.name ?? 'unnamed_video.mp4',
         'status': isScheduled.value ? 'scheduled' : 'published',
         'aiFeatures': buildFeaturesMap(pipelineStage: 'published'),

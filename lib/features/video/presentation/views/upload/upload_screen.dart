@@ -1283,24 +1283,6 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
           Icons.title_rounded,
           false,
         ),
-        (
-          'Description (min. 10 chars)',
-          _descriptionController.text.trim().length >= 10,
-          Icons.description_rounded,
-          false,
-        ),
-        (
-          'Channel selected',
-          _uploadController.selectedChannel.value != null,
-          Icons.account_circle_rounded,
-          false,
-        ),
-        (
-          'Category selected',
-          _uploadController.selectedCategory.value.isNotEmpty,
-          Icons.category_rounded,
-          false,
-        ),
       ];
 
       return Column(
@@ -2081,6 +2063,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
     final hasVideo = videoUrl.isNotEmpty;
     final hasThumbnail = thumbnailUrl.isNotEmpty || pickedImage != null;
     final hasChannel = selectedChannel != null;
+    final isChannelActive = selectedChannel != null && selectedChannel.status == ChannelStatus.active;
     final hasValidTitle = _titleController.text.trim().length >= 5;
     final hasValidDesc = _descriptionController.text.trim().length >= 10;
     final hasCategory = selectedCategory.isNotEmpty;
@@ -2091,6 +2074,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
         hasVideo &&
         hasThumbnail &&
         hasChannel &&
+        isChannelActive &&
         hasValidTitle &&
         hasValidDesc &&
         hasCategory &&
@@ -2354,6 +2338,30 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
     debugPrint("Initiating video upload process...");
 
     // 1️⃣ Validation: Required fields
+    final selectedChannel = _uploadController.selectedChannel.value;
+    if (selectedChannel != null && selectedChannel.status != ChannelStatus.active) {
+      String message = 'Your channel is not active.';
+      if (selectedChannel.status == ChannelStatus.underReview) {
+        message = 'Your channel details are currently under review by Gemini AI. You can publish videos once approved.';
+      } else if (selectedChannel.status == ChannelStatus.verificationRejected) {
+        message = selectedChannel.moderationReason != null && selectedChannel.moderationReason!.isNotEmpty
+            ? 'Branding Rejected: ${selectedChannel.moderationReason!}'
+            : 'Your channel details were rejected by Gemini AI. Please update your channel details in customization to re-verify.';
+      } else if (selectedChannel.status == ChannelStatus.verificationPending) {
+        message = 'Your channel is currently verification pending. You can publish videos once your branding is verified.';
+      } else if (selectedChannel.status == ChannelStatus.suspended) {
+        message = 'Your channel is suspended. Publishing is disabled.';
+      }
+      Get.snackbar(
+        'Verification Required',
+        message,
+        backgroundColor: const Color(0xFFEF4444),
+        colorText: Colors.white,
+        duration: const Duration(seconds: 5),
+      );
+      return;
+    }
+
     final canPublish = _canPublishVideo();
     if (!canPublish) {
       String errorMessage = 'Cannot publish. Validation checks:\n';
@@ -2369,12 +2377,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
       if (_titleController.text.length < 5) {
         errorMessage += '- Title must be at least 5 characters long.\n';
       }
-      if (_descriptionController.text.trim().isEmpty) {
-        errorMessage += '- Description is required.\n';
-      }
-      if (_descriptionController.text.length < 10) {
-        errorMessage += '- Description must be at least 10 characters long.\n';
-      }
+
       if (_uploadController.selectedCategory.value.isEmpty) {
         errorMessage += '- Category is required.\n';
       }

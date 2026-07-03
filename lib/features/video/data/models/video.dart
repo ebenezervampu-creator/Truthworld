@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/data/models/offline.dart';
+import 'package:truthworld/core/utils/timestamp_utils.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 
@@ -10,6 +11,7 @@ enum VideoStatus {
   flagged, // Under review
   deleted,
   private,
+  scheduled,
 }
 
 class VideoResolutionV2 {
@@ -99,6 +101,7 @@ class Video {
   final Map<String, String> audioTracks; // { lang: url }
   final List<VideoChapter> chapters;
   final String factCheckUrl;
+  final String transcriptionUrl;
   final bool allowRatings;
   final double trustScore;
   final double videoRating;
@@ -133,6 +136,7 @@ class Video {
   String get channelImage => channelAvatarUrl;
   String get duration => _formatDuration(durationValue);
   List<ResolutionV2> get resolutions => [ResolutionV2(originalUrl)];
+  bool get isScheduled => status == VideoStatus.scheduled;
 
   static String _formatDuration(Duration d) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
@@ -186,6 +190,7 @@ class Video {
     this.audioTracks = const {},
     this.chapters = const [],
     this.factCheckUrl = '',
+    this.transcriptionUrl = '',
     this.allowRatings = false,
     this.trustScore = 0.0,
     this.videoRating = 0.0,
@@ -234,20 +239,8 @@ class Video {
                : (int.tryParse(likes?.toString() ?? '0') ?? 0)),
        durationValue =
            vDurationValue ?? (duration is Duration ? duration : Duration.zero),
-       createdAt = (createdAt is Timestamp)
-           ? createdAt
-           : (uploadedAt is Timestamp
-                 ? uploadedAt
-                 : (createdAt is DateTime
-                       ? Timestamp.fromDate(createdAt)
-                       : (uploadedAt is DateTime
-                             ? Timestamp.fromDate(uploadedAt)
-                             : Timestamp.now()))),
-       updatedAt =
-           updatedAt ??
-           ((createdAt is Timestamp)
-               ? createdAt
-               : ((uploadedAt is Timestamp) ? uploadedAt : Timestamp.now())),
+       createdAt = TimestampUtils.parse(createdAt ?? uploadedAt),
+       updatedAt = updatedAt ?? TimestampUtils.parse(createdAt ?? uploadedAt),
        status = status is VideoStatus ? status : VideoStatus.processing,
        visibility = visibility?.toString() ?? 'public',
        likedBy = likedBy ?? [];
@@ -305,8 +298,10 @@ class Video {
         'dubbedVideos': dubbedVideos,
         'audioTracks': audioTracks,
         'factCheckUrl': factCheckUrl,
+        'transcriptionUrl': transcriptionUrl,
       },
       'factCheckUrl': factCheckUrl,
+      'transcriptionUrl': transcriptionUrl,
       'allowRatings': allowRatings,
       'trustScore': trustScore,
       'videoRating': videoRating,
@@ -389,6 +384,9 @@ class Video {
       factCheckUrl: data['media'] != null && data['media']['factCheckUrl'] != null
           ? (data['media']['factCheckUrl'] as String? ?? '')
           : (data['factCheckUrl'] as String? ?? ''),
+      transcriptionUrl: data['media'] != null && data['media']['transcriptionUrl'] != null
+          ? (data['media']['transcriptionUrl'] as String? ?? '')
+          : (data['transcriptionUrl'] as String? ?? ''),
       allowRatings: data['allowRatings'] ?? false,
       trustScore: (data['trustScore'] ?? 0).toDouble(),
       videoRating: (data['videoRating'] ?? 0).toDouble(),

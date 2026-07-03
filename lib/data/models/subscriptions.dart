@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/utils/timestamp_utils.dart';
 
 class Subscription {
   final String userId;
@@ -12,7 +13,7 @@ class Subscription {
     return Subscription(
       userId: data['userId'] ?? '',
       channelId: data['channelId'] ?? '',
-      timestamp: data['timestamp'] as Timestamp?,
+      timestamp: data['timestamp'] != null ? TimestampUtils.parse(data['timestamp']) : null,
     );
   }
 

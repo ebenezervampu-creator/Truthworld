@@ -6,9 +6,9 @@
 // ============================================================
 
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'dart:html' as html;
+import 'package:universal_html/html.dart' as html;
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'dart:js' show context, JsObject;
+import 'package:universal_html/js.dart' show context, JsObject;
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
@@ -31,7 +31,7 @@ class AudioOnlyService extends GetxService {
   final RxString error = ''.obs;
 
   // ── Web Audio API objects ──────────────────────────────────
-  html.AudioElement? _audioElement;
+  dynamic _audioElement;
   html.MediaSession? _mediaSession;
   Timer? _positionTimer;
 
@@ -109,12 +109,14 @@ class AudioOnlyService extends GetxService {
 
   void _registerMediaSessionAction(String action, Function handler) {
     try {
-      context['navigator']['mediaSession'].callMethod('setActionHandler', [
+      final dynamic nav = context['navigator'];
+      nav['mediaSession'].callMethod('setActionHandler', [
         action,
         handler,
       ]);
     } catch (e) {
-      debugPrint('[AudioOnly] Failed to register $action: $e');
+      final dynamic err = e;
+      debugPrint('[AudioOnly] Failed to register $action: $err');
     }
   }
 
@@ -261,21 +263,27 @@ class AudioOnlyService extends GetxService {
   }) {
     if (!kIsWeb || _mediaSession == null) return;
     try {
-      context['navigator']['mediaSession']['metadata'] = JsObject(
-        context['MediaMetadata'],
-        [
-          JsObject.jsify({
-            'title': title,
-            'artist': 'Truthworld',
-            'album': '',
-            'artwork': [
-              {'src': artworkUrl, 'sizes': '512x512', 'type': 'image/jpeg'},
-            ],
-          }),
-        ],
-      );
+      final dynamic nav = context['navigator'];
+      final dynamic mediaSession = nav?['mediaSession'];
+      final dynamic mediaMetadataConstructor = context['MediaMetadata'];
+      if (mediaSession != null && mediaMetadataConstructor != null) {
+        mediaSession['metadata'] = JsObject(
+          mediaMetadataConstructor,
+          [
+            JsObject.jsify({
+              'title': title,
+              'artist': 'Truthworld',
+              'album': '',
+              'artwork': [
+                {'src': artworkUrl, 'sizes': '512x512', 'type': 'image/jpeg'},
+              ],
+            }),
+          ],
+        );
+      }
     } catch (e) {
-      debugPrint('[AudioOnly] MediaMetadata error: $e');
+      final dynamic err = e;
+      debugPrint('[AudioOnly] MediaMetadata error: $err');
     }
   }
 
@@ -285,7 +293,8 @@ class AudioOnlyService extends GetxService {
       final dur = _audioElement?.duration ?? 0;
       final pos = _audioElement?.currentTime ?? 0;
       if (dur > 0) {
-        context['navigator']['mediaSession'].callMethod('setPositionState', [
+        final dynamic nav = context['navigator'];
+        nav['mediaSession'].callMethod('setPositionState', [
           JsObject.jsify({
             'duration': dur,
             'playbackRate': _audioElement?.playbackRate ?? 1.0,

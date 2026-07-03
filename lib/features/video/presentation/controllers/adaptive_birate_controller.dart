@@ -8,7 +8,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'dart:js' as js;
+import 'package:universal_html/js.dart' as js;
 import 'package:get/get.dart';
 import 'package:video_player/video_player.dart';
 
@@ -196,9 +196,9 @@ class AdaptiveBitrateController extends GetxController {
     if (!kIsWeb) return 5000; // Default 5Mbps on mobile if unknown
     try {
       // Access Navigator Network Information API via JS context
-      final nav = js.context['navigator'];
+      final dynamic nav = js.context['navigator'];
       if (nav != null) {
-        final conn = nav['connection'];
+        final dynamic conn = nav['connection'];
         if (conn != null) {
           final downlink = conn['downlink']; // Mbps
           if (downlink != null) {

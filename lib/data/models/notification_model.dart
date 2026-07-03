@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/utils/timestamp_utils.dart';
 
 class NotificationModel {
   final String id;
@@ -30,7 +31,7 @@ class NotificationModel {
       title: data['title'] ?? '',
       message: data['message'] ?? '',
       type: data['type'] ?? 'general',
-      timestamp: (data['timestamp'] as Timestamp).toDate(),
+      timestamp: TimestampUtils.parseToDateTime(data['timestamp']) ?? DateTime.now(),
       isRead: data['isRead'] ?? false,
       imageUrl: data['imageUrl'],
       actionUrl: data['actionUrl'],

@@ -1,0 +1,194 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/theme/app_theme.dart';
+
+class PT {
+  static const Color primary = AppColors.brand;
+  static const Color bg = AppColors.bgPage;
+  static const Color surface = Color(0xFF161616);
+  static const Color surfaceHi = Color(0xFF222222);
+  static const Color text = Color(0xFFF2F2F2);
+  static const Color textDim = Color(0xFF888888);
+  static const Color border = Color(0xFF2A2A2A);
+
+  // Layout
+  static const double kControlsHideMs = 3500; // YouTube uses ~3 s
+  static const double kDoubleTapRippleMs = 700;
+  static const double kToastDurationMs = 2000;
+  static const double kHudFadeMs = 1200;
+  static const double kProgressBarH = 4.0;
+  static const double kProgressBarHover = 5.0;
+  static const double kThumbRadius = 7.0;
+  static const double kThumbRadiusDrag = 9.0;
+}
+
+// ── Text Style Cache ──────────────────────────────────────────────────────────
+// Pre-build expensive GoogleFonts lookups once.
+abstract class TS {
+  static final body = TextStyle(
+    fontFamily: 'Inter',
+    color: PT.text,
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+  );
+  static final bodySm = TextStyle(
+    fontFamily: 'Inter',
+    color: PT.textDim,
+    fontSize: 12,
+  );
+  static final bold = TextStyle(
+    fontFamily: 'Inter',
+    color: PT.text,
+    fontSize: 14,
+    fontWeight: FontWeight.w700,
+  );
+  static final title = TextStyle(
+    fontFamily: 'Inter',
+    color: PT.text,
+    fontSize: 16,
+    fontWeight: FontWeight.bold,
+  );
+  static final badge = TextStyle(
+    fontFamily: 'Inter',
+    color: PT.primary,
+    fontSize: 11,
+    fontWeight: FontWeight.bold,
+    letterSpacing: 0.5,
+  );
+  static final mono = TextStyle(
+    fontFamily: 'Inter',
+    color: PT.text,
+    fontSize: 11,
+    fontWeight: FontWeight.w500,
+  );
+  static final time = TextStyle(
+    fontFamily: 'Inter',
+    color: Colors.white,
+    fontSize: 13,
+    fontWeight: FontWeight.w500,
+  );
+}
+
+// ── Subtitle / Audio / Chapter models (unchanged) ────────────────────────────
+class SubtitleTrack {
+  final String label, langCode, url;
+  final bool isDefault;
+  const SubtitleTrack({
+    required this.label,
+    required this.langCode,
+    this.url = '',
+    this.isDefault = false,
+  });
+}
+
+class SubtitleSegment {
+  final Duration start, end;
+  final String text;
+  const SubtitleSegment({
+    required this.start,
+    required this.end,
+    required this.text,
+  });
+}
+
+class AudioTrack {
+  final String label, langCode, type;
+  final String? url;
+  const AudioTrack({
+    required this.label,
+    required this.langCode,
+    this.type = 'Original',
+    this.url,
+  });
+}
+
+class ContentMetadata {
+  final String rating, genre, releaseYear, duration, director, cast;
+  final List<String> advisories;
+  const ContentMetadata({
+    this.rating = 'U/A 16+',
+    this.genre = '',
+    this.releaseYear = '',
+    this.duration = '',
+    this.director = '',
+    this.cast = '',
+    this.advisories = const [],
+  });
+}
+
+class PlayerEvent {
+  final String type;
+  final DateTime timestamp;
+  final Map<String, dynamic> data;
+  PlayerEvent(this.type, {this.data = const {}}) : timestamp = DateTime.now();
+}
+
+// ── Centralised timer bag — prevents all timer leaks ─────────────────────────
+class TimerBag {
+  final _map = <String, Timer>{};
+
+  void set(String key, Duration delay, VoidCallback cb) {
+    _map[key]?.cancel();
+    _map[key] = Timer(delay, cb);
+  }
+
+  void setPeriodic(String key, Duration period, void Function(Timer) cb) {
+    _map[key]?.cancel();
+    _map[key] = Timer.periodic(period, cb);
+  }
+
+  void cancel(String key) {
+    _map[key]?.cancel();
+    _map.remove(key);
+  }
+
+  void cancelAll() {
+    for (final t in _map.values) {
+      t.cancel();
+    }
+    _map.clear();
+  }
+}
+
+class MockAd {
+  final String videoUrl;
+  final String title;
+  final String description;
+  final String clickUrl;
+  final bool skippable;
+  final Duration duration;
+
+  const MockAd({
+    required this.videoUrl,
+    required this.title,
+    required this.description,
+    required this.clickUrl,
+    required this.skippable,
+    required this.duration,
+  });
+}
+
+class LanguageRequest {
+  final String id;
+  final String language;
+  final String type; // 'subtitle' or 'audio'
+  final Timestamp createdAt;
+
+  const LanguageRequest({
+    required this.id,
+    required this.language,
+    required this.type,
+    required this.createdAt,
+  });
+
+  factory LanguageRequest.fromMap(Map<String, dynamic> map, String id) {
+    return LanguageRequest(
+      id: id,
+      language: map['language'] ?? '',
+      type: map['type'] ?? '',
+      createdAt: map['createdAt'] as Timestamp? ?? Timestamp.now(),
+    );
+  }
+}
+

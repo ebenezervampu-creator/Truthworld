@@ -19,6 +19,8 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:universal_html/html.dart' as html;
+import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
 
 // Feature Pages for Dashboard (Deferred for YouTube-speed startup)
 import 'package:truthworld/features/subscriptions/presentation/views/subscriptions/subscriptions.dart' deferred as subscriptions;
@@ -39,6 +41,8 @@ import 'package:truthworld/features/playlist/presentation/views/playlist/playlis
 import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_detail_screen.dart' deferred as playlist_detail;
 import 'package:truthworld/features/discover/presentation/views/discover_channels.dart' deferred as discover;
 import 'package:truthworld/features/channel/presentation/views/channel/channel_details_screen.dart' deferred as channel_details;
+import 'package:truthworld/features/topics/presentation/pages/explore_topics_page.dart' deferred as explore_topics;
+import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/community_guidelines.dart' deferred as community_guidelines;
 
 import 'package:truthworld/core/widgets/deferred_widget.dart';
 
@@ -229,14 +233,14 @@ ThemeData modernDarkProfessionalTheme = ThemeData(
   // Enhanced Navigation Themes
   navigationBarTheme: NavigationBarThemeData(
     backgroundColor: darkSurface.withValues(alpha: 0.95),
-    indicatorColor: primaryAccent.withValues(alpha: 0.15),
+    indicatorColor: Colors.grey.withValues(alpha: 0.15),
     elevation: 8,
     shadowColor: Colors.black.withValues(alpha: 0.3),
-    surfaceTintColor: primaryAccent.withValues(alpha: 0.05),
+    surfaceTintColor: Colors.transparent,
     labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
     iconTheme: WidgetStateProperty.resolveWith((states) {
       if (states.contains(WidgetState.selected)) {
-        return IconThemeData(color: primaryAccent, size: 24);
+        return IconThemeData(color: Colors.grey, size: 24);
       }
       return IconThemeData(color: darkOnSurfaceVariant, size: 24);
     }),
@@ -247,7 +251,7 @@ ThemeData modernDarkProfessionalTheme = ThemeData(
         letterSpacing: 0.5,
       );
       if (states.contains(WidgetState.selected)) {
-        return style.copyWith(color: primaryAccent);
+        return style.copyWith(color: Colors.grey);
       }
       return style.copyWith(color: darkOnSurfaceVariant);
     }),
@@ -413,7 +417,7 @@ class Home extends GetView<HomeController> {
         return Scaffold(
           backgroundColor: modernDarkProfessionalTheme.scaffoldBackgroundColor,
           appBar: _buildGlobalAppBar(context, isMobile, isTablet, isDesktop),
-          drawer: isMobile || isTablet ? _buildDrawer(context) : null,
+          drawer: null,
           body: Row(
             children: [
               if (isDesktop || (isTablet && !showCompactNavRail))
@@ -523,6 +527,16 @@ class Home extends GetView<HomeController> {
             loader: terms.loadLibrary,
             builder: () => terms.TermsAndConditionsPage(isDashboard: true),
           );
+        case HomeController.indexExploreTopics:
+          return DeferredWidget(
+            loader: explore_topics.loadLibrary,
+            builder: () => explore_topics.ExploreTopicsPage(isDashboard: true),
+          );
+        case HomeController.indexCommunityGuidelines:
+          return DeferredWidget(
+            loader: community_guidelines.loadLibrary,
+            builder: () => community_guidelines.CommunityGuidelinesPage(isDashboard: true),
+          );
         case HomeController.indexSettings:
           return DeferredWidget(
             loader: settings.loadLibrary,
@@ -540,14 +554,24 @@ class Home extends GetView<HomeController> {
           );
         case HomeController.indexPlaylistDetail:
           final p = controller.selectedPlaylist.value;
-          if (p == null) return playlist.PlaylistScreen(isDashboard: true);
+          if (p == null) {
+            return DeferredWidget(
+              loader: playlist.loadLibrary,
+              builder: () => playlist.PlaylistScreen(isDashboard: true),
+            );
+          }
           return DeferredWidget(
             loader: playlist_detail.loadLibrary,
             builder: () => playlist_detail.PlaylistDetailScreen(key: ValueKey(p.id)),
           );
         case HomeController.indexChannelDetail:
           final c = controller.selectedChannelForDetail.value;
-          if (c == null) return discover.DiscoverChannelsPage(isDashboard: true);
+          if (c == null) {
+            return DeferredWidget(
+              loader: discover.loadLibrary,
+              builder: () => discover.DiscoverChannelsPage(isDashboard: true),
+            );
+          }
           return DeferredWidget(
             loader: channel_details.loadLibrary,
             builder: () => channel_details.ChannelDetailsPage(key: ValueKey(c.channelId), channel: c, isDashboard: true),
@@ -688,16 +712,6 @@ class Home extends GetView<HomeController> {
     return AppBar(
       title: _buildMobileHeader(context),
       titleSpacing: 0,
-      leading: Builder(
-        builder: (context) => IconButton(
-          icon: Icon(
-            Icons.menu_rounded,
-            color: modernDarkProfessionalTheme.colorScheme.onSurfaceVariant,
-          ),
-          tooltip: 'Open Navigation Menu',
-          onPressed: () => Scaffold.of(context).openDrawer(),
-        ),
-      ),
       actions: _buildAppBarActions(context, true),
       elevation: 0,
       backgroundColor: modernDarkProfessionalTheme.appBarTheme.backgroundColor,
@@ -772,17 +786,20 @@ class Home extends GetView<HomeController> {
             },
           ),
         ),
-      Obx(
-        () => controller.currentUser.value == null
-            ? _buildSignInButton(context)
-            : Row(
-                children: [
-                  _buildNotificationLogo(context),
+      if (isMobile)
+        _buildNotificationLogo(context),
+      if (!isMobile)
+        Obx(
+          () => controller.currentUser.value == null
+              ? _buildSignInButton(context)
+              : Row(
+                  children: [
+                    _buildNotificationLogo(context),
 
-                  _buildUserMenu(context),
-                ],
-              ),
-      ),
+                    _buildUserMenu(context),
+                  ],
+                ),
+        ),
     ];
   }
 
@@ -983,24 +1000,6 @@ class Home extends GetView<HomeController> {
     );
   }
 
-  Widget _buildDrawer(BuildContext context) {
-    return Drawer(
-      width: kSideNavWidth,
-      backgroundColor: modernDarkProfessionalTheme.colorScheme.surface,
-      child: Obx(
-        () => _ModernSideNavigationRail(
-          selectedIndex: controller.sideNavSelectedIndex.value,
-          onSelectItem: controller.onSideNavItemSelect,
-          onShowSignInSnackbar: controller.showSignInSnackbar,
-          currentUser: controller.currentUser.value,
-          isDrawer: true,
-          isCompact: false,
-          homeController: controller,
-        ),
-      ),
-    );
-  }
-
   Widget _buildSideNavigation(BuildContext context, bool showCompactNavRail) {
     return Obx(
       () => _ModernSideNavigationRail(
@@ -1031,31 +1030,117 @@ class Home extends GetView<HomeController> {
             ),
           ],
         ),
-        child: NavigationBar(
-          selectedIndex: controller.bottomNavSelectedIndex.value,
-          onDestinationSelected: controller.onBottomNavItemTapped,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          height: kBottomNavBarHeight,
-          destinations: [
-            NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home_rounded),
-              label: 'Home',
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            navigationBarTheme: modernDarkProfessionalTheme.navigationBarTheme.copyWith(
+              iconTheme: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.selected)) {
+                  return IconThemeData(color: Colors.grey, size: 24);
+                }
+                return IconThemeData(color: darkOnSurfaceVariant, size: 24);
+              }),
+              labelTextStyle: WidgetStateProperty.resolveWith((states) {
+                final style = GoogleFonts.roboto(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.5,
+                );
+                if (states.contains(WidgetState.selected)) {
+                  return style.copyWith(color: Colors.grey);
+                }
+                return style.copyWith(color: darkOnSurfaceVariant);
+              }),
             ),
-            if (AuthService.to.isAuthenticated.value)
+          ),
+          child: NavigationBar(
+            selectedIndex: controller.bottomNavSelectedIndex.value,
+            onDestinationSelected: controller.onBottomNavItemTapped,
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            height: kBottomNavBarHeight,
+            indicatorColor: Colors.grey.withValues(alpha: 0.15),
+            destinations: [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home),
+                label: 'Home',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.explore_outlined),
+                selectedIcon: Icon(Icons.explore),
+                label: 'Channels',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.interests_outlined),
+                selectedIcon: Icon(Icons.interests),
+                label: 'Explore Topics',
+              ),
               NavigationDestination(
                 icon: Icon(Icons.subscriptions_outlined),
-                selectedIcon: Icon(Icons.subscriptions_rounded),
+                selectedIcon: Icon(Icons.subscriptions),
                 label: 'Subscriptions',
               ),
-            if (AuthService.to.isAuthenticated.value)
               NavigationDestination(
-                icon: Icon(Icons.video_library_outlined),
-                selectedIcon: Icon(Icons.video_library_rounded),
-                label: 'Library',
+                icon: (() {
+                  final user = controller.currentUser.value;
+                  if (user != null && user.photoURL != null && user.photoURL!.isNotEmpty) {
+                    return CircleAvatar(
+                      radius: 12,
+                      backgroundImage: NetworkImage(user.photoURL!),
+                    );
+                  } else if (user != null) {
+                    final initial = user.displayName != null && user.displayName!.isNotEmpty
+                        ? user.displayName![0].toUpperCase()
+                        : (user.email != null && user.email!.isNotEmpty ? user.email![0].toUpperCase() : 'E');
+                    return CircleAvatar(
+                      radius: 12,
+                      backgroundColor: Colors.blue,
+                      child: Text(
+                        initial,
+                        style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    );
+                  }
+                  return const Icon(Icons.account_circle_outlined);
+                })(),
+                selectedIcon: (() {
+                  final user = controller.currentUser.value;
+                  if (user != null && user.photoURL != null && user.photoURL!.isNotEmpty) {
+                    return Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      child: CircleAvatar(
+                        radius: 11,
+                        backgroundImage: NetworkImage(user.photoURL!),
+                      ),
+                    );
+                  } else if (user != null) {
+                    final initial = user.displayName != null && user.displayName!.isNotEmpty
+                        ? user.displayName![0].toUpperCase()
+                        : (user.email != null && user.email!.isNotEmpty ? user.email![0].toUpperCase() : 'E');
+                    return Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      child: CircleAvatar(
+                        radius: 11,
+                        backgroundColor: Colors.blue,
+                        child: Text(
+                          initial,
+                          style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    );
+                  }
+                  return const Icon(Icons.account_circle_rounded);
+                })(),
+                label: 'You',
               ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1070,7 +1155,6 @@ class _ModernSideNavigationRail extends StatelessWidget {
   final Function(int) onSelectItem;
   final VoidCallback onShowSignInSnackbar;
   final User? currentUser;
-  final bool isDrawer;
   final bool isCompact;
   final HomeController homeController;
   const _ModernSideNavigationRail({
@@ -1078,7 +1162,6 @@ class _ModernSideNavigationRail extends StatelessWidget {
     required this.onSelectItem,
     required this.onShowSignInSnackbar,
     required this.currentUser,
-    this.isDrawer = false,
     this.isCompact = false,
     required this.homeController,
   });
@@ -1151,19 +1234,19 @@ class _ModernSideNavigationRail extends StatelessWidget {
               ),
               _buildNavItem(
                 context,
-                Icons.trending_up_rounded,
-                Icons.trending_up_outlined,
-                'Trending',
-                HomeController.indexTrending,
-                route: "/trending",
+                Icons.explore_rounded,
+                Icons.explore_outlined,
+                'Discover Channel',
+                HomeController.indexDiscover,
+                route: "/discover",
               ),
               _buildNavItem(
                 context,
-                Icons.explore_rounded,
-                Icons.explore_outlined,
-                'Discover Channels',
-                HomeController.indexDiscover,
-                route: "/discover",
+                Icons.interests_rounded,
+                Icons.interests_outlined,
+                'Explore Topics',
+                HomeController.indexExploreTopics,
+                route: "/explore-topics",
               ),
             ],
           ),
@@ -1179,7 +1262,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
               SizedBox(height: 4),
               _buildDivider(context),
               SizedBox(height: 4),
-              // Personal Library Section
+              // Personal Section
               Padding(
                 padding: EdgeInsets.symmetric(
                   horizontal: isCompact ? 8.0 : 16.0,
@@ -1202,15 +1285,21 @@ class _ModernSideNavigationRail extends StatelessWidget {
                           ),
                         ),
                       ),
-                    _buildNavItem(
-                      context,
-                      Icons.video_library_rounded,
-                      Icons.video_library_outlined,
-                      'Library',
-                      HomeController.indexLibrary,
-                      route: "/library",
-                      requiresAuth: true,
-                    ),
+                    Obx(() {
+                      final authService = Get.find<AuthService>();
+                      if (authService.hasChannel.value) {
+                        return _buildNavItem(
+                          context,
+                          Icons.account_circle_rounded,
+                          Icons.account_circle_outlined,
+                          'Your channel',
+                          HomeController.indexChannelDetail,
+                          requiresAuth: true,
+                          onTap: () => homeController.navigateToYourChannel(),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    }),
                     _buildNavItem(
                       context,
                       Icons.history_rounded,
@@ -1222,29 +1311,38 @@ class _ModernSideNavigationRail extends StatelessWidget {
                     ),
                     _buildNavItem(
                       context,
-                      Icons.video_collection_rounded,
-                      Icons.video_collection_outlined,
-                      'Your Videos',
-                      HomeController.indexYourVideos,
-                      route: "/myvideos",
+                      Icons.playlist_play_rounded,
+                      Icons.playlist_play_outlined,
+                      'Playlists',
+                      HomeController.indexPlaylists,
+                      route: "/playlistscreen",
                       requiresAuth: true,
+                    ),
+                    _buildNavItem(
+                      context,
+                      Icons.watch_later_rounded,
+                      Icons.watch_later_outlined,
+                      'Watch later',
+                      HomeController.indexWatchLater,
+                      requiresAuth: true,
+                      onTap: () => homeController.navigateToWatchLater(),
                     ),
                     _buildNavItem(
                       context,
                       Icons.favorite_rounded,
                       Icons.favorite_outline,
-                      'Liked Videos',
+                      'Liked videos',
                       HomeController.indexLikedVideos,
                       route: "/likedvideos",
                       requiresAuth: true,
                     ),
                     _buildNavItem(
                       context,
-                      Icons.download_rounded,
-                      Icons.download_outlined,
-                      'Downloads',
-                      HomeController.indexDownloads,
-                      route: "/downloads",
+                      Icons.slideshow_rounded,
+                      Icons.slideshow_outlined,
+                      'Your videos',
+                      HomeController.indexYourVideos,
+                      route: "/myvideos",
                       requiresAuth: true,
                     ),
                     _buildNavItem(
@@ -1254,6 +1352,15 @@ class _ModernSideNavigationRail extends StatelessWidget {
                       'Your Clips',
                       HomeController.indexClips,
                       route: "/clips",
+                      requiresAuth: true,
+                    ),
+                    _buildNavItem(
+                      context,
+                      Icons.download_rounded,
+                      Icons.download_outlined,
+                      'Downloads',
+                      HomeController.indexDownloads,
+                      route: "/downloads",
                       requiresAuth: true,
                     ),
                   ],
@@ -1272,45 +1379,6 @@ class _ModernSideNavigationRail extends StatelessWidget {
             children: [
               SizedBox(height: 4),
               _buildDivider(context),
-              SizedBox(height: 4),
-              // Playlists Section
-              Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: isCompact ? 8.0 : 16.0,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (!isCompact)
-                      Padding(
-                        padding: EdgeInsets.only(left: 4, bottom: 8, top: 4),
-                        child: Text(
-                          'PLAYLISTS',
-                          style: GoogleFonts.roboto(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: isDarkMode
-                                ? Colors.white54
-                                : AppColors.textSecondary,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                      ),
-                    _buildNavItem(
-                      context,
-                      Icons.queue_music_rounded,
-                      Icons.queue_music_outlined,
-                      'All Playlists',
-                      HomeController.indexPlaylists,
-                      route: "/playlistscreen",
-                      requiresAuth: true,
-                    ),
-                  ],
-                ),
-              ),
-
-              SizedBox(height: 4),
-              _buildDivider(context),
               SizedBox(height: 8),
 
               // Subscriptions Section
@@ -1324,7 +1392,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
         _buildDivider(context),
         SizedBox(height: 4),
 
-        // Support & Info Section
+        // Support Section
         Padding(
           padding: EdgeInsets.symmetric(horizontal: isCompact ? 8.0 : 16.0),
           child: Column(
@@ -1367,7 +1435,6 @@ class _ModernSideNavigationRail extends StatelessWidget {
                 HomeController.indexFeedback,
                 route: "/feedback",
               ),
-              _buildDivider(context),
               _buildNavItem(
                 context,
                 Icons.info_rounded,
@@ -1376,6 +1443,33 @@ class _ModernSideNavigationRail extends StatelessWidget {
                 HomeController.indexAbout,
                 route: '/about',
               ),
+            ],
+          ),
+        ),
+
+        SizedBox(height: 4),
+        _buildDivider(context),
+        SizedBox(height: 4),
+
+        // Legal & Policies Section
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: isCompact ? 8.0 : 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!isCompact)
+                Padding(
+                  padding: EdgeInsets.only(left: 4, bottom: 8, top: 4),
+                  child: Text(
+                    'POLICIES',
+                    style: GoogleFonts.roboto(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: isDarkMode ? Colors.white54 : AppColors.textSecondary,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
               _buildNavItem(
                 context,
                 Icons.privacy_tip_rounded,
@@ -1388,9 +1482,17 @@ class _ModernSideNavigationRail extends StatelessWidget {
                 context,
                 Icons.article_rounded,
                 Icons.article_outlined,
-                'Terms of Service',
+                'Terms & Conditions',
                 HomeController.indexTerms,
                 route: '/terms',
+              ),
+              _buildNavItem(
+                context,
+                Icons.gavel_rounded,
+                Icons.gavel_outlined,
+                'Community Guidelines',
+                HomeController.indexCommunityGuidelines,
+                route: '/community-guidelines',
               ),
             ],
           ),
@@ -1400,27 +1502,12 @@ class _ModernSideNavigationRail extends StatelessWidget {
         _buildDivider(context),
         SizedBox(height: 4),
 
-        // Legal Section
+        // Footer Section
         Padding(
           padding: EdgeInsets.symmetric(horizontal: isCompact ? 8.0 : 16.0),
-
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (!isCompact)
-                Padding(
-                  padding: EdgeInsets.only(left: 4, bottom: 8, top: 4),
-                  child: Text(
-                    'ABOUT',
-                    style: GoogleFonts.roboto(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: isDarkMode ? Colors.white54 : AppColors.textSecondary,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-
               SizedBox(height: 16),
               // Footer
               if (!isCompact)
@@ -1429,7 +1516,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                   child: Column(
                     children: [
                       Text(
-                        'Â© 2026 Truthworld',
+                        '© 2026 Truthworld',
                         style: GoogleFonts.roboto(
                           fontSize: 12,
                           color: isDarkMode
@@ -1439,7 +1526,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                       ),
                       SizedBox(height: 4),
                       Text(
-                        'Made with â¤ï¸ for creators',
+                        'Made with ❤️ for creators',
                         style: GoogleFonts.roboto(
                           fontSize: 11,
                           color: isDarkMode
@@ -1457,6 +1544,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
     );
   }
 
+
   Widget _buildNavItem(
     BuildContext context,
     IconData selectedIcon,
@@ -1465,23 +1553,33 @@ class _ModernSideNavigationRail extends StatelessWidget {
     int index, {
     String? route,
     bool requiresAuth = false,
+    VoidCallback? onTap,
   }) {
     if (requiresAuth && !AuthService.to.isAuthenticated.value) {
       return const SizedBox.shrink();
     }
-    final bool isSelected = selectedIndex == index;
+    final bool isSelected = (index == HomeController.indexWatchLater)
+        ? (selectedIndex == HomeController.indexPlaylistDetail &&
+            homeController.selectedPlaylist.value?.playlistName.toLowerCase() == 'watch later')
+        : selectedIndex == index;
     final color = isSelected
-        ? primaryAccent
+        ? Colors.white
         : modernDarkProfessionalTheme.colorScheme.onSurfaceVariant;
     return Container(
       margin: EdgeInsets.symmetric(vertical: 2),
       child: Material(
         color: isSelected
-            ? primaryAccent.withValues(alpha: 0.1)
+            ? Colors.white.withValues(alpha: 0.12)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(isCompact ? 16 : 24),
         child: InkWell(
-          onTap: () => _handleNavItemTap(context, index, route, requiresAuth),
+          onTap: () {
+            if (onTap != null) {
+              onTap();
+            } else {
+              _handleNavItemTap(context, index, route, requiresAuth);
+            }
+          },
           borderRadius: BorderRadius.circular(isCompact ? 16 : 24),
           child: AnimatedContainer(
             duration: Duration(milliseconds: 200),
@@ -1593,9 +1691,6 @@ class _ModernSideNavigationRail extends StatelessWidget {
   ) {
     if (requiresAuth && currentUser == null) {
       onShowSignInSnackbar();
-      if (isDrawer && Navigator.canPop(context)) {
-        Navigator.of(context).pop();
-      }
     } else {
       // DASHBOARD NAVIGATION LOGIC
       // Instead of full page transitions, we just update the index for dashboard-compatible pages
@@ -1611,7 +1706,15 @@ class _ModernSideNavigationRail extends StatelessWidget {
           index == HomeController.indexDownloads ||
           index == HomeController.indexWatchLater ||
           index == HomeController.indexPlaylists ||
-          index == HomeController.indexClips;
+          index == HomeController.indexClips ||
+          index == HomeController.indexExploreTopics ||
+          index == HomeController.indexCommunityGuidelines ||
+          index == HomeController.indexPrivacy ||
+          index == HomeController.indexTerms ||
+          index == HomeController.indexAbout ||
+          index == HomeController.indexSettings ||
+          index == HomeController.indexHelp ||
+          index == HomeController.indexFeedback;
 
       if (isDashboardPage) {
         onSelectItem(index);
@@ -1637,10 +1740,6 @@ class _ModernSideNavigationRail extends StatelessWidget {
             }
           }
         }
-      }
-
-      if (isDrawer && (Scaffold.maybeOf(context)?.isDrawerOpen ?? false)) {
-        Navigator.of(context).pop();
       }
     }
   }
@@ -1727,10 +1826,6 @@ class _ModernSideNavigationRail extends StatelessWidget {
   ) async {
     if (homeController.isNavigating.value) return;
     homeController.isNavigating.value = true;
-    if (isDrawer && (Scaffold.maybeOf(context)?.isDrawerOpen ?? false)) {
-      Navigator.of(context).pop();
-      await Future.delayed(Duration(milliseconds: 300));
-    }
     Get.toNamed(
       '/channel-details',
       arguments: {"channel": channel, 'subscribercount': subscriberCount},
@@ -2116,49 +2211,64 @@ class _ModernMainContent extends StatelessWidget {
                       );
                     },
                     borderRadius: BorderRadius.circular(24),
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isMobile ? 16 : 20,
-                        vertical: isMobile ? 10 : 12,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? Color(0xFF2A2A2A)
-                            : Color(0xFF1E1E1E),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: isSelected
-                              ? Colors.white.withValues(alpha: 0.5)
-                              : Colors.transparent,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          // Checkmark for selected
-                          if (isSelected) ...[
-                            Icon(
-                              Icons.check,
-                              color: Colors.white,
-                              size: isMobile ? 14 : 16,
-                            ),
-                            SizedBox(width: 6),
-                          ],
-                          // Category text - show full text
-                          Text(
-                            category,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: isMobile ? 13 : 14,
-                              height: 1.2,
+                    child: Row(
+                      children: [
+                        if (index == 0 && isMobile)
+                          Padding(
+                            padding: EdgeInsets.only(right: 8),
+                            child: Icon(
+                              Icons.category_rounded,
+                              color: isSelected
+                                  ? primaryAccent
+                                  : modernDarkProfessionalTheme.colorScheme.onSurfaceVariant,
+                              size: 20,
                             ),
                           ),
-                        ],
-                      ),
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 16 : 20,
+                            vertical: isMobile ? 10 : 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Color(0xFF2A2A2A)
+                                : Color(0xFF1E1E1E),
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: isSelected
+                                  ? Colors.white.withValues(alpha: 0.5)
+                                  : Colors.transparent,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              // Checkmark for selected
+                              if (isSelected) ...[
+                                Icon(
+                                  Icons.check,
+                                  color: Colors.white,
+                                  size: isMobile ? 14 : 16,
+                                ),
+                                SizedBox(width: 6),
+                              ],
+                              // Category text - show full text
+                              Text(
+                                category,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: isMobile ? 13 : 14,
+                                  height: 1.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -2386,7 +2496,7 @@ class _ModernVideoGridSection extends StatelessWidget {
           ),
           IconButton(
             icon: Icon(
-              Icons.more_vert_rounded,
+              Icons.more_vert,
               size: 20,
               color: modernDarkProfessionalTheme.colorScheme.onSurfaceVariant,
             ),
@@ -2541,13 +2651,14 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
     {
       'title':
           'The Future of AGI: Exclusive Interview with Leading Researchers',
-      'subtitle': '2.1M views • LIVE • 4h ago',
+      'subtitle': '2.1M views • 4h ago',
       'tag': 'AI Research',
       'description':
           'Join us for an unprecedented deep dive into the latest advancements in Artificial General Intelligence, potential timelines, and the ethical implications for humanity.',
       'image':
           'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1932&auto=format&fit=crop',
-      'watching': '45,201 watching',
+      'watching': '45,201 Followers',
+      'slug': 'ai-research',
     },
     {
       'title': 'Global Economic Shift: Decoding the 2026 Market Trends',
@@ -2557,17 +2668,19 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
           'How new financial technologies and shifting geopolitical alliances are reshaping the world economy. Expert panel discussion inside.',
       'image':
           'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?q=80&w=1000&auto=format&fit=crop',
-      'watching': '12,405 watching',
+      'watching': '12,405 Followers',
+      'slug': 'economics',
     },
     {
       'title': 'SpaceX Mars Mission: First Humans to Land in 2029?',
-      'subtitle': '5.4M views • LIVE',
+      'subtitle': '5.4M views • 1d ago',
       'tag': 'Space Tech',
       'description':
           'Elon Musk reveals updated plans for the Starship Mars mission. Live coverage of the presentation from Starbase, Texas.',
       'image':
           'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop',
-      'watching': '156,000 watching',
+      'watching': '156,000 Followers',
+      'slug': 'space-tech',
     },
     {
       'title': 'Quantum Computing: Breaking the RSA Encryption Barrier',
@@ -2577,7 +2690,8 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
           'What happens when quantum computers can crack modern encryption? We talk to the cryptographers building the post-quantum world.',
       'image':
           'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=1000&auto=format&fit=crop',
-      'watching': '8,210 watching',
+      'watching': '8,210 Followers',
+      'slug': 'cybersecurity',
     },
     {
       'title': 'The Rise of Smart Cities: Urban Life in 2030',
@@ -2587,7 +2701,8 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
           'From autonomous transit to AI-driven energy grids, see how the cities of tomorrow are being built today in Singapore and Dubai.',
       'image':
           'https://images.unsplash.com/photo-1519567241046-7f570eee3ce6?q=80&w=1000&auto=format&fit=crop',
-      'watching': '3,540 watching',
+      'watching': '3,540 Followers',
+      'slug': 'sustainability',
     },
     {
       'title': 'The Truth About Deepfakes: Can We Trust Anything?',
@@ -2597,7 +2712,8 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
           'Investigating the alarming rise of generative video and the new verification technologies being developed to protect reality.',
       'image':
           'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1000&auto=format&fit=crop',
-      'watching': '22,100 watching',
+      'watching': '22,100 Followers',
+      'slug': 'verified-truth',
     },
   ];
 
@@ -2629,6 +2745,38 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
     _timer?.cancel();
     _pageController.dispose();
     super.dispose();
+  }
+
+  void _navigateToTopic(BuildContext context, Map<String, String> banner) {
+    final slug = banner['slug'];
+    if (slug == null || slug.isEmpty) return;
+
+    final topic = Topic(
+      id: slug,
+      title: banner['title'] ?? '',
+      slug: slug,
+      description: banner['description'] ?? '',
+      category: banner['tag'] ?? 'Technology',
+      thumbnailUrl: banner['image'],
+      coverImage: banner['image'],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+      followerCount: int.tryParse(banner['watching']?.replaceAll(RegExp(r'[^0-9]'), '') ?? '') ?? 0,
+    );
+
+    if (Get.isRegistered<TopicController>()) {
+      Get.find<TopicController>().topic.value = topic;
+    } else {
+      Get.put(TopicController()).topic.value = topic;
+    }
+
+    Get.toNamed(
+      '/topic/$slug',
+      arguments: {
+        'slug': slug,
+        'fromCard': true,
+      },
+    );
   }
 
   @override
@@ -2814,224 +2962,229 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
     bool isMobile,
     double pageOffset,
   ) {
-    return Stack(
-      children: [
-        // Background Image with Parallax
-        Positioned.fill(
-          child: Transform.translate(
-            offset: Offset(pageOffset * 100, 0), // Parallax move
-            child: Image.network(banner['image']!, fit: BoxFit.cover),
+    return GestureDetector(
+      onTap: () => _navigateToTopic(context, banner),
+      behavior: HitTestBehavior.opaque,
+      child: Stack(
+        children: [
+          // Background Image with Parallax
+          Positioned.fill(
+            child: Transform.translate(
+              offset: Offset(pageOffset * 100, 0), // Parallax move
+              child: Image.network(banner['image']!, fit: BoxFit.cover),
+            ),
           ),
-        ),
-        // Gradient Overlay
-        Positioned.fill(
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.centerRight,
-                end: Alignment.centerLeft,
-                colors: [
-                  Colors.transparent,
-                  Colors.black.withValues(alpha: 0.8),
-                  Colors.black,
-                ],
-                stops: const [0.0, 0.6, 1.0],
+          // Gradient Overlay
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.centerRight,
+                  end: Alignment.centerLeft,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.8),
+                    Colors.black,
+                  ],
+                  stops: const [0.0, 0.6, 1.0],
+                ),
               ),
             ),
           ),
-        ),
-        // Content
-        Padding(
-          padding: EdgeInsets.all(isMobile ? 24 : 48),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              // LIVE Badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.red.shade700,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: const BoxDecoration(
+          // Content
+          Padding(
+            padding: EdgeInsets.all(isMobile ? 24 : 48),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                // TOPIC Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.brand,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.bookmark_outline_rounded,
+                        size: 14,
                         color: Colors.white,
-                        shape: BoxShape.circle,
                       ),
+                      SizedBox(width: 6),
+                      Text(
+                        'TOPIC',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Title
+                SizedBox(
+                  width: isMobile ? double.infinity : 700,
+                  child: Text(
+                    banner['title']!,
+                    style: GoogleFonts.roboto(
+                      fontSize: isMobile ? 24 : 48,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      height: 1.1,
+                      letterSpacing: -1,
                     ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'LIVE',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Meta Info
+                Row(
+                  children: [
+                    Text(
+                      banner['subtitle']!,
+                      style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white10,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        banner['tag']!,
+                        style: const TextStyle(color: Colors.white, fontSize: 12),
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 16),
-              // Title
-              SizedBox(
-                width: isMobile ? double.infinity : 700,
-                child: Text(
-                  banner['title']!,
-                  style: GoogleFonts.roboto(
-                    fontSize: isMobile ? 24 : 48,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    height: 1.1,
-                    letterSpacing: -1,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Meta Info
-              Row(
-                children: [
-                  Text(
-                    banner['subtitle']!,
-                    style: const TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white10,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
+                if (!isMobile) ...[
+                  const SizedBox(height: 16),
+                  // Description
+                  SizedBox(
+                    width: 550,
                     child: Text(
-                      banner['tag']!,
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                      banner['description']!,
+                      style: const TextStyle(
+                        color: Colors.white60,
+                        fontSize: 16,
+                        height: 1.5,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
-              ),
-              if (!isMobile) ...[
-                const SizedBox(height: 16),
-                // Description
-                SizedBox(
-                  width: 550,
-                  child: Text(
-                    banner['description']!,
-                    style: const TextStyle(
-                      color: Colors.white60,
-                      fontSize: 16,
-                      height: 1.5,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 32),
-              // Buttons
-              Row(
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(
-                      Icons.play_arrow,
-                      color: Colors.black,
-                      size: 18,
-                    ),
-                    label: const Text(
-                      'Watch Now',
-                      style: TextStyle(
+                const SizedBox(height: 32),
+                // Buttons
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () => _navigateToTopic(context, banner),
+                      icon: const Icon(
+                        Icons.person_add_alt_1_outlined,
                         color: Colors.black,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 15,
+                        size: 18,
                       ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      elevation: 0,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  ElevatedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.add, color: Colors.white, size: 18),
-                    label: const Text(
-                      'Watch Later',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                        fontSize: 15,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white.withValues(alpha: 0.15),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        side: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.3),
-                          width: 1,
+                      label: const Text(
+                        'Follow',
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 15,
                         ),
                       ),
-                      elevation: 0,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        elevation: 0,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        // Viewer Count (Top Right)
-        Positioned(
-          top: 24,
-          right: 24,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: Colors.black54,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white10),
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.remove_red_eye_outlined,
-                  color: Colors.white,
-                  size: 16,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  banner['watching']!,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
+                    const SizedBox(width: 16),
+                    ElevatedButton.icon(
+                      onPressed: () => _navigateToTopic(context, banner),
+                      icon: const Icon(
+                        Icons.bookmark_border_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      label: const Text(
+                        'Save',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 15,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white.withValues(alpha: 0.15),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          side: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.3),
+                            width: 1,
+                          ),
+                        ),
+                        elevation: 0,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-        ),
-      ],
+          // Followers Count (Top Right)
+          Positioned(
+            top: 24,
+            right: 24,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black54,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.people_outline_rounded,
+                    color: Colors.white,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    banner['watching']!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,7 +1,7 @@
 import 'package:get/get.dart';
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'dart:html' as html;
-import 'dart:ui_web' as ui;
+import 'package:universal_html/html.dart' as html;
+import 'register_stub.dart' if (dart.library.html) 'register_web.dart';
 import 'package:truthworld/features/video/domain/database_helpers.dart';
 
 class OfflineVideoController extends GetxController {
@@ -31,19 +31,7 @@ class OfflineVideoController extends GetxController {
   }
 }
 
-// Register the video element
-void registerVideoElement(String videoId, String videoUrl) {
-  // ignore: undefined_prefixed_name
-  ui.platformViewRegistry.registerViewFactory('video-$videoId', (int viewId) {
-    final video = html.VideoElement()
-      ..src = videoUrl
-      ..controls = true
-      ..style.width = '100%'
-      ..style.height = '100%'
-      ..style.objectFit = 'contain';
-    return video;
-  });
-}
+
 
 
 

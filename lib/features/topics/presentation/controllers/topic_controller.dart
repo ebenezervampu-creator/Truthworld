@@ -81,6 +81,17 @@ class TopicController extends GetxController {
       final topicData = await _repository.getTopicBySlug(slug);
 
       if (topicData == null) {
+        if (topic.value != null && topic.value!.slug == slug) {
+          final currentPreloaded = topic.value!;
+          relatedTopics.value = await _repository.getSimilarTopics(
+            currentPreloaded.category,
+            excludeSlug: currentPreloaded.slug,
+            limit: 8,
+          );
+          await _loadVideos(reset: true);
+          isLoading.value = false;
+          return;
+        }
         hasError.value = true;
         errorMessage.value = 'Topic not found';
         isLoading.value = false;

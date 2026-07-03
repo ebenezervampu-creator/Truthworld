@@ -55,6 +55,22 @@ class AuthGuard extends GetMiddleware {
   }
 }
 
+/// Route guard to prevent navigating to channel creation if they already have one
+class ChannelCreationGuard extends GetMiddleware {
+  @override
+  int? get priority => 8;
+
+  final AuthService _authService = Get.find<AuthService>();
+
+  @override
+  RouteSettings? redirect(String? route) {
+    if (_authService.isAuthenticated.value && _authService.hasChannel.value) {
+      return const RouteSettings(name: '/studio');
+    }
+    return null;
+  }
+}
+
 /// Utility class for route protection
 class RouteProtection {
   /// Check if user is authenticated before navigating to protected route

@@ -50,6 +50,8 @@ class DashboardController extends GetxController {
 
   DashboardController({required this.channelId});
 
+  final Rx<Channel?> currentChannel = Rx<Channel?>(null);
+
   var selectedIndex = 1.obs;
   var isDrawerExpanded = true.obs;
   var isLoading = true.obs;
@@ -126,6 +128,7 @@ class DashboardController extends GetxController {
     _channelSubscription = channelRef.snapshots().listen((snapshot) {
       if (snapshot.exists) {
         final channel = Channel.fromDocumentSnapshot(snapshot);
+        currentChannel.value = channel;
         // Only update if summary stats are missing or zeros
         if (channelStats.isEmpty || (channelStats['views'] == '0' && channel.viewCount > 0)) {
           channelStats.value = {
@@ -1706,7 +1709,11 @@ class _DashboardScreenState extends State<DashboardScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildDashboardHeader(isDarkMode),
-          SizedBox(height: 24),
+          Obx(() {
+            final ch = controller.currentChannel.value;
+            if (ch == null) return const SizedBox.shrink();
+            return _buildModerationStatusBanner(isDarkMode, ch);
+          }),
           _buildChannelStatsGrid(isDarkMode),
           Obx(() {
             if (controller.copyrightClaimsCount.value > 0) {
@@ -1870,6 +1877,110 @@ class _DashboardScreenState extends State<DashboardScreen>
           _buildMobileSearchField(isDarkMode),
         ],
       ],
+    );
+  }
+
+  Widget _buildModerationStatusBanner(bool isDarkMode, Channel channel) {
+    if (channel.status == ChannelStatus.active) {
+      return const SizedBox.shrink();
+    }
+
+    Color bannerColor;
+    IconData icon;
+    String title;
+    String subtitle;
+    bool showButton = false;
+
+    if (channel.status == ChannelStatus.underReview) {
+      bannerColor = const Color(0xFF3B82F6); // Blue
+      icon = Icons.sync_rounded;
+      title = 'Branding Under Gemini AI Moderation';
+      subtitle = 'Gemini is checking your channel details (name, description, tags) against our community guidelines. This usually takes just a few seconds.';
+    } else if (channel.status == ChannelStatus.verificationRejected) {
+      bannerColor = const Color(0xFFEF4444); // Red
+      icon = Icons.error_outline_rounded;
+      title = 'Branding Verification Rejected by Gemini AI';
+      subtitle = channel.moderationReason != null && channel.moderationReason!.isNotEmpty
+          ? channel.moderationReason!
+          : 'Your channel details were rejected. Please update your name, description, or tags in customization to re-verify.';
+      showButton = true;
+    } else {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: bannerColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: bannerColor.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (channel.status == ChannelStatus.underReview)
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+              ),
+            )
+          else
+            Icon(icon, color: bannerColor, size: 28),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.roboto(
+                    color: bannerColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.roboto(
+                    color: isDarkMode ? Colors.white70 : AppColors.textSecondary,
+                    fontSize: 14,
+                    height: 1.4,
+                  ),
+                ),
+                if (showButton) ...[
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      controller.selectedIndex.value = 6; // Navigate to Customization page
+                    },
+                    icon: const Icon(Icons.edit_rounded, size: 16),
+                    label: const Text('Update Channel Details'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: bannerColor,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

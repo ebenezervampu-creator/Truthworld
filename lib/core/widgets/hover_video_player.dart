@@ -1,0 +1,437 @@
+import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:video_player/video_player.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+
+/// A premium, YouTube-style hover-to-play video preview card.
+///
+/// Features:
+/// - 600ms hover debounce to optimize bandwidth and maintain sub-150ms scrolling.
+/// - Loop-playback muted, perfectly fitted (cover fit) within the thumbnail area.
+/// - YouTube-style muted volume indicator overlay.
+/// - Seamless zero-latency warm-handover on tap.
+class HoverVideoPlayer extends StatefulWidget {
+  final Video video;
+  final Widget thumbnail;
+  final BorderRadius borderRadius;
+
+  static bool isGlobalMuted = true; // Previews start muted by default
+
+  const HoverVideoPlayer({
+    super.key,
+    required this.video,
+    required this.thumbnail,
+    required this.borderRadius,
+  });
+
+  @override
+  State<HoverVideoPlayer> createState() => _HoverVideoPlayerState();
+}
+
+class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
+  final _controller = Rxn<VideoPlayerController>();
+  Timer? _hoverTimer;
+  final _isHovered = false.obs;
+  final _isLoading = false.obs;
+  final _isInitialized = false.obs;
+  final _isMuted = HoverVideoPlayer.isGlobalMuted.obs;
+  final _position = Rx<Duration>(Duration.zero);
+  final _duration = Rx<Duration>(Duration.zero);
+
+  @override
+  void dispose() {
+    _hoverTimer?.cancel();
+
+    // warm handover: only dispose if the controller has NOT been handed over
+    // to the Watch Screen already (i.e. it is still active/registered in the handoff)
+    if (_controller.value != null) {
+      final videoId = widget.video.id;
+      if (VideoPlaybackHandoff.isActive(videoId)) {
+        VideoPlaybackHandoff.clear(videoId);
+      }
+    }
+    super.dispose();
+  }
+
+  void _onEnter() {
+    if (widget.video.isScheduled) {
+      return; // Do not hover play scheduled premieres
+    }
+
+    _isHovered.value = true;
+
+    _hoverTimer?.cancel();
+    _hoverTimer = Timer(const Duration(milliseconds: 600), () {
+      if (_isHovered.value) {
+        _initializePlayer();
+      }
+    });
+  }
+
+  void _onExit() {
+    _hoverTimer?.cancel();
+
+    final videoId = widget.video.id;
+    if (_controller.value != null) {
+      if (VideoPlaybackHandoff.isActive(videoId)) {
+        VideoPlaybackHandoff.clear(videoId);
+      }
+    }
+
+    _isHovered.value = false;
+    _isLoading.value = false;
+    _controller.value = null;
+    _isInitialized.value = false;
+    _position.value = Duration.zero;
+    _duration.value = Duration.zero;
+  }
+
+  Future<void> _initializePlayer() async {
+    // Prefer videoUrl on Web since HLS (.m3u8) is not natively supported by Chrome/Firefox.
+    // On other platforms, prefer hlsUrl if available, falling back to videoUrl.
+    final bool preferVideoUrl = kIsWeb;
+
+    String playUrl = '';
+    if (preferVideoUrl) {
+      playUrl = widget.video.videoUrl.isNotEmpty
+          ? widget.video.videoUrl
+          : widget.video.hlsUrl;
+    } else {
+      playUrl = widget.video.hlsUrl.isNotEmpty
+          ? widget.video.hlsUrl
+          : widget.video.videoUrl;
+    }
+
+    if (playUrl.isEmpty) return;
+
+    _isLoading.value = true;
+    _isMuted.value =
+        HoverVideoPlayer.isGlobalMuted; // Sync with global preference
+
+    try {
+      await _attemptInitWithUrl(playUrl);
+    } catch (e) {
+      debugPrint(
+        '[HoverVideoPlayer] Error initializing preview player with primary URL ($playUrl): $e',
+      );
+
+      // Fallback: If we tried HLS and it failed, try the standard video URL if available
+      final isHls = playUrl.contains('.m3u8') || playUrl == widget.video.hlsUrl;
+      if (isHls &&
+          widget.video.videoUrl.isNotEmpty &&
+          widget.video.videoUrl != playUrl) {
+        debugPrint(
+          '[HoverVideoPlayer] Falling back to standard video URL: ${widget.video.videoUrl}',
+        );
+        try {
+          await _attemptInitWithUrl(widget.video.videoUrl);
+          return; // Success on fallback
+        } catch (fallbackError) {
+          debugPrint(
+            '[HoverVideoPlayer] Fallback URL also failed: $fallbackError',
+          );
+        }
+      }
+
+      _isLoading.value = false;
+      _isInitialized.value = false;
+    }
+  }
+
+  Future<void> _attemptInitWithUrl(String url) async {
+    final controller = VideoPlayerController.networkUrl(
+      Uri.parse(url),
+      videoPlayerOptions: VideoPlayerOptions(
+        mixWithOthers: true, // Allow other audio to play
+        allowBackgroundPlayback: false,
+      ),
+    );
+
+    await controller.initialize();
+    await controller.setVolume(HoverVideoPlayer.isGlobalMuted ? 0.0 : 1.0);
+    await controller.setLooping(true);
+
+    if (_isHovered.value) {
+      _controller.value = controller;
+      _isInitialized.value = true;
+      _isLoading.value = false;
+      _duration.value = controller.value.duration;
+      _position.value = controller.value.position;
+
+      controller.addListener(() {
+        if (_controller.value == controller) {
+          _position.value = controller.value.position;
+        }
+      });
+
+      // Register this controller globally for warm handover on tap
+      VideoPlaybackHandoff.registerActiveController(
+        widget.video.id,
+        controller,
+      );
+
+      await controller.play();
+    } else {
+      // User exited hover while initializing, clean up
+      await controller.dispose();
+      _isLoading.value = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // If the controller has been retrieved or cleared elsewhere (e.g., warm handover completed),
+    // we must immediately release our local reference to avoid any memory leaks or disposed access.
+    if (_controller.value != null &&
+        !VideoPlaybackHandoff.isActive(widget.video.id)) {
+      _controller.value = null;
+      _isInitialized.value = false;
+      _isLoading.value = false;
+    }
+
+    return Obx(
+      () => MouseRegion(
+        onEnter: (_) => _onEnter(),
+        onExit: (_) => _onExit(),
+        cursor: SystemMouseCursors.click,
+        child: ClipRRect(
+          borderRadius: widget.borderRadius,
+          child: Stack(
+            fit: StackFit.loose,
+            children: [
+              // Always show/render the thumbnail under the video player so transitions are flawless
+              widget.thumbnail,
+
+              // Buffering Shimmer overlay
+              if (_isLoading.value)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black45,
+                    child: const Center(
+                      child: SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white70,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Muted video preview player
+              if (_isInitialized.value && _controller.value != null)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        FittedBox(
+                          fit: BoxFit.cover,
+                          child: SizedBox(
+                            width: _controller.value!.value.size.width > 0
+                                ? _controller.value!.value.size.width
+                                : 160,
+                            height: _controller.value!.value.size.height > 0
+                                ? _controller.value!.value.size.height
+                                : 90,
+                            child: VideoPlayer(_controller.value!),
+                          ),
+                        ),
+
+                        // Brain / AI icon overlay in top left
+                        Positioned(
+                          top: 12,
+                          left: 12,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0B1428), // Premium dark blue
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white24,
+                                width: 1.0,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.psychology_rounded,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+
+                        // Premium interactive controls overlay in top right (Mute & CC stacked vertically)
+                        Positioned(
+                          top: 12,
+                          right: 12,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () async {
+                                  if (_controller.value == null) return;
+                                  final nextMute = !_isMuted.value;
+                                  await _controller.value!.setVolume(
+                                    nextMute ? 0.0 : 1.0,
+                                  );
+                                  HoverVideoPlayer.isGlobalMuted = nextMute;
+                                  _isMuted.value = nextMute;
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.75),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: Colors.white12,
+                                      width: 0.5,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    _isMuted.value
+                                        ? Icons.volume_off_rounded
+                                        : Icons.volume_up_rounded,
+                                    color: Colors.white,
+                                    size: 14,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.75),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: Colors.white12,
+                                    width: 0.5,
+                                  ),
+                                ),
+                                child: const Text(
+                                  'CC',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Current playback time display in bottom left
+                        Positioned(
+                          bottom: 16,
+                          left: 12,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Obx(() {
+                              final elapsed = _formatDuration(_position.value);
+                              return Text(
+                                elapsed,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            }),
+                          ),
+                        ),
+
+                        // Progress Bar at the very bottom
+                        Positioned(
+                          bottom: 4,
+                          left: 8,
+                          right: 8,
+                          child: _buildProgressBar(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProgressBar() {
+    return Obx(() {
+      final pos = _position.value.inMilliseconds;
+      final dur = _duration.value.inMilliseconds;
+      if (dur == 0) return const SizedBox.shrink();
+      final double factor = (pos / dur).clamp(0.0, 1.0);
+
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final double width = constraints.maxWidth;
+          final double thumbPosition = factor * width;
+
+          return SizedBox(
+            height: 16,
+            width: double.infinity,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.centerLeft,
+              children: [
+                // Track Background
+                Container(
+                  height: 4,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                // Active Progress
+                Container(
+                  height: 4,
+                  width: thumbPosition,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFF0000),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                // Thumb Dot
+                Positioned(
+                  left: (thumbPosition - 6).clamp(0.0, width - 12),
+                  child: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFF0000),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    });
+  }
+
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes.remainder(60).toString();
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+}

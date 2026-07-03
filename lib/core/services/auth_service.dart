@@ -8,6 +8,8 @@ import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/google_signin_exception_handler.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/data/models/user_model.dart';
+import 'package:truthworld/data/models/channel.dart';
+
 
 class AuthService extends GetxService {
   static AuthService get to => Get.find<AuthService>();
@@ -29,7 +31,14 @@ class AuthService extends GetxService {
   final RxBool _hasChannel = false.obs;
   RxBool get hasChannel => _hasChannel;
 
+  final Rxn<Channel> _userChannel = Rxn<Channel>();
+  Channel? get userChannel => _userChannel.value;
+
   StreamSubscription? _channelSubscription;
+  final RxBool isPremiumUser = false.obs;
+  final RxnString premiumPlanId = RxnString();
+  StreamSubscription? _userDocSubscription;
+
 
   /// ✅ SAFE async initialization (no Firebase calls before this)
   Future<AuthService> init() async {
@@ -59,6 +68,7 @@ class AuthService extends GetxService {
   void _handleAuthChanged(User? u) {
     _isAuthenticated.value = u != null;
     _updateChannelSubscription(u);
+    _updateUserDocSubscription(u);
     if (u != null) {
       _syncUserToFirestore(u);
     }
@@ -69,6 +79,7 @@ class AuthService extends GetxService {
 
     if (user == null) {
       _hasChannel.value = false;
+      _userChannel.value = null;
       return;
     }
 
@@ -78,7 +89,17 @@ class AuthService extends GetxService {
         .snapshots()
         .listen(
           (snapshot) {
-            _hasChannel.value = snapshot.docs.isNotEmpty;
+            final activeChannels = snapshot.docs
+                .map((doc) => Channel.fromDocumentSnapshot(doc))
+                .where((c) => c.status != ChannelStatus.deleted)
+                .toList();
+
+            _hasChannel.value = activeChannels.isNotEmpty;
+            if (activeChannels.isNotEmpty) {
+              _userChannel.value = activeChannels.first;
+            } else {
+              _userChannel.value = null;
+            }
           },
           onError: (error) {
             debugPrint('AuthService Firestore error: $error');
@@ -86,10 +107,52 @@ class AuthService extends GetxService {
         );
   }
 
+  void _updateUserDocSubscription(User? user) {
+    _userDocSubscription?.cancel();
+    if (user == null) {
+      isPremiumUser.value = false;
+      premiumPlanId.value = null;
+      return;
+    }
+    _userDocSubscription = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .snapshots()
+        .listen((snapshot) {
+          if (snapshot.exists) {
+            final data = snapshot.data() ?? {};
+            isPremiumUser.value = data['isPremium'] as bool? ?? false;
+            premiumPlanId.value = data['premiumPlanId'] as String?;
+          } else {
+            isPremiumUser.value = false;
+            premiumPlanId.value = null;
+          }
+        }, onError: (e) {
+          debugPrint('Error listening to user document: $e');
+        });
+  }
+
   @override
   void onClose() {
     _channelSubscription?.cancel();
+    _userDocSubscription?.cancel();
     super.onClose();
+  }
+
+  Future<void> cancelPremiumSubscription() async {
+    final u = _user.value;
+    if (u == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(u.uid)
+          .update({
+            'isPremium': false,
+            'premiumPlanId': FieldValue.delete(),
+          });
+    } catch (e) {
+      debugPrint('Error cancelling premium subscription: $e');
+    }
   }
 
   // ================= GOOGLE SIGN IN =================

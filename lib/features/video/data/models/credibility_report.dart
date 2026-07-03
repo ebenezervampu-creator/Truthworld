@@ -312,6 +312,8 @@ class UISource {
   final String? domain;
   final String trustLevel; // 'High' | 'Medium' | 'Low'
   final String type; // 'Primary' | 'Secondary' | 'Supporting'
+  final int citationCount;
+  final String? snippet;
 
   UISource({
     required this.title,
@@ -319,6 +321,8 @@ class UISource {
     this.domain,
     required this.trustLevel,
     required this.type,
+    this.citationCount = 0,
+    this.snippet,
   });
 
   factory UISource.fromMap(Map<String, dynamic> map) {
@@ -328,6 +332,8 @@ class UISource {
       domain: map['domain'],
       trustLevel: map['trustLevel'] ?? 'Medium',
       type: map['type'] ?? 'Secondary',
+      citationCount: (map['citationCount'] as num?)?.toInt() ?? 0,
+      snippet: map['snippet'],
     );
   }
 
@@ -337,6 +343,48 @@ class UISource {
     'domain': domain,
     'trustLevel': trustLevel,
     'type': type,
+    'citationCount': citationCount,
+    'snippet': snippet,
+  };
+}
+
+class ClaimResult {
+  final String text;
+  final String verdict;
+  final double? start;
+  final double? end;
+  final bool? isLowRiskTrivia;
+  final List<UISource> effectiveSources;
+
+  ClaimResult({
+    required this.text,
+    required this.verdict,
+    this.start,
+    this.end,
+    this.isLowRiskTrivia,
+    this.effectiveSources = const [],
+  });
+
+  factory ClaimResult.fromMap(Map<String, dynamic> map) {
+    return ClaimResult(
+      text: map['text'] ?? '',
+      verdict: map['verdict'] ?? '',
+      start: (map['start'] as num?)?.toDouble(),
+      end: (map['end'] as num?)?.toDouble(),
+      isLowRiskTrivia: map['isLowRiskTrivia'] as bool?,
+      effectiveSources: (map['effectiveSources'] as List? ?? [])
+          .map((s) => UISource.fromMap(Map<String, dynamic>.from(s)))
+          .toList(),
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'text': text,
+    'verdict': verdict,
+    'start': start,
+    'end': end,
+    'isLowRiskTrivia': isLowRiskTrivia,
+    'effectiveSources': effectiveSources.map((s) => s.toMap()).toList(),
   };
 }
 
@@ -397,6 +445,7 @@ class UIReport {
   final String conclusion;
   final List<String> counterSignals;
   final bool reviewRequestEnabled;
+  final List<ClaimResult> keyClaims;
 
   UIReport({
     required this.summary,
@@ -409,6 +458,7 @@ class UIReport {
     required this.conclusion,
     this.counterSignals = const [],
     this.reviewRequestEnabled = true,
+    this.keyClaims = const [],
   });
 
   factory UIReport.fromMap(Map<String, dynamic> map) {
@@ -429,6 +479,9 @@ class UIReport {
       conclusion: map['conclusion'] ?? '',
       counterSignals: List<String>.from(map['counterSignals'] ?? []),
       reviewRequestEnabled: map['reviewRequestEnabled'] ?? true,
+      keyClaims: (map['keyClaims'] as List? ?? [])
+          .map((c) => ClaimResult.fromMap(Map<String, dynamic>.from(c)))
+          .toList(),
     );
   }
 
@@ -444,6 +497,7 @@ class UIReport {
       'conclusion': conclusion,
       'counterSignals': counterSignals,
       'reviewRequestEnabled': reviewRequestEnabled,
+      'keyClaims': keyClaims.map((c) => c.toMap()).toList(),
     };
   }
 

@@ -7,6 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
@@ -143,6 +144,11 @@ class UploadControllerV2 extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    
+    final auth = AuthService.to;
+    if (auth.hasChannel.value) {
+      selectedChannel.value = auth.userChannel;
+    }
     
     // Every video doesn't have video rating only when user enabled Factchecking
     ever(aiFactCheckEnabled, (bool enabled) {
@@ -781,7 +787,7 @@ class UploadControllerV2 extends GetxController {
         return;
       }
 
-      if (description.isEmpty || description.length > maxDescriptionLength) {
+      if (description.length > maxDescriptionLength) {
         uploadError.value = 'Invalid description';
         Get.snackbar("Error", uploadError.value);
         return;

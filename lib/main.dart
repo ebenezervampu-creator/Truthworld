@@ -1,9 +1,10 @@
 import 'dart:async';
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'dart:js' as js;
+import 'package:universal_html/js.dart' as js;
 import 'package:flutter/foundation.dart';
 import 'package:truthworld/core/utils/url_strategy/url_strategy.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:get/get.dart';
@@ -51,11 +52,6 @@ void main() {
       // and "Zone mismatch" error when using runZonedGuarded.
       WidgetsFlutterBinding.ensureInitialized();
 
-      // Enable the Flutter semantics tree for Lighthouse Accessibility score.
-      if (kIsWeb) {
-        SemanticsBinding.instance.ensureSemantics();
-      }
-
       // Initialize logger first - before anything else
       logger.init(
         enableCrashlytics: !kDebugMode,
@@ -71,6 +67,23 @@ void main() {
             options: DefaultFirebaseOptions.currentPlatform,
           );
           logger.info('Firebase initialized successfully', tag: 'Startup');
+          // Initialize App Check with reCAPTCHA Enterprise and Web Debug Provider support
+          try {
+            await FirebaseAppCheck.instance.activate(
+              webProvider: ReCaptchaEnterpriseProvider(
+                '6LdsItgsAAAAADh75ccO7IQFSv77Hf4DYc-5G01G',
+              ),
+              androidProvider: kDebugMode 
+                  ? AndroidProvider.debug 
+                  : AndroidProvider.playIntegrity,
+              appleProvider: kDebugMode 
+                  ? AppleProvider.debug 
+                  : AppleProvider.deviceCheck,
+            );
+            logger.info('Firebase App Check initialized successfully', tag: 'Startup');
+          } catch (e) {
+            logger.error('Firebase App Check initialization error: $e', tag: 'Startup');
+          }
 
           // Use path strategy for clean URLs (removes # from URLs)
           try {
@@ -108,12 +121,6 @@ void main() {
           Get.put(ConnectivityService(), permanent: true).init(),
         ]).then((_) {
           logger.info('All background services initialized', tag: 'Startup');
-        });
-
-        // Notify that app is ready (for JavaScript in index.html)
-        // We use addPostFrameCallback to ensure the first frame is rendered
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _notifyAppReady();
         });
       } catch (error, stackTrace) {
         logger.wtf(
@@ -174,23 +181,6 @@ void main() {
       _notifyAppError('Unhandled error: $error');
     },
   );
-}
-
-void _notifyAppReady() {
-  if (!kIsWeb) return;
-  
-  try {
-    // Direct call to global appReady function defined in index.html
-    js.context.callMethod('appReady');
-    debugPrint('App ready notification sent to browser');
-  } catch (e) {
-    // Fallback if appReady is not directly accessible
-    try {
-      js.context.callMethod('eval', ["if(window.appReady) window.appReady();"]);
-    } catch (e2) {
-      debugPrint('Note: appReady notification failed: $e2');
-    }
-  }
 }
 
 /// Notify JavaScript about app errors

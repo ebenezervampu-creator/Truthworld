@@ -1,0 +1,277 @@
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:video_player/video_player.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../../controllers/tower_player_controller.dart';
+import '../panels/player_settings_panels.dart';
+
+class AdOverlay extends StatelessWidget {
+  final TowerPlayerController ctrl;
+  const AdOverlay({super.key, required this.ctrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final ad = ctrl.currentAd.value;
+      final apc = ctrl.adPlayerController;
+      if (ad == null || apc == null) return const SizedBox.shrink();
+
+      return Stack(
+        children: [
+          // ── Bottom Progress Bar (Yellow timeline) ──────────────────────
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 4,
+            child: ValueListenableBuilder<VideoPlayerValue>(
+              valueListenable: apc,
+              builder: (context, value, child) {
+                final duration = value.duration.inMilliseconds;
+                final position = value.position.inMilliseconds;
+                final progress = duration > 0
+                    ? (position / duration).clamp(0.0, 1.0)
+                    : 0.0;
+                return LinearProgressIndicator(
+                  value: progress,
+                  backgroundColor: Colors.white24,
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.amber),
+                );
+              },
+            ),
+          ),
+
+          // ── Advertiser Brand Banner (Bottom Left) ──────────────────────
+          Positioned(
+            left: 16,
+            bottom: 16,
+            child: Container(
+              width: 320,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.75),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.amber,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'Ad',
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            color: Colors.black,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          ad.title,
+                          style: TextStyle(
+                            fontFamily: 'Inter',
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    ad.description,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () async {
+                      try {
+                        await launchUrl(
+                          Uri.parse(ad.clickUrl),
+                          mode: LaunchMode.externalApplication,
+                        );
+                      } catch (e) {
+                        debugPrint('Could not launch ${ad.clickUrl}: $e');
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 6,
+                        horizontal: 12,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Learn More',
+                            style: TextStyle(
+                              fontFamily: 'Inter',
+                              color: Colors.black,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.open_in_new_rounded,
+                            color: Colors.black,
+                            size: 14,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ── Skip Card (Bottom Right) ──────────────────────────────
+          Positioned(
+            right: 16,
+            bottom: 24,
+            child: Obx(() {
+              final canSkip = ctrl.adCanSkip.value;
+              final countdown = ctrl.skipCountdown.value;
+              final remaining = ctrl.adTimeRemaining.value;
+
+              if (canSkip) {
+                return ElevatedButton(
+                  onPressed: ctrl.skipAd,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.black.withValues(alpha: 0.75),
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white24),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Skip Ad',
+                        style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.skip_next_rounded, size: 18),
+                    ],
+                  ),
+                );
+              } else {
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.75),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Text(
+                    ad.skippable
+                        ? 'Skip in ${countdown}s'
+                        : 'Ad will end in ${remaining}s',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                );
+              }
+            }),
+          ),
+
+          // ── Tower Premium Promotion (Top Right) ───────────────────────────
+          Positioned(
+            right: 16,
+            top: 16,
+            child: InkWell(
+              onTap: () => showPremiumDialog(context),
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Colors.amber, Colors.orangeAccent],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.workspace_premium_rounded,
+                      color: Colors.black87,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Try Show Premium',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        color: Colors.black87,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    });
+  }
+}

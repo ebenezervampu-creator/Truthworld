@@ -9,7 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/video/presentation/widgets/full_screen_helper.dart';
 import 'package:video_player/video_player.dart';
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'dart:html' as html;
+import 'package:universal_html/html.dart' as html;
 
 class CustomController extends GetxController {
   VideoPlayerController? videoPlayerController;

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/utils/timestamp_utils.dart';
 
 class WatchSession {
   final String sessionId;
@@ -46,7 +47,7 @@ class WatchSession {
       watchTimeSeconds: (map['watchTimeSeconds'] as num?)?.toInt() ?? 0,
       videoDurationSeconds: (map['videoDurationSeconds'] as num?)?.toInt() ?? 0,
       watchPercentage: (map['watchPercentage'] as num?)?.toDouble() ?? 0.0,
-      timestamp: map['timestamp'] ?? Timestamp.now(),
+      timestamp: TimestampUtils.parse(map['timestamp']),
       isSubscriber: (map['isSubscriber'] as bool?) ?? false,
       isNotSubscriber: (map['isNotSubscriber'] as bool?) ?? false,
     );

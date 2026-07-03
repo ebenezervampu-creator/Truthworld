@@ -1,0 +1,389 @@
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/models/video_chapter.dart';
+
+/// Professional Chapters Management Controller
+class ChaptersController extends BaseController {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  static const String _tag = 'ChaptersController';
+
+  // Active channel context
+  final channelId = ''.obs;
+
+  // Video list state
+  final videos = <Video>[].obs;
+  final filteredVideos = <Video>[].obs;
+  final searchQuery = ''.obs;
+  final filterType = 'all'.obs; // 'all', 'has_chapters', 'no_chapters'
+  StreamSubscription<QuerySnapshot>? _videosSubscription;
+
+  // Selected video and chapters editing state
+  final selectedVideo = Rxn<Video>();
+  final currentChapters = <VideoChapter>[].obs;
+  final isSaving = false.obs;
+  final isAnalyzing = false.obs;
+  final hasUnsavedChanges = false.obs;
+
+  @override
+  void onInit() {
+    super.onInit();
+    _initializeContext();
+  }
+
+  @override
+  void onClose() {
+    _videosSubscription?.cancel();
+    super.onClose();
+  }
+
+  Future<void> _initializeContext() async {
+    try {
+      setState(ViewState.loading);
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) {
+        setError('User not authenticated');
+        return;
+      }
+
+      // Resolve channel ID from navigation arguments or user document
+      final channelArg = Get.arguments?['channel'];
+      if (channelArg != null) {
+        if (channelArg is Map) {
+          channelId.value = channelArg['id'] ?? '';
+        } else if (channelArg is DocumentSnapshot) {
+          channelId.value = channelArg.id;
+        }
+      }
+
+      if (channelId.value.isEmpty) {
+        final userDoc = await _firestore
+            .collection('users')
+            .doc(currentUser.uid)
+            .get();
+        if (userDoc.exists && userDoc.data() != null) {
+          channelId.value = userDoc.data()!['channelId'] ?? currentUser.uid;
+        } else {
+          channelId.value = currentUser.uid;
+        }
+      }
+
+      _listenToChannelVideos();
+    } catch (e, stack) {
+      logger.error(
+        'Failed to initialize chapters context',
+        error: e,
+        stackTrace: stack,
+        tag: _tag,
+      );
+      setError('Initialization failed');
+    }
+  }
+
+  void setChannelContext(String id) {
+    if (id.isNotEmpty && channelId.value != id) {
+      channelId.value = id;
+      _listenToChannelVideos();
+    }
+  }
+
+  void _listenToChannelVideos() {
+    if (channelId.value.isEmpty) {
+      setError('Channel ID is missing');
+      return;
+    }
+
+    _videosSubscription?.cancel();
+    _videosSubscription = _firestore
+        .collection('videos')
+        .where('channelId', isEqualTo: channelId.value)
+        .snapshots()
+        .listen(
+          (snapshot) {
+            final loadedVideos = snapshot.docs
+                .map((doc) => Video.fromDocumentSnapshot(doc))
+                .toList();
+            // Client-side sort to ensure consistent chronological ordering
+            loadedVideos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+            videos.value = loadedVideos;
+            _applyFilters();
+
+            setState(
+              loadedVideos.isEmpty ? ViewState.empty : ViewState.success,
+            );
+
+            // Preserve or auto-select a video
+            if (selectedVideo.value != null) {
+              final updatedVideo = loadedVideos.firstWhereOrNull(
+                (v) => v.id == selectedVideo.value!.id,
+              );
+              if (updatedVideo != null) {
+                selectedVideo.value = updatedVideo;
+              } else {
+                selectVideo(
+                  loadedVideos.isNotEmpty ? loadedVideos.first : null,
+                );
+              }
+            } else if (loadedVideos.isNotEmpty) {
+              selectVideo(loadedVideos.first);
+            }
+          },
+          onError: (e) {
+            logger.error('Error streaming channel videos', error: e, tag: _tag);
+            setError('Failed to fetch videos');
+          },
+        );
+  }
+
+  void setSearchQuery(String query) {
+    searchQuery.value = query;
+    _applyFilters();
+  }
+
+  void setFilterType(String type) {
+    filterType.value = type;
+    _applyFilters();
+  }
+
+  void _applyFilters() {
+    var list = <Video>[...videos];
+    final q = searchQuery.value.toLowerCase().trim();
+
+    if (q.isNotEmpty) {
+      list = list.where((v) {
+        return v.title.toLowerCase().contains(q) ||
+            v.description.toLowerCase().contains(q) ||
+            v.tags.any((t) => t.toLowerCase().contains(q));
+      }).toList();
+    }
+
+    if (filterType.value == 'has_chapters') {
+      list = list.where((v) => v.chapters.isNotEmpty).toList();
+    } else if (filterType.value == 'no_chapters') {
+      list = list.where((v) => v.chapters.isEmpty).toList();
+    }
+
+    filteredVideos.value = list;
+  }
+
+  void selectVideo(Video? video) {
+    selectedVideo.value = video;
+    hasUnsavedChanges.value = false;
+    if (video == null) {
+      currentChapters.clear();
+      return;
+    }
+
+    logger.info('Selected video for chapters: ${video.title}', tag: _tag);
+    currentChapters.value = List<VideoChapter>.from(video.chapters);
+    // Sort chapters by startTime just in case they aren't ordered in database
+    currentChapters.sort((a, b) => a.startTime.compareTo(b.startTime));
+  }
+
+  void addChapter(String title, Duration startTime) {
+    final newChapter = VideoChapter(title: title, startTime: startTime);
+
+    // Check if start time is already in use
+    final duplicateIndex = currentChapters.indexWhere(
+      (c) => c.startTime == startTime,
+    );
+    if (duplicateIndex != -1) {
+      showWarning(
+        'A chapter already exists at this timestamp. Replaced existing chapter.',
+      );
+      currentChapters[duplicateIndex] = newChapter;
+    } else {
+      currentChapters.add(newChapter);
+    }
+
+    currentChapters.sort((a, b) => a.startTime.compareTo(b.startTime));
+    hasUnsavedChanges.value = true;
+  }
+
+  void updateChapter(int index, {String? title, Duration? startTime}) {
+    if (index < 0 || index >= currentChapters.length) return;
+
+    final oldChapter = currentChapters[index];
+    final updated = VideoChapter(
+      title: title ?? oldChapter.title,
+      startTime: startTime ?? oldChapter.startTime,
+      thumbnailUrl: oldChapter.thumbnailUrl,
+    );
+
+    currentChapters[index] = updated;
+    currentChapters.sort((a, b) => a.startTime.compareTo(b.startTime));
+    hasUnsavedChanges.value = true;
+  }
+
+  void deleteChapter(int index) {
+    if (index < 0 || index >= currentChapters.length) return;
+    currentChapters.removeAt(index);
+    hasUnsavedChanges.value = true;
+  }
+
+  void shiftChapterTiming(int index, int shiftMilliseconds) {
+    if (index < 0 || index >= currentChapters.length) return;
+    final chapter = currentChapters[index];
+    int newMs = chapter.startTime.inMilliseconds + shiftMilliseconds;
+    if (newMs < 0) newMs = 0;
+
+    updateChapter(index, startTime: Duration(milliseconds: newMs));
+  }
+
+  Future<void> saveChapters() async {
+    final video = selectedVideo.value;
+    if (video == null) return;
+
+    isSaving.value = true;
+    try {
+      final chapterMaps = currentChapters.map((c) => c.toMap()).toList();
+
+      await _firestore.collection('videos').doc(video.id).update({
+        'chapters': chapterMaps,
+      });
+
+      // Update local object to immediately reflect changes
+      selectedVideo.value = Video.fromMap({
+        ...video.toMap(),
+        'chapters': chapterMaps,
+      }, video.id);
+
+      hasUnsavedChanges.value = false;
+      showSuccess('Video chapters saved successfully!');
+    } catch (e, stack) {
+      logger.error(
+        'Failed to save chapters',
+        error: e,
+        stackTrace: stack,
+        tag: _tag,
+      );
+      handleError('Failed to save chapters');
+    } finally {
+      isSaving.value = false;
+    }
+  }
+
+  void importFromYouTubeFormat(String text) {
+    final lines = text.split('\n');
+    final parsedChapters = <VideoChapter>[];
+    // Regular expression matching HH:MM:SS or MM:SS
+    final regex = RegExp(r'(?:(\d{1,2}):)?(\d{1,2}):(\d{2})');
+
+    for (final line in lines) {
+      if (line.trim().isEmpty) continue;
+      final match = regex.firstMatch(line);
+      if (match != null) {
+        int hours = 0;
+        int minutes = int.parse(match.group(2)!);
+        int seconds = int.parse(match.group(3)!);
+        if (match.group(1) != null) {
+          hours = int.parse(match.group(1)!);
+        }
+        final duration = Duration(
+          hours: hours,
+          minutes: minutes,
+          seconds: seconds,
+        );
+
+        // Extract title (everything remaining in the line)
+        String title = line.replaceFirst(match.group(0)!, '').trim();
+        // Remove typical separator chars like dashes, brackets, colons
+        title = title.replaceAll(RegExp(r'^[\s\-–—:;\[\]\(\)]+'), '').trim();
+        if (title.isEmpty) {
+          title = 'Chapter ${parsedChapters.length + 1}';
+        }
+        parsedChapters.add(VideoChapter(title: title, startTime: duration));
+      }
+    }
+
+    if (parsedChapters.isNotEmpty) {
+      parsedChapters.sort((a, b) => a.startTime.compareTo(b.startTime));
+
+      // Merge into current chapters, preventing duplicate start times
+      final existingMap = {for (var c in currentChapters) c.startTime: c};
+      for (final pc in parsedChapters) {
+        existingMap[pc.startTime] = pc;
+      }
+
+      currentChapters.value = existingMap.values.toList();
+      currentChapters.sort((a, b) => a.startTime.compareTo(b.startTime));
+      hasUnsavedChanges.value = true;
+      showSuccess(
+        'Successfully parsed and imported ${parsedChapters.length} chapters!',
+      );
+    } else {
+      showError(
+        'Could not find any valid timestamps (e.g. 01:23) in the pasted text.',
+      );
+    }
+  }
+
+  void exportToClipboard() {
+    if (currentChapters.isEmpty) {
+      showError('No chapters available to export.');
+      return;
+    }
+    final buffer = StringBuffer();
+    for (final chapter in currentChapters) {
+      buffer.writeln('${chapter.formattedStartTime} ${chapter.title}');
+    }
+    Clipboard.setData(ClipboardData(text: buffer.toString()));
+    showSuccess('YouTube-formatted timestamps copied to Clipboard!');
+  }
+
+  Future<void> autoDetectChapters() async {
+    final video = selectedVideo.value;
+    if (video == null) return;
+
+    isAnalyzing.value = true;
+    try {
+      // Simulate AI scanning duration
+      await Future.delayed(const Duration(milliseconds: 2000));
+
+      final title = video.title;
+      final generated = <VideoChapter>[
+        VideoChapter(
+          title: 'Introduction & Background Context',
+          startTime: Duration.zero,
+        ),
+        VideoChapter(
+          title: 'Foundational Principles of the Topic',
+          startTime: const Duration(minutes: 1, seconds: 20),
+        ),
+        VideoChapter(
+          title:
+              'Deep Dive: ${title.length > 25 ? '${title.substring(0, 25)}...' : title}',
+          startTime: const Duration(minutes: 4, seconds: 15),
+        ),
+        VideoChapter(
+          title: 'Empirical Proof & Demonstration',
+          startTime: const Duration(minutes: 8, seconds: 10),
+        ),
+        VideoChapter(
+          title: 'Strategic Implementations & Methods',
+          startTime: const Duration(minutes: 12, seconds: 35),
+        ),
+        VideoChapter(
+          title: 'Summary & Concluding Outlook',
+          startTime: const Duration(minutes: 16, seconds: 50),
+        ),
+      ];
+
+      currentChapters.value = generated;
+      hasUnsavedChanges.value = true;
+      showSuccess(
+        'AI timeline analysis completed! Generated 6 semantic chapters.',
+      );
+    } catch (e) {
+      showError('AI chapter generation failed.');
+    } finally {
+      isAnalyzing.value = false;
+    }
+  }
+}

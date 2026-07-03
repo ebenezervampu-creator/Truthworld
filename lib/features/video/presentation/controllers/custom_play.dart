@@ -1,4 +1,3 @@
-import 'package:truthworld/theme/app_theme.dart';
 // ============================================================
 // tower_custom_player.dart  —  Truthworld Streaming Player v3.0
 // Industry-Standard Flutter Web Video Player
@@ -31,9 +30,9 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:ui';
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'dart:html' as html;
+import 'package:universal_html/html.dart' as html;
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'dart:js' as js;
+import 'package:universal_html/js.dart' as js;
 import 'package:chewie/chewie.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -47,90 +46,8 @@ import 'adaptive_birate_controller.dart';
 import 'audio_only_service.dart';
 import 'video_controller.dart';
 import '../../data/models/video.dart';
-import '../../data/models/video_chapter.dart';
-
-// ── Theme ─────────────────────────────────────────────────────────────────────
-class PT {
-  static const Color primary = Color(0xFFDC143C);
-  static const Color bg = AppColors.bgPage;
-  static const Color surface = Color(0xFF161616);
-  static const Color surfaceHi = Color(0xFF222222);
-  static const Color text = Color(0xFFF2F2F2);
-  static const Color textDim = Color(0xFF888888);
-  static const Color border = Color(0xFF2A2A2A);
-}
-
-// ── Subtitle Track Model ──────────────────────────────────────────────────────
-class SubtitleTrack {
-  final String label;
-  final String langCode;
-  final String url; // WebVTT URL
-  final bool isDefault;
-
-  const SubtitleTrack({
-    required this.label,
-    required this.langCode,
-    this.url = '',
-    this.isDefault = false,
-  });
-}
-
-// ── Subtitle Segment Model ──────────────────────────────────────────────────
-class SubtitleSegment {
-  final Duration start;
-  final Duration end;
-  final String text;
-
-  const SubtitleSegment({
-    required this.start,
-    required this.end,
-    required this.text,
-  });
-}
-
-// ── Audio Track Model ─────────────────────────────────────────────────────────
-class AudioTrack {
-  final String label;
-  final String langCode;
-  final String type; // 'Original' | 'Dubbed' | 'Descriptive'
-  final String? url;
-
-  const AudioTrack({
-    required this.label,
-    required this.langCode,
-    this.type = 'Original',
-    this.url,
-  });
-}
-
-// ── Content Metadata Model ────────────────────────────────────────────────────
-class ContentMetadata {
-  final String rating;
-  final String genre;
-  final String releaseYear;
-  final String duration;
-  final String director;
-  final String cast;
-  final List<String> advisories;
-
-  const ContentMetadata({
-    this.rating = 'U/A 16+',
-    this.genre = '',
-    this.releaseYear = '',
-    this.duration = '',
-    this.director = '',
-    this.cast = '',
-    this.advisories = const [],
-  });
-}
-
-// ── Analytics Event ───────────────────────────────────────────────────────────
-class PlayerEvent {
-  final String type;
-  final DateTime timestamp;
-  final Map<String, dynamic> data;
-  PlayerEvent(this.type, {this.data = const {}}) : timestamp = DateTime.now();
-}
+import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/features/video/data/models/video_chapter.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PLAYER CONTROLLER  (Industry-standard state machine)

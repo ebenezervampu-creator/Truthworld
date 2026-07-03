@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/utils/timestamp_utils.dart';
 
 class WatchLater {
   final String id;
@@ -57,11 +58,11 @@ class WatchLater {
       videoThumbnailUrl: data['videoThumbnailUrl'] ?? '',
       channelId: data['channelId'] ?? '',
       channelName: data['channelName'] ?? '',
-      addedAt: data['addedAt'] ?? Timestamp.now(),
+      addedAt: TimestampUtils.parse(data['addedAt']),
       duration: data['duration'] ?? '',
       channelImage: data['channelImage'] ?? '',
       views: data['views'] ?? 0,
-      uploadedAt: data['uploadedAt'] ?? Timestamp.now(),
+      uploadedAt: TimestampUtils.parse(data['uploadedAt']),
     );
   }
 }

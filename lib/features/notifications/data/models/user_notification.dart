@@ -118,6 +118,33 @@ class UserNotification {
       createdAt: createdAt ?? this.createdAt,
     );
   }
+
+  String get typeCategory {
+    switch (type.toLowerCase()) {
+      case 'system_announcement':
+      case 'system':
+      case 'maintenance':
+      case 'security':
+      case 'admin':
+        return 'system';
+      case 'new_video':
+      case 'video':
+      case 'upload':
+      case 'channel_update':
+      case 'channel':
+        return 'content';
+      case 'comment':
+      case 'reply':
+      case 'like':
+      case 'dislike':
+      case 'mention':
+      case 'follow':
+      case 'subscribe':
+        return 'social';
+      default:
+        return 'other';
+    }
+  }
 }
 
 

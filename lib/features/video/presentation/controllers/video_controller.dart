@@ -16,10 +16,12 @@ import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:video_player/video_player.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
+import 'package:truthworld/features/video/data/models/video_chapter.dart';
 import 'package:truthworld/features/video/presentation/controllers/custom_play.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller_v2.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/features/analytics/data/services/viewer_identity_service.dart';
 import 'package:truthworld/features/video/presentation/widgets/fact_check_report_widget.dart';
@@ -33,6 +35,10 @@ import 'package:truthworld/data/models/offline.dart';
 class VideoController extends GetxController with GetTickerProviderStateMixin {
   final Rx<Video> _video = Video.empty().obs;
   Video get video => _video.value;
+
+  final RxList<LanguageRequest> languageRequests = <LanguageRequest>[].obs;
+  final RxBool isLoadingLanguageRequests = false.obs;
+  StreamSubscription<QuerySnapshot>? _languageRequestsSubscription;
 
   // Playlist Support
   final Rx<PlaylistModel?> currentPlaylist = Rx<PlaylistModel?>(null);
@@ -246,6 +252,7 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
       fetchRecommendations();
       _initializeCommentsController();
       _listenToVideoUpdates();
+      _listenToLanguageRequests();
     } else if (isOffline.value) {
       isLoading.value = false;
     }
@@ -1079,6 +1086,66 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
         });
   }
 
+  void _listenToLanguageRequests() {
+    _languageRequestsSubscription?.cancel();
+    isLoadingLanguageRequests.value = true;
+    _languageRequestsSubscription = FirebaseFirestore.instance
+        .collection('videos')
+        .doc(video.id)
+        .collection('language_requests')
+        .snapshots()
+        .listen((snapshot) {
+          final List<LanguageRequest> requests = snapshot.docs.map((doc) {
+            return LanguageRequest.fromMap(doc.data(), doc.id);
+          }).toList();
+          languageRequests.assignAll(requests);
+          isLoadingLanguageRequests.value = false;
+        }, onError: (e) {
+          debugPrint('Error listening to language requests: $e');
+          isLoadingLanguageRequests.value = false;
+        });
+  }
+
+  Future<void> submitLanguageRequest({required String language, required String type}) async {
+    final userId = AuthService.to.uid;
+    if (userId.isEmpty) {
+      Get.snackbar('Authentication Required', 'Please sign in to request a language.');
+      return;
+    }
+    
+    try {
+      final docId = '${video.id}_${type}_${language.replaceAll(' ', '_')}';
+      final ref = FirebaseFirestore.instance
+          .collection('videos')
+          .doc(video.id)
+          .collection('language_requests')
+          .doc(docId);
+          
+      await ref.set({
+        'language': language,
+        'type': type,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+      Get.snackbar('Success', 'Language request submitted!');
+    } catch (e) {
+      debugPrint('Error submitting language request: $e');
+      Get.snackbar('Error', 'Failed to submit language request: $e');
+    }
+  }
+
+  Future<bool> requestLanguage(String language, String type) async {
+    try {
+      await submitLanguageRequest(language: language, type: type);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  List<VideoChapter> getDisplayChapters() {
+    return video.chapters;
+  }
+
   // Truth Index & Fact Checking
   final RxMap factCheckData = {}.obs;
   final RxBool isLoadingFactCheck = false.obs;
@@ -1529,6 +1596,7 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
 
   void disposePlayer() {
     _videoSubscription?.cancel();
+    _languageRequestsSubscription?.cancel();
     _chewieController?.removeListener(_onChewieEvent);
     _videoPlayerController?.removeListener(_videoErrorListener);
     _videoPlayerController?.removeListener(videoListener);
