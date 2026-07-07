@@ -27,43 +27,43 @@ class PT {
 // Pre-build expensive GoogleFonts lookups once.
 abstract class TS {
   static final body = TextStyle(
-    fontFamily: 'Inter',
+    fontFamily: 'Roboto',
     color: PT.text,
     fontSize: 14,
     fontWeight: FontWeight.w400,
   );
   static final bodySm = TextStyle(
-    fontFamily: 'Inter',
+    fontFamily: 'Roboto',
     color: PT.textDim,
     fontSize: 12,
   );
   static final bold = TextStyle(
-    fontFamily: 'Inter',
+    fontFamily: 'Roboto',
     color: PT.text,
     fontSize: 14,
     fontWeight: FontWeight.w700,
   );
   static final title = TextStyle(
-    fontFamily: 'Inter',
+    fontFamily: 'Roboto',
     color: PT.text,
     fontSize: 16,
     fontWeight: FontWeight.bold,
   );
   static final badge = TextStyle(
-    fontFamily: 'Inter',
+    fontFamily: 'Roboto',
     color: PT.primary,
     fontSize: 11,
     fontWeight: FontWeight.bold,
     letterSpacing: 0.5,
   );
   static final mono = TextStyle(
-    fontFamily: 'Inter',
+    fontFamily: 'Roboto',
     color: PT.text,
     fontSize: 11,
     fontWeight: FontWeight.w500,
   );
   static final time = TextStyle(
-    fontFamily: 'Inter',
+    fontFamily: 'Roboto',
     color: Colors.white,
     fontSize: 13,
     fontWeight: FontWeight.w500,

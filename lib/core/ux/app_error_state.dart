@@ -124,7 +124,7 @@ class AppErrorState extends StatelessWidget {
                     title ?? 'Something went wrong',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
@@ -141,7 +141,7 @@ class AppErrorState extends StatelessWidget {
                         subtitle!,
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           fontSize: 14,
                           color: AppColors.textSecondary,
                           height: 1.5,
@@ -202,7 +202,7 @@ class _RetryButton extends StatelessWidget {
               label: Text(
                 label,
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: controller.isHovered

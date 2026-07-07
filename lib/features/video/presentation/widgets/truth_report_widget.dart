@@ -105,7 +105,7 @@ class TruthReportWidget extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             'Analysis Pending',
-            style: GoogleFonts.outfit(
+            style: GoogleFonts.roboto(
               fontSize: 20,
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
@@ -147,7 +147,7 @@ class TruthReportWidget extends StatelessWidget {
                 children: [
                   Text(
                     'TRUTH REPORT',
-                    style: GoogleFonts.outfit(
+                    style: GoogleFonts.roboto(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                       color: AppColors.brand,
@@ -266,7 +266,7 @@ class TruthReportWidget extends StatelessWidget {
               else ...[
                 Text(
                   compositeRating?.toStringAsFixed(1) ?? 'N/A',
-                  style: GoogleFonts.outfit(
+                  style: GoogleFonts.roboto(
                     fontSize: 48,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
@@ -287,7 +287,7 @@ class TruthReportWidget extends StatelessWidget {
               Text(
                 report.label,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.outfit(
+                style: GoogleFonts.roboto(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: themeColor,
@@ -344,7 +344,7 @@ class TruthReportWidget extends StatelessWidget {
         const SizedBox(height: 12),
         Text(
           score?.toStringAsFixed(1) ?? 'N/A',
-          style: GoogleFonts.outfit(
+          style: GoogleFonts.roboto(
             fontSize: 16,
             fontWeight: FontWeight.bold,
             color: AppColors.textPrimary,
@@ -446,7 +446,7 @@ class TruthReportWidget extends StatelessWidget {
             ),
             Text(
               '${(value * 100).toInt()}%',
-              style: GoogleFonts.outfit(
+              style: GoogleFonts.roboto(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
                 color: color,
@@ -877,7 +877,7 @@ class TruthReportWidget extends StatelessWidget {
                 source.title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.outfit(
+                style: GoogleFonts.roboto(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: AppColors.textPrimary,
@@ -919,7 +919,7 @@ class TruthReportWidget extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             'CONCLUSION',
-            style: GoogleFonts.outfit(
+            style: GoogleFonts.roboto(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: AppColors.brand,

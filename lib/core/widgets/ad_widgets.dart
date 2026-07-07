@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:video_player/video_player.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/core/services/ad_service.dart';
+import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 
 class AdMediaWidget extends StatefulWidget {
   final AdItem ad;
@@ -16,8 +17,9 @@ class AdMediaWidget extends StatefulWidget {
 
 class _AdMediaWidgetState extends State<AdMediaWidget> {
   VideoPlayerController? _controller;
-  bool _isMuted = true;
-  bool _isInitialized = false;
+  final RxBool _isMuted = true.obs;
+  final RxBool _isInitialized = false.obs;
+  final RxInt _rebuildTrigger = 0.obs;
 
   @override
   void initState() {
@@ -42,9 +44,7 @@ class _AdMediaWidgetState extends State<AdMediaWidget> {
             _controller!.setVolume(0.0);
             _controller!.setLooping(true);
             _controller!.play();
-            setState(() {
-              _isInitialized = true;
-            });
+            _isInitialized.value = true;
           }
         })
         .catchError((e) {
@@ -58,11 +58,11 @@ class _AdMediaWidgetState extends State<AdMediaWidget> {
     if (oldWidget.ad.videoUrl != widget.ad.videoUrl) {
       _controller?.dispose();
       _controller = null;
-      _isInitialized = false;
+      _isInitialized.value = false;
       if (widget.ad.videoUrl != null && widget.ad.videoUrl!.isNotEmpty) {
         _initializeVideo();
       } else {
-        setState(() {});
+        _rebuildTrigger.value++;
       }
     }
   }
@@ -75,82 +75,20 @@ class _AdMediaWidgetState extends State<AdMediaWidget> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.ad.videoUrl != null &&
-        widget.ad.videoUrl!.isNotEmpty &&
-        _controller != null) {
-      if (!_isInitialized) {
-        return Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: widget.ad.gradientColors,
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: const Center(
-            child: SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation(Colors.white30),
-              ),
-            ),
-          ),
-        );
-      }
-      return Stack(
-        fit: StackFit.expand,
-        children: [
-          FittedBox(
-            fit: widget.fit,
-            child: SizedBox(
-              width: _controller!.value.size.width > 0
-                  ? _controller!.value.size.width
-                  : 160,
-              height: _controller!.value.size.height > 0
-                  ? _controller!.value.size.height
-                  : 90,
-              child: VideoPlayer(_controller!),
-            ),
-          ),
-          Positioned(
-            bottom: 8,
-            right: 8,
-            child: GestureDetector(
-              onTap: () {
-                setState(() {
-                  _isMuted = !_isMuted;
-                  _controller?.setVolume(_isMuted ? 0.0 : 1.0);
-                });
-              },
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.7),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white24, width: 0.5),
-                ),
-                child: Icon(
-                  _isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
-                  color: Colors.white,
-                  size: 14,
-                ),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    if (widget.ad.imageUrl.isNotEmpty) {
-      return Image.network(
-        widget.ad.imageUrl,
-        fit: widget.fit,
-        loadingBuilder: (context, child, progress) {
-          if (progress == null) return child;
+    return Obx(() {
+      _rebuildTrigger.value; // register dependency
+      if (widget.ad.videoUrl != null &&
+          widget.ad.videoUrl!.isNotEmpty &&
+          _controller != null) {
+        if (!_isInitialized.value) {
           return Container(
-            color: Colors.black26,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: widget.ad.gradientColors,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
             child: const Center(
               child: SizedBox(
                 width: 20,
@@ -162,12 +100,78 @@ class _AdMediaWidgetState extends State<AdMediaWidget> {
               ),
             ),
           );
-        },
-        errorBuilder: (context, error, stackTrace) => _buildFallbackGradient(),
-      );
-    }
+        }
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            FittedBox(
+              fit: widget.fit,
+              child: SizedBox(
+                width: _controller!.value.size.width > 0
+                    ? _controller!.value.size.width
+                    : 160,
+                height: _controller!.value.size.height > 0
+                    ? _controller!.value.size.height
+                    : 90,
+                child: MobileFriendlyVideoPlayer(
+                  controller: _controller!,
+                  looping: true,
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 8,
+              right: 8,
+              child: GestureDetector(
+                onTap: () {
+                  _isMuted.value = !_isMuted.value;
+                  _controller?.setVolume(_isMuted.value ? 0.0 : 1.0);
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.7),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white24, width: 0.5),
+                  ),
+                  child: Icon(
+                    _isMuted.value ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                    color: Colors.white,
+                    size: 14,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      }
 
-    return _buildFallbackGradient();
+      if (widget.ad.imageUrl.isNotEmpty) {
+        return Image.network(
+          widget.ad.imageUrl,
+          fit: widget.fit,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return Container(
+              color: Colors.black26,
+              child: const Center(
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation(Colors.white30),
+                  ),
+                ),
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) => _buildFallbackGradient(),
+        );
+      }
+
+      return _buildFallbackGradient();
+    });
   }
 
   Widget _buildFallbackGradient() {
@@ -330,7 +334,7 @@ class HomepageAdCard extends StatelessWidget {
                                             Text(
                                               ad.advertiser.toUpperCase(),
                                               style: TextStyle(
-                                                fontFamily: 'Inter',
+                                                fontFamily: 'Roboto',
                                                 color: textColor,
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.bold,
@@ -344,7 +348,7 @@ class HomepageAdCard extends StatelessWidget {
                                           ad.title,
                                           maxLines: 2,
                                           style: TextStyle(
-                                            fontFamily: 'Inter',
+                                            fontFamily: 'Roboto',
                                             color: titleColor,
                                             fontSize: 16,
                                             fontWeight: FontWeight.w600,
@@ -373,7 +377,7 @@ class HomepageAdCard extends StatelessWidget {
                                           child: Text(
                                             ad.ctaText.toUpperCase(),
                                             style: TextStyle(
-                                              fontFamily: 'Inter',
+                                              fontFamily: 'Roboto',
                                               color: Colors.white,
                                               fontSize: 11,
                                               fontWeight: FontWeight.bold,
@@ -586,7 +590,7 @@ class ScrollAdCard extends StatelessWidget {
                                   child: Text(
                                     'Ad',
                                     style: TextStyle(
-                                      fontFamily: 'Inter',
+                                      fontFamily: 'Roboto',
                                       color: Colors.black,
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,

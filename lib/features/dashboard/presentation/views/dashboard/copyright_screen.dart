@@ -2,33 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-class CopyrightScreen extends StatefulWidget {
+class CopyrightScreen extends StatelessWidget {
   final String? channelId;
-  const CopyrightScreen({super.key, this.channelId});
+  CopyrightScreen({super.key, this.channelId});
 
-  @override
-  State<CopyrightScreen> createState() => _CopyrightScreenState();
-}
+  final RxInt _retryTrigger = 0.obs;
 
-class _CopyrightScreenState extends State<CopyrightScreen> {
-  final _firestore = FirebaseFirestore.instance;
-  late final String _channelId;
-
-  @override
-  void initState() {
-    super.initState();
-    final user = FirebaseAuth.instance.currentUser;
-    _channelId = widget.channelId ?? user?.uid ?? '';
-  }
-
-  Stream<QuerySnapshot> _notices() {
-    if (_channelId.isEmpty) return const Stream.empty();
+  Stream<QuerySnapshot> _notices(String activeChannelId) {
+    if (activeChannelId.isEmpty) return const Stream.empty();
     // Industry Standard: Query by channelId and ensure descending order by date
-    return _firestore
+    return FirebaseFirestore.instance
         .collection('copyrights')
-        .where('channelId', isEqualTo: _channelId)
+        .where('channelId', isEqualTo: activeChannelId)
         .orderBy('date', descending: true)
         .snapshots();
   }
@@ -45,6 +33,8 @@ class _CopyrightScreenState extends State<CopyrightScreen> {
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final user = FirebaseAuth.instance.currentUser;
+    final activeChannelId = channelId ?? user?.uid ?? '';
 
     return Scaffold(
       backgroundColor: isDarkMode ? const Color(0xFF0F0F0F) : const Color(0xFFF9F9F9),
@@ -59,50 +49,53 @@ class _CopyrightScreenState extends State<CopyrightScreen> {
           IconButton(icon: const Icon(Icons.help_outline), onPressed: () {}),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _notices(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: Obx(() {
+        final _ = _retryTrigger.value;
+        return StreamBuilder<QuerySnapshot>(
+          stream: _notices(activeChannelId),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (snapshot.hasError) {
-            return _buildErrorState(snapshot.error.toString());
-          }
+            if (snapshot.hasError) {
+              return _buildErrorState(snapshot.error.toString());
+            }
 
-          final docs = snapshot.data?.docs ?? [];
-          
-          return CustomScrollView(
-            slivers: [
-              // Summary Section
-              SliverToBoxAdapter(
-                child: _buildSummarySection(docs.length, isDarkMode),
-              ),
+            final docs = snapshot.data?.docs ?? [];
+            
+            return CustomScrollView(
+              slivers: [
+                // Summary Section
+                SliverToBoxAdapter(
+                  child: _buildSummarySection(docs.length, isDarkMode),
+                ),
 
-              if (docs.isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: _buildEmptyState(),
-                )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final data = docs[index].data() as Map<String, dynamic>;
-                        return _buildClaimCard(data, isDarkMode);
-                      },
-                      childCount: docs.length,
+                if (docs.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _buildEmptyState(),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final data = docs[index].data() as Map<String, dynamic>;
+                          return _buildClaimCard(data, isDarkMode);
+                        },
+                        childCount: docs.length,
+                      ),
                     ),
                   ),
-                ),
-              
-              const SliverToBoxAdapter(child: SizedBox(height: 32)),
-            ],
-          );
-        },
-      ),
+                
+                const SliverToBoxAdapter(child: SizedBox(height: 32)),
+              ],
+            );
+          },
+        );
+      }),
     );
   }
 
@@ -326,7 +319,7 @@ class _CopyrightScreenState extends State<CopyrightScreen> {
 
   void _showClaimDetailsBottomSheet(Map<String, dynamic> data, bool isDarkMode) {
     showModalBottomSheet(
-      context: context,
+      context: Get.context!,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (context) => _ClaimDetailsBottomSheet(data: data, isDarkMode: isDarkMode),
@@ -382,7 +375,7 @@ class _CopyrightScreenState extends State<CopyrightScreen> {
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: () => setState(() {}),
+              onPressed: () => _retryTrigger.value++,
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand),
               child: const Text('Try Again'),
             ),

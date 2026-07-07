@@ -25,6 +25,7 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/audience_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_rating_page.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/video_rating_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/topic_management_screen.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -1317,6 +1318,13 @@ class _DashboardScreenState extends State<DashboardScreen>
         'action': 'select',
         'target': 13,
       },
+      {
+        'icon': Icons.topic_rounded,
+        'label': 'Topics',
+        'color': Color(0xFFE11D48),
+        'action': 'select',
+        'target': 14,
+      },
     ];
 
     return ListView.builder(
@@ -1645,6 +1653,21 @@ class _DashboardScreenState extends State<DashboardScreen>
                     Get.put(VideoRatingController(channelId: channelId));
                   }
                   return const VideoRatingPage();
+                }
+                return _buildNoChannelSelected(isDarkMode);
+              case 14:
+                final currentChannel = channel;
+                if (currentChannel != null) {
+                  final channelId =
+                      (currentChannel is Map
+                              ? currentChannel['id']
+                              : (currentChannel as DocumentSnapshot).id)
+                          as String;
+                  return TopicManagementScreen(
+                    channelId: channelId,
+                    isDarkMode: isDarkMode,
+                    searchQuery: controller.searchQuery.value,
+                  );
                 }
                 return _buildNoChannelSelected(isDarkMode);
               default:

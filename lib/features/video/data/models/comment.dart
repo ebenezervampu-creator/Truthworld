@@ -18,9 +18,11 @@ class Comment {
   final bool hasCreatorReply;
   final Reply? creatorReply;
   
-  // Tracking likes: Map<userId_source, bool> where source = "user" or "channel"
-  final Map<String, bool> likedBy;
-  final Map<String, bool> dislikedBy;
+  // ⚡ SCALE FIX: likedBy/dislikedBy maps removed — they grow unbounded.
+  // Like status is now checked via subcollection: comments/{id}/likes/{userId}
+  // These local fields are for optimistic UI only (not persisted to Firestore).
+  final bool isLikedByCurrentUser;
+  final bool isDislikedByCurrentUser;
 
   // v8.5 Creator Heart
   final bool isHeartedByCreator;
@@ -45,8 +47,8 @@ class Comment {
     required this.createdAt,
     this.hasCreatorReply = false,
     this.creatorReply,
-    this.likedBy = const {},
-    this.dislikedBy = const {},
+    this.isLikedByCurrentUser = false,
+    this.isDislikedByCurrentUser = false,
     this.isHeartedByCreator = false,
     this.creatorHeartName,
   });
@@ -68,8 +70,7 @@ class Comment {
       'createdAt': createdAt,
       'hasCreatorReply': hasCreatorReply,
       'creatorReply': creatorReply?.toMap(),
-      'likedBy': likedBy,
-      'dislikedBy': dislikedBy,
+      // likedBy/dislikedBy maps removed for scale — use subcollection instead
       'isHeartedByCreator': isHeartedByCreator,
       'creatorHeartName': creatorHeartName,
     };
@@ -99,8 +100,7 @@ class Comment {
       creatorReply: data['creatorReply'] != null
           ? Reply.fromDocumentSnapshot(data['creatorReply'])
           : null,
-      likedBy: Map<String, bool>.from(data['likedBy'] ?? {}),
-      dislikedBy: Map<String, bool>.from(data['dislikedBy'] ?? {}),
+      // likedBy/dislikedBy are no longer read from Firestore — check subcollection
       isHeartedByCreator: data['isHeartedByCreator'] ?? false,
       creatorHeartName: data['creatorHeartName'],
     );
@@ -122,8 +122,8 @@ class Comment {
     Timestamp? createdAt,
     bool? hasCreatorReply,
     Reply? creatorReply,
-    Map<String, bool>? likedBy,
-    Map<String, bool>? dislikedBy,
+    bool? isLikedByCurrentUser,
+    bool? isDislikedByCurrentUser,
     bool? isHeartedByCreator,
     String? creatorHeartName,
   }) {
@@ -143,8 +143,8 @@ class Comment {
       createdAt: createdAt ?? this.createdAt,
       hasCreatorReply: hasCreatorReply ?? this.hasCreatorReply,
       creatorReply: creatorReply ?? this.creatorReply,
-      likedBy: likedBy ?? this.likedBy,
-      dislikedBy: dislikedBy ?? this.dislikedBy,
+      isLikedByCurrentUser: isLikedByCurrentUser ?? this.isLikedByCurrentUser,
+      isDislikedByCurrentUser: isDislikedByCurrentUser ?? this.isDislikedByCurrentUser,
       isHeartedByCreator: isHeartedByCreator ?? this.isHeartedByCreator,
       creatorHeartName: creatorHeartName ?? this.creatorHeartName,
     );

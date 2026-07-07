@@ -147,7 +147,7 @@ class FactCheckReportWidget extends StatelessWidget {
                 children: [
                   Text(
                     'AI FULL DISCLOSURE',
-                    style: GoogleFonts.outfit(
+                    style: GoogleFonts.roboto(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                       color: AppColors.brand,
@@ -230,7 +230,7 @@ class FactCheckReportWidget extends StatelessWidget {
                 children: [
                   Text(
                     '${rating.toInt()}',
-                    style: GoogleFonts.outfit(
+                    style: GoogleFonts.roboto(
                       fontSize: 42,
                       fontWeight: FontWeight.w700,
                       color: Colors.white,
@@ -239,7 +239,7 @@ class FactCheckReportWidget extends StatelessWidget {
                   ),
                   Text(
                     '%',
-                    style: GoogleFonts.outfit(
+                    style: GoogleFonts.roboto(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: color,
@@ -252,7 +252,7 @@ class FactCheckReportWidget extends StatelessWidget {
           const SizedBox(height: 24),
           Text(
             _getRatingLabel(rating),
-            style: GoogleFonts.outfit(
+            style: GoogleFonts.roboto(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: color,
@@ -307,7 +307,7 @@ class FactCheckReportWidget extends StatelessWidget {
         const SizedBox(height: 12),
         Text(
           '${score.toInt()}%',
-          style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+          style: GoogleFonts.roboto(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
         ),
         Text(
           label,
@@ -328,7 +328,7 @@ class FactCheckReportWidget extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text('ANALYSIS CONFIDENCE', style: GoogleFonts.roboto(fontSize: 9, fontWeight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 1)),
-            Text('${(value * 100).toInt()}%', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+            Text('${(value * 100).toInt()}%', style: GoogleFonts.roboto(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
           ],
         ),
         const SizedBox(height: 8),
@@ -379,7 +379,7 @@ class FactCheckReportWidget extends StatelessWidget {
           children: [
             Icon(icon, color: color, size: 20),
             const SizedBox(height: 12),
-            Text(value, style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+            Text(value, style: GoogleFonts.roboto(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
             Text(label, style: GoogleFonts.roboto(fontSize: 10, color: AppColors.textTertiary, fontWeight: FontWeight.bold)),
           ],
         ),
@@ -436,7 +436,7 @@ class FactCheckReportWidget extends StatelessWidget {
         children: [
           Text(key.toUpperCase(), style: GoogleFonts.roboto(fontSize: 10, fontWeight: FontWeight.bold, color: color)),
           const SizedBox(width: 6),
-          Text('${score.toInt()}', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
+          Text('${score.toInt()}', style: GoogleFonts.roboto(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white)),
         ],
       ),
     );
@@ -469,7 +469,7 @@ class FactCheckReportWidget extends StatelessWidget {
           Expanded(
             child: Text(d['reason'] ?? '', style: GoogleFonts.roboto(fontSize: 13, color: Colors.white70)),
           ),
-          Text('-${d['points']}', style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.error)),
+          Text('-${d['points']}', style: GoogleFonts.roboto(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.error)),
         ],
       ),
     );
@@ -555,7 +555,7 @@ class FactCheckReportWidget extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(source['title'] ?? 'Source', maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+          Text(source['title'] ?? 'Source', maxLines: 2, overflow: TextOverflow.ellipsis, style: GoogleFonts.roboto(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
           const Spacer(),
           Text(source['domain'] ?? 'Institutional Data', style: GoogleFonts.roboto(fontSize: 10, color: AppColors.textTertiary)),
         ],

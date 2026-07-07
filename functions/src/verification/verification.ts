@@ -253,6 +253,7 @@ const RETRY_PROCESSOR_CONFIG = {
 };
 
 const INGEST_CONFIG = {
+  bucket: BUCKET,
   region: REGION, timeoutSeconds: 60,  memory: "256MiB" as const, maxInstances: 50, retry: true,
 };
 const PREFILTER_CONFIG = {

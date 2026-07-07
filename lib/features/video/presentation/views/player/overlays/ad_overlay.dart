@@ -72,7 +72,7 @@ class AdOverlay extends StatelessWidget {
                         child: Text(
                           'Ad',
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'Roboto',
                             color: Colors.black,
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
@@ -84,7 +84,7 @@ class AdOverlay extends StatelessWidget {
                         child: Text(
                           ad.title,
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'Roboto',
                             color: Colors.white,
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
@@ -99,7 +99,7 @@ class AdOverlay extends StatelessWidget {
                   Text(
                     ad.description,
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       color: Colors.white70,
                       fontSize: 12,
                     ),
@@ -134,7 +134,7 @@ class AdOverlay extends StatelessWidget {
                           Text(
                             'Learn More',
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Roboto',
                               color: Colors.black,
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
@@ -185,7 +185,7 @@ class AdOverlay extends StatelessWidget {
                       Text(
                         'Skip Ad',
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                         ),
@@ -211,7 +211,7 @@ class AdOverlay extends StatelessWidget {
                         ? 'Skip in ${countdown}s'
                         : 'Ad will end in ${remaining}s',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       color: Colors.white,
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
@@ -259,7 +259,7 @@ class AdOverlay extends StatelessWidget {
                     Text(
                       'Try Show Premium',
                       style: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Roboto',
                         color: Colors.black87,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,

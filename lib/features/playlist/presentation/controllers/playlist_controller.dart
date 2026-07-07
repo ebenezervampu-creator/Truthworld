@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -95,76 +95,62 @@ class PlaylistController extends GetxController {
     return filtered;
   }
 
-  PlaylistModel? getWatchLaterPlaylist() {
-    for (var p in playlists) {
-      if (p.playlistName.toLowerCase() == 'watch later' ||
-          p.playlistName.toLowerCase() == 'watchlater') {
-        return p;
-      }
+  final watchLaterVideoIds = <String>[].obs;
+  StreamSubscription? _watchLaterSub;
+
+  void listenToWatchLater() {
+    _watchLaterSub?.cancel();
+    if (user.isEmpty) {
+      watchLaterVideoIds.clear();
+      return;
     }
-    return null;
+    _watchLaterSub = _firestore
+        .collection('users')
+        .doc(user)
+        .collection('watch_later')
+        .snapshots()
+        .listen((snapshot) {
+      watchLaterVideoIds.value = snapshot.docs.map((doc) => doc.id).toList();
+    });
+  }
+
+  PlaylistModel? getWatchLaterPlaylist() {
+    // Return a virtual playlist model populated from watchLaterVideoIds
+    return PlaylistModel(
+      id: 'watchlater',
+      playlistName: 'Watch Later',
+      videoIds: watchLaterVideoIds,
+      isPublic: false,
+      ownerId: user,
+      channelId: '',
+      createdAt: DateTime.now(),
+      thumbnailUrl: '',
+    );
   }
 
   /// Toggle video in "Watch Later" playlist
   Future<void> toggleWatchLater(String videoId) async {
+    if (user.isEmpty) {
+      Get.snackbar("Auth required", "Please sign in to update Watch Later");
+      return;
+    }
     try {
       isLoading.value = true;
-      final watchLater = getWatchLaterPlaylist();
+      final ref = _firestore
+          .collection('users')
+          .doc(user)
+          .collection('watch_later')
+          .doc(videoId);
 
-      if (watchLater == null) {
-        // Create it
-        final playlistRef = _firestore
-            .collection('users')
-            .doc(user)
-            .collection('playlists')
-            .doc();
-
-        String? thumbnailUrl;
-        final videoDoc = await _firestore
-            .collection('videos')
-            .doc(videoId)
-            .get();
-        if (videoDoc.exists) {
-          thumbnailUrl = videoDoc.data()?['thumbnailUrl'];
-        }
-
-        final playlist = PlaylistModel(
-          id: playlistRef.id,
-          playlistName: 'Watch Later',
-          videoIds: [videoId],
-          isPublic: false,
-          ownerId: user,
-          channelId: '',
-          createdAt: DateTime.now(),
-          thumbnailUrl: thumbnailUrl ?? '',
-        );
-
-        await playlistRef.set(playlist.toMap());
-        Get.snackbar("Success", "Added to Watch Later");
+      final isAlreadyIn = watchLaterVideoIds.contains(videoId);
+      if (isAlreadyIn) {
+        await ref.delete();
+        Get.snackbar("Success", "Removed from Watch Later");
       } else {
-        // Toggle in existing
-        final ref = _firestore
-            .collection('users')
-            .doc(user)
-            .collection('playlists')
-            .doc(watchLater.id);
-
-        final videoIds = List<String>.from(watchLater.videoIds);
-        if (videoIds.contains(videoId)) {
-          videoIds.remove(videoId);
-          await ref.update({'videoIds': videoIds});
-          await _updateThumbnail(ref, videoIds);
-          Get.snackbar("Success", "Removed from Watch Later");
-        } else {
-          videoIds.add(videoId);
-          await ref.update({'videoIds': videoIds});
-
-          // Update thumbnail if it was null or this is the first video
-          if (videoIds.length == 1) {
-            await _updateThumbnail(ref, videoIds);
-          }
-          Get.snackbar("Success", "Added to Watch Later");
-        }
+        await ref.set({
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+        Get.snackbar("Success", "Added to Watch Later");
       }
     } catch (e) {
       logger.debug("❌ Error toggling Watch Later: $e");
@@ -175,9 +161,7 @@ class PlaylistController extends GetxController {
   }
 
   bool isInWatchLater(String videoId) {
-    final watchLater = getWatchLaterPlaylist();
-    if (watchLater == null) return false;
-    return watchLater.videoIds.contains(videoId);
+    return watchLaterVideoIds.contains(videoId);
   }
 
   @override
@@ -190,16 +174,20 @@ class PlaylistController extends GetxController {
     ever(AuthService.to.currentUser, (User? u) {
       if (u != null) {
         fetchPlaylists();
+        listenToWatchLater();
       } else {
         // If user logs out, cancel the subscription and clear the list
         _playlistsSubscription?.cancel();
         playlists.clear();
+        _watchLaterSub?.cancel();
+        watchLaterVideoIds.clear();
       }
     });
 
     // Initial fetch if user is already authenticated
     if (user.isNotEmpty) {
       fetchPlaylists();
+      listenToWatchLater();
     }
   }
 
@@ -208,6 +196,7 @@ class PlaylistController extends GetxController {
     _channelsSubscription?.cancel();
     _playlistsSubscription?.cancel();
     _publicPlaylistsSubscription?.cancel();
+    _watchLaterSub?.cancel();
     super.onClose();
   }
 
@@ -258,7 +247,8 @@ class PlaylistController extends GetxController {
       final playlist = PlaylistModel(
         id: playlistRef.id,
         playlistName: playlistName,
-        videoIds: videoIds,
+        videoIds: videoIds.take(10).toList(),
+        videoCount: videoIds.length,
         isPublic: isPublic,
         ownerId: user,
         channelId: channelId,
@@ -269,6 +259,15 @@ class PlaylistController extends GetxController {
       );
 
       await playlistRef.set(playlist.toMap());
+
+      // Write video items to the subcollection
+      for (int i = 0; i < videoIds.length; i++) {
+        await playlistRef.collection('items').doc(videoIds[i]).set({
+          'videoId': videoIds[i],
+          'addedAt': FieldValue.serverTimestamp(),
+          'position': i,
+        });
+      }
 
       // Add to local list immediately for UI update
       playlists.add(playlist);
@@ -346,6 +345,30 @@ class PlaylistController extends GetxController {
 
   // ===================== Video Management =====================
 
+  Future<List<String>> fetchPlaylistVideoIds(
+    String playlistId,
+    bool isPublic,
+  ) async {
+    try {
+      if (playlistId == 'watchlater') {
+        return watchLaterVideoIds;
+      }
+      final ref = isPublic
+          ? _firestore.collection('public_playlists').doc(playlistId)
+          : _firestore
+                .collection('users')
+                .doc(user)
+                .collection('playlists')
+                .doc(playlistId);
+
+      final snapshot = await ref.collection('items').orderBy('addedAt').get();
+      return snapshot.docs.map((doc) => doc.id).toList();
+    } catch (e) {
+      logger.debug("❌ Error fetching playlist video IDs: $e");
+      return [];
+    }
+  }
+
   /// Add multiple videos to a playlist
   Future<void> addMultipleVideosToPlaylist(
     String playlistId,
@@ -364,19 +387,36 @@ class PlaylistController extends GetxController {
       final snapshot = await ref.get();
       if (!snapshot.exists) throw "Playlist not found";
 
-      final currentVideoIds = List<String>.from(snapshot['videoIds'] ?? []);
-      bool added = false;
+      final currentVideoIds = List<String>.from(snapshot.data()?['videoIds'] ?? []);
+      int addedCount = 0;
+      
+      final currentTotalCount = snapshot.data()?['videoCount'] ?? 0;
+
       for (var vid in videoIdsToAdd) {
-        if (!currentVideoIds.contains(vid)) {
-          currentVideoIds.add(vid);
-          added = true;
+        final itemDoc = await ref.collection('items').doc(vid).get();
+        if (!itemDoc.exists) {
+          await ref.collection('items').doc(vid).set({
+            'videoId': vid,
+            'addedAt': FieldValue.serverTimestamp(),
+            'position': currentTotalCount + addedCount,
+          });
+          if (!currentVideoIds.contains(vid)) {
+            currentVideoIds.add(vid);
+          }
+          addedCount++;
         }
       }
 
-      if (added) {
-        await ref.update({'videoIds': currentVideoIds});
+      if (addedCount > 0) {
+        final cappedVideoIds = currentVideoIds.take(10).toList();
+        await ref.update({
+          'videoIds': cappedVideoIds,
+          'videoCount': FieldValue.increment(addedCount),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        
         // Update thumbnail if it was null or we added the first video
-        if (currentVideoIds.length == videoIdsToAdd.length ||
+        if (currentVideoIds.length == addedCount ||
             snapshot.data()?['thumbnailUrl'] == null) {
           await _updateThumbnail(ref, currentVideoIds);
         }
@@ -424,14 +464,31 @@ class PlaylistController extends GetxController {
       final snapshot = await ref.get();
       if (!snapshot.exists) throw "Playlist not found";
 
-      final videoIds = List<String>.from(snapshot['videoIds'] ?? []);
-      if (!videoIds.contains(videoId)) {
-        videoIds.add(videoId);
-        await ref.update({'videoIds': videoIds});
+      final itemDoc = await ref.collection('items').doc(videoId).get();
+      if (!itemDoc.exists) {
+        // Write to subcollection
+        await ref.collection('items').doc(videoId).set({
+          'videoId': videoId,
+          'addedAt': FieldValue.serverTimestamp(),
+          'position': (snapshot.data()?['videoCount'] ?? 0),
+        });
+
+        // Update parent doc
+        final currentVideoIds = List<String>.from(snapshot.data()?['videoIds'] ?? []);
+        if (!currentVideoIds.contains(videoId)) {
+          currentVideoIds.add(videoId);
+        }
+        final cappedVideoIds = currentVideoIds.take(10).toList();
+
+        await ref.update({
+          'videoIds': cappedVideoIds,
+          'videoCount': FieldValue.increment(1),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
 
         // Always update thumbnail when first video added or if null
-        if (videoIds.length == 1 || snapshot.data()?['thumbnailUrl'] == null) {
-          await _updateThumbnail(ref, videoIds);
+        if (currentVideoIds.length == 1 || snapshot.data()?['thumbnailUrl'] == null) {
+          await _updateThumbnail(ref, currentVideoIds);
         }
 
         Get.snackbar(
@@ -474,11 +531,26 @@ class PlaylistController extends GetxController {
       final snapshot = await ref.get();
       if (!snapshot.exists) throw "Playlist not found";
 
-      final videoIds = List<String>.from(snapshot['videoIds'] ?? []);
-      if (videoIds.contains(videoId)) {
-        videoIds.remove(videoId);
-        await ref.update({'videoIds': videoIds});
-        await _updateThumbnail(ref, videoIds);
+      final itemDoc = await ref.collection('items').doc(videoId).get();
+      if (itemDoc.exists) {
+        // Delete from subcollection
+        await ref.collection('items').doc(videoId).delete();
+
+        // Get updated videoIds list for cache. We need to fetch from the subcollection to rebuild the first 10 items!
+        final itemsSnap = await ref.collection('items').orderBy('addedAt').limit(10).get();
+        final newCachedIds = itemsSnap.docs.map((doc) => doc.id).toList();
+
+        // Calculate new total count
+        final currentCount = snapshot.data()?['videoCount'] ?? 0;
+        final newCount = currentCount > 0 ? currentCount - 1 : 0;
+
+        await ref.update({
+          'videoIds': newCachedIds,
+          'videoCount': newCount,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        await _updateThumbnail(ref, newCachedIds);
 
         Get.snackbar(
           "Success",
@@ -506,11 +578,20 @@ class PlaylistController extends GetxController {
           .get();
 
       for (var doc in userPlaylists.docs) {
-        final videoIds = List<String>.from(doc['videoIds'] ?? []);
-        if (videoIds.contains(videoId)) {
-          videoIds.remove(videoId);
-          await doc.reference.update({'videoIds': videoIds});
-          await _updateThumbnail(doc.reference, videoIds);
+        final itemDoc = await doc.reference.collection('items').doc(videoId).get();
+        if (itemDoc.exists) {
+          await doc.reference.collection('items').doc(videoId).delete();
+          final itemsSnap = await doc.reference.collection('items').orderBy('addedAt').limit(10).get();
+          final newCachedIds = itemsSnap.docs.map((d) => d.id).toList();
+          final currentCount = doc.data()['videoCount'] ?? 0;
+          final newCount = currentCount > 0 ? currentCount - 1 : 0;
+
+          await doc.reference.update({
+            'videoIds': newCachedIds,
+            'videoCount': newCount,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          await _updateThumbnail(doc.reference, newCachedIds);
         }
       }
 
@@ -519,11 +600,20 @@ class PlaylistController extends GetxController {
           .limit(50)
           .get();
       for (var doc in publicPlaylists.docs) {
-        final videoIds = List<String>.from(doc['videoIds'] ?? []);
-        if (videoIds.contains(videoId)) {
-          videoIds.remove(videoId);
-          await doc.reference.update({'videoIds': videoIds});
-          await _updateThumbnail(doc.reference, videoIds);
+        final itemDoc = await doc.reference.collection('items').doc(videoId).get();
+        if (itemDoc.exists) {
+          await doc.reference.collection('items').doc(videoId).delete();
+          final itemsSnap = await doc.reference.collection('items').orderBy('addedAt').limit(10).get();
+          final newCachedIds = itemsSnap.docs.map((d) => d.id).toList();
+          final currentCount = doc.data()['videoCount'] ?? 0;
+          final newCount = currentCount > 0 ? currentCount - 1 : 0;
+
+          await doc.reference.update({
+            'videoIds': newCachedIds,
+            'videoCount': newCount,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          await _updateThumbnail(doc.reference, newCachedIds);
         }
       }
 
@@ -632,27 +722,27 @@ class PlaylistController extends GetxController {
   // ===================== Share Playlist =====================
   Future<void> sharePlaylist(String playlistId, {String? name}) async {
     try {
-      const baseUrl = 'https://www.truthworld.in';
-      final playlistUrl = '$baseUrl/playlist/$playlistId';
-
-      final message = name != null && name.trim().isNotEmpty
-          ? 'Check out this playlist "$name" on TruthWorld: $playlistUrl'
-          : 'Check out this playlist on TruthWorld: $playlistUrl';
-
-      final result = await SharePlus.instance.share(
-        ShareParams(
-          text: message,
-          subject: name?.trim().isNotEmpty == true ? name : 'Awesome playlist!',
-          // title: name,           // Optional: used as share sheet title on some platforms
-        ),
-      );
-
-      // Optional: Check result
-      if (result.status == ShareResultStatus.success) {
-        logger.debug('✅ Playlist shared successfully');
-      } else if (result.status == ShareResultStatus.dismissed) {
-        logger.debug('Share dialog was dismissed');
+      // Find cached playlist in controller state
+      PlaylistModel? playlist;
+      try {
+        playlist = playlists.firstWhere((p) => p.id == playlistId);
+      } catch (_) {}
+      if (playlist == null) {
+        try {
+          playlist = publicPlaylists.firstWhere((p) => p.id == playlistId);
+        } catch (_) {}
       }
+
+      final playlistName = name ?? playlist?.playlistName ?? 'Playlist';
+      final thumbnailUrl = playlist?.thumbnailUrl;
+      final videoCount = playlist?.videoCount;
+
+      Get.find<MainController>().sharePlaylist(
+        playlistId,
+        playlistName,
+        thumbnailUrl: thumbnailUrl,
+        videoCount: videoCount,
+      );
     } catch (e, stackTrace) {
       logger.error(
         "❌ Error sharing playlist",

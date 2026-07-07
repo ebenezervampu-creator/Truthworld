@@ -475,6 +475,10 @@ class MainController extends BaseController {
     String videoId,
     String videoTitle, {
     String? thumbnailUrl,
+    String? channelName,
+    int? durationMs,
+    Duration? currentPosition,
+    String? subtitle,
   }) async {
     try {
       final videoUrl = DeepLinkService.videoUrl(videoId);
@@ -483,6 +487,11 @@ class MainController extends BaseController {
         title: videoTitle,
         url: videoUrl,
         thumbnailUrl: thumbnailUrl,
+        channelName: channelName,
+        durationMs: durationMs,
+        currentPosition: currentPosition,
+        subtitle: subtitle,
+        type: 'video',
       );
 
       // Increment share count in background
@@ -504,6 +513,10 @@ class MainController extends BaseController {
     String channelId,
     String channelName, {
     String? avatarUrl,
+    String? handle,
+    int? subscriberCount,
+    int? videoCount,
+    String? subtitle,
   }) async {
     try {
       final url = DeepLinkService.channelUrl(channelId);
@@ -512,6 +525,11 @@ class MainController extends BaseController {
         title: channelName,
         url: url,
         thumbnailUrl: avatarUrl,
+        handle: handle,
+        subscriberCount: subscriberCount,
+        videoCount: videoCount,
+        subtitle: subtitle,
+        type: 'channel',
       );
     } catch (e) {
       if (kDebugMode) {
@@ -526,6 +544,9 @@ class MainController extends BaseController {
     String playlistId,
     String playlistName, {
     String? thumbnailUrl,
+    String? channelName,
+    int? videoCount,
+    String? subtitle,
   }) async {
     try {
       final url = DeepLinkService.playlistUrl(playlistId);
@@ -534,6 +555,10 @@ class MainController extends BaseController {
         title: playlistName,
         url: url,
         thumbnailUrl: thumbnailUrl,
+        channelName: channelName,
+        videoCount: videoCount,
+        subtitle: subtitle,
+        type: 'playlist',
       );
     } catch (e) {
       if (kDebugMode) {
@@ -1181,24 +1206,42 @@ class MainController extends BaseController {
       if (userId.isNotEmpty && userId != 'anonymous') {
         final viewRef = videoRef.collection('views').doc(userId);
 
-        await _firestore
-            .runTransaction((transaction) async {
-              final viewDoc = await transaction.get(viewRef);
+        if (kIsWeb) {
+          try {
+            final viewDoc = await viewRef.get().timeout(_defaultTimeout);
+            if (!viewDoc.exists) {
+              await viewRef.set({
+                'timestamp': FieldValue.serverTimestamp(),
+              }).timeout(_defaultTimeout);
 
-              if (!viewDoc.exists) {
-                // First time this user views this video
-                transaction.set(viewRef, {
-                  'timestamp': FieldValue.serverTimestamp(),
-                });
+              await videoRef.update({
+                'viewCount': FieldValue.increment(1),
+                if (isQualified)
+                  'qualifiedViewCount': FieldValue.increment(1),
+              }).timeout(_defaultTimeout);
+            }
+          } catch (e) {
+            debugPrint('Error updating views on Web: $e');
+          }
+        } else {
+          await _firestore
+              .runTransaction((transaction) async {
+                final viewDoc = await transaction.get(viewRef);
 
-                transaction.update(videoRef, {
-                  'viewCount': FieldValue.increment(1),
-                  if (isQualified)
-                    'qualifiedViewCount': FieldValue.increment(1),
-                });
-              }
-            })
-            .timeout(_defaultTimeout);
+                if (!viewDoc.exists) {
+                  transaction.set(viewRef, {
+                    'timestamp': FieldValue.serverTimestamp(),
+                  });
+
+                  transaction.update(videoRef, {
+                    'viewCount': FieldValue.increment(1),
+                    if (isQualified)
+                      'qualifiedViewCount': FieldValue.increment(1),
+                  });
+                }
+              })
+              .timeout(_defaultTimeout);
+        }
       } else {
         // Anonymous view (simple increment)
         await videoRef
@@ -1547,13 +1590,15 @@ class MainController extends BaseController {
   /// Internal add to watch later implementation
   Future<void> _addToWatchLaterInternal(String videoId) async {
     try {
-      final userRef = _firestore
+      final watchLaterRef = _firestore
           .collection(_usersCollection)
-          .doc(_auth.currentUser!.uid);
+          .doc(_auth.currentUser!.uid)
+          .collection('watch_later')
+          .doc(videoId);
 
-      await userRef
-          .update({
-            'watchLaterVideos': FieldValue.arrayUnion([videoId]),
+      await watchLaterRef
+          .set({
+            'createdAt': FieldValue.serverTimestamp(),
           })
           .timeout(_defaultTimeout);
 

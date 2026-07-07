@@ -17,7 +17,7 @@ final Color tertiaryAccent = const Color(0xFFD4B2FF); // Subtle purple
 
 ThemeData darkProfessionalTheme = ThemeData(
   brightness: Brightness.dark,
-  fontFamily: 'Inter',
+  fontFamily: 'Roboto',
   primaryColor: primaryAccent,
   colorScheme: ColorScheme.dark(
     primary: primaryAccent,
@@ -45,7 +45,7 @@ ThemeData darkProfessionalTheme = ThemeData(
   scaffoldBackgroundColor: darkBackground,
   cardColor: darkSurface,
   dividerColor: darkSurfaceVariant.withValues(alpha: 0.3),
-  // ── Material Design 3 Type Scale — Inter ──
+  // ── Material Design 3 Type Scale — Roboto ──
   textTheme: const TextTheme(
     displayLarge: TextStyle(
       fontSize: 57,

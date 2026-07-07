@@ -102,7 +102,7 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                         Text(
                           verdictLabel.toUpperCase(),
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'Roboto',
                             color: verdictColor,
                             fontWeight: FontWeight.bold,
                             fontSize: 11,
@@ -127,7 +127,7 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                             child: Text(
                               'TRIVIA',
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'Roboto',
                                 color: Colors.blueAccent,
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
@@ -140,7 +140,7 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                     Text(
                       claim.text,
                       style: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Roboto',
                         color: Colors.white.withValues(alpha: 0.95),
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
@@ -178,7 +178,7 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                                 Text(
                                   src.domain ?? src.title,
                                   style: TextStyle(
-                                    fontFamily: 'Inter',
+                                    fontFamily: 'Roboto',
                                     color: Colors.white70,
                                     fontSize: 11.5,
                                     fontWeight: FontWeight.w400,

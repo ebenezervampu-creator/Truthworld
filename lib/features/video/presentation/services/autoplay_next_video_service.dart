@@ -245,7 +245,7 @@ class AutoplayNextVideoService extends GetxService {
   /// Navigate to next video (route)
   void _navigateToNextVideo(Video nextVideo) {
     try {
-      Get.offNamed('/videoscreen', arguments: {'video': nextVideo});
+      Get.offNamed('/watch?v=${nextVideo.id}', arguments: {'video': nextVideo});
     } catch (e) {
       debugPrint('[AutoplayNextVideoService] Navigation error: $e');
     }

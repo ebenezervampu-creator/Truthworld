@@ -9,6 +9,7 @@ import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 
 /// Production-grade miniplayer controller.
 ///
@@ -178,17 +179,28 @@ class MiniplayerController extends GetxController
     totalDuration.value = video.durationValue;
 
     try {
-      // Resolve gs:// URLs if needed
-      if (url.startsWith('gs://')) {
-        try {
-          url = await FirebaseStorage.instance.refFromURL(url).getDownloadURL();
-        } catch (_) {
-          // If import fails or resolution fails, let it fall through to networkUrl to fail naturally
+      VideoPlayerController? handoffVpc = VideoPlaybackHandoff.retrieveController(video.id);
+      final VideoPlayerController vpc;
+      final bool wasHandoff = handoffVpc != null;
+
+      if (wasHandoff) {
+        debugPrint('[MiniplayerController] Found active handoff controller for: ${video.id}');
+        vpc = handoffVpc;
+        await vpc.setLooping(false); // Disable looping which was enabled for hover previews
+        await vpc.setVolume(1.0); // Reset volume to unmute
+      } else {
+        // Resolve gs:// URLs if needed
+        if (url.startsWith('gs://')) {
+          try {
+            url = await FirebaseStorage.instance.refFromURL(url).getDownloadURL();
+          } catch (_) {
+            // If import fails or resolution fails, let it fall through to networkUrl to fail naturally
+          }
         }
+        vpc = VideoPlayerController.networkUrl(Uri.parse(url));
+        await vpc.initialize();
       }
 
-      final vpc = VideoPlayerController.networkUrl(Uri.parse(url));
-      await vpc.initialize();
       if (_isClosed) {
         vpc.dispose();
         return;
@@ -375,8 +387,15 @@ class MiniplayerController extends GetxController
 
     mode.value = MiniplayerMode.transitioning;
 
+    // Register active controller for handoff BEFORE navigating
+    if (_vpc != null) {
+      VideoPlaybackHandoff.registerActiveController(video.id, _vpc!);
+      // Set to null so dismiss() / _disposeVideoControllers() won't dispose it!
+      _vpc = null;
+    }
+
     // Navigate first, then dismiss so the miniplayer doesn't flash
-    Get.toNamed('/videoscreen', arguments: {
+    Get.toNamed('/watch?v=${video.id}', arguments: {
       'video': video,
       'resumePosition': pos.inMilliseconds,
     });

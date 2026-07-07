@@ -22,7 +22,7 @@ class SubtitleOverlay extends StatelessWidget {
             text,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.w500,

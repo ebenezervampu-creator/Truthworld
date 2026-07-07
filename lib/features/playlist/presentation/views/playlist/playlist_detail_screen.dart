@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_detail_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
@@ -325,9 +326,9 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   Widget _buildPlaylistStats(PlaylistModel playlist) {
     return FutureBuilder<List<Video>>(
-      future: _fetchVideos(playlist.videoIds),
+      future: _fetchVideos(playlist),
       builder: (context, snapshot) {
-        final videoCount = playlist.videoIds.length;
+        final videoCount = playlist.videoCount;
         final viewCount = snapshot.hasData 
             ? snapshot.data!.fold<int>(0, (total, v) => total + v.views)
             : 0;
@@ -594,12 +595,12 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // VIDEO LIST
   // ==========================================================================
   Widget _buildVideoList(BuildContext context, PlaylistModel playlist, {bool isDesktop = false, bool isTablet = false}) {
-    if (playlist.videoIds.isEmpty) {
+    if (playlist.videoCount == 0 && playlist.videoIds.isEmpty) {
       return _buildEmptyState();
     }
 
     return FutureBuilder<List<Video>>(
-      future: _fetchVideos(playlist.videoIds),
+      future: _fetchVideos(playlist),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildVideoShimmer();
@@ -935,15 +936,25 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   // HELPER METHODS
   // ==========================================================================
-  Future<List<Video>> _fetchVideos(List<String> videoIds) async {
+  Future<List<Video>> _fetchVideos(PlaylistModel playlist) async {
+    final playlistController = Get.find<PlaylistController>();
+    final videoIds = await playlistController.fetchPlaylistVideoIds(
+      playlist.id,
+      playlist.isPublic,
+    );
+
     if (videoIds.isEmpty) return [];
     
-    final snapshot = await FirebaseFirestore.instance
-        .collection('videos')
-        .where(FieldPath.documentId, whereIn: videoIds.take(10).toList())
-        .get();
-    
-    final videos = snapshot.docs.map((doc) => Video.fromDocumentSnapshot(doc)).toList();
+    final List<Video> videos = [];
+    const int batchSize = 10;
+    for (var i = 0; i < videoIds.length; i += batchSize) {
+      final batchIds = videoIds.skip(i).take(batchSize).toList();
+      final snapshot = await FirebaseFirestore.instance
+          .collection('videos')
+          .where(FieldPath.documentId, whereIn: batchIds)
+          .get();
+      videos.addAll(snapshot.docs.map((doc) => Video.fromDocumentSnapshot(doc)));
+    }
     
     // Sort by original order
     final videoMap = {for (var v in videos) v.id: v};

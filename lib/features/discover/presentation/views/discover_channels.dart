@@ -262,7 +262,7 @@ class DiscoverChannelsPage extends StatelessWidget {
             if (isDashboard && Get.isRegistered<HomeController>()) {
               Get.find<HomeController>().navigateToChannelDetail(channel);
             } else {
-              Get.toNamed('/channel-details', arguments: {'channel': channel});
+              Get.toNamed(channel.channelRoute, arguments: {'channel': channel});
             }
           },
           child: Column(

@@ -3,6 +3,8 @@ import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
+import 'package:truthworld/features/video/data/services/video_media_service.dart';
+import 'package:truthworld/features/video/data/models/video_media.dart';
 
 enum VideoStatus {
   uploading,
@@ -96,36 +98,58 @@ class Video {
   // Flags
   final bool enableComments;
   final bool isMonetized;
-  final Map<String, String> mediaSubtitles; // { lang: url }
-  final Map<String, String> dubbedVideos; // { lang: url }
-  final Map<String, String> audioTracks; // { lang: url }
-  final List<VideoChapter> chapters;
-  final String factCheckUrl;
-  final String transcriptionUrl;
   final bool allowRatings;
   final double trustScore;
   final double videoRating;
   bool isSeen = false;
 
-  // v8.0 Credibility Fields
+  // v8.0 Credibility Fields (lightweight)
   final String? trustLabel;
-  final ScoringFactors? scoringFactors;
-  final List<TrustDeduction> deductions;
-  final List<ContextualFlag> contextualFlags;
-  final HonestyBreakdown? honestyBreakdown;
-  final bool harmCapApplied;
-  final String? harmCapReason;
-  final Map<String, double>? categoryWeightProfile;
-  final List<String> confidenceNotes;
-  final List<String> diagnostics;
-  final FactCheckStats? factCheckStats;
-  final String? videoCategory; // v8.0: Explicit category for epistemic scoring
-  
-  // v8.1 Hardened Trust Fields
-  final HardeningMetadata? hardeningMetadata;
-  final double? intentToMisleadScore;
-  final String? effectiveCategory;
-  final UIReport? uiReport;
+
+  // Getters lookup from VideoMediaService static caches
+  Map<String, String> get mediaSubtitles =>
+      VideoMediaService.localizationCache[id]?.subtitles ?? const {};
+  Map<String, String> get dubbedVideos =>
+      VideoMediaService.localizationCache[id]?.dubbedVideos ?? const {};
+  Map<String, String> get audioTracks =>
+      VideoMediaService.localizationCache[id]?.audioTracks ?? const {};
+  List<VideoChapter> get chapters =>
+      VideoMediaService.streamingCache[id]?.chapters ?? const [];
+
+  ScoringFactors? get scoringFactors =>
+      VideoMediaService.credibilityCache[id]?.scoringFactors;
+  List<TrustDeduction> get deductions =>
+      VideoMediaService.credibilityCache[id]?.deductions ?? const [];
+  List<ContextualFlag> get contextualFlags =>
+      VideoMediaService.credibilityCache[id]?.contextualFlags ?? const [];
+  HonestyBreakdown? get honestyBreakdown =>
+      VideoMediaService.credibilityCache[id]?.honestyBreakdown;
+  bool get harmCapApplied =>
+      VideoMediaService.credibilityCache[id]?.harmCapApplied ?? false;
+  String? get harmCapReason =>
+      VideoMediaService.credibilityCache[id]?.harmCapReason;
+  Map<String, double>? get categoryWeightProfile =>
+      VideoMediaService.credibilityCache[id]?.categoryWeightProfile;
+  List<String> get confidenceNotes =>
+      VideoMediaService.credibilityCache[id]?.confidenceNotes ?? const [];
+  List<String> get diagnostics =>
+      VideoMediaService.credibilityCache[id]?.diagnostics ?? const [];
+  FactCheckStats? get factCheckStats =>
+      VideoMediaService.credibilityCache[id]?.factCheckStats;
+  String? get videoCategory =>
+      VideoMediaService.credibilityCache[id]?.videoCategory;
+
+  HardeningMetadata? get hardeningMetadata =>
+      VideoMediaService.credibilityCache[id]?.hardeningMetadata;
+  double? get intentToMisleadScore =>
+      VideoMediaService.credibilityCache[id]?.intentToMisleadScore;
+  String? get effectiveCategory =>
+      VideoMediaService.credibilityCache[id]?.effectiveCategory;
+  UIReport? get uiReport => VideoMediaService.credibilityCache[id]?.uiReport;
+  String get factCheckUrl =>
+      VideoMediaService.credibilityCache[id]?.factCheckUrl ?? '';
+  String get transcriptionUrl =>
+      VideoMediaService.credibilityCache[id]?.transcriptionUrl ?? '';
 
   // Compatibility Getters
   int get likes => likeCount;
@@ -185,16 +209,32 @@ class Video {
     this.isKidFriendly = false,
     this.enableComments = true,
     this.isMonetized = false,
-    this.mediaSubtitles = const {},
-    this.dubbedVideos = const {},
-    this.audioTracks = const {},
-    this.chapters = const [],
-    this.factCheckUrl = '',
-    this.transcriptionUrl = '',
     this.allowRatings = false,
     this.trustScore = 0.0,
     this.videoRating = 0.0,
     List<String>? likedBy,
+    // Ignored/deprecated heavy fields for backward compatibility
+    Map<String, String>? mediaSubtitles,
+    Map<String, String>? dubbedVideos,
+    Map<String, String>? audioTracks,
+    List<VideoChapter>? chapters,
+    String? factCheckUrl,
+    String? transcriptionUrl,
+    ScoringFactors? scoringFactors,
+    List<TrustDeduction>? deductions,
+    List<ContextualFlag>? contextualFlags,
+    HonestyBreakdown? honestyBreakdown,
+    bool? harmCapApplied,
+    String? harmCapReason,
+    Map<String, double>? categoryWeightProfile,
+    List<String>? confidenceNotes,
+    List<String>? diagnostics,
+    FactCheckStats? factCheckStats,
+    String? videoCategory,
+    HardeningMetadata? hardeningMetadata,
+    double? intentToMisleadScore,
+    String? effectiveCategory,
+    UIReport? uiReport,
     // Ignored legacy fields
     dynamic shares,
     dynamic downloads,
@@ -205,21 +245,6 @@ class Video {
     this.isSeen = false,
     this.totalWatchTimeSeconds = 0,
     this.trustLabel,
-    this.scoringFactors,
-    this.deductions = const [],
-    this.contextualFlags = const [],
-    this.honestyBreakdown,
-    this.harmCapApplied = false,
-    this.harmCapReason,
-    this.categoryWeightProfile,
-    this.confidenceNotes = const [],
-    this.diagnostics = const [],
-    this.factCheckStats,
-    this.videoCategory,
-    this.hardeningMetadata,
-    this.intentToMisleadScore,
-    this.effectiveCategory,
-    this.uiReport,
   }) : titleLowercase = (vTitleLowercase == null || vTitleLowercase.isEmpty)
            ? title.toLowerCase()
            : vTitleLowercase,
@@ -243,7 +268,53 @@ class Video {
        updatedAt = updatedAt ?? TimestampUtils.parse(createdAt ?? uploadedAt),
        status = status is VideoStatus ? status : VideoStatus.processing,
        visibility = visibility?.toString() ?? 'public',
-       likedBy = likedBy ?? [];
+       likedBy = likedBy ?? [] {
+    // Populate the VideoMediaService static caches for instant synchronous retrieval
+    if (mediaSubtitles != null || dubbedVideos != null || audioTracks != null) {
+      VideoMediaService.localizationCache[id] = VideoMediaLocalization(
+        subtitles: mediaSubtitles ?? const {},
+        dubbedVideos: dubbedVideos ?? const {},
+        audioTracks: audioTracks ?? const {},
+      );
+    }
+    if (scoringFactors != null ||
+        deductions != null ||
+        contextualFlags != null ||
+        honestyBreakdown != null) {
+      VideoMediaService.credibilityCache[id] = VideoMediaCredibility(
+        trustScore: trustScore,
+        videoRating: videoRating,
+        trustLabel: trustLabel,
+        scoringFactors: scoringFactors,
+        deductions: deductions ?? const [],
+        contextualFlags: contextualFlags ?? const [],
+        honestyBreakdown: honestyBreakdown,
+        harmCapApplied: harmCapApplied ?? false,
+        harmCapReason: harmCapReason,
+        categoryWeightProfile: categoryWeightProfile,
+        confidenceNotes: confidenceNotes ?? const [],
+        diagnostics: diagnostics ?? const [],
+        factCheckStats: factCheckStats,
+        videoCategory: videoCategory,
+        hardeningMetadata: hardeningMetadata,
+        intentToMisleadScore: intentToMisleadScore,
+        uiReport: uiReport,
+        factCheckUrl: factCheckUrl ?? '',
+        transcriptionUrl: transcriptionUrl ?? '',
+      );
+    }
+    if (chapters != null) {
+      VideoMediaService.streamingCache[id] = VideoMediaStreaming(
+        originalUrl: originalUrl ?? '',
+        hlsUrl: hlsUrl,
+        dashUrl: dashUrl,
+        adaptiveResolutions: adaptiveResolutions,
+        thumbnailVariants: thumbnailVariants,
+        animatedPreviewUrl: animatedPreviewUrl,
+        chapters: chapters,
+      );
+    }
+  }
 
   OfflineVideo toOffline() {
     return OfflineVideo(
@@ -281,9 +352,9 @@ class Video {
       'commentCount': commentCount,
       'shareCount': shareCount,
       'durationMs': durationValue.inMilliseconds,
-      'createdAt': createdAt,
-      'uploadedAt': createdAt,
-      'updatedAt': updatedAt,
+      'createdAt': createdAt.millisecondsSinceEpoch,
+      'uploadedAt': createdAt.millisecondsSinceEpoch,
+      'updatedAt': updatedAt.millisecondsSinceEpoch,
       'status': status.name,
       'visibility': visibility,
       'category': category,
@@ -293,39 +364,13 @@ class Video {
       'isKidFriendly': isKidFriendly,
       'enableComments': enableComments,
       'isMonetized': isMonetized,
-      'media': {
-        'subtitles': mediaSubtitles,
-        'dubbedVideos': dubbedVideos,
-        'audioTracks': audioTracks,
-        'factCheckUrl': factCheckUrl,
-        'transcriptionUrl': transcriptionUrl,
-      },
-      'factCheckUrl': factCheckUrl,
-      'transcriptionUrl': transcriptionUrl,
       'allowRatings': allowRatings,
       'trustScore': trustScore,
       'videoRating': videoRating,
-      'chapters': chapters.map((e) => e.toMap()).toList(),
       'qualifiedViewCount': viewCount,
       'totalWatchTimeSeconds': totalWatchTimeSeconds,
       'likedBy': likedBy,
-      // v8.0
       'trustLabel': trustLabel,
-      'scoringFactors': scoringFactors?.toMap(),
-      'deductions': deductions.map((e) => e.toMap()).toList(),
-      'contextualFlags': contextualFlags.map((e) => e.toMap()).toList(),
-      'honestyBreakdown': honestyBreakdown?.toMap(),
-      'harmCapApplied': harmCapApplied,
-      'harmCapReason': harmCapReason,
-      'categoryWeightProfile': categoryWeightProfile,
-      'confidenceNotes': confidenceNotes,
-      'diagnostics': diagnostics,
-      'factCheckStats': factCheckStats?.toMap(),
-      'videoCategory': videoCategory,
-      'hardeningMetadata': hardeningMetadata?.toMap(),
-      'intentToMisleadScore': intentToMisleadScore,
-      'effectiveCategory': effectiveCategory,
-      'uiReport': uiReport?.toMap(),
     };
   }
 
@@ -370,21 +415,29 @@ class Video {
       isKidFriendly: data['isKidFriendly'] ?? false,
       enableComments: data['enableComments'] ?? true,
       isMonetized: data['isMonetized'] ?? false,
-      mediaSubtitles: data['media'] != null && data['media']['subtitles'] != null
+      mediaSubtitles:
+          data['media'] != null && data['media']['subtitles'] != null
           ? Map<String, String>.from(data['media']['subtitles'] as Map)
           : (data['subtitles'] != null
-              ? Map<String, String>.from(data['subtitles'] as Map)
-              : const {}),
-      dubbedVideos: data['media'] != null && data['media']['dubbedVideos'] != null
+                ? Map<String, String>.from(data['subtitles'] as Map)
+                : const {}),
+      dubbedVideos:
+          data['media'] != null && data['media']['dubbedVideos'] != null
           ? Map<String, String>.from(data['media']['dubbedVideos'] as Map)
-          : (data['dubbedVideos'] != null ? Map<String, String>.from(data['dubbedVideos'] as Map) : const {}),
+          : (data['dubbedVideos'] != null
+                ? Map<String, String>.from(data['dubbedVideos'] as Map)
+                : const {}),
       audioTracks: data['media'] != null && data['media']['audioTracks'] != null
           ? Map<String, String>.from(data['media']['audioTracks'] as Map)
-          : (data['audioTracks'] != null ? Map<String, String>.from(data['audioTracks'] as Map) : const {}),
-      factCheckUrl: data['media'] != null && data['media']['factCheckUrl'] != null
+          : (data['audioTracks'] != null
+                ? Map<String, String>.from(data['audioTracks'] as Map)
+                : const {}),
+      factCheckUrl:
+          data['media'] != null && data['media']['factCheckUrl'] != null
           ? (data['media']['factCheckUrl'] as String? ?? '')
           : (data['factCheckUrl'] as String? ?? ''),
-      transcriptionUrl: data['media'] != null && data['media']['transcriptionUrl'] != null
+      transcriptionUrl:
+          data['media'] != null && data['media']['transcriptionUrl'] != null
           ? (data['media']['transcriptionUrl'] as String? ?? '')
           : (data['transcriptionUrl'] as String? ?? ''),
       allowRatings: data['allowRatings'] ?? false,
@@ -397,25 +450,49 @@ class Video {
       likedBy: List<String>.from(data['likedBy'] ?? []),
       // v8.0
       trustLabel: data['trustLabel'],
-      scoringFactors: data['scoringFactors'] != null ? ScoringFactors.fromMap(Map<String, dynamic>.from(data['scoringFactors'])) : null,
+      scoringFactors: data['scoringFactors'] != null
+          ? ScoringFactors.fromMap(
+              Map<String, dynamic>.from(data['scoringFactors']),
+            )
+          : null,
       deductions: (data['deductions'] as List? ?? [])
           .map((e) => TrustDeduction.fromMap(Map<String, dynamic>.from(e)))
           .toList(),
       contextualFlags: (data['contextualFlags'] as List? ?? [])
           .map((e) => ContextualFlag.fromMap(Map<String, dynamic>.from(e)))
           .toList(),
-      honestyBreakdown: data['honestyBreakdown'] != null ? HonestyBreakdown.fromMap(Map<String, dynamic>.from(data['honestyBreakdown'])) : null,
+      honestyBreakdown: data['honestyBreakdown'] != null
+          ? HonestyBreakdown.fromMap(
+              Map<String, dynamic>.from(data['honestyBreakdown']),
+            )
+          : null,
       harmCapApplied: data['harmCapApplied'] ?? false,
       harmCapReason: data['harmCapReason'],
-      categoryWeightProfile: data['categoryWeightProfile'] != null ? Map<String, double>.from(data['categoryWeightProfile'].map((k, v) => MapEntry(k, (v as num).toDouble()))) : null,
+      categoryWeightProfile: data['categoryWeightProfile'] != null
+          ? Map<String, double>.from(
+              data['categoryWeightProfile'].map(
+                (k, v) => MapEntry(k, (v as num).toDouble()),
+              ),
+            )
+          : null,
       confidenceNotes: List<String>.from(data['confidenceNotes'] ?? []),
       diagnostics: List<String>.from(data['diagnostics'] ?? []),
-      factCheckStats: data['factCheckStats'] != null ? FactCheckStats.fromMap(Map<String, dynamic>.from(data['factCheckStats'])) : null,
+      factCheckStats: data['factCheckStats'] != null
+          ? FactCheckStats.fromMap(
+              Map<String, dynamic>.from(data['factCheckStats']),
+            )
+          : null,
       videoCategory: data['videoCategory'],
-      hardeningMetadata: data['hardeningMetadata'] != null ? HardeningMetadata.fromMap(Map<String, dynamic>.from(data['hardeningMetadata'])) : null,
+      hardeningMetadata: data['hardeningMetadata'] != null
+          ? HardeningMetadata.fromMap(
+              Map<String, dynamic>.from(data['hardeningMetadata']),
+            )
+          : null,
       intentToMisleadScore: (data['intentToMisleadScore'] ?? 0).toDouble(),
       effectiveCategory: data['effectiveCategory'],
-      uiReport: data['uiReport'] != null ? UIReport.fromMap(Map<String, dynamic>.from(data['uiReport'])) : null,
+      uiReport: data['uiReport'] != null
+          ? UIReport.fromMap(Map<String, dynamic>.from(data['uiReport']))
+          : null,
     );
   }
 
@@ -458,8 +535,3 @@ class ResolutionV2 {
   final String path;
   ResolutionV2(this.path);
 }
-
-
-
-
-

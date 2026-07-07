@@ -16,9 +16,9 @@ class Reply {
   final int reportCount;
   final Timestamp createdAt;
   
-  // Tracking likes: Map<userId_source, bool> where source = "user" or "channel"
-  final Map<String, bool> likedBy;
-  final Map<String, bool> dislikedBy;
+  // ⚡ SCALE FIX: likedBy/dislikedBy maps removed — use subcollection pattern
+  final bool isLikedByCurrentUser;
+  final bool isDislikedByCurrentUser;
 
   Reply({
     required this.id,
@@ -35,8 +35,8 @@ class Reply {
     required this.dislikeCount,
     required this.reportCount,
     required this.createdAt,
-    this.likedBy = const {},
-    this.dislikedBy = const {},
+    this.isLikedByCurrentUser = false,
+    this.isDislikedByCurrentUser = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -55,8 +55,7 @@ class Reply {
       'dislikeCount': dislikeCount,
       'reportCount': reportCount,
       'createdAt': createdAt,
-      'likedBy': likedBy,
-      'dislikedBy': dislikedBy,
+      // likedBy/dislikedBy maps removed for scale
     };
   }
 
@@ -77,8 +76,7 @@ class Reply {
       dislikeCount: data['dislikeCount'] ?? 0,
       reportCount: data['reportCount'] ?? 0,
       createdAt: data['createdAt'] ?? Timestamp.now(),
-      likedBy: Map<String, bool>.from(data['likedBy'] ?? {}),
-      dislikedBy: Map<String, bool>.from(data['dislikedBy'] ?? {}),
+      // likedBy/dislikedBy not read from Firestore — use subcollection
     );
   }
 
@@ -97,8 +95,8 @@ class Reply {
     int? dislikeCount,
     int? reportCount,
     Timestamp? createdAt,
-    Map<String, bool>? likedBy,
-    Map<String, bool>? dislikedBy,
+    bool? isLikedByCurrentUser,
+    bool? isDislikedByCurrentUser,
   }) {
     return Reply(
       id: id ?? this.id,
@@ -115,8 +113,8 @@ class Reply {
       dislikeCount: dislikeCount ?? this.dislikeCount,
       reportCount: reportCount ?? this.reportCount,
       createdAt: createdAt ?? this.createdAt,
-      likedBy: likedBy ?? this.likedBy,
-      dislikedBy: dislikedBy ?? this.dislikedBy,
+      isLikedByCurrentUser: isLikedByCurrentUser ?? this.isLikedByCurrentUser,
+      isDislikedByCurrentUser: isDislikedByCurrentUser ?? this.isDislikedByCurrentUser,
     );
   }
 }

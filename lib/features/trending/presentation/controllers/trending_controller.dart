@@ -18,7 +18,7 @@ class TrendingController extends BaseController {
 
   Future<void> fetchTrendingVideos() async {
     try {
-      setState(ViewState.loading);
+      setViewState(ViewState.loading);
       error.value = '';
       
       final List<Map<String, dynamic>> rawVideos = await _trendingService.getTrendingVideos();
@@ -68,10 +68,10 @@ class TrendingController extends BaseController {
           description: videoData['description'] ?? '',
         );
       }).toList());
-      setState(ViewState.success);
+      setViewState(ViewState.success);
     } catch (e) {
       error.value = e.toString();
-      setState(ViewState.error);
+      setViewState(ViewState.error);
     }
   }
 

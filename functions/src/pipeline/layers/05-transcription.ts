@@ -262,6 +262,10 @@ export class TranscriptionLayer {
     logger.warn("[Transcription] Webhook hit but logic migrated to polling. Ignoring.", { jobId });
   }
 
+  async processWebhook(jobId: string, eventId: string, transcriptId: string, status: string, error?: string): Promise<void> {
+    logger.warn("[Transcription] Webhook processWebhook hit but logic migrated to polling. Ignoring.", { jobId, eventId, transcriptId, status, error });
+  }
+
   // ─── Native Subtitle Export ─────────────────────────────────────────────────
 
   /**
@@ -305,15 +309,21 @@ export class TranscriptionLayer {
         metadata: { contentType: "text/vtt; charset=utf-8" },
       });
 
-      // Update job doc with subtitle paths (Dual-write for backward compatibility)
+      // Update job outputs doc (separate collections for scale check)
+      await db().collection("job_outputs").doc(jobId).set({
+        subtitles: {
+          [language]: {
+            srtPath: `gs://${bucket.name}/${srtPath}`,
+            vttPath: `gs://${bucket.name}/${vttPath}`,
+            format: "native",
+            provider: "assemblyai-universal-multi",
+            createdAt: Date.now(),
+          }
+        }
+      }, { merge: true });
+
+      // Update job doc with lightweight artifact metadata
       await db().collection("video_jobs").doc(jobId).update({
-        [`outputs.subtitles.${language}`]: {
-          srtPath: `gs://${bucket.name}/${srtPath}`,
-          vttPath: `gs://${bucket.name}/${vttPath}`,
-          format: "native",
-          provider: "assemblyai-universal-multi",
-          createdAt: Date.now(),
-        },
         // ✅ NEW SCHEMA: Consolidated Artifact Registry
         "artifacts.transcription.srtUrl": `gs://${bucket.name}/${srtPath}`,
         "artifacts.transcription.vttUrl": `gs://${bucket.name}/${vttPath}`,

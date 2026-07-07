@@ -56,6 +56,22 @@ service cloud.firestore {
         allow write: if isAuthenticated() && request.auth.uid == subscriberId;
       }
 
+      // Moderators subcollection
+      match /moderators/{userId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated() && 
+                         get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid;
+      }
+
+      // Blocked Users subcollection
+      match /blocked_users/{userId} {
+        allow read: if isAuthenticated() && 
+                         (request.auth.uid == userId ||
+                          get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid);
+        allow write: if isAuthenticated() && 
+                         get(/databases/$(database)/documents/channels/$(channelId)).data.ownerId == request.auth.uid;
+      }
+
       // Videos subcollection (alternate path)
       match /videos/{videoId} {
         allow read: if true;
@@ -99,6 +115,12 @@ service cloud.firestore {
                        (resource.data.uploaderId == request.auth.uid ||
                         resource.data.userId == request.auth.uid ||
                         resource.data.ownerId == request.auth.uid);
+
+      // Media subcollection (localization, credibility, streaming)
+      match /media/{docId} {
+        allow read: if true;
+        allow write: if false; // System / Cloud Functions only
+      }
 
       // View tracking subcollection (one doc per user per video)
       match /views/{userId} {
@@ -154,6 +176,62 @@ service cloud.firestore {
       }
     }
     
+    // Topics Collection
+    match /topics/{topicId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+
+      // Likes subcollection
+      match /likes/{userId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && request.auth.uid == userId;
+      }
+
+      // Followers subcollection
+      match /followers/{userId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && request.auth.uid == userId;
+      }
+
+      // Comments subcollection
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if isAuthenticated();
+        allow update, delete: if isAuthenticated() && 
+                                 (resource.data.userId == request.auth.uid || 
+                                  resource.data.channelId == request.auth.uid);
+
+        // Replies subcollection
+        match /replies/{replyId} {
+          allow read: if true;
+          allow create: if isAuthenticated();
+          allow update, delete: if isAuthenticated() && 
+                                   (resource.data.userId == request.auth.uid || 
+                                    resource.data.channelId == request.auth.uid);
+        }
+      }
+    }
+
+    // Legacy Topic Likes Collection
+    match /topic_likes/{likeId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Legacy Topic Followers Collection
+    match /topic_followers/{followId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
+    
+    // Topic Reports Collection
+    match /topic_reports/{reportId} {
+      allow read: if false; // Admin only
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+    }
+    
     // Video Transcripts Subcollection (legacy — backend write only)
     match /videos/{videoId}/transcripts/{transcriptId} {
       allow read: if isAuthenticated();
@@ -200,6 +278,12 @@ service cloud.firestore {
         allow read: if resource.data.isPublic == true || 
                        (isAuthenticated() && request.auth.uid == userId);
         allow create, update, delete: if isAuthenticated() && request.auth.uid == userId;
+
+        match /items/{videoId} {
+          allow read: if get(/databases/$(database)/documents/users/$(userId)/playlists/$(playlistId)).data.isPublic == true ||
+                         (isAuthenticated() && request.auth.uid == userId);
+          allow write: if isAuthenticated() && request.auth.uid == userId;
+        }
       }
 
       // User Clips subcollection
@@ -212,8 +296,48 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
 
+      // User Watch Later subcollection
+      match /watch_later/{videoId} {
+        allow read, write: if isOwner(userId);
+      }
+
       // User Feed Inbox subcollection (Materialized Fan-Out Feeds)
       match /feed_inbox/{videoId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // User Liked Topics subcollection
+      match /likedTopics/{topicId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // User Saved Topics subcollection
+      match /savedTopics/{topicId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // User Liked Topic Comments subcollection
+      match /liked_topic_comments/{commentId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // User Liked Topic Replies subcollection
+      match /liked_topic_replies/{replyId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // User Video Comment Interactions subcollection
+      match /comment_interactions/{commentId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // User Video Reply Interactions subcollection
+      match /reply_interactions/{replyId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // User Liked Clips subcollection
+      match /liked_clips/{clipId} {
         allow read, write: if isOwner(userId);
       }
     }
@@ -311,6 +435,13 @@ service cloud.firestore {
       allow create: if isAuthenticated();
       allow update, delete: if isAuthenticated() && 
                                resource.data.ownerId == request.auth.uid;
+
+      match /items/{videoId} {
+        allow read: if true;
+        allow write: if isAuthenticated() && 
+                         (get(/databases/$(database)/documents/public_playlists/$(playlistId)).data.ownerId == request.auth.uid ||
+                          request.resource.data.ownerId == request.auth.uid);
+      }
     }
     
     // Channel Slugs (for availability check)

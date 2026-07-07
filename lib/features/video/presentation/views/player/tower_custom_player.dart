@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
+import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
@@ -127,7 +128,10 @@ class TowerCustomPlayer extends StatelessWidget {
                                 child: apc != null && apc.value.isInitialized
                                     ? AspectRatio(
                                         aspectRatio: apc.value.aspectRatio,
-                                        child: VideoPlayer(apc),
+                                        child: MobileFriendlyVideoPlayer(
+                                          controller: apc,
+                                          looping: false,
+                                        ),
                                       )
                                     : const CircularProgressIndicator(
                                         valueColor:

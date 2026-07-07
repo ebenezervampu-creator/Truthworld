@@ -102,7 +102,7 @@ class DownloadsController extends GetxController {
 
   void playVideo(OfflineVideo offlineVideo) {
     Get.toNamed(
-      '/videoscreen',
+      '/watch?v=${offlineVideo.id}',
       arguments: {'video': Video.fromOffline(offlineVideo), 'isOffline': true},
     );
   }

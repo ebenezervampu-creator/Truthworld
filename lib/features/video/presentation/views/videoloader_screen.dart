@@ -44,7 +44,7 @@ class _VideoLoaderScreenState extends State<VideoLoaderScreen>
   }
 
   Future<void> _loadVideo() async {
-    final videoId = Get.parameters['videoId'];
+    final videoId = Get.parameters['v'] ?? Get.parameters['videoId'];
 
     if (videoId == null) {
       _showErrorSnackbar("Error", "No video ID found in URL");
@@ -102,7 +102,7 @@ class _VideoLoaderScreenState extends State<VideoLoaderScreen>
       }
 
       // Navigate with loaded video
-      Get.offNamed("/videoscreen", arguments: {"video": video});
+      Get.offNamed("/watch?v=${video.id}", arguments: {"video": video});
       debugPrint("🧭 Video loaded and navigating to video screen");
     } catch (e) {
       _showErrorSnackbar("Error", "Something went wrong: $e");

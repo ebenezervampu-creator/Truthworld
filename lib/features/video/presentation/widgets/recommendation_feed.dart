@@ -156,7 +156,7 @@ Widget _buildVideoListItem(Video v, int index, String tag) {
       color: Colors.transparent,
       child: InkWell(
         onTap: () => Get.offAndToNamed(
-          '/videoscreen',
+          '/watch?v=${v.id}',
           arguments: {
             'video': v,
             'heroTag': 'upnext-list-thumb-${v.id}-$index',
@@ -202,7 +202,7 @@ Widget _buildVideoGridItem(Video v, int index, String tag) {
     clipBehavior: Clip.antiAlias,
     child: InkWell(
       onTap: () => Get.offAndToNamed(
-        '/videoscreen',
+        '/watch?v=${v.id}',
         arguments: {
           'video': v,
           'heroTag': 'upnext-grid-thumb-${v.id}-$index',

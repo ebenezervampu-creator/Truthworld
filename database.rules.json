@@ -1,0 +1,62 @@
+{
+  "rules": {
+    "activeViewers": {
+      "$videoId": {
+        ".read": true,
+        "$sessionId": {
+          ".read": true,
+          ".write": "auth != null && newData.child('uid').val() === auth.uid",
+          ".validate": "newData.hasChildren(['uid', 'watchedSeconds', 'position', 'updatedAt'])"
+        }
+      }
+    },
+    "liveStats": {
+      ".read": true,
+      ".write": false,
+      "$videoId": {
+        ".read": true,
+        "concurrentCount": {
+          ".read": true
+        }
+      },
+      "global": {
+        ".read": true,
+        "concurrentCount": {
+          ".read": true
+        }
+      }
+    },
+    "videoCache": {
+      ".read": true,
+      ".write": "auth != null",
+      "$videoId": {
+        ".read": true,
+        ".write": "auth != null"
+      }
+    },
+    "userCache": {
+      ".read": true,
+      ".write": "auth != null",
+      "$userId": {
+        ".read": true,
+        ".write": "auth != null"
+      }
+    },
+    "videoList": {
+      ".read": true,
+      ".write": "auth != null",
+      "$channelId": {
+        ".read": true,
+        ".write": "auth != null"
+      }
+    },
+    "commentCounts": {
+      ".read": true,
+      ".write": "auth != null",
+      "$videoId": {
+        ".read": true,
+        ".write": "auth != null"
+      }
+    }
+  }
+}

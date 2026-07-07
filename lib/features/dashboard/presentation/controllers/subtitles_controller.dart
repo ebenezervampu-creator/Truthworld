@@ -10,6 +10,8 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/services/video_media_service.dart';
+import 'package:truthworld/features/video/data/models/video_media.dart';
 
 /// Internal Cue Representation for visual preview and editing
 class SubtitleCue {
@@ -77,7 +79,7 @@ class SubtitlesController extends BaseController {
 
   Future<void> _initializeContext() async {
     try {
-      setState(ViewState.loading);
+      setViewState(ViewState.loading);
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
         setError('User not authenticated');
@@ -135,7 +137,7 @@ class SubtitlesController extends BaseController {
       videos.value = loadedVideos;
       _applySearchFilter();
 
-      setState(loadedVideos.isEmpty ? ViewState.empty : ViewState.success);
+      setViewState(loadedVideos.isEmpty ? ViewState.empty : ViewState.success);
 
       // Preserve or auto-select a video
       if (selectedVideo.value != null) {
@@ -173,7 +175,7 @@ class SubtitlesController extends BaseController {
     }).toList();
   }
 
-  void selectVideo(Video? video) {
+  void selectVideo(Video? video) async {
     selectedVideo.value = video;
     hasUnsavedChanges.value = false;
     if (video == null) {
@@ -184,6 +186,9 @@ class SubtitlesController extends BaseController {
     }
 
     logger.info('Selected video for subtitles: ${video.title}', tag: _tag);
+
+    // Lazy-load localization from subcollection first
+    await VideoMediaService().getLocalization(video.id);
 
     // Parse existing mediaSubtitles map
     final subs = video.mediaSubtitles;
@@ -198,6 +203,7 @@ class SubtitlesController extends BaseController {
       selectedLanguage.value = langs.first;
       _parseCuesForLanguage(langs.first, subs[langs.first]);
     }
+    selectedVideo.refresh();
   }
 
   void switchLanguage(String langCode) {
@@ -223,7 +229,7 @@ class SubtitlesController extends BaseController {
     // Check if it's a remote file link stored in Firestore instead of raw string data
     if (urlOrData.startsWith('gs://') || urlOrData.startsWith('http://') || urlOrData.startsWith('https://')) {
       try {
-        setState(ViewState.loading);
+        setViewState(ViewState.loading);
         String downloadUrl = urlOrData;
 
         // Resolve gs:// storage URIs to public download URLs
@@ -238,13 +244,13 @@ class SubtitlesController extends BaseController {
         } else {
           logger.error('Failed to download subtitle file from $downloadUrl, status: ${response.statusCode}', tag: _tag);
           currentCues.clear();
-          setState(ViewState.success);
+          setViewState(ViewState.success);
           return;
         }
       } catch (e) {
         logger.error('Error downloading/resolving remote subtitle link: $urlOrData', error: e, tag: _tag);
         currentCues.clear();
-        setState(ViewState.success);
+        setViewState(ViewState.success);
         return;
       }
     }
@@ -277,7 +283,7 @@ class SubtitlesController extends BaseController {
       
       if (cues.isNotEmpty) {
         currentCues.value = cues;
-        setState(ViewState.success);
+        setViewState(ViewState.success);
         return;
       }
     } else {
@@ -293,13 +299,13 @@ class SubtitlesController extends BaseController {
       }
       if (cues.isNotEmpty) {
         currentCues.value = cues;
-        setState(ViewState.success);
+        setViewState(ViewState.success);
         return;
       }
     }
 
     currentCues.clear();
-    setState(ViewState.success);
+    setViewState(ViewState.success);
   }
 
 
@@ -425,22 +431,28 @@ class SubtitlesController extends BaseController {
       // Let's store a simulated stored file URI or the raw text format
       updatedSubs[lang] = buffer.toString();
 
-      await _firestore.collection('videos').doc(video.id).update({
-        'media.subtitles': updatedSubs,
-        'subtitles': updatedSubs, // Sync fallback field as well
-      });
+      // Save to media/localization subcollection
+      await _firestore
+          .collection('videos')
+          .doc(video.id)
+          .collection('media')
+          .doc('localization')
+          .set({
+            'subtitles': updatedSubs,
+            'dubbedVideos': video.dubbedVideos,
+            'audioTracks': video.audioTracks,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
-      // Update local object to immediately reflect changes
-      selectedVideo.value = Video.fromMap({
-        ...video.toMap(),
-        'media': {
-          'subtitles': updatedSubs,
-          'dubbedVideos': video.dubbedVideos,
-          'audioTracks': video.audioTracks,
-          'factCheckUrl': video.factCheckUrl,
-        },
-        'subtitles': updatedSubs,
-      }, video.id);
+      // Update static cache to reflect changes immediately
+      VideoMediaService.localizationCache[video.id] = VideoMediaLocalization(
+        subtitles: updatedSubs,
+        dubbedVideos: video.dubbedVideos,
+        audioTracks: video.audioTracks,
+      );
+
+      // Force reactive notification
+      selectedVideo.refresh();
 
       hasUnsavedChanges.value = false;
       showSuccess('${getLanguageName(lang)} subtitles saved successfully!');

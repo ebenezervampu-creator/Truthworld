@@ -164,6 +164,9 @@ class VideoOptionsSheet extends StatelessWidget {
                     title: video.title,
                     url: 'https://www.truthworld.in/watch?v=${video.id}',
                     thumbnailUrl: video.thumbnailUrl,
+                    channelName: video.channelName,
+                    durationMs: video.durationValue.inMilliseconds,
+                    type: 'video',
                   );
                 },
               ),
@@ -272,7 +275,7 @@ class VideoOptionsSheet extends StatelessWidget {
               Text(
                 title,
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 16,
                   color: AppColors.textPrimary,
                   fontWeight: FontWeight.w400,
@@ -310,7 +313,7 @@ class VideoOptionsSheet extends StatelessWidget {
             title: Text(
               'Report Video',
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Roboto',
                 color: AppColors.textPrimary,
                 fontWeight: FontWeight.bold,
               ),
@@ -322,7 +325,7 @@ class VideoOptionsSheet extends StatelessWidget {
                   title: Text(
                     reason,
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       color: AppColors.textPrimary,
                       fontSize: 15,
                     ),

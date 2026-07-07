@@ -125,6 +125,7 @@ class TopicManagementController extends GetxController {
   Future<void> createTopic({
     required String channelId,
     required String title,
+    required String handle,
     required String description,
     required String category,
     required List<String> selectedVideoIds,
@@ -170,6 +171,46 @@ class TopicManagementController extends GetxController {
         }
       }
 
+      // 2. Validate and clean handle format
+      String cleanHandle = handle.trim();
+      if (cleanHandle.startsWith('T/')) {
+        cleanHandle = cleanHandle.substring(2);
+      }
+      if (cleanHandle.startsWith('t/')) {
+        cleanHandle = cleanHandle.substring(2);
+      }
+      cleanHandle = cleanHandle
+          .replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '-')
+          .replaceAll(RegExp(r'-+'), '-');
+      if (cleanHandle.isEmpty) {
+        AppSnackbar.show(
+          'Validation Error',
+          'Topic handle is required and must contain alphanumeric characters.',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+      final String finalHandle = 'T/$cleanHandle';
+      final String finalHandleLowercase = finalHandle.toLowerCase();
+
+      // Check if handle is already taken
+      final existingHandle = await _firestore
+          .collection('topics')
+          .where('handleLowercase', isEqualTo: finalHandleLowercase)
+          .limit(1)
+          .get();
+
+      if (existingHandle.docs.isNotEmpty) {
+        AppSnackbar.show(
+          'Action Restricted',
+          'Topic handle is already taken. Please choose a different one.',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+
       final String slug = title
           .toLowerCase()
           .replaceAll(RegExp(r'[^a-z0-9\s-]'), '')
@@ -193,6 +234,8 @@ class TopicManagementController extends GetxController {
         id: newTopicRef.id,
         title: title,
         slug: finalSlug,
+        handle: finalHandle,
+        handleLowercase: finalHandleLowercase,
         description: description,
         category: category,
         thumbnailUrl: thumbnailUrl,

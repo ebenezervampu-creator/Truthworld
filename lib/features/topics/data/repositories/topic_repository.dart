@@ -19,19 +19,41 @@ class TopicRepository {
   // TOPIC QUERIES
   // ==========================================================================
 
-  /// Get topic by slug (for /topic/:slug route)
+  /// Get topic by slug or handle or document ID (for /topic/:slug or /T/:slug route)
   Future<Topic?> getTopicBySlug(String slug) async {
     try {
-      final query = await _firestore
+      // 1. Try slug first
+      var query = await _firestore
           .collection('topics')
           .where('slug', isEqualTo: slug)
           .limit(1)
           .get();
 
-      if (query.docs.isEmpty) return null;
-      return Topic.fromDocumentSnapshot(query.docs.first);
+      if (query.docs.isNotEmpty) {
+        return Topic.fromDocumentSnapshot(query.docs.first);
+      }
+
+      // 2. Try handleLowercase (e.g. t/slug)
+      final handleToQuery = 't/${slug.toLowerCase()}';
+      query = await _firestore
+          .collection('topics')
+          .where('handleLowercase', isEqualTo: handleToQuery)
+          .limit(1)
+          .get();
+
+      if (query.docs.isNotEmpty) {
+        return Topic.fromDocumentSnapshot(query.docs.first);
+      }
+
+      // 3. Try Direct Document ID Lookup as fallback
+      final doc = await _firestore.collection('topics').doc(slug).get();
+      if (doc.exists) {
+        return Topic.fromDocumentSnapshot(doc);
+      }
+
+      return null;
     } catch (e) {
-      debugPrint('Error: $e');
+      debugPrint('Error getTopicBySlug: $e');
       return null;
     }
   }
@@ -48,16 +70,30 @@ class TopicRepository {
     }
   }
 
-  /// Stream topic by slug (for real-time updates)
+  /// Stream topic by slug or handle or document ID (for real-time updates)
   Stream<Topic?> streamTopicBySlug(String slug) {
     return _firestore
         .collection('topics')
         .where('slug', isEqualTo: slug)
-        .limit(1)
         .snapshots()
-        .map((snapshot) {
-      if (snapshot.docs.isEmpty) return null;
-      return Topic.fromDocumentSnapshot(snapshot.docs.first);
+        .asyncMap((snapshot) async {
+      if (snapshot.docs.isNotEmpty) {
+        return Topic.fromDocumentSnapshot(snapshot.docs.first);
+      }
+      final handleToQuery = 't/${slug.toLowerCase()}';
+      final handleQuery = await _firestore
+          .collection('topics')
+          .where('handleLowercase', isEqualTo: handleToQuery)
+          .limit(1)
+          .get();
+      if (handleQuery.docs.isNotEmpty) {
+        return Topic.fromDocumentSnapshot(handleQuery.docs.first);
+      }
+      final doc = await _firestore.collection('topics').doc(slug).get();
+      if (doc.exists) {
+        return Topic.fromDocumentSnapshot(doc);
+      }
+      return null;
     });
   }
 

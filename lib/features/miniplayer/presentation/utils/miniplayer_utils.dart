@@ -36,7 +36,7 @@ class MiniplayerNavigationHelper {
 
       // Navigate directly to video screen without eagerly instantiating miniplayer
       await Get.toNamed(
-        '/videoscreen',
+        '/watch?v=${video.id}',
         arguments: routeArguments ?? {'video': video},
         preventDuplicates: false,
       );
@@ -64,11 +64,6 @@ class MiniplayerNavigationHelper {
     bool autoShow = true,
   }) async {
     try {
-      if (!Get.isRegistered<MiniplayerController>(tag: 'miniplayer')) {
-        logger.warning('MiniplayerController not registered', tag: _tag);
-        return;
-      }
-
       final ctrl = MiniplayerController.to;
 
       // Show video in miniplayer
@@ -101,14 +96,6 @@ class MiniplayerNavigationHelper {
   /// Dismiss miniplayer and open the currently-loaded video in full screen.
   static void expandToFullScreen() {
     try {
-      if (!Get.isRegistered<MiniplayerController>(tag: 'miniplayer')) {
-        logger.warning(
-          'Cannot expand to fullscreen: MiniplayerController not registered',
-          tag: _tag,
-        );
-        return;
-      }
-
       MiniplayerController.to.openFullScreen();
       logger.info('Expanded miniplayer to fullscreen', tag: _tag);
     } catch (e, stackTrace) {
@@ -125,10 +112,6 @@ class MiniplayerNavigationHelper {
   /// Dismiss the miniplayer entirely.
   static void dismiss() {
     try {
-      if (!Get.isRegistered<MiniplayerController>(tag: 'miniplayer')) {
-        return; // Already dismissed
-      }
-
       MiniplayerController.to.dismiss();
       logger.info('Miniplayer dismissed', tag: _tag);
     } catch (e, stackTrace) {
@@ -145,9 +128,6 @@ class MiniplayerNavigationHelper {
   /// Whether the miniplayer is currently visible.
   static bool get isVisible {
     try {
-      if (!Get.isRegistered<MiniplayerController>(tag: 'miniplayer')) {
-        return false;
-      }
       return MiniplayerController.to.isVisible;
     } catch (e) {
       logger.error(
@@ -175,9 +155,6 @@ class MiniplayerNavigationHelper {
   /// Get the current playback position in the miniplayer
   static Duration? getCurrentPosition() {
     try {
-      if (!Get.isRegistered<MiniplayerController>(tag: 'miniplayer')) {
-        return null;
-      }
       return MiniplayerController.to.currentPosition.value;
     } catch (e) {
       logger.error('Error getting current position', error: e, tag: _tag);
@@ -210,15 +187,6 @@ class MiniplayerNavigationHelper {
     Map<String, dynamic>? arguments,
   }) async {
     try {
-      // Step 1: Prepare miniplayer with current video
-      if (!Get.isRegistered<MiniplayerController>(tag: 'miniplayer')) {
-        logger.warning('MiniplayerController not registered, skipping miniplayer',
-            tag: _tag);
-        // Continue with navigation anyway
-        await Get.toNamed(targetRoute, arguments: arguments);
-        return;
-      }
-
       // Step 2: Show video in miniplayer (asynchronously, but don't wait)
       final miniplayerCtrl = MiniplayerController.to;
       final showMiniplayer = miniplayerCtrl.showWithVideo(
@@ -263,9 +231,6 @@ class MiniplayerNavigationHelper {
   /// Returns null if no video is loaded or miniplayer is not registered
   static MiniplayerVideoInfo? getCurrentVideoInfo() {
     try {
-      if (!Get.isRegistered<MiniplayerController>(tag: 'miniplayer')) {
-        return null;
-      }
       return MiniplayerController.to.videoInfo.value;
     } catch (e) {
       logger.error('Error getting current video info', error: e, tag: _tag);

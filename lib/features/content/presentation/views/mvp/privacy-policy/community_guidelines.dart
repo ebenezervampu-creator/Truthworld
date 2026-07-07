@@ -104,7 +104,7 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
               return ListTile(
                 title: Text(
                   section.title,
-                  style: TextStyle(fontFamily: 'Inter', fontSize: 14),
+                  style: TextStyle(fontFamily: 'Roboto', fontSize: 14),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -128,13 +128,13 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
   /// Builds the main content area that displays the guidelines text
   Widget _buildContentArea(BuildContext context) {
     final bodyTextStyle = TextStyle(
-      fontFamily: 'Inter',
+      fontFamily: 'Roboto',
       fontSize: 14,
       height: 1.6,
       color: Theme.of(context).textTheme.bodyMedium?.color,
     );
     final headingTextStyle = TextStyle(
-      fontFamily: 'Inter',
+      fontFamily: 'Roboto',
       fontSize: 20,
       fontWeight: FontWeight.bold,
       color: Theme.of(context).textTheme.titleLarge?.color,
@@ -197,7 +197,7 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
                   title: Text(
                     'Community Guidelines | Truthworld',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).textTheme.titleLarge?.color,
                     ),
@@ -210,7 +210,7 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
                       child: Text(
                         'Terms of Service',
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           fontWeight: FontWeight.w500,
                           color: Theme.of(context).colorScheme.primary,
                         ),
@@ -223,7 +223,7 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
                       child: Text(
                         'Privacy Policy',
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           fontWeight: FontWeight.w500,
                           color: Theme.of(context).colorScheme.primary,
                         ),

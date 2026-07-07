@@ -1860,8 +1860,9 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
           ),
           child: InkWell(
             onTap: () {
+              final firstVideoId = widget.playlist.videoIds.isNotEmpty ? widget.playlist.videoIds.first : '';
               Get.toNamed(
-                '/videoscreen',
+                '/watch?v=$firstVideoId',
                 arguments: {'playlist': widget.playlist},
               );
             },
@@ -1887,7 +1888,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
           aspectRatio: 16 / 9,
           child: StackedThumbnail(
             thumbnailUrl: widget.playlist.thumbnailUrl,
-            videoCount: widget.playlist.videoIds.length,
+            videoCount: widget.playlist.videoCount,
             isPodcast: widget.playlist.playlistName.toLowerCase().contains('podcast'),
           ),
         ),
@@ -1925,8 +1926,9 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
         const SizedBox(height: 6),
         InkWell(
           onTap: () {
+            final firstVideoId = widget.playlist.videoIds.isNotEmpty ? widget.playlist.videoIds.first : '';
             Get.toNamed(
-              '/videoscreen',
+              '/watch?v=$firstVideoId',
               arguments: {'playlist': widget.playlist},
             );
           },
@@ -1986,7 +1988,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      "${widget.playlist.videoIds.length}",
+                      "${widget.playlist.videoCount}",
                       style: GoogleFonts.roboto(
                         color: Colors.white,
                         fontSize: 12,
@@ -2037,7 +2039,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
               ),
               const SizedBox(height: 4),
               Text(
-                "${widget.playlist.videoIds.length} videos",
+                "${widget.playlist.videoCount} videos",
                 style: GoogleFonts.roboto(
                   fontSize: 14,
                   color: Colors.white.withValues(alpha: 0.6),

@@ -86,7 +86,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                       ? controller.errorMessage
                       : 'An error occurred loading chapters',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 18,
                     color: textColor,
                     fontWeight: FontWeight.w500,
@@ -119,7 +119,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                 Text(
                   'No Videos Found',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: textColor,
@@ -129,7 +129,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                 Text(
                   'Upload videos to your channel to manage chapters.',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 15,
                     color: textSecondaryColor,
                   ),
@@ -295,7 +295,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: textColor,
@@ -339,7 +339,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
               Text(
                 'Video Chapters',
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: textColor,
@@ -359,14 +359,14 @@ class _ChaptersPageState extends State<ChaptersPage> {
             ),
             child: TextField(
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Roboto',
                 fontSize: 14,
                 color: textColor,
               ),
               decoration: InputDecoration(
                 hintText: 'Search videos...',
                 hintStyle: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 14,
                   color: widget.isDarkMode
                       ? Colors.white54
@@ -459,7 +459,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
       selectedColor: AppColors.brand,
       backgroundColor: surfaceColor,
       labelStyle: TextStyle(
-        fontFamily: 'Inter',
+        fontFamily: 'Roboto',
         color: isSelected ? Colors.white : textColor,
         fontSize: 12,
         fontWeight: FontWeight.w500,
@@ -564,7 +564,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       fontSize: 14,
                       fontWeight: isSelected
                           ? FontWeight.bold
@@ -580,7 +580,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                           'MMM d, yyyy',
                         ).format(video.uploadedAt.toDate()),
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           fontSize: 11,
                           color: textSecondaryColor,
                         ),
@@ -612,7 +612,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                             Text(
                               '$chapterCount',
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'Roboto',
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                                 color: chapterCount > 0
@@ -658,7 +658,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
           Text(
             'Select a video to edit chapters',
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               fontSize: 20,
               fontWeight: FontWeight.bold,
               color: textColor,
@@ -671,7 +671,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
               'Select a video from the sidebar menu to view existing chapters, create new chronological chapters, or use AI auto-detection to partition your content.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Roboto',
                 fontSize: 14,
                 color: textSecondaryColor,
                 height: 1.4,
@@ -729,7 +729,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontFamily: 'Inter',
+                                  fontFamily: 'Roboto',
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: textColor,
@@ -760,7 +760,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                                 child: Text(
                                   'Unsaved',
                                   style: TextStyle(
-                                    fontFamily: 'Inter',
+                                    fontFamily: 'Roboto',
                                     fontSize: 11,
                                     fontWeight: FontWeight.bold,
                                     color: const Color(0xFFF59E0B),
@@ -773,7 +773,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                         Text(
                           'Manage content chapters & segment timestamps',
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'Roboto',
                             fontSize: 12,
                             color: textSecondaryColor,
                           ),
@@ -938,7 +938,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                       Text(
                         'AI Timeline Analysis',
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                           color: textColor,
@@ -948,7 +948,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                       Text(
                         'Scanning audio track & computing semantic chapters...',
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           fontSize: 14,
                           color: textSecondaryColor,
                         ),
@@ -978,7 +978,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
           Text(
             'Timeline is Empty',
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               fontSize: 16,
               fontWeight: FontWeight.bold,
               color: textColor,
@@ -988,7 +988,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
           Text(
             'Create manual chapters or import YouTube description timestamps.',
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               fontSize: 13,
               color: textSecondaryColor,
             ),
@@ -1107,7 +1107,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                           child: Text(
                             chapter.formattedStartTime,
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Roboto',
                               color: AppColors.brand,
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
@@ -1121,7 +1121,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                           child: Text(
                             chapter.title,
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Roboto',
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
                               color: textColor,
@@ -1254,7 +1254,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                         Text(
                           'Add New Milestone Chapter',
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'Roboto',
                             color: AppColors.brand,
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
@@ -1295,7 +1295,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
             Text(
               'Import YouTube Timestamps',
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Roboto',
                 fontWeight: FontWeight.bold,
                 color: textColor,
               ),
@@ -1311,7 +1311,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
               Text(
                 'Paste video chapters/timestamps directly. Any matching timestamps will be imported and merged.',
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 13,
                   color: textSecondaryColor,
                 ),
@@ -1331,7 +1331,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                   controller: textController,
                   maxLines: 8,
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 14,
                     color: textColor,
                   ),
@@ -1339,7 +1339,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                     hintText:
                         '00:00 Introduction\n01:30 Foundational Rules\n04:15 Core Topic Details',
                     hintStyle: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       fontSize: 13,
                       color: textSecondaryColor.withValues(alpha: 0.5),
                     ),
@@ -1426,7 +1426,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                   ? 'Create Milestone Chapter'
                   : 'Edit Milestone Chapter',
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Roboto',
                 fontWeight: FontWeight.bold,
                 color: textColor,
               ),
@@ -1442,7 +1442,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
               Text(
                 'Provide the timestamp and content description for this milestone.',
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 13,
                   color: textSecondaryColor,
                 ),
@@ -1453,7 +1453,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
               Text(
                 'Start Timestamp (MM:SS or HH:MM:SS)',
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   color: textSecondaryColor,
@@ -1463,7 +1463,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
               TextField(
                 controller: timeController,
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 14,
                   color: textColor,
                 ),
@@ -1482,7 +1482,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
               Text(
                 'Chapter Title',
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   color: textSecondaryColor,
@@ -1492,7 +1492,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
               TextField(
                 controller: titleController,
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 14,
                   color: textColor,
                 ),

@@ -7,7 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
-import 'package:truthworld/features/video/presentation/controllers/comments_controller_v2.dart';
+import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/player_settings_panels.dart';
 import 'package:shimmer/shimmer.dart';
@@ -20,7 +20,7 @@ class CommentsOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tag = 'video_${ctrl.tag}';
-    final hasCommentsCtrl = Get.isRegistered<CommentsControllerV2>(tag: tag);
+    final hasCommentsCtrl = Get.isRegistered<CommentsController>(tag: tag);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -52,7 +52,7 @@ class CommentsOverlay extends StatelessWidget {
                   );
                 }
 
-                final commentsController = Get.find<CommentsControllerV2>(
+                final commentsController = Get.find<CommentsController>(
                   tag: tag,
                 );
 
@@ -102,7 +102,7 @@ class CommentsOverlay extends StatelessWidget {
             ),
             if (hasCommentsCtrl)
               FullscreenCommentInput(
-                commentsController: Get.find<CommentsControllerV2>(tag: tag),
+                commentsController: Get.find<CommentsController>(tag: tag),
               ),
           ],
         ),
@@ -113,7 +113,7 @@ class CommentsOverlay extends StatelessWidget {
 
 class FullscreenCommentItem extends StatelessWidget {
   final Comment comment;
-  final CommentsControllerV2 controller;
+  final CommentsController controller;
   const FullscreenCommentItem({
     super.key,
     required this.comment,
@@ -299,7 +299,7 @@ class FullscreenCommentItem extends StatelessWidget {
 }
 
 class FullscreenCommentInput extends StatefulWidget {
-  final CommentsControllerV2 commentsController;
+  final CommentsController commentsController;
   const FullscreenCommentInput({super.key, required this.commentsController});
 
   @override

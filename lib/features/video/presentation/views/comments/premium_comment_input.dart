@@ -1,9 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:get/get.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
 
-/// Premium comment input with enhanced UI and onSubmit callback
-class PremiumCommentInput extends StatefulWidget {
+class PremiumCommentInputController extends GetxController {
+  final TextEditingController commentController = TextEditingController();
+  final FocusNode focusNode = FocusNode();
+  final RxBool isSubmitting = false.obs;
+  final RxBool isFocused = false.obs;
+  final RxBool hasText = false.obs;
+
+  @override
+  void onInit() {
+    super.onInit();
+    focusNode.addListener(() {
+      isFocused.value = focusNode.hasFocus;
+    });
+    commentController.addListener(() {
+      hasText.value = commentController.text.trim().isNotEmpty;
+    });
+  }
+
+  @override
+  void onClose() {
+    commentController.dispose();
+    focusNode.dispose();
+    super.onClose();
+  }
+}
+
+/// Premium comment input with enhanced YouTube-style UI and onSubmit callback
+class PremiumCommentInput extends StatelessWidget {
   final String videoId;
   final bool isReply;
   final Function(String text, bool postAsChannel, String? channelId) onSubmit;
@@ -18,135 +47,149 @@ class PremiumCommentInput extends StatefulWidget {
   });
 
   @override
-  State<PremiumCommentInput> createState() => _PremiumCommentInputState();
-}
+  Widget build(BuildContext context) {
+    final controller = Get.put(
+      PremiumCommentInputController(),
+      tag: 'premium_input_${videoId}_$isReply',
+    );
+    final user = FirebaseAuth.instance.currentUser;
+    final initial = user?.email?.substring(0, 1).toUpperCase() ??
+        user?.displayName?.substring(0, 1).toUpperCase() ??
+        'U';
+    final photoUrl = user?.photoURL;
 
-class _PremiumCommentInputState extends State<PremiumCommentInput>
-    with TickerProviderStateMixin {
-  final TextEditingController _commentController = TextEditingController();
-  final FocusNode _focusNode = FocusNode();
+    Future<void> submitComment() async {
+      final text = controller.commentController.text.trim();
+      if (text.isEmpty || controller.isSubmitting.value) return;
 
-  bool _isSubmitting = false;
-  final bool _postAsChannel = false;
-  String? _selectedChannelId;
+      controller.isSubmitting.value = true;
 
-  @override
-  void dispose() {
-    _commentController.dispose();
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submitComment() async {
-    final text = _commentController.text.trim();
-    if (text.isEmpty || _isSubmitting) return;
-
-    setState(() => _isSubmitting = true);
-
-    try {
-      HapticFeedback.mediumImpact();
-      await widget.onSubmit(text, _postAsChannel, _selectedChannelId);
-      _commentController.clear();
-      _focusNode.unfocus();
-    } catch (e) {
-      debugPrint('Error submitting comment: $e');
-    } finally {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
+      try {
+        HapticFeedback.mediumImpact();
+        await onSubmit(text, false, null);
+        controller.commentController.clear();
+        controller.focusNode.unfocus();
+      } catch (e) {
+        debugPrint('Error submitting comment: $e');
+      } finally {
+        controller.isSubmitting.value = false;
       }
     }
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isMobile = MediaQuery.of(context).size.width < 600;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
-        border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.2),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        UserAvatar(
+          photoUrl: photoUrl,
+          displayName: initial,
+          radius: 18,
+          backgroundColor: Colors.blue,
+          textColor: Colors.white,
         ),
-      ),
-      padding: EdgeInsets.all(isMobile ? 12 : 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Text input
-          TextField(
-            controller: _commentController,
-            focusNode: _focusNode,
-            maxLines: 3,
-            minLines: 1,
-            textInputAction: TextInputAction.send,
-            onSubmitted: (_) => _submitComment(),
-            style: GoogleFonts.roboto(
-              fontSize: isMobile ? 14 : 15,
-              color: theme.colorScheme.onSurface,
-            ),
-            decoration: InputDecoration(
-              hintText: 'Add a comment...',
-              hintStyle: GoogleFonts.roboto(
-                color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-              ),
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.zero,
-            ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // Action buttons
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              if (widget.onCancel != null)
-                TextButton(
-                  onPressed: widget.onCancel,
-                  child: Text(
-                    'Cancel',
-                    style: GoogleFonts.roboto(
-                      color: theme.colorScheme.onSurfaceVariant,
+              TextField(
+                controller: controller.commentController,
+                focusNode: controller.focusNode,
+                maxLines: null,
+                minLines: 1,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => submitComment(),
+                style: GoogleFonts.roboto(
+                  fontSize: 14,
+                  color: Colors.white,
+                ),
+                decoration: InputDecoration(
+                  hintText: isReply ? 'Add a reply...' : 'Add a comment...',
+                  hintStyle: GoogleFonts.roboto(
+                    color: Colors.grey.shade500,
+                    fontSize: 14,
+                  ),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(
+                      color: Colors.grey.shade800,
+                      width: 1.0,
                     ),
                   ),
-                ),
-              const SizedBox(width: 8),
-              ElevatedButton.icon(
-                onPressed: _isSubmitting ? null : _submitComment,
-                icon: _isSubmitting
-                    ? SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: theme.colorScheme.onPrimary,
-                        ),
-                      )
-                    : Icon(Icons.send, size: 18),
-                label: Text(_isSubmitting ? 'Posting...' : 'Comment'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.colorScheme.primary,
-                  foregroundColor: theme.colorScheme.onPrimary,
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 16 : 20,
-                    vertical: isMobile ? 10 : 12,
+                  focusedBorder: const UnderlineInputBorder(
+                    borderSide: BorderSide(
+                      color: Colors.white,
+                      width: 1.5,
+                    ),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(isMobile ? 12 : 14),
+                  border: UnderlineInputBorder(
+                    borderSide: BorderSide(
+                      color: Colors.grey.shade800,
+                      width: 1.0,
+                    ),
                   ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
                 ),
               ),
+              Obx(() {
+                if (controller.isFocused.value || controller.hasText.value) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            controller.commentController.clear();
+                            controller.focusNode.unfocus();
+                            if (onCancel != null) onCancel!();
+                          },
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white70,
+                          ),
+                          child: const Text('Cancel'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: controller.isSubmitting.value ||
+                                  !controller.hasText.value
+                              ? null
+                              : submitComment,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: controller.hasText.value
+                                ? Colors.blue
+                                : Colors.white.withValues(alpha: 0.1),
+                            foregroundColor: controller.hasText.value
+                                ? Colors.white
+                                : Colors.white.withValues(alpha: 0.3),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                          ),
+                          child: controller.isSubmitting.value
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text('Comment'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              }),
             ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
-
-
-
-
-

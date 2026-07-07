@@ -196,7 +196,7 @@ class WatchHistoryController extends GetxController
   }
 
   void navigateToVideo(Video video) {
-    Get.toNamed("/videoscreen", arguments: {"video": video});
+    Get.toNamed('/watch?v=${video.id}', arguments: {"video": video});
   }
 
   void navigateToHome() {

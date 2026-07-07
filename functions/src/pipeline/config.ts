@@ -25,7 +25,7 @@ export const PIPELINE_CONFIG = {
    */
   GEMINI_MODELS: {
     extraction: "gemini-2.5-flash",     // Fast claim extraction (worker)
-    verification: "gemini-2.5-pro",       // Nuanced truth arbiter (judge) — KEY UPGRADE
+    verification: "gemini-2.5-flash",   // Truth arbiter — Pro unavailable, using Flash
     synthesis: "gemini-2.5-flash",     // Intelligence summaries (worker)
     consistency: "gemini-2.5-flash",     // Internal contradiction detection (worker)
     translation: "gemini-2.5-flash",     // Premium translation lane (worker)

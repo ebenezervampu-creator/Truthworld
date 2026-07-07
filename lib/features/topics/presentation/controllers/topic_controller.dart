@@ -60,13 +60,17 @@ class TopicController extends GetxController {
   // INITIALIZATION
   // ==========================================================================
 
-  /// Initialize controller with topic slug from route arguments
   @override
   void onInit() {
     super.onInit();
     final args = Get.arguments;
     if (args != null && args is Map && args.containsKey('slug')) {
       loadTopic(args['slug'] as String);
+    } else {
+      final slug = Get.parameters['slug'];
+      if (slug != null) {
+        loadTopic(slug);
+      }
     }
   }
 

@@ -642,7 +642,7 @@ class AdService extends GetxService {
                       child: Text(
                         'SPONSORED',
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           color: Colors.amber,
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
@@ -695,7 +695,7 @@ class AdService extends GetxService {
                           child: Text(
                             ad.advertiser,
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Roboto',
                               color: Colors.white,
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -720,7 +720,7 @@ class AdService extends GetxService {
                   ad.title,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -731,7 +731,7 @@ class AdService extends GetxService {
                   ad.description,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     color: Colors.white70,
                     fontSize: 14,
                     height: 1.4,
@@ -758,7 +758,7 @@ class AdService extends GetxService {
                         Text(
                           'Opening sponsored page securely...',
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'Roboto',
                             color: Colors.white60,
                             fontSize: 12,
                             fontStyle: FontStyle.italic,
@@ -802,7 +802,7 @@ class AdService extends GetxService {
                         child: Text(
                           ad.ctaText,
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'Roboto',
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -822,7 +822,7 @@ class AdService extends GetxService {
                         child: Text(
                           'Remove Ads (Get Premium)',
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'Roboto',
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -1008,7 +1008,7 @@ class AdService extends GetxService {
                   child: Text(
                     'Comments for ${ad.advertiser}',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -1048,7 +1048,7 @@ class AdService extends GetxService {
                           Text(
                             'No comments yet',
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Roboto',
                               color: Colors.white54,
                             ),
                           ),
@@ -1056,7 +1056,7 @@ class AdService extends GetxService {
                           Text(
                             'Be the first to share your thoughts!',
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Roboto',
                               color: Colors.white30,
                               fontSize: 12,
                             ),
@@ -1096,7 +1096,7 @@ class AdService extends GetxService {
                                 Text(
                                   comment.userName,
                                   style: TextStyle(
-                                    fontFamily: 'Inter',
+                                    fontFamily: 'Roboto',
                                     fontWeight: FontWeight.bold,
                                     color: Colors.white70,
                                     fontSize: 12,
@@ -1106,7 +1106,7 @@ class AdService extends GetxService {
                                 Text(
                                   '${comment.createdAt.hour}:${comment.createdAt.minute.toString().padLeft(2, '0')}',
                                   style: TextStyle(
-                                    fontFamily: 'Inter',
+                                    fontFamily: 'Roboto',
                                     color: Colors.white38,
                                     fontSize: 11,
                                   ),
@@ -1118,7 +1118,7 @@ class AdService extends GetxService {
                               child: Text(
                                 comment.text,
                                 style: TextStyle(
-                                  fontFamily: 'Inter',
+                                  fontFamily: 'Roboto',
                                   color: Colors.white,
                                   fontSize: 13,
                                 ),
@@ -1149,7 +1149,7 @@ class AdService extends GetxService {
                                         Text(
                                           '${comment.repliedBy ?? 'Advertiser'} (Sponsor)',
                                           style: TextStyle(
-                                            fontFamily: 'Inter',
+                                            fontFamily: 'Roboto',
                                             color: Colors.amber,
                                             fontWeight: FontWeight.bold,
                                             fontSize: 11,
@@ -1161,7 +1161,7 @@ class AdService extends GetxService {
                                     Text(
                                       comment.replyText!,
                                       style: TextStyle(
-                                        fontFamily: 'Inter',
+                                        fontFamily: 'Roboto',
                                         color: Colors.white,
                                         fontSize: 12,
                                       ),

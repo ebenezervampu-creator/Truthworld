@@ -29,7 +29,66 @@
     "rewrites": [
       {
         "source": "/sitemap.xml",
-        "destination": "/sitemap.xml"
+        "function": {
+          "functionId": "seoServer",
+          "region": "asia-south1"
+        }
+      },
+      {
+        "source": "/watch",
+        "function": {
+          "functionId": "seoServer",
+          "region": "asia-south1"
+        }
+      },
+      {
+        "source": "/watch/**",
+        "function": {
+          "functionId": "seoServer",
+          "region": "asia-south1"
+        }
+      },
+      {
+        "source": "/channel/**",
+        "function": {
+          "functionId": "seoServer",
+          "region": "asia-south1"
+        }
+      },
+      {
+        "source": "/@**",
+        "function": {
+          "functionId": "seoServer",
+          "region": "asia-south1"
+        }
+      },
+      {
+        "source": "/topic/**",
+        "function": {
+          "functionId": "seoServer",
+          "region": "asia-south1"
+        }
+      },
+      {
+        "source": "/T/**",
+        "function": {
+          "functionId": "seoServer",
+          "region": "asia-south1"
+        }
+      },
+      {
+        "source": "/playlist",
+        "function": {
+          "functionId": "seoServer",
+          "region": "asia-south1"
+        }
+      },
+      {
+        "source": "/playlist/**",
+        "function": {
+          "functionId": "seoServer",
+          "region": "asia-south1"
+        }
       },
       {
         "source": "/robots.txt",

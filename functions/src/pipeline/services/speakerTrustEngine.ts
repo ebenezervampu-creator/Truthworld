@@ -19,18 +19,16 @@ import { logger } from "../utils/logger";
 
 /** Status categories for speaker scoring */
 const POSITIVE_STATUSES: ClaimStatus[] = [
-  'correct', 'mostly_correct', 'tradition_linked', 'historical_tradition',
+  'verified_true', 'mostly_true',
 ];
 const NEGATIVE_STATUSES: ClaimStatus[] = [
-  'incorrect', 'historical_consensus_denial', 'incorrect_citation',
+  'false_claim', 'misleading', 'disputed',
 ];
 const NEUTRAL_STATUSES: ClaimStatus[] = [
-  'unsupported', 'unverifiable', 'needs_context', 'outdated',
-  'faith_based', 'faith_context', 'contested_interpretation',
+  'inconclusive', 'limited_support', 'unverified',
 ];
 const OPINION_STATUSES: ClaimStatus[] = [
-  'opinion', 'anecdotal_experience', 'value_judgment',
-  'preference_statement', 'unverifiable_personal_claim', 'satire',
+  'opinion_claim', 'religious_belief', 'satire_claim',
 ];
 
 export class SpeakerTrustEngine {

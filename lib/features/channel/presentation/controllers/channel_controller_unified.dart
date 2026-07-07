@@ -1429,9 +1429,15 @@ class ChannelController extends GetxController
 
   Future<bool> addModerator(String channelId, String userId) async {
     try {
-      await _firestore.collection(_channelsCol).doc(channelId).update({
-        'moderators': FieldValue.arrayUnion([userId]),
-      });
+      await _firestore
+          .collection(_channelsCol)
+          .doc(channelId)
+          .collection('moderators')
+          .doc(userId)
+          .set({
+            'userId': userId,
+            'addedAt': FieldValue.serverTimestamp(),
+          });
       _showSuccessSnackbar('Moderator added successfully');
       return true;
     } catch (e) {
@@ -1442,9 +1448,12 @@ class ChannelController extends GetxController
 
   Future<bool> removeModerator(String channelId, String userId) async {
     try {
-      await _firestore.collection(_channelsCol).doc(channelId).update({
-        'moderators': FieldValue.arrayRemove([userId]),
-      });
+      await _firestore
+          .collection(_channelsCol)
+          .doc(channelId)
+          .collection('moderators')
+          .doc(userId)
+          .delete();
       _showSuccessSnackbar('Moderator removed successfully');
       return true;
     } catch (e) {
@@ -1455,9 +1464,15 @@ class ChannelController extends GetxController
 
   Future<bool> blockUser(String channelId, String userId) async {
     try {
-      await _firestore.collection(_channelsCol).doc(channelId).update({
-        'blockedUsers': FieldValue.arrayUnion([userId]),
-      });
+      await _firestore
+          .collection(_channelsCol)
+          .doc(channelId)
+          .collection('blocked_users')
+          .doc(userId)
+          .set({
+            'userId': userId,
+            'blockedAt': FieldValue.serverTimestamp(),
+          });
       _showSuccessSnackbar('User blocked successfully');
       return true;
     } catch (e) {
@@ -1468,9 +1483,12 @@ class ChannelController extends GetxController
 
   Future<bool> unblockUser(String channelId, String userId) async {
     try {
-      await _firestore.collection(_channelsCol).doc(channelId).update({
-        'blockedUsers': FieldValue.arrayRemove([userId]),
-      });
+      await _firestore
+          .collection(_channelsCol)
+          .doc(channelId)
+          .collection('blocked_users')
+          .doc(userId)
+          .delete();
       _showSuccessSnackbar('User unblocked successfully');
       return true;
     } catch (e) {

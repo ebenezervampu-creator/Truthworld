@@ -21,28 +21,53 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:universal_html/html.dart' as html;
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
+import 'package:truthworld/components/ui/share_bottom_sheet.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/features/topics/presentation/controllers/saved_topics_controller.dart';
 
 // Feature Pages for Dashboard (Deferred for YouTube-speed startup)
-import 'package:truthworld/features/subscriptions/presentation/views/subscriptions/subscriptions.dart' deferred as subscriptions;
-import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart' deferred as history;
-import 'package:truthworld/features/myvideos/presentation/views/myvideos/my_videos.dart' deferred as my_videos;
-import 'package:truthworld/features/library/presentation/views/library/library_screen.dart' deferred as lib_feature;
-import 'package:truthworld/features/trending/presentation/views/trending/trending_page.dart' deferred as trending;
-import 'package:truthworld/features/about/presentation/views/About/about.dart' deferred as about;
-import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/privacy_polices.dart' deferred as privacy;
-import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/terms.dart' deferred as terms;
-import 'package:truthworld/features/settings/presentation/views/settings/settings.dart' deferred as settings;
-import 'package:truthworld/features/feedback/presentation/views/feedback/help.dart' deferred as help;
-import 'package:truthworld/features/video/presentation/views/clips/clips_page.dart' deferred as clips;
-import 'package:truthworld/features/feedback/presentation/views/feedback/feedbacks.dart' deferred as feedback;
-import 'package:truthworld/features/likedvideos/presentation/views/likedvideos/liked_video_screen.dart' deferred as liked_videos;
-import 'package:truthworld/features/video/presentation/views/downloadpage/download_page.dart' deferred as downloads;
-import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_screen.dart' deferred as playlist;
-import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_detail_screen.dart' deferred as playlist_detail;
-import 'package:truthworld/features/discover/presentation/views/discover_channels.dart' deferred as discover;
-import 'package:truthworld/features/channel/presentation/views/channel/channel_details_screen.dart' deferred as channel_details;
-import 'package:truthworld/features/topics/presentation/pages/explore_topics_page.dart' deferred as explore_topics;
-import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/community_guidelines.dart' deferred as community_guidelines;
+import 'package:truthworld/features/subscriptions/presentation/views/subscriptions/subscriptions.dart'
+    deferred as subscriptions;
+import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart'
+    deferred as history;
+import 'package:truthworld/features/myvideos/presentation/views/myvideos/my_videos.dart'
+    deferred as my_videos;
+import 'package:truthworld/features/library/presentation/views/library/library_screen.dart'
+    deferred as lib_feature;
+import 'package:truthworld/features/trending/presentation/views/trending/trending_page.dart'
+    deferred as trending;
+import 'package:truthworld/features/about/presentation/views/About/about.dart'
+    deferred as about;
+import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/privacy_polices.dart'
+    deferred as privacy;
+import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/terms.dart'
+    deferred as terms;
+import 'package:truthworld/features/settings/presentation/views/settings/settings.dart'
+    deferred as settings;
+import 'package:truthworld/features/feedback/presentation/views/feedback/help.dart'
+    deferred as help;
+import 'package:truthworld/features/video/presentation/views/clips/clips_page.dart'
+    deferred as clips;
+import 'package:truthworld/features/feedback/presentation/views/feedback/feedbacks.dart'
+    deferred as feedback;
+import 'package:truthworld/features/likedvideos/presentation/views/likedvideos/liked_video_screen.dart'
+    deferred as liked_videos;
+import 'package:truthworld/features/video/presentation/views/downloadpage/download_page.dart'
+    deferred as downloads;
+import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_screen.dart'
+    deferred as playlist;
+import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_detail_screen.dart'
+    deferred as playlist_detail;
+import 'package:truthworld/features/discover/presentation/views/discover_channels.dart'
+    deferred as discover;
+import 'package:truthworld/features/channel/presentation/views/channel/channel_details_screen.dart'
+    deferred as channel_details;
+import 'package:truthworld/features/topics/presentation/pages/explore_topics_page.dart'
+    deferred as explore_topics;
+import 'package:truthworld/features/topics/presentation/pages/saved_topics_page.dart'
+    deferred as saved_topics;
+import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/community_guidelines.dart'
+    deferred as community_guidelines;
 
 import 'package:truthworld/core/widgets/deferred_widget.dart';
 
@@ -86,7 +111,7 @@ ThemeData modernDarkProfessionalTheme = ThemeData(
   scaffoldBackgroundColor: darkBackground,
   cardColor: darkSurface,
   dividerColor: darkSurfaceVariant.withValues(alpha: 0.3),
-  // Enhanced Typography with Inter
+  // Enhanced Typography with Roboto
   textTheme: GoogleFonts.robotoTextTheme(ThemeData.dark().textTheme).copyWith(
     displayLarge: GoogleFonts.roboto(
       fontWeight: FontWeight.w300,
@@ -388,21 +413,7 @@ class Home extends GetView<HomeController> {
       });
     }
 
-    return AnimatedBuilder(
-      animation: controller.fadeAnimation,
-      builder: (context, child) {
-        return FadeTransition(
-          opacity: controller.fadeAnimation,
-          child: SlideTransition(
-            position: controller.slideAnimation,
-            child: ScaleTransition(
-              scale: controller.scaleAnimation,
-              child: _buildResponsiveLayout(context),
-            ),
-          ),
-        );
-      },
-    );
+    return _buildResponsiveLayout(context);
   }
 
   Widget _buildResponsiveLayout(BuildContext context) {
@@ -443,6 +454,31 @@ class Home extends GetView<HomeController> {
     );
   }
 
+  bool _isCoreTab(int index) {
+    return index == HomeController.indexHome ||
+        index == HomeController.indexSubscriptions ||
+        index == HomeController.indexDiscover ||
+        index == HomeController.indexExploreTopics ||
+        index == HomeController.indexLibrary;
+  }
+
+  int _mapIndexToTabIndex(int index) {
+    switch (index) {
+      case HomeController.indexHome:
+        return 0;
+      case HomeController.indexSubscriptions:
+        return 1;
+      case HomeController.indexDiscover:
+        return 2;
+      case HomeController.indexExploreTopics:
+        return 3;
+      case HomeController.indexLibrary:
+        return 4;
+      default:
+        return 0;
+    }
+  }
+
   Widget _buildDashboardContent(
     BuildContext context,
     HomeController controller,
@@ -452,140 +488,199 @@ class Home extends GetView<HomeController> {
   ) {
     return Obx(() {
       final int index = controller.sideNavSelectedIndex.value;
+      final bool isCore = _isCoreTab(index);
 
-      switch (index) {
-        case HomeController.indexHome:
-          return _ModernMainContent(
-            isMobile: isMobile,
-            isTablet: isTablet,
-            isDesktop: isDesktop,
-            homeController: controller,
-            appBarActionsBuilder: (ctx) => _buildAppBarActions(ctx, !isDesktop),
-          );
-        case HomeController.indexTrending:
-          return DeferredWidget(
-            loader: trending.loadLibrary,
-            builder: () => trending.TrendingVideosPage(isDashboard: true),
-          );
-        case HomeController.indexDiscover:
-          return DeferredWidget(
-            loader: discover.loadLibrary,
-            builder: () => discover.DiscoverChannelsPage(isDashboard: true),
-          );
-        case HomeController.indexSubscriptions:
-          return DeferredWidget(
-            loader: subscriptions.loadLibrary,
-            builder: () => subscriptions.SubscriptionsPage(isDashboard: true),
-          );
-        case HomeController.indexLibrary:
-          return DeferredWidget(
-            loader: lib_feature.loadLibrary,
-            builder: () => lib_feature.LibraryScreen(isDashboard: true),
-          );
-        case HomeController.indexHistory:
-          return DeferredWidget(
-            loader: history.loadLibrary,
-            builder: () => history.WatchHistory(isDashboard: true),
-          );
-        case HomeController.indexYourVideos:
-          return DeferredWidget(
-            loader: my_videos.loadLibrary,
-            builder: () => my_videos.MyVideos(isDashboard: true),
-          );
-        case HomeController.indexLikedVideos:
-          return DeferredWidget(
-            loader: liked_videos.loadLibrary,
-            builder: () => liked_videos.LikedVideoScreen(isDashboard: true),
-          );
-        case HomeController.indexDownloads:
-          return DeferredWidget(
-            loader: downloads.loadLibrary,
-            builder: () => downloads.DownloadsPage(isDashboard: true),
-          );
-        case HomeController.indexPlaylists:
+      return Stack(
+        children: [
+          // 1. Core tabs kept alive via IndexedStack
+          Offstage(
+            offstage: !isCore,
+            child: IndexedStack(
+              index: _mapIndexToTabIndex(index),
+              children: [
+                // Tab 0: Home Feed
+                _ModernMainContent(
+                  key: const PageStorageKey('tab_home'),
+                  isMobile: isMobile,
+                  isTablet: isTablet,
+                  isDesktop: isDesktop,
+                  homeController: controller,
+                  appBarActionsBuilder: (ctx) =>
+                      _buildAppBarActions(ctx, !isDesktop),
+                ),
+                // Tab 1: Subscriptions
+                DeferredWidget(
+                  key: const PageStorageKey('tab_subscriptions'),
+                  loader: subscriptions.loadLibrary,
+                  builder: () =>
+                      subscriptions.SubscriptionsPage(isDashboard: true),
+                ),
+                // Tab 2: Discover Channel
+                DeferredWidget(
+                  key: const PageStorageKey('tab_discover'),
+                  loader: discover.loadLibrary,
+                  builder: () =>
+                      discover.DiscoverChannelsPage(isDashboard: true),
+                ),
+                // Tab 3: Explore Topics
+                DeferredWidget(
+                  key: const PageStorageKey('tab_explore_topics'),
+                  loader: explore_topics.loadLibrary,
+                  builder: () =>
+                      explore_topics.ExploreTopicsPage(isDashboard: true),
+                ),
+                // Tab 4: Library
+                DeferredWidget(
+                  key: const PageStorageKey('tab_library'),
+                  loader: lib_feature.loadLibrary,
+                  builder: () => lib_feature.LibraryScreen(isDashboard: true),
+                ),
+              ],
+            ),
+          ),
+
+          // 2. Sub-pages animated with AnimatedSwitcher
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            child: !isCore
+                ? Container(
+                    key: ValueKey(index),
+                    color: modernDarkProfessionalTheme.scaffoldBackgroundColor,
+                    child: _buildSubPageContent(
+                      context,
+                      controller,
+                      index,
+                      isMobile,
+                      isTablet,
+                      isDesktop,
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
+      );
+    });
+  }
+
+  Widget _buildSubPageContent(
+    BuildContext context,
+    HomeController controller,
+    int index,
+    bool isMobile,
+    bool isTablet,
+    bool isDesktop,
+  ) {
+    switch (index) {
+      case HomeController.indexTrending:
+        return DeferredWidget(
+          loader: trending.loadLibrary,
+          builder: () => trending.TrendingVideosPage(isDashboard: true),
+        );
+      case HomeController.indexHistory:
+        return DeferredWidget(
+          loader: history.loadLibrary,
+          builder: () => history.WatchHistory(isDashboard: true),
+        );
+      case HomeController.indexYourVideos:
+        return DeferredWidget(
+          loader: my_videos.loadLibrary,
+          builder: () => my_videos.MyVideos(isDashboard: true),
+        );
+      case HomeController.indexLikedVideos:
+        return DeferredWidget(
+          loader: liked_videos.loadLibrary,
+          builder: () => liked_videos.LikedVideoScreen(isDashboard: true),
+        );
+      case HomeController.indexDownloads:
+        return DeferredWidget(
+          loader: downloads.loadLibrary,
+          builder: () => downloads.DownloadsPage(isDashboard: true),
+        );
+      case HomeController.indexPlaylists:
+        return DeferredWidget(
+          loader: playlist.loadLibrary,
+          builder: () => playlist.PlaylistScreen(isDashboard: true),
+        );
+      case HomeController.indexSavedTopics:
+        return DeferredWidget(
+          loader: saved_topics.loadLibrary,
+          builder: () => saved_topics.SavedTopicsPage(isDashboard: true),
+        );
+      case HomeController.indexClips:
+        return DeferredWidget(
+          loader: clips.loadLibrary,
+          builder: () => clips.ClipsPage(isDashboard: true),
+        );
+      case HomeController.indexAbout:
+        return DeferredWidget(
+          loader: about.loadLibrary,
+          builder: () => about.AboutPage(isDashboard: true),
+        );
+      case HomeController.indexPrivacy:
+        return DeferredWidget(
+          loader: privacy.loadLibrary,
+          builder: () => privacy.PrivacyPolicyScreen(isDashboard: true),
+        );
+      case HomeController.indexTerms:
+        return DeferredWidget(
+          loader: terms.loadLibrary,
+          builder: () => terms.TermsAndConditionsPage(isDashboard: true),
+        );
+      case HomeController.indexCommunityGuidelines:
+        return DeferredWidget(
+          loader: community_guidelines.loadLibrary,
+          builder: () =>
+              community_guidelines.CommunityGuidelinesPage(isDashboard: true),
+        );
+      case HomeController.indexSettings:
+        return DeferredWidget(
+          loader: settings.loadLibrary,
+          builder: () => settings.SettingsScreen(isDashboard: true),
+        );
+      case HomeController.indexHelp:
+        return DeferredWidget(
+          loader: help.loadLibrary,
+          builder: () => help.HelpPage(isDashboard: true),
+        );
+      case HomeController.indexFeedback:
+        return DeferredWidget(
+          loader: feedback.loadLibrary,
+          builder: () => feedback.SendFeedbackPage(isDashboard: true),
+        );
+      case HomeController.indexPlaylistDetail:
+        final p = controller.selectedPlaylist.value;
+        if (p == null) {
           return DeferredWidget(
             loader: playlist.loadLibrary,
             builder: () => playlist.PlaylistScreen(isDashboard: true),
           );
-        case HomeController.indexClips:
+        }
+        return DeferredWidget(
+          loader: playlist_detail.loadLibrary,
+          builder: () =>
+              playlist_detail.PlaylistDetailScreen(key: ValueKey(p.id)),
+        );
+      case HomeController.indexChannelDetail:
+        final c = controller.selectedChannelForDetail.value;
+        if (c == null) {
           return DeferredWidget(
-            loader: clips.loadLibrary,
-            builder: () => clips.ClipsPage(isDashboard: true),
+            loader: discover.loadLibrary,
+            builder: () => discover.DiscoverChannelsPage(isDashboard: true),
           );
-        case HomeController.indexAbout:
-          return DeferredWidget(
-            loader: about.loadLibrary,
-            builder: () => about.AboutPage(isDashboard: true),
-          );
-        case HomeController.indexPrivacy:
-          return DeferredWidget(
-            loader: privacy.loadLibrary,
-            builder: () => privacy.PrivacyPolicyScreen(isDashboard: true),
-          );
-        case HomeController.indexTerms:
-          return DeferredWidget(
-            loader: terms.loadLibrary,
-            builder: () => terms.TermsAndConditionsPage(isDashboard: true),
-          );
-        case HomeController.indexExploreTopics:
-          return DeferredWidget(
-            loader: explore_topics.loadLibrary,
-            builder: () => explore_topics.ExploreTopicsPage(isDashboard: true),
-          );
-        case HomeController.indexCommunityGuidelines:
-          return DeferredWidget(
-            loader: community_guidelines.loadLibrary,
-            builder: () => community_guidelines.CommunityGuidelinesPage(isDashboard: true),
-          );
-        case HomeController.indexSettings:
-          return DeferredWidget(
-            loader: settings.loadLibrary,
-            builder: () => settings.SettingsScreen(isDashboard: true),
-          );
-        case HomeController.indexHelp:
-          return DeferredWidget(
-            loader: help.loadLibrary,
-            builder: () => help.HelpPage(isDashboard: true),
-          );
-        case HomeController.indexFeedback:
-          return DeferredWidget(
-            loader: feedback.loadLibrary,
-            builder: () => feedback.SendFeedbackPage(isDashboard: true),
-          );
-        case HomeController.indexPlaylistDetail:
-          final p = controller.selectedPlaylist.value;
-          if (p == null) {
-            return DeferredWidget(
-              loader: playlist.loadLibrary,
-              builder: () => playlist.PlaylistScreen(isDashboard: true),
-            );
-          }
-          return DeferredWidget(
-            loader: playlist_detail.loadLibrary,
-            builder: () => playlist_detail.PlaylistDetailScreen(key: ValueKey(p.id)),
-          );
-        case HomeController.indexChannelDetail:
-          final c = controller.selectedChannelForDetail.value;
-          if (c == null) {
-            return DeferredWidget(
-              loader: discover.loadLibrary,
-              builder: () => discover.DiscoverChannelsPage(isDashboard: true),
-            );
-          }
-          return DeferredWidget(
-            loader: channel_details.loadLibrary,
-            builder: () => channel_details.ChannelDetailsPage(key: ValueKey(c.channelId), channel: c, isDashboard: true),
-          );
-        default:
-          return _ModernMainContent(
-            isMobile: isMobile,
-            isTablet: isTablet,
-            isDesktop: isDesktop,
-            homeController: controller,
-            appBarActionsBuilder: (ctx) => _buildAppBarActions(ctx, !isDesktop),
-          );
-      }
-    });
+        }
+        return DeferredWidget(
+          loader: channel_details.loadLibrary,
+          builder: () => channel_details.ChannelDetailsPage(
+            key: ValueKey(c.channelId),
+            channel: c,
+            isDashboard: true,
+          ),
+        );
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   PreferredSizeWidget? _buildGlobalAppBar(
@@ -617,7 +712,7 @@ class Home extends GetView<HomeController> {
       child: Row(
         children: [
           InkWell(
-            onTap: () => Get.offAllNamed("/home"),
+            onTap: () => Get.offAllNamed("/"),
             borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: 8.0),
@@ -724,7 +819,7 @@ class Home extends GetView<HomeController> {
     return Padding(
       padding: const EdgeInsets.only(left: 16),
       child: InkWell(
-        onTap: () => Get.offAllNamed("/home"),
+        onTap: () => Get.offAllNamed("/"),
         borderRadius: BorderRadius.circular(8),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
@@ -786,8 +881,7 @@ class Home extends GetView<HomeController> {
             },
           ),
         ),
-      if (isMobile)
-        _buildNotificationLogo(context),
+      if (isMobile) _buildNotificationLogo(context),
       if (!isMobile)
         Obx(
           () => controller.currentUser.value == null
@@ -1032,25 +1126,26 @@ class Home extends GetView<HomeController> {
         ),
         child: Theme(
           data: Theme.of(context).copyWith(
-            navigationBarTheme: modernDarkProfessionalTheme.navigationBarTheme.copyWith(
-              iconTheme: WidgetStateProperty.resolveWith((states) {
-                if (states.contains(WidgetState.selected)) {
-                  return IconThemeData(color: Colors.grey, size: 24);
-                }
-                return IconThemeData(color: darkOnSurfaceVariant, size: 24);
-              }),
-              labelTextStyle: WidgetStateProperty.resolveWith((states) {
-                final style = GoogleFonts.roboto(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  letterSpacing: 0.5,
-                );
-                if (states.contains(WidgetState.selected)) {
-                  return style.copyWith(color: Colors.grey);
-                }
-                return style.copyWith(color: darkOnSurfaceVariant);
-              }),
-            ),
+            navigationBarTheme: modernDarkProfessionalTheme.navigationBarTheme
+                .copyWith(
+                  iconTheme: WidgetStateProperty.resolveWith((states) {
+                    if (states.contains(WidgetState.selected)) {
+                      return IconThemeData(color: Colors.grey, size: 24);
+                    }
+                    return IconThemeData(color: darkOnSurfaceVariant, size: 24);
+                  }),
+                  labelTextStyle: WidgetStateProperty.resolveWith((states) {
+                    final style = GoogleFonts.roboto(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.5,
+                    );
+                    if (states.contains(WidgetState.selected)) {
+                      return style.copyWith(color: Colors.grey);
+                    }
+                    return style.copyWith(color: darkOnSurfaceVariant);
+                  }),
+                ),
           ),
           child: NavigationBar(
             selectedIndex: controller.bottomNavSelectedIndex.value,
@@ -1066,14 +1161,9 @@ class Home extends GetView<HomeController> {
                 label: 'Home',
               ),
               NavigationDestination(
-                icon: Icon(Icons.explore_outlined),
-                selectedIcon: Icon(Icons.explore),
-                label: 'Channels',
-              ),
-              NavigationDestination(
                 icon: Icon(Icons.interests_outlined),
                 selectedIcon: Icon(Icons.interests),
-                label: 'Explore Topics',
+                label: ' Topics',
               ),
               NavigationDestination(
                 icon: Icon(Icons.subscriptions_outlined),
@@ -1083,21 +1173,30 @@ class Home extends GetView<HomeController> {
               NavigationDestination(
                 icon: (() {
                   final user = controller.currentUser.value;
-                  if (user != null && user.photoURL != null && user.photoURL!.isNotEmpty) {
+                  if (user != null &&
+                      user.photoURL != null &&
+                      user.photoURL!.isNotEmpty) {
                     return CircleAvatar(
                       radius: 12,
                       backgroundImage: NetworkImage(user.photoURL!),
                     );
                   } else if (user != null) {
-                    final initial = user.displayName != null && user.displayName!.isNotEmpty
+                    final initial =
+                        user.displayName != null && user.displayName!.isNotEmpty
                         ? user.displayName![0].toUpperCase()
-                        : (user.email != null && user.email!.isNotEmpty ? user.email![0].toUpperCase() : 'E');
+                        : (user.email != null && user.email!.isNotEmpty
+                              ? user.email![0].toUpperCase()
+                              : 'E');
                     return CircleAvatar(
                       radius: 12,
                       backgroundColor: Colors.blue,
                       child: Text(
                         initial,
-                        style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     );
                   }
@@ -1105,7 +1204,9 @@ class Home extends GetView<HomeController> {
                 })(),
                 selectedIcon: (() {
                   final user = controller.currentUser.value;
-                  if (user != null && user.photoURL != null && user.photoURL!.isNotEmpty) {
+                  if (user != null &&
+                      user.photoURL != null &&
+                      user.photoURL!.isNotEmpty) {
                     return Container(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
@@ -1117,9 +1218,12 @@ class Home extends GetView<HomeController> {
                       ),
                     );
                   } else if (user != null) {
-                    final initial = user.displayName != null && user.displayName!.isNotEmpty
+                    final initial =
+                        user.displayName != null && user.displayName!.isNotEmpty
                         ? user.displayName![0].toUpperCase()
-                        : (user.email != null && user.email!.isNotEmpty ? user.email![0].toUpperCase() : 'E');
+                        : (user.email != null && user.email!.isNotEmpty
+                              ? user.email![0].toUpperCase()
+                              : 'E');
                     return Container(
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
@@ -1130,7 +1234,11 @@ class Home extends GetView<HomeController> {
                         backgroundColor: Colors.blue,
                         child: Text(
                           initial,
-                          style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     );
@@ -1210,7 +1318,9 @@ class _ModernSideNavigationRail extends StatelessWidget {
                     style: GoogleFonts.roboto(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: isDarkMode ? Colors.white54 : AppColors.textSecondary,
+                      color: isDarkMode
+                          ? Colors.white54
+                          : AppColors.textSecondary,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -1320,6 +1430,15 @@ class _ModernSideNavigationRail extends StatelessWidget {
                     ),
                     _buildNavItem(
                       context,
+                      Icons.bookmarks_rounded,
+                      Icons.bookmarks_outlined,
+                      'Saved Topics',
+                      HomeController.indexSavedTopics,
+                      route: "/saved-topics",
+                      requiresAuth: true,
+                    ),
+                    _buildNavItem(
+                      context,
                       Icons.watch_later_rounded,
                       Icons.watch_later_outlined,
                       'Watch later',
@@ -1406,7 +1525,9 @@ class _ModernSideNavigationRail extends StatelessWidget {
                     style: GoogleFonts.roboto(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: isDarkMode ? Colors.white54 : AppColors.textSecondary,
+                      color: isDarkMode
+                          ? Colors.white54
+                          : AppColors.textSecondary,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -1465,7 +1586,9 @@ class _ModernSideNavigationRail extends StatelessWidget {
                     style: GoogleFonts.roboto(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: isDarkMode ? Colors.white54 : AppColors.textSecondary,
+                      color: isDarkMode
+                          ? Colors.white54
+                          : AppColors.textSecondary,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -1544,7 +1667,6 @@ class _ModernSideNavigationRail extends StatelessWidget {
     );
   }
 
-
   Widget _buildNavItem(
     BuildContext context,
     IconData selectedIcon,
@@ -1560,7 +1682,9 @@ class _ModernSideNavigationRail extends StatelessWidget {
     }
     final bool isSelected = (index == HomeController.indexWatchLater)
         ? (selectedIndex == HomeController.indexPlaylistDetail &&
-            homeController.selectedPlaylist.value?.playlistName.toLowerCase() == 'watch later')
+              homeController.selectedPlaylist.value?.playlistName
+                      .toLowerCase() ==
+                  'watch later')
         : selectedIndex == index;
     final color = isSelected
         ? Colors.white
@@ -1706,6 +1830,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
           index == HomeController.indexDownloads ||
           index == HomeController.indexWatchLater ||
           index == HomeController.indexPlaylists ||
+          index == HomeController.indexSavedTopics ||
           index == HomeController.indexClips ||
           index == HomeController.indexExploreTopics ||
           index == HomeController.indexCommunityGuidelines ||
@@ -1827,7 +1952,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
     if (homeController.isNavigating.value) return;
     homeController.isNavigating.value = true;
     Get.toNamed(
-      '/channel-details',
+      channel.channelRoute,
       arguments: {"channel": channel, 'subscribercount': subscriberCount},
     );
     Future.delayed(Duration(seconds: 1), () {
@@ -2010,6 +2135,7 @@ class _ModernMainContent extends StatelessWidget {
   final HomeController homeController;
   final List<Widget> Function(BuildContext) appBarActionsBuilder;
   const _ModernMainContent({
+    super.key,
     required this.isMobile,
     required this.isTablet,
     required this.isDesktop,
@@ -2220,7 +2346,9 @@ class _ModernMainContent extends StatelessWidget {
                               Icons.category_rounded,
                               color: isSelected
                                   ? primaryAccent
-                                  : modernDarkProfessionalTheme.colorScheme.onSurfaceVariant,
+                                  : modernDarkProfessionalTheme
+                                        .colorScheme
+                                        .onSurfaceVariant,
                               size: 20,
                             ),
                           ),
@@ -2640,98 +2768,86 @@ class _FeaturedVideoBanner extends StatefulWidget {
 }
 
 class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
-  late final PageController _pageController;
+  late PageController _pageController;
   Timer? _timer;
-  int _currentIndex = 0;
-  bool _isHovering = false;
-  bool _isVisible = true;
+  final RxInt _currentIndex = 0.obs;
+  final RxBool _isHovering = false.obs;
+  final RxBool _isVisible = true.obs;
   static const int _infiniteItems = 10000;
 
-  final List<Map<String, String>> _banners = [
-    {
-      'title':
-          'The Future of AGI: Exclusive Interview with Leading Researchers',
-      'subtitle': '2.1M views • 4h ago',
-      'tag': 'AI Research',
-      'description':
-          'Join us for an unprecedented deep dive into the latest advancements in Artificial General Intelligence, potential timelines, and the ethical implications for humanity.',
-      'image':
-          'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1932&auto=format&fit=crop',
-      'watching': '45,201 Followers',
-      'slug': 'ai-research',
-    },
-    {
-      'title': 'Global Economic Shift: Decoding the 2026 Market Trends',
-      'subtitle': '890K views • 2h ago',
-      'tag': 'Economics',
-      'description':
-          'How new financial technologies and shifting geopolitical alliances are reshaping the world economy. Expert panel discussion inside.',
-      'image':
-          'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?q=80&w=1000&auto=format&fit=crop',
-      'watching': '12,405 Followers',
-      'slug': 'economics',
-    },
-    {
-      'title': 'SpaceX Mars Mission: First Humans to Land in 2029?',
-      'subtitle': '5.4M views • 1d ago',
-      'tag': 'Space Tech',
-      'description':
-          'Elon Musk reveals updated plans for the Starship Mars mission. Live coverage of the presentation from Starbase, Texas.',
-      'image':
-          'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop',
-      'watching': '156,000 Followers',
-      'slug': 'space-tech',
-    },
-    {
-      'title': 'Quantum Computing: Breaking the RSA Encryption Barrier',
-      'subtitle': '1.2M views • 1d ago',
-      'tag': 'Cybersecurity',
-      'description':
-          'What happens when quantum computers can crack modern encryption? We talk to the cryptographers building the post-quantum world.',
-      'image':
-          'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=1000&auto=format&fit=crop',
-      'watching': '8,210 Followers',
-      'slug': 'cybersecurity',
-    },
-    {
-      'title': 'The Rise of Smart Cities: Urban Life in 2030',
-      'subtitle': '450K views • 5h ago',
-      'tag': 'Sustainability',
-      'description':
-          'From autonomous transit to AI-driven energy grids, see how the cities of tomorrow are being built today in Singapore and Dubai.',
-      'image':
-          'https://images.unsplash.com/photo-1519567241046-7f570eee3ce6?q=80&w=1000&auto=format&fit=crop',
-      'watching': '3,540 Followers',
-      'slug': 'sustainability',
-    },
-    {
-      'title': 'The Truth About Deepfakes: Can We Trust Anything?',
-      'subtitle': '3.2M views • 12h ago',
-      'tag': 'Verified Truth',
-      'description':
-          'Investigating the alarming rise of generative video and the new verification technologies being developed to protect reality.',
-      'image':
-          'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=1000&auto=format&fit=crop',
-      'watching': '22,100 Followers',
-      'slug': 'verified-truth',
-    },
-  ];
+  final RxList<Topic> _dbTopics = <Topic>[].obs;
+  final RxBool _isLoading = true.obs;
 
   @override
   void initState() {
     super.initState();
-    // Initialize in the middle for seamless two-way infinite scrolling
+    _pageController = PageController();
+    _fetchTopicsFromFirestore();
+  }
+
+  Future<void> _fetchTopicsFromFirestore() async {
+    try {
+      _isLoading.value = true;
+      final snapshot = await FirebaseFirestore.instance
+          .collection('topics')
+          .where('isFeatured', isEqualTo: true)
+          .limit(6)
+          .get();
+
+      List<Topic> topics = [];
+      if (snapshot.docs.isNotEmpty) {
+        topics = snapshot.docs
+            .map((doc) => Topic.fromDocumentSnapshot(doc))
+            .toList();
+      }
+
+      if (topics.isEmpty) {
+        final fallbackSnapshot = await FirebaseFirestore.instance
+            .collection('topics')
+            .orderBy('videoCount', descending: true)
+            .limit(6)
+            .get();
+        if (fallbackSnapshot.docs.isNotEmpty) {
+          topics = fallbackSnapshot.docs
+              .map((doc) => Topic.fromDocumentSnapshot(doc))
+              .toList();
+        }
+      }
+
+      if (mounted) {
+        _dbTopics.value = topics;
+        _reinitPageController();
+      }
+    } catch (e) {
+      debugPrint('Error fetching topics from Firestore for home banner: $e');
+    } finally {
+      if (mounted) {
+        _isLoading.value = false;
+      }
+    }
+  }
+
+  void _reinitPageController() {
+    if (_dbTopics.isEmpty) return;
+    final int itemsCount = _dbTopics.length;
     final initialPage =
-        (_infiniteItems ~/ 2) - ((_infiniteItems ~/ 2) % _banners.length);
+        (_infiniteItems ~/ 2) - ((_infiniteItems ~/ 2) % itemsCount);
+    try {
+      _pageController.dispose();
+    } catch (e) {
+      debugPrint('PageController dispose error: $e');
+    }
     _pageController = PageController(initialPage: initialPage);
-    _currentIndex = initialPage % _banners.length;
+    _currentIndex.value = initialPage % itemsCount;
     _startAutoScroll();
   }
 
   void _startAutoScroll() {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(milliseconds: 2500), (timer) {
-      if (_pageController.hasClients && !_isHovering && _isVisible) {
+      if (_pageController.hasClients &&
+          !_isHovering.value &&
+          _isVisible.value) {
         _pageController.nextPage(
           duration: const Duration(milliseconds: 1000),
           curve: Curves.easeInOutQuart,
@@ -2743,27 +2859,15 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
   @override
   void dispose() {
     _timer?.cancel();
-    _pageController.dispose();
+    try {
+      _pageController.dispose();
+    } catch (e) {
+      debugPrint('PageController dispose error: $e');
+    }
     super.dispose();
   }
 
-  void _navigateToTopic(BuildContext context, Map<String, String> banner) {
-    final slug = banner['slug'];
-    if (slug == null || slug.isEmpty) return;
-
-    final topic = Topic(
-      id: slug,
-      title: banner['title'] ?? '',
-      slug: slug,
-      description: banner['description'] ?? '',
-      category: banner['tag'] ?? 'Technology',
-      thumbnailUrl: banner['image'],
-      coverImage: banner['image'],
-      createdAt: DateTime.now(),
-      updatedAt: DateTime.now(),
-      followerCount: int.tryParse(banner['watching']?.replaceAll(RegExp(r'[^0-9]'), '') ?? '') ?? 0,
-    );
-
+  void _navigateToTopic(BuildContext context, Topic topic) {
     if (Get.isRegistered<TopicController>()) {
       Get.find<TopicController>().topic.value = topic;
     } else {
@@ -2771,11 +2875,8 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
     }
 
     Get.toNamed(
-      '/topic/$slug',
-      arguments: {
-        'slug': slug,
-        'fromCard': true,
-      },
+      topic.topicRoute,
+      arguments: {'slug': topic.slug, 'fromCard': true, 'topic': topic},
     );
   }
 
@@ -2784,140 +2885,178 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
     final bool isMobile = MediaQuery.of(context).size.width < kTabletBreakpoint;
     final double bannerHeight = isMobile ? 320 : 520;
 
-    return VisibilityDetector(
-      key: const Key('featured_banner_visibility'),
-      onVisibilityChanged: (info) {
-        if (!mounted) return;
-        final visible = info.visibleFraction > 0.1;
-        if (_isVisible != visible) {
-          setState(() {
-            _isVisible = visible;
-          });
-        }
-      },
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          horizontal: widget.horizontalPadding,
-          vertical: 16,
-        ),
-        child: MouseRegion(
-          onEnter: (_) => setState(() => _isHovering = true),
-          onExit: (_) => setState(() => _isHovering = false),
-          child: Container(
-            height: bannerHeight,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.4),
-                  blurRadius: 20,
-                  offset: Offset(0, 10),
-                ),
-              ],
+    return Obx(() {
+      if (_isLoading.value) {
+        return Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.horizontalPadding,
+            vertical: 16,
+          ),
+          child: Shimmer.fromColors(
+            baseColor: modernDarkProfessionalTheme
+                .colorScheme
+                .surfaceContainerHighest
+                .withValues(alpha: 0.3),
+            highlightColor: modernDarkProfessionalTheme
+                .colorScheme
+                .surfaceContainerHighest
+                .withValues(alpha: 0.1),
+            child: Container(
+              height: bannerHeight,
+              decoration: BoxDecoration(
+                color: modernDarkProfessionalTheme
+                    .colorScheme
+                    .surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(24),
+              ),
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: Stack(
-                children: [
-                  PageView.builder(
-                    controller: _pageController,
-                    itemCount: _infiniteItems,
-                    onPageChanged: (index) =>
-                        setState(() => _currentIndex = index % _banners.length),
-                    itemBuilder: (context, index) {
-                      final bannerIndex = index % _banners.length;
-                      return AnimatedBuilder(
-                        animation: _pageController,
-                        builder: (context, child) {
-                          double pageOffset = 0;
-                          if (_pageController.hasClients) {
-                            try {
-                              pageOffset = _pageController.page! - index;
-                            } catch (e) {
-                              pageOffset = 0;
-                            }
-                          }
+          ),
+        );
+      }
 
-                          // Awesome transition effects
-                          final double scale = (1 - (pageOffset.abs() * 0.3))
-                              .clamp(0.7, 1.0);
-                          final double opacity = (1 - (pageOffset.abs() * 0.5))
-                              .clamp(0.0, 1.0);
+      if (_dbTopics.isEmpty) {
+        return const SizedBox.shrink();
+      }
 
-                          return Opacity(
-                            opacity: opacity,
-                            child: Transform.scale(
-                              scale: scale,
-                              child: _buildBannerItem(
-                                context,
-                                _banners[bannerIndex],
-                                isMobile,
-                                pageOffset,
-                              ),
-                            ),
-                          );
-                        },
-                      );
-                    },
+      final int itemsCount = _dbTopics.length;
+      return VisibilityDetector(
+        key: const Key('featured_banner_visibility'),
+        onVisibilityChanged: (info) {
+          if (!mounted) return;
+          final visible = info.visibleFraction > 0.1;
+          if (_isVisible.value != visible) {
+            _isVisible.value = visible;
+          }
+        },
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.horizontalPadding,
+            vertical: 16,
+          ),
+          child: MouseRegion(
+            onEnter: (_) => _isHovering.value = true,
+            onExit: (_) => _isHovering.value = false,
+            child: Container(
+              height: bannerHeight,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    blurRadius: 20,
+                    offset: Offset(0, 10),
                   ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Stack(
+                  children: [
+                    PageView.builder(
+                      controller: _pageController,
+                      itemCount: _infiniteItems,
+                      onPageChanged: (index) =>
+                          _currentIndex.value = index % itemsCount,
+                      itemBuilder: (context, index) {
+                        final bannerIndex = index % itemsCount;
+                        return AnimatedBuilder(
+                          animation: _pageController,
+                          builder: (context, child) {
+                            double pageOffset = 0;
+                            if (_pageController.hasClients) {
+                              try {
+                                pageOffset = _pageController.page! - index;
+                              } catch (e) {
+                                pageOffset = 0;
+                              }
+                            }
 
-                  // Navigation Buttons (Desktop only or large tablets)
-                  if (!isMobile) ...[
-                    _buildNavButton(
-                      isLeft: true,
-                      onTap: () => _pageController.previousPage(
-                        duration: const Duration(milliseconds: 800),
-                        curve: Curves.easeInOutQuart,
-                      ),
+                            // Awesome transition effects
+                            final double scale = (1 - (pageOffset.abs() * 0.3))
+                                .clamp(0.7, 1.0);
+                            final double opacity =
+                                (1 - (pageOffset.abs() * 0.5)).clamp(0.0, 1.0);
+
+                            return Opacity(
+                              opacity: opacity,
+                              child: Transform.scale(
+                                scale: scale,
+                                child: _buildBannerItem(
+                                  context,
+                                  topic: _dbTopics[bannerIndex],
+                                  isMobile: isMobile,
+                                  pageOffset: pageOffset,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
                     ),
-                    _buildNavButton(
-                      isLeft: false,
-                      onTap: () => _pageController.nextPage(
-                        duration: const Duration(milliseconds: 800),
-                        curve: Curves.easeInOutQuart,
+
+                    // Navigation Buttons (Desktop only or large tablets)
+                    if (!isMobile) ...[
+                      _buildNavButton(
+                        isLeft: true,
+                        onTap: () => _pageController.previousPage(
+                          duration: const Duration(milliseconds: 800),
+                          curve: Curves.easeInOutQuart,
+                        ),
+                      ),
+                      _buildNavButton(
+                        isLeft: false,
+                        onTap: () => _pageController.nextPage(
+                          duration: const Duration(milliseconds: 800),
+                          curve: Curves.easeInOutQuart,
+                        ),
+                      ),
+                    ],
+
+                    // Page Indicators
+                    Positioned(
+                      bottom: 24,
+                      left: 0,
+                      right: 0,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(itemsCount, (index) {
+                          return Obx(() {
+                            final bool isSelected =
+                                _currentIndex.value == index;
+                            return AnimatedContainer(
+                              duration: const Duration(milliseconds: 300),
+                              width: isSelected ? 32 : 8,
+                              height: 8,
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.white38,
+                                borderRadius: BorderRadius.circular(4),
+                                boxShadow: isSelected
+                                    ? [
+                                        BoxShadow(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.5,
+                                          ),
+                                          blurRadius: 8,
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                            );
+                          });
+                        }),
                       ),
                     ),
                   ],
-
-                  // Page Indicators
-                  Positioned(
-                    bottom: 24,
-                    left: 0,
-                    right: 0,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(_banners.length, (index) {
-                        final bool isSelected = _currentIndex == index;
-                        return AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          width: isSelected ? 32 : 8,
-                          height: 8,
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          decoration: BoxDecoration(
-                            color: isSelected ? Colors.white : Colors.white38,
-                            borderRadius: BorderRadius.circular(4),
-                            boxShadow: isSelected
-                                ? [
-                                    BoxShadow(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.5,
-                                      ),
-                                      blurRadius: 8,
-                                    ),
-                                  ]
-                                : null,
-                          ),
-                        );
-                      }),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
         ),
-      ),
-    );
+      );
+    });
   }
 
   Widget _buildNavButton({required bool isLeft, required VoidCallback onTap}) {
@@ -2957,13 +3096,48 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
   }
 
   Widget _buildBannerItem(
-    BuildContext context,
-    Map<String, String> banner,
-    bool isMobile,
-    double pageOffset,
-  ) {
+    BuildContext context, {
+    required Topic topic,
+    required bool isMobile,
+    required double pageOffset,
+  }) {
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('topics')
+          .doc(topic.id)
+          .snapshots(),
+      builder: (context, snapshot) {
+        Topic currentTopic = topic;
+        if (snapshot.hasData && snapshot.data!.exists) {
+          currentTopic = Topic.fromDocumentSnapshot(snapshot.data!);
+        }
+        return _buildBannerItemContent(
+          context,
+          topic: currentTopic,
+          isMobile: isMobile,
+          pageOffset: pageOffset,
+        );
+      },
+    );
+  }
+
+  Widget _buildBannerItemContent(
+    BuildContext context, {
+    required Topic topic,
+    required bool isMobile,
+    required double pageOffset,
+  }) {
+    final savedController = Get.isRegistered<SavedTopicsController>()
+        ? Get.find<SavedTopicsController>()
+        : Get.put(SavedTopicsController());
+
+    final double btnPaddingH = isMobile ? 12 : 20;
+    final double btnPaddingV = isMobile ? 8 : 12;
+    final double btnFontSize = isMobile ? 13 : 15;
+    final double btnIconSize = isMobile ? 16 : 18;
+
     return GestureDetector(
-      onTap: () => _navigateToTopic(context, banner),
+      onTap: () => _navigateToTopic(context, topic),
       behavior: HitTestBehavior.opaque,
       child: Stack(
         children: [
@@ -2971,7 +3145,21 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
           Positioned.fill(
             child: Transform.translate(
               offset: Offset(pageOffset * 100, 0), // Parallax move
-              child: Image.network(banner['image']!, fit: BoxFit.cover),
+              child: Image.network(
+                (topic.coverImage?.isNotEmpty == true
+                        ? topic.coverImage
+                        : topic.thumbnailUrl?.isNotEmpty == true
+                        ? topic.thumbnailUrl
+                        : null) ??
+                    'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1932&auto=format&fit=crop',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  return Image.network(
+                    'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1932&auto=format&fit=crop',
+                    fit: BoxFit.cover,
+                  );
+                },
+              ),
             ),
           ),
           // Gradient Overlay
@@ -3000,7 +3188,10 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
               children: [
                 // TOPIC Badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.brand,
                     borderRadius: BorderRadius.circular(4),
@@ -3030,7 +3221,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                 SizedBox(
                   width: isMobile ? double.infinity : 700,
                   child: Text(
-                    banner['title']!,
+                    topic.title,
                     style: GoogleFonts.roboto(
                       fontSize: isMobile ? 24 : 48,
                       fontWeight: FontWeight.w700,
@@ -3042,13 +3233,18 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                 ),
                 const SizedBox(height: 16),
                 // Meta Info
-                Row(
+                Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 4,
                   children: [
                     Text(
-                      banner['subtitle']!,
-                      style: const TextStyle(color: Colors.white70, fontSize: 14),
+                      '${topic.videoCount} videos • ${timeago.format(topic.createdAt)}',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
                     ),
-                    const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -3059,8 +3255,11 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        banner['tag']!,
-                        style: const TextStyle(color: Colors.white, fontSize: 12),
+                        topic.category,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                   ],
@@ -3071,7 +3270,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                   SizedBox(
                     width: 550,
                     child: Text(
-                      banner['description']!,
+                      topic.description,
                       style: const TextStyle(
                         color: Colors.white60,
                         fontSize: 16,
@@ -3084,58 +3283,130 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                 ],
                 const SizedBox(height: 32),
                 // Buttons
-                Row(
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 8,
                   children: [
+                    Obx(() {
+                      final isSaved = savedController.isTopicSaved(topic.id);
+                      return ElevatedButton.icon(
+                        onPressed: () {
+                          savedController.toggleFollowTopic(topic);
+                        },
+                        icon: Icon(
+                          isSaved
+                              ? Icons.check_circle_outline_rounded
+                              : Icons.person_add_alt_1_outlined,
+                          color: isSaved ? Colors.white : Colors.black,
+                          size: btnIconSize,
+                        ),
+                        label: Text(
+                          isSaved ? 'Following' : 'Follow',
+                          style: TextStyle(
+                            color: isSaved ? Colors.white : Colors.black,
+                            fontWeight: FontWeight.w500,
+                            fontSize: btnFontSize,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isSaved
+                              ? Colors.white.withValues(alpha: 0.15)
+                              : Colors.white,
+                          foregroundColor: isSaved
+                              ? Colors.white
+                              : Colors.black,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: btnPaddingH,
+                            vertical: btnPaddingV,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            side: isSaved
+                                ? BorderSide(
+                                    color: Colors.white.withValues(alpha: 0.3),
+                                    width: 1,
+                                  )
+                                : BorderSide.none,
+                          ),
+                          elevation: 0,
+                        ),
+                      );
+                    }),
+                    Obx(() {
+                      final isSaved = savedController.isTopicSaved(topic.id);
+                      return ElevatedButton.icon(
+                        onPressed: () {
+                          savedController.toggleFollowTopic(topic);
+                        },
+                        icon: Icon(
+                          isSaved
+                              ? Icons.bookmark_rounded
+                              : Icons.bookmark_border_rounded,
+                          color: isSaved ? AppColors.brand : Colors.white,
+                          size: btnIconSize,
+                        ),
+                        label: Text(
+                          isSaved ? 'Saved' : 'Save',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                            fontSize: btnFontSize,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white.withValues(alpha: 0.15),
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: btnPaddingH,
+                            vertical: btnPaddingV,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            side: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.3),
+                              width: 1,
+                            ),
+                          ),
+                          elevation: 0,
+                        ),
+                      );
+                    }),
                     ElevatedButton.icon(
-                      onPressed: () => _navigateToTopic(context, banner),
-                      icon: const Icon(
-                        Icons.person_add_alt_1_outlined,
-                        color: Colors.black,
-                        size: 18,
-                      ),
-                      label: const Text(
-                        'Follow',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.w500,
-                          fontSize: 15,
-                        ),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24),
-                        ),
-                        elevation: 0,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    ElevatedButton.icon(
-                      onPressed: () => _navigateToTopic(context, banner),
-                      icon: const Icon(
-                        Icons.bookmark_border_rounded,
+                      onPressed: () {
+                        final String slug = topic.slug;
+                        final String title = topic.title;
+                        final String? imageUrl =
+                            topic.coverImage ?? topic.thumbnailUrl;
+                        final topicUrl = DeepLinkService.topicUrl(slug);
+                        ShareBottomSheet.show(
+                          title: title,
+                          url: topicUrl,
+                          thumbnailUrl: imageUrl,
+                          followerCount: topic.followerCount,
+                          videoCount: topic.videoCount,
+                          handle: slug,
+                          type: 'topic',
+                        );
+                      },
+                      icon: Icon(
+                        Icons.share_rounded,
                         color: Colors.white,
-                        size: 18,
+                        size: btnIconSize,
                       ),
-                      label: const Text(
-                        'Save',
+                      label: Text(
+                        'Share',
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.w500,
-                          fontSize: 15,
+                          fontSize: btnFontSize,
                         ),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white.withValues(alpha: 0.15),
                         foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 12,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: btnPaddingH,
+                          vertical: btnPaddingV,
                         ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(24),
@@ -3172,7 +3443,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    banner['watching']!,
+                    '${_formatCount(topic.followerCount)} Followers',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 12,
@@ -3186,6 +3457,16 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
         ],
       ),
     );
+  }
+
+  String _formatCount(int count) {
+    if (count < 0) count = 0;
+    if (count >= 1000000) {
+      return '${(count / 1000000).toStringAsFixed(1)}M';
+    } else if (count >= 1000) {
+      return '${(count / 1000).toStringAsFixed(1)}K';
+    }
+    return count.toString();
   }
 }
 
@@ -3353,8 +3634,3 @@ extension StringExtension on String {
     return substring(start, end);
   }
 }
-
-
-
-
-

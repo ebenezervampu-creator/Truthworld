@@ -17,6 +17,8 @@ class Topic {
   final String id;
   final String title;
   final String slug;
+  final String handle;
+  final String handleLowercase;
   final String description;
   final String category;
   final String? thumbnailUrl;
@@ -40,6 +42,8 @@ class Topic {
     required this.id,
     required this.title,
     required this.slug,
+    required this.handle,
+    required this.handleLowercase,
     required this.description,
     required this.category,
     this.thumbnailUrl,
@@ -63,10 +67,13 @@ class Topic {
   /// Create from Firestore document
   factory Topic.fromDocumentSnapshot(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
+    final slugVal = data['slug'] ?? '';
     return Topic(
       id: doc.id,
       title: data['title'] ?? '',
-      slug: data['slug'] ?? '',
+      slug: slugVal,
+      handle: data['handle'] ?? 'T/$slugVal',
+      handleLowercase: data['handleLowercase'] ?? 't/${slugVal.toLowerCase()}',
       description: data['description'] ?? '',
       category: data['category'] ?? '',
       thumbnailUrl: data['thumbnailUrl'],
@@ -93,6 +100,8 @@ class Topic {
     return {
       'title': title,
       'slug': slug,
+      'handle': handle,
+      'handleLowercase': handleLowercase,
       'description': description,
       'category': category,
       'thumbnailUrl': thumbnailUrl,
@@ -119,6 +128,8 @@ class Topic {
     String? id,
     String? title,
     String? slug,
+    String? handle,
+    String? handleLowercase,
     String? description,
     String? category,
     String? thumbnailUrl,
@@ -142,6 +153,8 @@ class Topic {
       id: id ?? this.id,
       title: title ?? this.title,
       slug: slug ?? this.slug,
+      handle: handle ?? this.handle,
+      handleLowercase: handleLowercase ?? this.handleLowercase,
       description: description ?? this.description,
       category: category ?? this.category,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
@@ -163,6 +176,22 @@ class Topic {
     );
   }
 
+  /// Returns the routing parameter (the handle without "T/" prefix, or slug as fallback)
+  String get routePathParameter {
+    if (handle.isNotEmpty) {
+      String clean = handle.trim();
+      if (clean.startsWith('T/')) {
+        return clean.substring(2);
+      }
+      if (clean.startsWith('t/')) {
+        return clean.substring(2);
+      }
+      return clean;
+    }
+    return slug;
+  }
+
+  String get topicRoute => '/T/$routePathParameter';
 }
 
 /// Lightweight topic reference for related topics list

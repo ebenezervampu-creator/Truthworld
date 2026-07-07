@@ -102,7 +102,7 @@ class TrendingPage extends StatelessWidget {
                   color: Colors.redAccent,
                 ),
                 onTap: () {
-                  Get.toNamed('/videoscreen', arguments: {"video": video});
+                  Get.toNamed('/watch?v=${video.id}', arguments: {"video": video});
                 },
               ),
             );

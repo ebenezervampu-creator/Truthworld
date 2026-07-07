@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:chewie/chewie.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -8,17 +7,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/features/video/presentation/views/comments/premium_comment_input.dart';
-import 'package:truthworld/features/video/presentation/controllers/comments_controller_v2.dart';
+import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
-import 'package:truthworld/features/video/presentation/widgets/sliver_tab_bar_delegate.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import '../controllers/video_controller.dart';
 import '../controllers/custom_play.dart';
@@ -51,11 +50,6 @@ class VideoScreen extends GetView<VideoController> {
     // Ensure controller is fully instantiated/found BEFORE entering any Obx block
     final ctrl = controller;
 
-    final bool isMobilePlatform =
-        !kIsWeb &&
-        (Theme.of(context).platform == TargetPlatform.iOS ||
-            Theme.of(context).platform == TargetPlatform.android);
-
     // Dismiss miniplayer once when screen first builds
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (Get.isRegistered<MiniplayerController>(tag: 'miniplayer')) {
@@ -66,9 +60,7 @@ class VideoScreen extends GetView<VideoController> {
     return PopScope(
       canPop: true,
       onPopInvokedWithResult: (didPop, result) {
-        if (didPop) {
-          _handleBackToMiniplayer();
-        }
+        // Handled by VideoController onClose to ensure unified exit logic
       },
       child: Obx(() {
         if (ctrl.video.id.isEmpty) {
@@ -101,10 +93,7 @@ class VideoScreen extends GetView<VideoController> {
               },
             ),
           ),
-          // Hide bottom nav in fullscreen
-          bottomNavigationBar: (isMobilePlatform && !ctrl.isFullScreen.value)
-              ? _buildBottomNavigationBar(context)
-              : null,
+          bottomNavigationBar: null,
         );
       }),
     );
@@ -116,74 +105,19 @@ class VideoScreen extends GetView<VideoController> {
   MainController get _mainController => Get.find<MainController>();
   PlaylistController get _playlistController => Get.find<PlaylistController>();
 
-  void _handleBackToMiniplayer() {
-    try {
-      // Check if controllers are still registered
-      if (!Get.isRegistered<VideoController>(tag: tag)) {
-        debugPrint(
-          '[VideoScreen] VideoController not registered, skipping miniplayer',
-        );
-        return;
-      }
-      if (!Get.isRegistered<MiniplayerController>(tag: 'miniplayer')) {
-        debugPrint(
-          '[VideoScreen] MiniplayerController not registered, skipping miniplayer',
-        );
-        return;
-      }
-
-      final videoController = controller;
-      final pos =
-          videoController.videoPlayerController?.value.position ??
-          Duration.zero;
-
-      // Only show miniplayer if we have valid video data
-      if (videoController.video.id.isNotEmpty) {
-        MiniplayerController.to.showWithVideo(
-          videoController.video,
-          resumeFromPosition: pos,
-          overrideUrl: videoController.currentResolution.value?.url,
-        );
-      }
-    } catch (e) {
-      debugPrint('[VideoScreen] Error starting miniplayer on pop: $e');
-    }
-  }
 
   // ==========================================================================
   // RESPONSIVE LAYOUTS
   // ==========================================================================
 
   Widget _buildMobileLayout(BuildContext context) {
-    // Normal mode - show full UI with tabs
     return CustomScrollView(
       controller: controller.scrollController,
       physics: const BouncingScrollPhysics(),
       slivers: [
         _buildVideoPlayerSection(),
         _buildVideoInfoSection(context),
-        SliverPersistentHeader(
-          pinned: true,
-          delegate: SliverTabBarDelegate(
-            TabBar(
-              controller: controller.mobileTabController,
-              labelColor: primary,
-              unselectedLabelColor: textSecondary,
-              indicatorColor: primary,
-              indicatorWeight: 2.5,
-              indicatorSize: TabBarIndicatorSize.label,
-              tabs: const [
-                Tab(text: 'More From Channel'),
-                Tab(text: 'Comments'),
-              ],
-              onTap: (index) {
-                controller.mobileTabIndex.value = index;
-              },
-            ),
-            backgroundColor: background,
-          ),
-        ),
-        ..._buildMobileTabContent(context),
+        ..._buildCommentsSlivers(context),
       ],
     );
   }
@@ -200,28 +134,7 @@ class VideoScreen extends GetView<VideoController> {
             slivers: [
               _buildVideoPlayerSection(),
               _buildVideoInfoSection(context, isDesktop: true),
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: SliverTabBarDelegate(
-                  TabBar(
-                    controller: controller.desktopTabController,
-                    labelColor: primary,
-                    unselectedLabelColor: textSecondary,
-                    indicatorColor: primary,
-                    indicatorWeight: 2.5,
-                    indicatorSize: TabBarIndicatorSize.label,
-                    tabs: const [
-                      Tab(text: 'More From Channel'),
-                      Tab(text: 'Comments'),
-                    ],
-                    onTap: (index) {
-                      controller.desktopTabIndex.value = index;
-                    },
-                  ),
-                  backgroundColor: background,
-                ),
-              ),
-              ..._buildDesktopTabContent(context),
+              ..._buildCommentsSlivers(context),
             ],
           ),
         ),
@@ -264,47 +177,13 @@ class VideoScreen extends GetView<VideoController> {
     );
   }
 
-  // ==========================================================================
-  // TAB CONTENT BUILDERS
-  // ==========================================================================
-
-  List<Widget> _buildMobileTabContent(BuildContext context) {
-    switch (controller.mobileTabIndex.value) {
-      case 0:
-        return [
-          _buildUpNext(
-            currentVideo: controller.video,
-            videoId: controller.video.id,
-          ),
-        ];
-      case 1:
-        return _buildCommentsSlivers(context);
-      default:
-        return [];
-    }
-  }
-
-  List<Widget> _buildDesktopTabContent(BuildContext context) {
-    switch (controller.desktopTabIndex.value) {
-      case 0:
-        return [
-          _buildUpNext(
-            currentVideo: controller.video,
-            videoId: controller.video.id,
-          ),
-        ];
-      case 1:
-        return _buildCommentsSlivers(context);
-      default:
-        return [];
-    }
-  }
 
   // ==========================================================================
   // SHARED WIDGETS
   // ==========================================================================
 
   PreferredSizeWidget _buildAppBar(BuildContext context) {
+    final bool isDesktop = MediaQuery.of(context).size.width > 1050;
     // Check if user came from home screen
     final previousRoute = Get.previousRoute;
     final isFromHome =
@@ -312,7 +191,7 @@ class VideoScreen extends GetView<VideoController> {
         previousRoute.isEmpty ||
         previousRoute == '/';
 
-    if (isFromHome) {
+    if (isFromHome && isDesktop) {
       // Exact replica of home screen app bar
       return AppBar(
         backgroundColor: AppColors.bgPage,
@@ -352,7 +231,7 @@ class VideoScreen extends GetView<VideoController> {
         children: [
           // Logo
           InkWell(
-            onTap: () => Get.offAllNamed("/home"),
+            onTap: () => Get.offAllNamed("/"),
             borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: EdgeInsets.symmetric(vertical: 8.0),
@@ -1376,6 +1255,9 @@ class VideoScreen extends GetView<VideoController> {
                       controller.video.id,
                       controller.video.title,
                       thumbnailUrl: controller.video.thumbnailUrl,
+                      channelName: controller.video.channelName,
+                      durationMs: controller.video.durationValue.inMilliseconds,
+                      currentPosition: controller.videoPlayerController?.value.position,
                     );
                   },
                 ),
@@ -1502,7 +1384,10 @@ class VideoScreen extends GetView<VideoController> {
             children: [
               // Channel Avatar + Info - Tappable to navigate to channel
               InkWell(
-                onTap: () => Get.toNamed('/channel/${channel.id}'),
+                onTap: () => Get.toNamed(
+                  channel.channelRoute,
+                  arguments: {'channel': channel},
+                ),
                 borderRadius: BorderRadius.circular(8),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -2045,126 +1930,206 @@ class VideoScreen extends GetView<VideoController> {
 
   List<Widget> _buildCommentsSlivers(BuildContext context) {
     final tag = 'video_${controller.video.id}';
-    final commentsController = Get.find<CommentsControllerV2>(tag: tag);
+    final commentsController = Get.find<CommentsController>(tag: tag);
     final currentUser = FirebaseAuth.instance.currentUser;
 
-    // Real comments list based on reactive state
     return [
       SliverToBoxAdapter(
         child: Padding(
-          padding: EdgeInsets.all(16),
-          child: currentUser != null
-              ? PremiumCommentInput(
-                  key: ValueKey('main_comment_input_${controller.video.id}'),
-                  videoId: controller.video.id,
-                  onSubmit: (text, postAsChannel, channelId) async {
-                    try {
-                      await commentsController.submitComment(
-                        text: text,
-                        channelId: postAsChannel ? channelId : null,
-                        channelName: postAsChannel ? 'Current Channel' : null,
-                        channelProfilePicUrl: null,
-                        userProfilePicUrl: currentUser.photoURL ?? '',
-                      );
-                      if (Get.context != null) {
-                        Get.snackbar(
-                          'Success',
-                          'Comment posted',
-                          snackPosition: SnackPosition.BOTTOM,
-                          duration: const Duration(seconds: 2),
-                        );
-                      }
-                    } catch (e) {
-                      if (Get.context != null) {
-                        Get.snackbar(
-                          'Error',
-                          'Failed to post comment: $e',
-                          snackPosition: SnackPosition.BOTTOM,
-                        );
-                      }
-                    }
-                  },
-                  onCancel: () {},
-                )
-              : Container(
-                  padding: const EdgeInsets.all(16),
-                  margin: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: cardBackground,
-                    borderRadius: BorderRadius.circular(12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Obx(() {
+                    final count = commentsController.comments.length;
+                    return Text(
+                      '$count Comments',
+                      style: GoogleFonts.roboto(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    );
+                  }),
+                  const SizedBox(width: 24),
+                  PopupMenuButton<bool>(
+                    onSelected: (bool newest) {
+                      commentsController.sortComments(newest);
+                    },
+                    offset: const Offset(0, 30),
+                    itemBuilder: (BuildContext context) => <PopupMenuEntry<bool>>[
+                      PopupMenuItem<bool>(
+                        value: false,
+                        child: Obx(() {
+                          final isSelected = !commentsController.isSortNewest.value;
+                          return Row(
+                            children: [
+                              Icon(
+                                Icons.check, 
+                                size: 18, 
+                                color: isSelected ? Colors.white : Colors.transparent,
+                              ),
+                              const SizedBox(width: 8),
+                              const Text('Top comments'),
+                            ],
+                          );
+                        }),
+                      ),
+                      PopupMenuItem<bool>(
+                        value: true,
+                        child: Obx(() {
+                          final isSelected = commentsController.isSortNewest.value;
+                          return Row(
+                            children: [
+                              Icon(
+                                Icons.check, 
+                                size: 18, 
+                                color: isSelected ? Colors.white : Colors.transparent,
+                              ),
+                              const SizedBox(width: 8),
+                              const Text('Newest first'),
+                            ],
+                          );
+                        }),
+                      ),
+                    ],
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.sort_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Sort by',
+                            style: GoogleFonts.roboto(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  child: Text(
-                    'Sign in to comment',
-                    style: GoogleFonts.roboto(color: textSecondary),
-                  ),
-                ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              currentUser != null
+                  ? PremiumCommentInput(
+                      key: ValueKey('main_comment_input_${controller.video.id}'),
+                      videoId: controller.video.id,
+                      onSubmit: (text, postAsChannel, channelId) async {
+                        try {
+                          await commentsController.submitComment(
+                            text: text,
+                            channelId: postAsChannel ? channelId : null,
+                            channelName: postAsChannel ? 'Current Channel' : null,
+                            channelProfilePicUrl: null,
+                            userProfilePicUrl: currentUser.photoURL ?? '',
+                          );
+                          if (Get.context != null) {
+                            Get.snackbar(
+                              'Success',
+                              'Comment posted',
+                              snackPosition: SnackPosition.BOTTOM,
+                              duration: const Duration(seconds: 2),
+                            );
+                          }
+                        } catch (e) {
+                          if (Get.context != null) {
+                            Get.snackbar(
+                              'Error',
+                              'Failed to post comment: $e',
+                              snackPosition: SnackPosition.BOTTOM,
+                            );
+                          }
+                        }
+                      },
+                      onCancel: () {},
+                    )
+                  : Container(
+                      padding: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: cardBackground,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        'Sign in to comment',
+                        style: GoogleFonts.roboto(color: textSecondary),
+                      ),
+                    ),
+            ],
+          ),
         ),
       ),
 
-      if (commentsController.commentsError.value != null)
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: Center(
-            child: Text(
-              'Error: ${commentsController.commentsError.value}',
-              style: TextStyle(color: textSecondary),
+      Obx(() {
+        if (commentsController.commentsError.value != null) {
+          return SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Text(
+                'Error: ${commentsController.commentsError.value}',
+                style: TextStyle(color: textSecondary),
+              ),
             ),
-          ),
-        )
-      else if (commentsController.isLoadingComments.value &&
-          commentsController.comments.isEmpty)
-        const SliverFillRemaining(
-          hasScrollBody: false,
-          child: Center(child: CircularProgressIndicator()),
-        )
-      else if (commentsController.comments.isEmpty)
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.chat_bubble_outline, color: textSecondary, size: 48),
-                const SizedBox(height: 16),
-                const Text(
-                  'No comments yet',
-                  style: TextStyle(color: textSecondary, fontSize: 16),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Be the first to comment!',
-                  style: TextStyle(
-                    color: textSecondary.withValues(alpha: 0.7),
-                    fontSize: 14,
+          );
+        } else if (commentsController.isLoadingComments.value &&
+            commentsController.comments.isEmpty) {
+          return const SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(child: CircularProgressIndicator()),
+          );
+        } else if (commentsController.comments.isEmpty) {
+          return SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.chat_bubble_outline, color: textSecondary, size: 48),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'No comments yet',
+                    style: TextStyle(color: textSecondary, fontSize: 16),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Text(
+                    'Be the first to comment!',
+                    style: TextStyle(
+                      color: textSecondary.withValues(alpha: 0.7),
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        )
-      else
-        SliverList(
-          delegate: SliverChildBuilderDelegate((context, index) {
-            final comment = commentsController.comments[index];
-            final data = {
-              'id': comment.id,
-              'userName': comment.userName,
-              'text': comment.text,
-              'createdAt': comment.createdAt,
-              'userProfilePicUrl': comment.userProfilePicUrl,
-              'likeCount': comment.likeCount,
-              'dislikeCount': comment.dislikeCount,
-            };
-            return _buildCommentItem(data, controller.video.id);
-          }, childCount: commentsController.comments.length),
-        ),
+          );
+        } else {
+          return SliverList(
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final comment = commentsController.comments[index];
+              return _buildCommentItem(comment, controller.video.id);
+            }, childCount: commentsController.comments.length),
+          );
+        }
+      }),
     ];
   }
 
-  Widget _buildCommentItem(Map<String, dynamic> data, String videoId) {
+  Widget _buildCommentItem(Comment comment, String videoId) {
     return _CommentItemWidget(
-      data: data,
+      comment: comment,
       videoId: videoId,
+      channelAvatarUrl: controller.video.channelAvatarUrl,
       mainController: Get.find<MainController>(),
       textSecondary: textSecondary,
     );
@@ -2238,31 +2203,6 @@ class VideoScreen extends GetView<VideoController> {
     });
   }
 
-  Widget _buildBottomNavigationBar(BuildContext context) {
-    return BottomNavigationBar(
-      backgroundColor: AppColors.bgSurface,
-      selectedItemColor: primary,
-      unselectedItemColor: textSecondary,
-      type: BottomNavigationBarType.fixed,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.smart_display),
-          label: 'Shorts',
-        ),
-        BottomNavigationBarItem(icon: Icon(Icons.add_circle), label: 'Create'),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.subscriptions),
-          label: 'Subscriptions',
-        ),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.video_library),
-          label: 'Library',
-        ),
-      ],
-      onTap: (index) {},
-    );
-  }
 
   void _showSignInPrompt() {
     Get.snackbar('Sign in required', 'Please sign in to proceed');
@@ -2274,18 +2214,6 @@ class VideoScreen extends GetView<VideoController> {
     return views.toString();
   }
 
-  Widget _buildUpNext({required Video currentVideo, required String videoId}) {
-    return SliverToBoxAdapter(
-      child: RecommendationFeed(
-        videos: controller.moreFromChannel,
-        video: currentVideo,
-        videoTag: videoId,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        isGrid: true,
-      ),
-    );
-  }
 }
 
 // ==========================================================================
@@ -2293,14 +2221,16 @@ class VideoScreen extends GetView<VideoController> {
 // ==========================================================================
 
 class _CommentItemWidget extends StatefulWidget {
-  final Map<String, dynamic> data;
+  final Comment comment;
   final String videoId;
+  final String channelAvatarUrl;
   final MainController mainController;
   final Color textSecondary;
 
   const _CommentItemWidget({
-    required this.data,
+    required this.comment,
     required this.videoId,
+    required this.channelAvatarUrl,
     required this.mainController,
     required this.textSecondary,
   });
@@ -2310,12 +2240,19 @@ class _CommentItemWidget extends StatefulWidget {
 }
 
 class _CommentItemWidgetState extends State<_CommentItemWidget> {
-  bool isReplying = false;
-  bool isLiked = false;
-  bool isDisliked = false;
-  bool _isRepliesExpanded = false;
+  final RxBool isReplying = false.obs;
+  final RxBool _isRepliesExpanded = false.obs;
+  final RxString replyText = ''.obs;
   final TextEditingController replyController = TextEditingController();
   final FocusNode replyFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    replyController.addListener(() {
+      replyText.value = replyController.text;
+    });
+  }
 
   @override
   void dispose() {
@@ -2328,7 +2265,7 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
     final text = replyController.text.trim();
     if (text.isEmpty) return;
 
-    final commentId = widget.data['id'] ?? '';
+    final commentId = widget.comment.id;
     if (commentId.isEmpty) return;
 
     final user = FirebaseAuth.instance.currentUser;
@@ -2338,19 +2275,17 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
     }
 
     try {
-      await widget.mainController.addReply(
-        videoId: widget.videoId,
+      final tag = 'video_${widget.videoId}';
+      final commentsController = Get.find<CommentsController>(tag: tag);
+
+      await commentsController.submitReply(
         commentId: commentId,
-        userId: user.uid,
-        userName: user.displayName ?? 'Anonymous User',
-        userProfilePicUrl: user.photoURL ?? '',
         text: text,
+        userProfilePicUrl: user.photoURL ?? '',
       );
 
       replyController.clear();
-      setState(() {
-        isReplying = false;
-      });
+      isReplying.value = false;
 
       Get.snackbar('Success', 'Reply posted');
     } catch (e) {
@@ -2359,244 +2294,287 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
     }
   }
 
+  void _showCommentOptions(BuildContext context, Comment comment, CommentsController commentsController) {
+    final user = FirebaseAuth.instance.currentUser;
+    final isOwner = user != null && user.uid == comment.userId;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey.shade900,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isOwner)
+                ListTile(
+                  leading: const Icon(Icons.delete, color: Colors.red),
+                  title: const Text('Delete', style: TextStyle(color: Colors.red)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    commentsController.deleteComment(comment.id);
+                  },
+                )
+              else
+                ListTile(
+                  leading: const Icon(Icons.flag_outlined, color: Colors.white),
+                  title: const Text('Report', style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Get.snackbar('Reported', 'Thank you for your report.');
+                  },
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final String userName = widget.data['userName'] ?? 'Anonymous';
-    final String text = widget.data['text'] ?? '';
-    final Timestamp? createdAt = widget.data['createdAt'] as Timestamp?;
-    final String? userProfilePicUrl =
-        widget.data['userProfilePicUrl'] as String?;
-    final int likeCount = widget.data['likeCount'] ?? 0;
-    final int dislikeCount = widget.data['dislikeCount'] ?? 0;
-    final String commentId = widget.data['id'] ?? '';
+    final comment = widget.comment;
+    final String userName = comment.displayName;
+    final String formattedUserName = userName.startsWith('@') ? userName : '@$userName';
+    final String text = comment.text;
+    final Timestamp createdAt = comment.createdAt;
+    final String userProfilePicUrl = comment.avatarUrl;
+    final int likeCount = comment.likeCount;
+    final String commentId = comment.id;
 
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              UserAvatar(
-                radius: 20,
-                photoUrl: userProfilePicUrl,
-                displayName: userName,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          userName,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                            fontSize: 14,
+    final tag = 'video_${widget.videoId}';
+    final commentsController = Get.find<CommentsController>(tag: tag);
+
+    return Obx(() {
+      final isLiked = commentsController.isCommentLikedByUser(comment);
+      final isDisliked = commentsController.isCommentDislikedByUser(comment);
+
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                UserAvatar(
+                  radius: 20,
+                  photoUrl: userProfilePicUrl,
+                  displayName: userName,
+                  backgroundColor: Colors.blue,
+                  textColor: Colors.white,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            formattedUserName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: Colors.white,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        if (createdAt != null)
+                          const SizedBox(width: 8),
                           Text(
                             timeago.format(createdAt.toDate()),
                             style: TextStyle(
-                              color: widget.textSecondary,
+                              color: Colors.grey.shade500,
                               fontSize: 12,
                             ),
                           ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(text, style: TextStyle(fontSize: 14, height: 1.4)),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        // Like button
-                        InkWell(
-                          onTap: () {
-                            final tag = 'video_${widget.videoId}';
-                            final commentsController =
-                                Get.find<CommentsControllerV2>(tag: tag);
-                            commentsController.toggleCommentLike(
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        text,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          height: 1.3,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          InkWell(
+                            onTap: () => commentsController.toggleCommentLike(
                               commentId: commentId,
                               likeAsChannel: false,
-                            );
-                          },
-                          child: Row(
-                            children: [
-                              Icon(
-                                isLiked
-                                    ? Icons.thumb_up
-                                    : Icons.thumb_up_outlined,
-                                size: 16,
-                                color: isLiked
-                                    ? Colors.red
-                                    : widget.textSecondary,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                '$likeCount',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: isLiked
-                                      ? Colors.red
-                                      : widget.textSecondary,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
+                                  size: 16,
+                                  color: isLiked ? Colors.white : Colors.grey.shade400,
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        // Dislike button with count
-                        InkWell(
-                          onTap: () {
-                            final tag = 'video_${widget.videoId}';
-                            final commentsController =
-                                Get.find<CommentsControllerV2>(tag: tag);
-                            commentsController.toggleCommentDislike(
-                              commentId: commentId,
-                              dislikeAsChannel: false,
-                            );
-                          },
-                          child: Row(
-                            children: [
-                              Icon(
-                                isDisliked
-                                    ? Icons.thumb_down
-                                    : Icons.thumb_down_outlined,
-                                size: 16,
-                                color: isDisliked
-                                    ? Colors.red
-                                    : widget.textSecondary,
-                              ),
-                              const SizedBox(width: 4),
-                              if (dislikeCount > 0)
-                                Text(
-                                  '$dislikeCount',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: isDisliked
-                                        ? Colors.red
-                                        : widget.textSecondary,
+                                const SizedBox(width: 6),
+                                if (likeCount > 0)
+                                  Text(
+                                    '$likeCount',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: isLiked ? Colors.white : Colors.grey.shade400,
+                                    ),
                                   ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        // Reply button
-                        InkWell(
-                          onTap: () {
-                            setState(() {
-                              isReplying = !isReplying;
-                            });
-                            if (isReplying) {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (mounted && replyFocusNode.canRequestFocus) {
-                                  FocusScope.of(
-                                    context,
-                                  ).requestFocus(replyFocusNode);
-                                }
-                              });
-                            }
-                          },
-                          child: Text(
-                            'Reply',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isReplying
-                                  ? Colors.red
-                                  : widget.textSecondary,
-                              fontWeight: isReplying
-                                  ? FontWeight.w500
-                                  : FontWeight.normal,
+                              ],
                             ),
                           ),
+                          const SizedBox(width: 16),
+                          InkWell(
+                            onTap: () => commentsController.toggleCommentDislike(
+                              commentId: commentId,
+                              dislikeAsChannel: false,
+                            ),
+                            child: Icon(
+                              isDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
+                              size: 16,
+                              color: isDisliked ? Colors.white : Colors.grey.shade400,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          if (comment.isHeartedByCreator) ...[
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                CircleAvatar(
+                                  radius: 8,
+                                  backgroundImage: widget.channelAvatarUrl.isNotEmpty
+                                      ? NetworkImage(widget.channelAvatarUrl)
+                                      : null,
+                                  child: widget.channelAvatarUrl.isEmpty
+                                      ? const Icon(Icons.person, size: 10)
+                                      : null,
+                                ),
+                                const Positioned(
+                                  bottom: -4,
+                                  right: -4,
+                                  child: Icon(
+                                    Icons.favorite,
+                                    color: Colors.red,
+                                    size: 10,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(width: 16),
+                          ],
+                          InkWell(
+                            onTap: () {
+                              isReplying.value = !isReplying.value;
+                              if (isReplying.value) {
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  if (mounted && replyFocusNode.canRequestFocus) {
+                                    FocusScope.of(context).requestFocus(replyFocusNode);
+                                  }
+                                });
+                              }
+                            },
+                            child: Text(
+                              'Reply',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade400,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.more_vert, color: Colors.grey.shade400, size: 18),
+                  onPressed: () => _showCommentOptions(context, comment, commentsController),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+            if (isReplying.value)
+              Padding(
+                key: ValueKey('reply_box_$commentId'),
+                padding: const EdgeInsets.only(left: 52, top: 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: replyController,
+                        focusNode: replyFocusNode,
+                        decoration: InputDecoration(
+                          hintText: 'Add a reply...',
+                          hintStyle: TextStyle(
+                            color: Colors.grey.shade500,
+                            fontSize: 14,
+                          ),
+                          enabledBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.grey.shade800,
+                              width: 1.0,
+                            ),
+                          ),
+                          focusedBorder: const UnderlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.white,
+                              width: 1.5,
+                            ),
+                          ),
+                          border: UnderlineInputBorder(
+                            borderSide: BorderSide(
+                              color: Colors.grey.shade800,
+                              width: 1.0,
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8),
                         ),
-                      ],
+                        style: const TextStyle(fontSize: 14, color: Colors.white),
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _submitReply(),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () {
+                        isReplying.value = false;
+                        replyController.clear();
+                      },
+                      icon: const Icon(
+                        Icons.close,
+                        size: 20,
+                        color: Colors.white70,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: _submitReply,
+                      icon: Obx(() => Icon(
+                            Icons.send,
+                            size: 20,
+                            color: replyText.value.isNotEmpty ? Colors.blue : Colors.grey,
+                          )),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-          // Inline reply input field
-          if (isReplying)
-            Padding(
-              key: ValueKey('reply_box_${widget.data['id']}'),
-              padding: EdgeInsets.only(left: 52, top: 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: replyController,
-                      focusNode: replyFocusNode,
-                      autofocus: true,
-                      decoration: InputDecoration(
-                        hintText: 'Add a reply...',
-                        hintStyle: TextStyle(
-                          color: widget.textSecondary.withValues(alpha: 0.7),
-                          fontSize: 14,
-                        ),
-                        filled: true,
-                        fillColor: AppColors.bgSurface,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          borderSide: BorderSide.none,
-                        ),
-                        contentPadding: EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                      ),
-                      style: TextStyle(fontSize: 14),
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _submitReply(),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Cancel button
-                  IconButton(
-                    onPressed: () {
-                      setState(() {
-                        isReplying = false;
-                        replyController.clear();
-                      });
-                    },
-                    icon: Icon(
-                      Icons.close,
-                      size: 20,
-                      color: widget.textSecondary,
-                    ),
-                    padding: EdgeInsets.zero,
-                    constraints: BoxConstraints(minWidth: 32, minHeight: 32),
-                  ),
-                  // Submit button
-                  IconButton(
-                    onPressed: _submitReply,
-                    icon: Icon(
-                      Icons.send,
-                      size: 20,
-                      color: replyController.text.isNotEmpty
-                          ? Colors.red
-                          : widget.textSecondary,
-                    ),
-                    padding: EdgeInsets.zero,
-                    constraints: BoxConstraints(minWidth: 32, minHeight: 32),
-                  ),
-                ],
-              ),
-            ),
-          // Replies list
-          if (commentId.isNotEmpty) _buildRepliesList(commentId),
-        ],
-      ),
-    );
+            if (commentId.isNotEmpty) _buildRepliesList(commentId, comment),
+          ],
+        ),
+      );
+    });
   }
 
-  Widget _buildRepliesList(String commentId) {
+  Widget _buildRepliesList(String commentId, Comment parentComment) {
+    final tag = 'video_${widget.videoId}';
+    final commentsController = Get.find<CommentsController>(tag: tag);
+
     return StreamBuilder<List<Reply>>(
       stream: widget.mainController.getRepliesStream(widget.videoId, commentId),
       builder: (context, snapshot) {
@@ -2620,197 +2598,239 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
           return const SizedBox.shrink();
         }
 
-        // Show all replies if 2 or less, otherwise show expand/collapse
-        final hasMultipleReplies = replies.length > 2;
+        return Obx(() {
+          final isExpanded = _isRepliesExpanded.value;
 
-        return Padding(
-          padding: EdgeInsets.only(left: 52, top: 8),
-          child: Column(
+          if (!isExpanded) {
+            final firstReply = replies.first;
+            return InkWell(
+              onTap: () => _isRepliesExpanded.value = true,
+              child: Row(
+                children: [
+                  CustomPaint(
+                    size: const Size(40, 36),
+                    painter: ReplyThreadLinePainter(
+                      color: Colors.white24,
+                      isLast: true,
+                      branchY: 18.0,
+                    ),
+                  ),
+                  UserAvatar(
+                    radius: 10,
+                    photoUrl: firstReply.userProfilePicUrl,
+                    displayName: firstReply.userName,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    replies.length == 1 ? '• 1 reply' : '• ${replies.length} replies',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.expand_more,
+                    color: Colors.blue,
+                    size: 16,
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Show first 2 replies always, or all if expanded
-              if (!hasMultipleReplies || _isRepliesExpanded)
-                ...replies.map((reply) => _buildReplyItem(reply))
-              else ...[
-                // Show only first 2 replies when collapsed
-                _buildReplyItem(replies[0]),
-                _buildReplyItem(replies[1]),
-                // Show "Show all X replies" button
-                _buildShowAllRepliesButton(replies.length),
-              ],
-              // Show "Hide replies" button when expanded with multiple replies
-              if (hasMultipleReplies && _isRepliesExpanded)
-                _buildHideRepliesButton(),
+              ...List.generate(replies.length, (index) {
+                final reply = replies[index];
+                final isLastReply = index == replies.length - 1;
+                final isReplyLiked = commentsController.isReplyLikedByUser(reply.id);
+                final isReplyDisliked = commentsController.isReplyDislikedByUser(reply.id);
+
+                return IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      CustomPaint(
+                        size: const Size(40, double.infinity),
+                        painter: ReplyThreadLinePainter(
+                          color: Colors.white24,
+                          isLast: isLastReply,
+                          branchY: 20.0,
+                        ),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 8, bottom: 8, right: 16),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              UserAvatar(
+                                radius: 12,
+                                photoUrl: reply.userProfilePicUrl,
+                                displayName: reply.userName,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Text(
+                                          reply.userName.startsWith('@') ? reply.userName : '@${reply.userName}',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          timeago.format(reply.createdAt.toDate()),
+                                          style: TextStyle(
+                                            color: Colors.grey.shade500,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      reply.text,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        height: 1.3,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        InkWell(
+                                          onTap: () => commentsController.toggleReplyLike(
+                                            commentId: commentId,
+                                            replyId: reply.id,
+                                            likeAsChannel: false,
+                                          ),
+                                          child: Icon(
+                                            isReplyLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
+                                            size: 14,
+                                            color: isReplyLiked ? Colors.white : Colors.grey.shade400,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        if (reply.likeCount > 0)
+                                          Text(
+                                            '${reply.likeCount}',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              color: isReplyLiked ? Colors.white : Colors.grey.shade400,
+                                            ),
+                                          ),
+                                        const SizedBox(width: 16),
+                                        InkWell(
+                                          onTap: () => commentsController.toggleReplyDislike(
+                                            commentId: commentId,
+                                            replyId: reply.id,
+                                            dislikeAsChannel: false,
+                                          ),
+                                          child: Icon(
+                                            isReplyDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
+                                            size: 14,
+                                            color: isReplyDisliked ? Colors.white : Colors.grey.shade400,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              InkWell(
+                onTap: () => _isRepliesExpanded.value = false,
+                child: Row(
+                  children: [
+                    CustomPaint(
+                      size: const Size(40, 36),
+                      painter: ReplyThreadLinePainter(
+                        color: Colors.white24,
+                        isLast: true,
+                        branchY: 18.0,
+                      ),
+                    ),
+                    const Text(
+                      'Hide replies',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.expand_less,
+                      color: Colors.blue,
+                      size: 16,
+                    ),
+                  ],
+                ),
+              ),
             ],
-          ),
-        );
+          );
+        });
       },
     );
   }
+}
 
-  Widget _buildShowAllRepliesButton(int totalCount) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            _isRepliesExpanded = true;
-          });
-        },
-        child: Row(
-          children: [
-            Icon(Icons.expand_more, size: 18, color: Colors.red),
-            const SizedBox(width: 4),
-            Text(
-              'Show all $totalCount replies',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: Colors.red,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+class ReplyThreadLinePainter extends CustomPainter {
+  final Color color;
+  final bool isLast;
+  final double branchY;
+
+  ReplyThreadLinePainter({
+    required this.color,
+    required this.isLast,
+    required this.branchY,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    final path = Path();
+    if (isLast) {
+      path.moveTo(20, 0);
+      path.lineTo(20, branchY - 8);
+      path.quadraticBezierTo(20, branchY, 28, branchY);
+      path.lineTo(size.width, branchY);
+    } else {
+      path.moveTo(20, 0);
+      path.lineTo(20, size.height);
+      path.moveTo(20, branchY);
+      path.lineTo(size.width, branchY);
+    }
+    canvas.drawPath(path, paint);
   }
 
-  Widget _buildHideRepliesButton() {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            _isRepliesExpanded = false;
-          });
-        },
-        child: Row(
-          children: [
-            Icon(Icons.expand_less, size: 18, color: widget.textSecondary),
-            const SizedBox(width: 4),
-            Text(
-              'Hide replies',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: widget.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildReplyItem(Reply reply) {
-    return Container(
-      padding: EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          UserAvatar(
-            radius: 16,
-            photoUrl: reply.userProfilePicUrl,
-            displayName: reply.userName,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      reply.userName,
-                      style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 13,
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      timeago.format(reply.createdAt.toDate()),
-                      style: TextStyle(
-                        color: widget.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(reply.text, style: TextStyle(fontSize: 13, height: 1.4)),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    // Reply Like
-                    InkWell(
-                      onTap: () {
-                        final tag = 'video_${widget.videoId}';
-                        final commentsController =
-                            Get.find<CommentsControllerV2>(tag: tag);
-                        commentsController.toggleReplyLike(
-                          commentId: reply.commentId,
-                          replyId: reply.id,
-                          likeAsChannel: false,
-                        );
-                      },
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.thumb_up_outlined,
-                            size: 14,
-                            color: widget.textSecondary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${reply.likeCount}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: widget.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Reply Dislike
-                    InkWell(
-                      onTap: () {
-                        final tag = 'video_${widget.videoId}';
-                        final commentsController =
-                            Get.find<CommentsControllerV2>(tag: tag);
-                        commentsController.toggleReplyDislike(
-                          commentId: reply.commentId,
-                          replyId: reply.id,
-                          dislikeAsChannel: false,
-                        );
-                      },
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.thumb_down_outlined,
-                            size: 14,
-                            color: widget.textSecondary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${reply.dislikeCount}',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: widget.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
+  @override
+  bool shouldRepaint(covariant ReplyThreadLinePainter oldDelegate) {
+    return oldDelegate.color != color ||
+        oldDelegate.isLast != isLast ||
+        oldDelegate.branchY != branchY;
   }
 }
 
@@ -2845,69 +2865,122 @@ class RecommendationFeed extends StatelessWidget {
         return const Center(child: CircularProgressIndicator());
       }
 
-      final displayVideos = videos ?? controller.recommendedVideos;
+      final displayVideos = videos ?? controller.filteredRecommendedVideos;
+      final filters = controller.recommendationFilters;
+      final selectedFilter = controller.selectedRecommendationFilter.value;
 
-      if (displayVideos.isEmpty) {
-        return const Center(
-          child: Padding(
-            padding: EdgeInsets.all(32.0),
-            child: Text(
-              "No recommendations found",
-              style: TextStyle(color: Colors.white24),
-            ),
-          ),
-        );
-      }
-
-      if (isGrid) {
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final double width = constraints.maxWidth;
-            int crossAxisCount = 1;
-            double aspectRatio = 1.2;
-
-            if (width > 1200) {
-              crossAxisCount = 4;
-              aspectRatio = 1.1;
-            } else if (width > 900) {
-              crossAxisCount = 3;
-              aspectRatio = 1.1;
-            } else if (width > 600) {
-              crossAxisCount = 2;
-              aspectRatio = 1.2;
-            }
-
-            return GridView.builder(
-              shrinkWrap: shrinkWrap,
-              physics: physics,
-              padding: const EdgeInsets.all(16),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxisCount,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: aspectRatio,
-              ),
-              itemCount: displayVideos.length,
-              itemBuilder: (context, index) => VideoCard(
-                video: displayVideos[index],
-                isGrid: true,
-                heroPrefix: 'rec_grid_${videoTag ?? 'global'}',
+      final Widget pillsBar = Container(
+        height: 50,
+        margin: const EdgeInsets.only(bottom: 8),
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          itemCount: filters.length,
+          itemBuilder: (context, index) {
+            final filter = filters[index];
+            final isSelected = filter == selectedFilter;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                onTap: () {
+                  controller.selectedRecommendationFilter.value = filter;
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(20),
+                    border: isSelected
+                        ? null
+                        : Border.all(color: Colors.white.withValues(alpha: 0.15), width: 0.5),
+                  ),
+                  child: Center(
+                    child: Text(
+                      filter,
+                      style: TextStyle(
+                        color: isSelected ? Colors.black : Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             );
           },
-        );
-      }
-
-      return ListView.builder(
-        shrinkWrap: shrinkWrap,
-        physics: physics,
-        padding: const EdgeInsets.all(16),
-        itemCount: displayVideos.length,
-        itemBuilder: (context, index) => VideoCard(
-          video: displayVideos[index],
-          isGrid: false,
-          heroPrefix: 'rec_list_${videoTag ?? 'global'}',
         ),
+      );
+
+      final Widget videoList = isGrid
+          ? LayoutBuilder(
+              builder: (context, constraints) {
+                final double width = constraints.maxWidth;
+                int crossAxisCount = 1;
+                double aspectRatio = 1.2;
+
+                if (width > 1200) {
+                  crossAxisCount = 4;
+                  aspectRatio = 1.1;
+                } else if (width > 900) {
+                  crossAxisCount = 3;
+                  aspectRatio = 1.1;
+                } else if (width > 600) {
+                  crossAxisCount = 2;
+                  aspectRatio = 1.2;
+                }
+
+                return GridView.builder(
+                  shrinkWrap: shrinkWrap,
+                  physics: physics,
+                  padding: const EdgeInsets.all(16),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: aspectRatio,
+                  ),
+                  itemCount: displayVideos.length,
+                  itemBuilder: (context, index) => VideoCard(
+                    video: displayVideos[index],
+                    isGrid: true,
+                    heroPrefix: 'rec_grid_${videoTag ?? 'global'}',
+                  ),
+                );
+              },
+            )
+          : ListView.builder(
+              shrinkWrap: shrinkWrap,
+              physics: physics,
+              padding: const EdgeInsets.all(16),
+              itemCount: displayVideos.length,
+              itemBuilder: (context, index) => VideoCard(
+                video: displayVideos[index],
+                isGrid: false,
+                heroPrefix: 'rec_list_${videoTag ?? 'global'}',
+              ),
+            );
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          pillsBar,
+          if (displayVideos.isEmpty)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32.0),
+                child: Text(
+                  "No recommendations found",
+                  style: TextStyle(color: Colors.white24),
+                ),
+              ),
+            )
+          else
+            shrinkWrap 
+                ? videoList 
+                : Expanded(child: videoList),
+        ],
       );
     });
   }

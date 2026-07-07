@@ -56,7 +56,7 @@ class TruthIndexBadge extends StatelessWidget {
             ],
             Text(
               score.toInt().toString(),
-              style: GoogleFonts.outfit(
+              style: GoogleFonts.roboto(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,

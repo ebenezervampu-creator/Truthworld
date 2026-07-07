@@ -5,6 +5,7 @@ import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:universal_html/html.dart' as html;
 import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/utils/firestore_cache_extension.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -13,12 +14,13 @@ import 'package:truthworld/features/channel/presentation/controllers/channel_con
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
+import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:video_player/video_player.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
 import 'package:truthworld/features/video/presentation/controllers/custom_play.dart';
-import 'package:truthworld/features/video/presentation/controllers/comments_controller_v2.dart';
+import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
@@ -30,7 +32,10 @@ import 'dart:typed_data';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/features/video/domain/database_helpers.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:truthworld/data/models/offline.dart';
+import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
+
 
 class VideoController extends GetxController with GetTickerProviderStateMixin {
   final Rx<Video> _video = Video.empty().obs;
@@ -116,6 +121,41 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
   final RxList<Video> recommendedVideos = <Video>[].obs;
   final RxList<Video> moreFromChannel = <Video>[].obs;
   final RxBool isLoadingRecommendations = true.obs;
+  final RxString selectedRecommendationFilter = 'All'.obs;
+
+  List<String> get recommendationFilters {
+    final list = ['All'];
+    if (video.channelName.isNotEmpty) {
+      list.add('From ${video.channelName}');
+    }
+    if (video.tags.isNotEmpty) {
+      list.addAll(video.tags.take(3));
+    } else if (video.category.isNotEmpty) {
+      list.add(video.category);
+    }
+    return list;
+  }
+
+  List<Video> get filteredRecommendedVideos {
+    final filter = selectedRecommendationFilter.value;
+    if (filter == 'All') {
+      return recommendedVideos;
+    }
+    if (filter == 'From ${video.channelName}') {
+      return moreFromChannel;
+    }
+    final filterLower = filter.toLowerCase();
+    return recommendedVideos.where((v) {
+      final titleLower = v.title.toLowerCase();
+      final descLower = v.description.toLowerCase();
+      final tagMatch = v.tags.any((t) => t.toLowerCase() == filterLower);
+      final categoryMatch = v.category.toLowerCase() == filterLower;
+      return titleLower.contains(filterLower) ||
+          descLower.contains(filterLower) ||
+          tagMatch ||
+          categoryMatch;
+    }).toList();
+  }
 
   // Controllers
   late TabController mobileTabController;
@@ -127,7 +167,7 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
   late final ChannelController channelController;
   final MainController mainController = Get.find<MainController>();
   final PlaylistController playlistController = Get.find<PlaylistController>();
-  late CommentsControllerV2 commentsController;
+  late CommentsController commentsController;
   StreamSubscription<DocumentSnapshot>? _videoSubscription;
 
   bool get isAuthenticated => AuthService.to.isAuthenticated.value;
@@ -225,13 +265,13 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
 
     // Initialize child controllers
     final tag = 'video_${video.id}';
-    if (!Get.isRegistered<CommentsControllerV2>(tag: tag)) {
+    if (!Get.isRegistered<CommentsController>(tag: tag)) {
       commentsController = Get.put(
-        CommentsControllerV2(video: video, isOffline: !hasInternet),
+        CommentsController(video: video, isOffline: !hasInternet),
         tag: tag,
       );
     } else {
-      final comments = Get.find<CommentsControllerV2>(tag: tag);
+      final comments = Get.find<CommentsController>(tag: tag);
       if (hasInternet && comments.isOffline) {
         comments.enableOnlineMode();
       }
@@ -338,26 +378,58 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
       await _initializeOfflinePlayback();
       return;
     }
-    await fetchAvailableResolutions();
-    await fetchAvailableSubtitles();
-    await fetchAvailableAudioTracks();
 
-    if (availableResolutions.isEmpty) {
-      debugPrint(
-        '[VideoController] ❌ No transcoded resolutions found. Blocking playback.',
-      );
-      videoError.value = true;
-      errorMessage.value =
-          "Video is still processing. Please check back later.";
-      isLoading.value = false;
-      return;
+    final mediaService = VideoMediaService();
+
+    // 1. Kick off all metadata loading concurrently in the background
+    final Future<void> metadataFuture = Future.wait([
+      mediaService.getLocalization(video.id),
+      mediaService.getCredibility(video.id),
+      fetchAvailableResolutions(),
+      fetchAvailableSubtitles(),
+      fetchAvailableAudioTracks(),
+    ]);
+
+    // 2. Identify initial playback URL immediately from video model to prevent startup latency
+    String? initialUrl;
+    if (video.hlsUrl.isNotEmpty) {
+      initialUrl = video.hlsUrl;
+    } else if (video.videoUrl.isNotEmpty) {
+      initialUrl = video.videoUrl;
+    } else if (video.originalUrl.isNotEmpty) {
+      initialUrl = video.originalUrl;
     }
 
-    // Auto-select best quality for initial load
-    final best = availableResolutions.first; // sorted descending
-    currentResolution.value = best;
+    // 3. If we have a direct url on the model, initialize player instantly while metadata loads
+    if (initialUrl != null && initialUrl.isNotEmpty) {
+      await initializeVideoPlayer(overrideUrl: initialUrl);
 
-    await initializeVideoPlayer(overrideUrl: best.url);
+      // Once metadata finishes, update the quality/resolution menu reactively
+      metadataFuture.then((_) {
+        if (availableResolutions.isNotEmpty) {
+          final best = availableResolutions.first;
+          if (currentResolution.value?.url != best.url) {
+            currentResolution.value = best;
+          }
+        }
+      });
+    } else {
+      // Fallback: if no direct URL is present on the model, wait for resolution metadata
+      await metadataFuture;
+      if (availableResolutions.isEmpty) {
+        debugPrint(
+          '[VideoController] ❌ No transcoded resolutions found. Blocking playback.',
+        );
+        videoError.value = true;
+        errorMessage.value =
+            "Video is still processing. Please check back later.";
+        isLoading.value = false;
+        return;
+      }
+      final best = availableResolutions.first;
+      currentResolution.value = best;
+      await initializeVideoPlayer(overrideUrl: best.url);
+    }
 
     // If starting with a clip, seek to start time
     if (activeClip.value != null) {
@@ -407,7 +479,7 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
       final doc = await FirebaseFirestore.instance
           .collection('resolution_jobs')
           .doc(docId)
-          .get();
+          .getCacheFirst();
 
       if (doc.exists) {
         final data = doc.data();
@@ -649,8 +721,8 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
 
   void _initializeCommentsController() {
     final tag = 'video_${video.id}';
-    if (!Get.isRegistered<CommentsControllerV2>(tag: tag)) {
-      Get.put(CommentsControllerV2(video: video, isOffline: isOffline.value), tag: tag);
+    if (!Get.isRegistered<CommentsController>(tag: tag)) {
+      Get.put(CommentsController(video: video, isOffline: isOffline.value), tag: tag);
     }
   }
 
@@ -884,7 +956,7 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
     debugPrint('[VideoController] Autoplaying next video: ${nextVideo.id}');
 
     // Navigate to next video
-    Get.offNamed('/videoscreen', arguments: {
+    Get.offNamed('/watch?v=${nextVideo.id}', arguments: {
       'video': nextVideo,
       'playlist': currentPlaylist.value,
     });
@@ -910,9 +982,9 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
       _video.value = prevVideo;
       
       // Re-initialize comments controller
-      Get.delete<CommentsControllerV2>(tag: 'video_${prevVideo.id}', force: true);
+      Get.delete<CommentsController>(tag: 'video_${prevVideo.id}', force: true);
       commentsController = Get.put(
-        CommentsControllerV2(video: prevVideo, isOffline: false),
+        CommentsController(video: prevVideo, isOffline: false),
         tag: 'video_${prevVideo.id}',
       );
       
@@ -939,7 +1011,7 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
     
     if (prevVideo != null && prevVideo.id != video.id) {
       debugPrint('[VideoController] Playing previous video: ${prevVideo.id}');
-      Get.offNamed('/videoscreen', arguments: {
+      Get.offNamed('/watch?v=${prevVideo.id}', arguments: {
         'video': prevVideo,
         'playlist': currentPlaylist.value,
       });
@@ -1012,31 +1084,32 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
     final userId = AuthService.to.uid;
     if (userId.isEmpty) return;
 
-    isLoading.value = true;
-
     try {
-      // Check likes/dislikes in subcollections for scalability
-      final likeDoc = await FirebaseFirestore.instance
-          .collection('videos')
-          .doc(video.id)
-          .collection('likes')
-          .doc(userId)
-          .get();
+      final futures = await Future.wait([
+        FirebaseFirestore.instance
+            .collection('videos')
+            .doc(video.id)
+            .collection('likes')
+            .doc(userId)
+            .getCacheFirst(),
+        FirebaseFirestore.instance
+            .collection('videos')
+            .doc(video.id)
+            .collection('dislikes')
+            .doc(userId)
+            .getCacheFirst(),
+        FirebaseFirestore.instance
+            .collection('channels')
+            .doc(video.channelId)
+            .getCacheFirst(),
+      ]);
 
-      final dislikeDoc = await FirebaseFirestore.instance
-          .collection('videos')
-          .doc(video.id)
-          .collection('dislikes')
-          .doc(userId)
-          .get();
+      final likeDoc = futures[0];
+      final dislikeDoc = futures[1];
+      final channelDoc = futures[2];
 
       isLiked.value = likeDoc.exists;
       isDisliked.value = dislikeDoc.exists;
-
-      final channelDoc = await FirebaseFirestore.instance
-          .collection('channels')
-          .doc(video.channelId)
-          .get();
 
       if (channelDoc.exists) {
         final data = channelDoc.data();
@@ -1047,18 +1120,15 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
       if (!e.toString().contains('permission-denied')) {
         debugPrint("Error checking user interactions: $e");
       }
-    } finally {
-      isLoading.value = false;
     }
   }
 
   void _listenToVideoUpdates() {
-    _videoSubscription?.cancel();
-    _videoSubscription = FirebaseFirestore.instance
+    FirebaseFirestore.instance
         .collection('videos')
         .doc(video.id)
-        .snapshots()
-        .listen((snapshot) {
+        .get()
+        .then((snapshot) {
           if (snapshot.exists) {
             final newData = snapshot.data();
             if (newData != null) {
@@ -1083,25 +1153,26 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
               }
             }
           }
+        }).catchError((e) {
+          debugPrint('[VideoController] Error fetching video updates: $e');
         });
   }
 
   void _listenToLanguageRequests() {
-    _languageRequestsSubscription?.cancel();
     isLoadingLanguageRequests.value = true;
-    _languageRequestsSubscription = FirebaseFirestore.instance
+    FirebaseFirestore.instance
         .collection('videos')
         .doc(video.id)
         .collection('language_requests')
-        .snapshots()
-        .listen((snapshot) {
+        .get()
+        .then((snapshot) {
           final List<LanguageRequest> requests = snapshot.docs.map((doc) {
             return LanguageRequest.fromMap(doc.data(), doc.id);
           }).toList();
           languageRequests.assignAll(requests);
           isLoadingLanguageRequests.value = false;
-        }, onError: (e) {
-          debugPrint('Error listening to language requests: $e');
+        }).catchError((e) {
+          debugPrint('Error fetching language requests: $e');
           isLoadingLanguageRequests.value = false;
         });
   }
@@ -1358,9 +1429,9 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
     _video.value = nextVideo;
     
     // Re-initialize comments controller for new video
-    Get.delete<CommentsControllerV2>(tag: 'video_${nextVideo.id}', force: true);
+    Get.delete<CommentsController>(tag: 'video_${nextVideo.id}', force: true);
     commentsController = Get.put(
-      CommentsControllerV2(video: nextVideo, isOffline: false),
+      CommentsController(video: nextVideo, isOffline: false),
       tag: 'video_${nextVideo.id}',
     );
 
@@ -1398,26 +1469,40 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
       final oldVpc = _videoPlayerController;
       final oldCc = _chewieController;
 
-      final newVpc = (isOffline.value && targetUrl.startsWith('blob:'))
-          ? VideoPlayerController.networkUrl(Uri.parse(targetUrl))
-          : VideoPlayerController.networkUrl(
-              Uri.parse(targetUrl),
-        videoPlayerOptions: VideoPlayerOptions(
-          mixWithOthers: false,
-          allowBackgroundPlayback: false,
-        ),
-      );
+      // Attempt to retrieve a pre-warmed/hovered controller for zero-latency startup
+      VideoPlayerController? handoffVpc = VideoPlaybackHandoff.retrieveController(video.id);
+      final VideoPlayerController newVpc;
+      final bool wasHandoff = handoffVpc != null;
+
+      if (wasHandoff) {
+        debugPrint('[VideoController] Found active handoff controller for: ${video.id}');
+        newVpc = handoffVpc;
+        await newVpc.setLooping(false); // Disable looping which was enabled for hover previews
+        await newVpc.setVolume(1.0); // Reset volume to unmute on watch screen
+      } else {
+        newVpc = (isOffline.value && targetUrl.startsWith('blob:'))
+            ? VideoPlayerController.networkUrl(Uri.parse(targetUrl))
+            : VideoPlayerController.networkUrl(
+                Uri.parse(targetUrl),
+                videoPlayerOptions: VideoPlayerOptions(
+                  mixWithOthers: false,
+                  allowBackgroundPlayback: false,
+                ),
+              );
+      }
 
       // Add listeners BEFORE initialization to catch all events
       newVpc.addListener(_videoErrorListener);
       newVpc.addListener(videoListener);
 
-      await newVpc.initialize().timeout(
-        const Duration(seconds: 30),
-        onTimeout: () {
-          throw Exception("Video initialization timeout");
-        },
-      );
+      if (!wasHandoff) {
+        await newVpc.initialize().timeout(
+          const Duration(seconds: 30),
+          onTimeout: () {
+            throw Exception("Video initialization timeout");
+          },
+        );
+      }
 
       // --- RESUME LOGIC ---
       final lastPos = WatchHistoryService.to.getLastPosition(video.id);
@@ -1624,11 +1709,49 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
 
   @override
   void onClose() {
+    final currentRoute = Get.currentRoute;
+    final isGoingToWatch = currentRoute.contains('watch') || currentRoute.contains('videoscreen');
+    
+    final bool shouldStartMiniplayer = !isGoingToWatch && 
+        _videoPlayerController != null && 
+        _videoPlayerController!.value.isInitialized &&
+        Get.isRegistered<MiniplayerController>(tag: 'miniplayer');
+
     if (_videoPlayerController != null && _videoPlayerController!.value.isInitialized) {
       final totalDuration = _videoPlayerController!.value.duration.inSeconds;
       final watchSeconds = _watchStopwatch.elapsed.inSeconds;
       _syncWatchHistory(watchSeconds, totalDuration);
     }
+
+    if (shouldStartMiniplayer) {
+      final pos = _videoPlayerController!.value.position;
+      final videoToPlay = video;
+      final selectedResUrl = currentResolution.value?.url;
+
+      // Remove listeners so they don't fire when player is in miniplayer
+      _videoPlayerController!.removeListener(_videoErrorListener);
+      _videoPlayerController!.removeListener(videoListener);
+
+      // Hand off the player controller to the miniplayer
+      VideoPlaybackHandoff.registerActiveController(video.id, _videoPlayerController!);
+      
+      // Prevent disposePlayer() from destroying the video player controller!
+      _videoPlayerController = null;
+
+      // Show the miniplayer
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          MiniplayerController.to.showWithVideo(
+            videoToPlay,
+            resumeFromPosition: pos,
+            overrideUrl: selectedResUrl,
+          );
+        } catch (e) {
+          debugPrint('[VideoController] Error showing miniplayer in onClose: $e');
+        }
+      });
+    }
+
     mobileTabController.dispose();
     desktopTabController.dispose();
     scrollController.dispose();

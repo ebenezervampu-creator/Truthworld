@@ -271,30 +271,41 @@ class _SavedTopicsPageState extends State<SavedTopicsPage>
                       ),
                     ),
                   )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                : Row(
                     children: [
-                      Text(
-                        'Saved Topics',
-                        style: AppTextStyles.displaySmall.copyWith(
-                          fontSize: 36,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.5,
-                          foreground: Paint()
-                            ..shader = const LinearGradient(
-                              colors: [Colors.white, Color(0xFFE0E0E0)],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ).createShader(const Rect.fromLTWH(0, 0, 200, 40)),
+                      if (!widget.isDashboard) ...[
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back, color: Colors.white),
+                          onPressed: () => Get.back(),
                         ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Your curated knowledge base',
-                        style: AppTextStyles.labelLarge.copyWith(
-                          color: AppColors.brand.withValues(alpha: 0.8),
-                          fontWeight: FontWeight.w500,
-                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Saved Topics',
+                            style: AppTextStyles.displaySmall.copyWith(
+                              fontSize: 36,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: -0.5,
+                              foreground: Paint()
+                                ..shader = const LinearGradient(
+                                  colors: [Colors.white, Color(0xFFE0E0E0)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ).createShader(const Rect.fromLTWH(0, 0, 200, 40)),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Your curated knowledge base',
+                            style: AppTextStyles.labelLarge.copyWith(
+                              color: AppColors.brand.withValues(alpha: 0.8),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -489,7 +500,7 @@ class _SavedTopicsPageState extends State<SavedTopicsPage>
     bool isDesktop,
   ) {
     final int crossAxisCount = isMobile ? 1 : 2;
-    final double childAspectRatio = isMobile ? 1.4 : (isTablet ? 1.6 : 1.8);
+    final double childAspectRatio = 16 / 9;
 
     return SliverGrid(
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -511,7 +522,7 @@ class _SavedTopicsPageState extends State<SavedTopicsPage>
 
   Widget _buildLoadingState(bool isMobile, bool isTablet, bool isDesktop) {
     final int crossAxisCount = isMobile ? 1 : 2;
-    final double childAspectRatio = isMobile ? 1.4 : (isTablet ? 1.6 : 1.8);
+    final double childAspectRatio = 16 / 9;
 
     return Padding(
       padding: const EdgeInsets.all(20),

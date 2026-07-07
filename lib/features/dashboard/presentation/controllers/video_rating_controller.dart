@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/services/video_media_service.dart';
 
 class VideoRatingController extends GetxController {
   final String channelId;
@@ -57,8 +58,10 @@ class VideoRatingController extends GetxController {
     }
   }
 
-  void selectVideo(Video video) {
+  void selectVideo(Video video) async {
     selectedVideo.value = video;
+    await VideoMediaService().getCredibility(video.id);
+    selectedVideo.refresh();
   }
 
   void clearSelection() {

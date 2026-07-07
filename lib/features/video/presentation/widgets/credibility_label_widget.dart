@@ -82,7 +82,7 @@ class CredibilityLabelWidget extends StatelessWidget {
                 children: [
                   Text(
                     'Credibility Nutrition Label',
-                    style: GoogleFonts.outfit(
+                    style: GoogleFonts.roboto(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -129,7 +129,7 @@ class CredibilityLabelWidget extends StatelessWidget {
               children: [
                 Text(
                   'SAFETY VETO APPLIED',
-                  style: GoogleFonts.outfit(
+                  style: GoogleFonts.roboto(
                     fontWeight: FontWeight.bold,
                     color: Colors.redAccent,
                     fontSize: 14,
@@ -278,7 +278,7 @@ class CredibilityLabelWidget extends StatelessWidget {
             children: [
               Text(
                 video.trustLabel ?? 'Processing',
-                style: GoogleFonts.outfit(
+                style: GoogleFonts.roboto(
                   fontSize: 28,
                   fontWeight: FontWeight.w700,
                   color: color,
@@ -309,7 +309,7 @@ class CredibilityLabelWidget extends StatelessWidget {
             ),
             Text(
               score.toInt().toString(),
-              style: GoogleFonts.outfit(
+              style: GoogleFonts.roboto(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
@@ -379,7 +379,7 @@ class CredibilityLabelWidget extends StatelessWidget {
           const SizedBox(width: 12),
           Text(
             score?.toStringAsFixed(1) ?? 'N/A',
-            style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+            style: GoogleFonts.roboto(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
           ),
         ],
       ),
@@ -436,7 +436,7 @@ class CredibilityLabelWidget extends StatelessWidget {
               const Spacer(),
               Text(
                 score.toInt().toString(),
-                style: GoogleFonts.outfit(
+                style: GoogleFonts.roboto(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -515,7 +515,7 @@ class CredibilityLabelWidget extends StatelessWidget {
           ),
           Text(
             count.toString(),
-            style: GoogleFonts.outfit(
+            style: GoogleFonts.roboto(
               fontWeight: FontWeight.bold,
               color: isNegative && count > 0 ? Colors.orangeAccent : Colors.white,
             ),
@@ -563,7 +563,7 @@ class CredibilityLabelWidget extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 flag.topic,
-                style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white),
+                style: GoogleFonts.roboto(fontWeight: FontWeight.bold, color: Colors.white),
               ),
             ],
           ),
@@ -635,7 +635,7 @@ class CredibilityLabelWidget extends StatelessWidget {
       children: [
         Text(
           value,
-          style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.bold, color: color),
+          style: GoogleFonts.roboto(fontSize: 20, fontWeight: FontWeight.bold, color: color),
         ),
         Text(
           label,
@@ -667,7 +667,7 @@ class CredibilityLabelWidget extends StatelessWidget {
             children: [
               Text(
                 '-${d.points}',
-                style: GoogleFonts.outfit(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+                style: GoogleFonts.roboto(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
               ),
               const SizedBox(width: 12),
               Expanded(

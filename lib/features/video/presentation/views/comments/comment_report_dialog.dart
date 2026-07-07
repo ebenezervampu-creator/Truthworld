@@ -8,7 +8,20 @@ import 'package:truthworld/theme/app_theme.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 /// Premium report dialog for comments and replies
-class CommentReportDialog extends StatefulWidget {
+class CommentReportController extends GetxController {
+  final TextEditingController descriptionController = TextEditingController();
+  final Rxn<ReportReason> selectedReason = Rxn<ReportReason>();
+  final RxBool isSubmitting = false.obs;
+
+  @override
+  void onClose() {
+    descriptionController.dispose();
+    super.onClose();
+  }
+}
+
+/// Premium report dialog for comments and replies
+class CommentReportDialog extends StatelessWidget {
   final Comment comment;
   final String videoId;
   final String? replyId;
@@ -37,56 +50,44 @@ class CommentReportDialog extends StatefulWidget {
   }
 
   @override
-  State<CommentReportDialog> createState() => _CommentReportDialogState();
-}
+  Widget build(BuildContext context) {
+    final controller = Get.put(CommentReportController(), tag: 'comment_report_${comment.id}_$replyId');
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final commentService = CommentService();
+    final authService = FirebaseAuth.instance;
 
-class _CommentReportDialogState extends State<CommentReportDialog> {
-  final _commentService = CommentService();
-  final _authService = FirebaseAuth.instance;
-
-  ReportReason? _selectedReason;
-  final _descriptionController = TextEditingController();
-  bool _isSubmitting = false;
-
-  @override
-  void dispose() {
-    _descriptionController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submitReport() async {
-    if (_selectedReason == null) {
-      Get.snackbar(
-        'Error',
-        'Please select a reason',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-      return;
-    }
-
-    try {
-      setState(() => _isSubmitting = true);
-
-      final currentUser = _authService.currentUser;
-      if (currentUser == null) {
-        Get.snackbar('Error', 'You must be logged in to report',
-            snackPosition: SnackPosition.BOTTOM);
+    Future<void> submitReport() async {
+      if (controller.selectedReason.value == null) {
+        Get.snackbar(
+          'Error',
+          'Please select a reason',
+          snackPosition: SnackPosition.BOTTOM,
+        );
         return;
       }
 
-      await _commentService.reportComment(
-        commentId: widget.comment.id,
-        replyId: widget.replyId,
-        videoId: widget.videoId,
-        reporterId: currentUser.uid,
-        reporterName: currentUser.displayName ?? 'Anonymous',
-        reason: _selectedReason!,
-        description: _descriptionController.text.isEmpty
-            ? null
-            : _descriptionController.text,
-      );
+      try {
+        controller.isSubmitting.value = true;
 
-      if (mounted) {
+        final currentUser = authService.currentUser;
+        if (currentUser == null) {
+          Get.snackbar('Error', 'You must be logged in to report',
+              snackPosition: SnackPosition.BOTTOM);
+          return;
+        }
+
+        await commentService.reportComment(
+          commentId: comment.id,
+          replyId: replyId,
+          videoId: videoId,
+          reporterId: currentUser.uid,
+          reporterName: currentUser.displayName ?? 'Anonymous',
+          reason: controller.selectedReason.value!,
+          description: controller.descriptionController.text.isEmpty
+              ? null
+              : controller.descriptionController.text,
+        );
+
         Get.snackbar(
           'Success',
           'Thank you for reporting. Our team will review this.',
@@ -94,24 +95,19 @@ class _CommentReportDialogState extends State<CommentReportDialog> {
           backgroundColor: Colors.green,
           colorText: Colors.white,
         );
-        Navigator.pop(context);
-      }
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to submit report: $e',
-        snackPosition: SnackPosition.BOTTOM,
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
+        if (context.mounted) {
+          Navigator.pop(context);
+        }
+      } catch (e) {
+        Get.snackbar(
+          'Error',
+          'Failed to submit report: $e',
+          snackPosition: SnackPosition.BOTTOM,
+        );
+      } finally {
+        controller.isSubmitting.value = false;
       }
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -137,7 +133,7 @@ class _CommentReportDialogState extends State<CommentReportDialog> {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'Report ${widget.replyId != null ? 'Reply' : 'Comment'}',
+                      'Report ${replyId != null ? 'Reply' : 'Comment'}',
                       style: GoogleFonts.roboto(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -160,42 +156,35 @@ class _CommentReportDialogState extends State<CommentReportDialog> {
                 const SizedBox(height: 16),
 
                 // Reason selection
-                ..._buildReasonOptions(isDark),
+                Obx(() => Column(
+                  children: _buildReasonOptions(isDark, controller),
+                )),
 
                 const SizedBox(height: 16),
 
                 // Description field
-                TextField(
-                  controller: _descriptionController,
+                Obx(() => TextField(
+                  controller: controller.descriptionController,
                   maxLines: 3,
                   maxLength: 200,
-                  enabled: !_isSubmitting,
+                  enabled: !controller.isSubmitting.value,
                   decoration: InputDecoration(
                     hintText: 'Additional details (optional)',
                     hintStyle: GoogleFonts.roboto(
                       color: isDark ? Colors.white38 : Colors.grey[400],
                     ),
                     filled: true,
-                    fillColor:
-                        isDark
-                            ? AppColors.bgSurface
-                            : Colors.grey[100],
+                    fillColor: isDark ? AppColors.bgSurface : Colors.grey[100],
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(
-                        color:
-                            isDark
-                                ? AppColors.bgDivider
-                                : Colors.grey[300]!,
+                        color: isDark ? AppColors.bgDivider : Colors.grey[300]!,
                       ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(
-                        color:
-                            isDark
-                                ? AppColors.bgDivider
-                                : Colors.grey[300]!,
+                        color: isDark ? AppColors.bgDivider : Colors.grey[300]!,
                       ),
                     ),
                     focusedBorder: OutlineInputBorder(
@@ -213,54 +202,57 @@ class _CommentReportDialogState extends State<CommentReportDialog> {
                   style: GoogleFonts.roboto(
                     color: isDark ? Colors.white : Colors.black,
                   ),
-                ),
+                )),
                 const SizedBox(height: 20),
 
                 // Buttons
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: _isSubmitting ? null : () => Navigator.pop(context),
-                      child: Text(
-                        'Cancel',
-                        style: GoogleFonts.roboto(
-                          color: isDark ? Colors.white70 : Colors.grey[600],
-                          fontWeight: FontWeight.w500,
+                Obx(() {
+                  final isSubmitting = controller.isSubmitting.value;
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: isSubmitting ? null : () => Navigator.pop(context),
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.roboto(
+                            color: isDark ? Colors.white70 : Colors.grey[600],
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton(
-                      onPressed: _isSubmitting ? null : _submitReport,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.brand,
-                        disabledBackgroundColor: Colors.grey[400],
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: isSubmitting ? null : submitReport,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.brand,
+                          disabledBackgroundColor: Colors.grey[400],
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
                         ),
-                      ),
-                      child: _isSubmitting
-                          ? SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation(
-                                  Colors.white,
+                        child: isSubmitting
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                            : Text(
+                                'Submit Report',
+                                style: GoogleFonts.roboto(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w500,
                                 ),
                               ),
-                            )
-                          : Text(
-                              'Submit Report',
-                              style: GoogleFonts.roboto(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  );
+                }),
               ],
             ),
           ),
@@ -269,29 +261,27 @@ class _CommentReportDialogState extends State<CommentReportDialog> {
     );
   }
 
-  List<Widget> _buildReasonOptions(bool isDark) {
+  List<Widget> _buildReasonOptions(bool isDark, CommentReportController controller) {
     return ReportReason.values.map((reason) {
-      final isSelected = _selectedReason == reason;
+      final isSelected = controller.selectedReason.value == reason;
       return Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: InkWell(
-          onTap: () => setState(() => _selectedReason = reason),
+          onTap: () => controller.selectedReason.value = reason,
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color:
-                  isSelected
-                      ? AppColors.brand.withAlpha(30)
-                      : isDark
-                          ? AppColors.bgSurface
-                          : Colors.grey[50],
+              color: isSelected
+                  ? AppColors.brand.withAlpha(30)
+                  : isDark
+                      ? AppColors.bgSurface
+                      : Colors.grey[50],
               border: Border.all(
-                color:
-                    isSelected
-                        ? AppColors.brand
-                        : isDark
-                            ? AppColors.bgDivider
-                            : Colors.grey[300]!,
+                color: isSelected
+                    ? AppColors.brand
+                    : isDark
+                        ? AppColors.bgDivider
+                        : Colors.grey[300]!,
                 width: isSelected ? 2 : 1,
               ),
               borderRadius: BorderRadius.circular(8),

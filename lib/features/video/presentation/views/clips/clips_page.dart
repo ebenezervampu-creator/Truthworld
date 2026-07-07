@@ -79,7 +79,7 @@ class ClipsPage extends StatelessWidget {
         elevation: 0,
         title: Text(
           'Your Clips',
-          style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          style: GoogleFonts.roboto(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
         ),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary),
@@ -142,7 +142,7 @@ class ClipsPage extends StatelessWidget {
           const SizedBox(height: 24),
           Text(
             'No clips yet',
-            style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            style: GoogleFonts.roboto(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
           ),
           const SizedBox(height: 12),
           Text(

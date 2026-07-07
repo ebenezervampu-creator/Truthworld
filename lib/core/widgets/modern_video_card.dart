@@ -44,7 +44,7 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
     return InteractionStyles.interactiveCard(
       onTap: () {
         Get.toNamed(
-          "/videoscreen",
+          '/watch?v=${widget.video.id}',
           arguments: {
             'video': widget.video,
             'heroTag': '${widget.heroPrefix}_${widget.video.id}',
@@ -375,7 +375,7 @@ class _ModernVideoGridCardState extends State<ModernVideoGridCard> {
   Widget build(BuildContext context) {
     return InteractionStyles.interactiveCard(
       onTap: () {
-        Get.toNamed("/videoscreen", arguments: {'video': widget.video});
+        Get.toNamed('/watch?v=${widget.video.id}', arguments: {'video': widget.video});
       },
       child: Container(
         decoration: ComponentStyles.getCardDecoration(),

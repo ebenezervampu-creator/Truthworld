@@ -40,7 +40,7 @@ class VideoCard extends StatelessWidget {
       enabled: true,
       label: 'Video: ${video.title} by ${video.channelName}',
       onTap: () => Get.toNamed(
-        "/videoscreen",
+        '/watch?v=${video.id}',
         arguments: {'video': video, 'heroTag': '${heroPrefix}_${video.id}'},
       ),
       child: AnimatedContainer(
@@ -64,7 +64,7 @@ class VideoCard extends StatelessWidget {
             onTap:
                 onTap ??
                 () => Get.toNamed(
-                  "/videoscreen",
+                  '/watch?v=${video.id}',
                   arguments: {
                     'video': video,
                     'heroTag': '${heroPrefix}_${video.id}',
@@ -136,7 +136,7 @@ class VideoCard extends StatelessWidget {
         ? BorderRadius.vertical(top: Radius.circular(AppTheme.radius.lg))
         : AppTheme.radius.circularLg;
 
-    return Hero(
+    final Widget thumbnailWidget = Hero(
       tag: '${heroPrefix}_${video.id}',
       child: ClipRRect(
         borderRadius: borderRadius,
@@ -217,6 +217,15 @@ class VideoCard extends StatelessWidget {
         ),
       ),
     );
+
+    if (width != null && width > 0 && width != double.infinity && height != null && height > 0) {
+      return SizedBox(
+        width: width,
+        height: height,
+        child: thumbnailWidget,
+      );
+    }
+    return thumbnailWidget;
   }
 
   Widget _buildDetails(BuildContext context, {bool isGrid = false}) {

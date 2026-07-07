@@ -98,7 +98,7 @@ class _VideoPlayerWithAudioTracksState
                   Text(
                     'Could not load video',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       color: Colors.white70,
                       fontSize: 14,
                     ),
@@ -147,7 +147,7 @@ class _VideoPlayerWithAudioTracksState
                         Text(
                           'Switching audio track…',
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'Roboto',
                             color: Colors.white,
                             fontSize: 13,
                           ),
@@ -254,7 +254,7 @@ class _TopBar extends StatelessWidget {
                     Text(
                       track.label,
                       style: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Roboto',
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
@@ -289,7 +289,7 @@ class _TopBar extends StatelessWidget {
                 child: Text(
                   '${speed == 1.0 ? '1' : speed}x',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -413,7 +413,7 @@ class _BottomBar extends StatelessWidget {
                 Text(
                   _formatDuration(ctrl.position.value),
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 12,
                     color: Colors.white,
                   ),
@@ -421,7 +421,7 @@ class _BottomBar extends StatelessWidget {
                 Text(
                   ' / ${_formatDuration(ctrl.duration.value)}',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 12,
                     color: Colors.white60,
                   ),
@@ -466,7 +466,7 @@ class _BottomBar extends StatelessWidget {
                           Text(
                             ctrl.selectedTrack.value?.label ?? '',
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Roboto',
                               fontSize: 11,
                               color: Colors.white70,
                             ),
@@ -540,7 +540,7 @@ class _AudioTrackSheet extends StatelessWidget {
                     Text(
                       'Audio Track',
                       style: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Roboto',
                         fontSize: 17,
                         fontWeight: FontWeight.bold,
                         color: textColor,
@@ -549,7 +549,7 @@ class _AudioTrackSheet extends StatelessWidget {
                     Text(
                       'Select dubbed language for playback',
                       style: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Roboto',
                         fontSize: 12,
                         color: isDark ? Colors.white54 : Colors.black45,
                       ),
@@ -615,7 +615,7 @@ class _AudioTrackSheet extends StatelessWidget {
                                   ? track.code.substring(0, 2).toUpperCase()
                                   : track.code.toUpperCase(),
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'Roboto',
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
                                 color: isSelected
@@ -636,7 +636,7 @@ class _AudioTrackSheet extends StatelessWidget {
                               Text(
                                 track.label,
                                 style: TextStyle(
-                                  fontFamily: 'Inter',
+                                  fontFamily: 'Roboto',
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                   color: isSelected
@@ -650,7 +650,7 @@ class _AudioTrackSheet extends StatelessWidget {
                                     ? 'Original audio track'
                                     : 'Dubbed audio track',
                                 style: TextStyle(
-                                  fontFamily: 'Inter',
+                                  fontFamily: 'Roboto',
                                   fontSize: 11,
                                   color: isDark
                                       ? Colors.white38
@@ -742,7 +742,7 @@ class _SpeedSheet extends StatelessWidget {
                 Text(
                   'Playback Speed',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
                     color: textColor,
@@ -781,7 +781,7 @@ class _SpeedSheet extends StatelessWidget {
                       child: Text(
                         speed == 1.0 ? 'Normal' : '${speed}x',
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                           color: isSelected

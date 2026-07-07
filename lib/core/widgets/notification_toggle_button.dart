@@ -87,7 +87,7 @@ class NotificationToggleButton extends StatelessWidget {
                 isNotifiedVal ? "Notification on" : "Notify me",
                 key: ValueKey<bool>(isNotifiedVal),
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   color: Colors.white,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,

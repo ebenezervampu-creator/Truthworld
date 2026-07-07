@@ -9,12 +9,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
 import 'package:truthworld/features/video/presentation/views/upload/ai_features_selector.dart';
-import 'package:video_player/video_player.dart';
+import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:io' as io;
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -3053,10 +3053,11 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
 
   // Step 3: Advanced Settings
   Widget _buildStep3AdvancedSettings(bool isDark) {
-    // Ensure public playlists are loaded when reaching this step
+    // Ensure public playlists and topics are loaded when reaching this step
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       _playlistController.refreshPlaylistsTick();
       await _playlistController.refreshPublicPlaylists();
+      await _uploadController.fetchAvailableTopics();
     });
 
     return SingleChildScrollView(
@@ -3101,6 +3102,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
           const SizedBox(height: 24),
           _buildPlaylistSelection(isDark),
           const SizedBox(height: 24),
+          _buildTopicSelection(isDark),
           const SizedBox(height: 32),
           _buildStepNavigation(
             isDark: isDark,
@@ -3408,7 +3410,10 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
                         child: SizedBox(
                           width: controller.value.size.width,
                           height: controller.value.size.height,
-                          child: VideoPlayer(controller),
+                          child: MobileFriendlyVideoPlayer(
+                            controller: controller,
+                            looping: true,
+                          ),
                         ),
                       ),
                     ),
@@ -4735,6 +4740,629 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
         },
       );
     });
+  }
+
+  Widget _buildTopicSelection(bool isDark) {
+    return Obx(() {
+      final topics = _uploadController.availableTopics.toList();
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Add to Topic',
+                style: GoogleFonts.roboto(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: isDark ? Colors.white : const Color(0xFF111827),
+                ),
+              ),
+              const Spacer(),
+              if (_uploadController.isTopicsLoading.value)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                IconButton(
+                  onPressed: () async {
+                    await _uploadController.fetchAvailableTopics();
+                    Get.snackbar(
+                      'Refreshing',
+                      'Loading available topics...',
+                      snackPosition: SnackPosition.BOTTOM,
+                      duration: const Duration(seconds: 1),
+                    );
+                  },
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  style: IconButton.styleFrom(
+                    foregroundColor: isDark
+                        ? Colors.white70
+                        : const Color(0xFF6B7280),
+                    padding: const EdgeInsets.all(8),
+                  ),
+                  tooltip: 'Refresh topics',
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _buildTopicDropdown(topics, isDark),
+        ],
+      );
+    });
+  }
+
+  Widget _buildTopicDropdown(List<Topic> topics, bool isDark) {
+    return Obx(() {
+      final currentTopicId = _uploadController.selectedTopicId.value;
+      final hasNewTopicDraft = _uploadController.newTopicData.isNotEmpty;
+      final draftTitle = hasNewTopicDraft ? _uploadController.newTopicData['title'] as String : '';
+
+      List<DropdownMenuItem<String>> items = [];
+
+      items.add(
+        const DropdownMenuItem<String>(
+          value: '',
+          child: Text('None (don\'t add to topic)'),
+        ),
+      );
+
+      // Add existing topics
+      for (var topic in topics) {
+        IconData visIcon = Icons.public_rounded;
+        Color visColor = Colors.green;
+        if (topic.visibilityType == TopicVisibilityType.private) {
+          visIcon = Icons.lock_rounded;
+          visColor = Colors.amber;
+        } else if (topic.visibilityType == TopicVisibilityType.channelOnly) {
+          visIcon = Icons.person_rounded;
+          visColor = Colors.blue;
+        }
+
+        items.add(
+          DropdownMenuItem<String>(
+            key: ValueKey('topic_${topic.slug}'),
+            value: topic.slug,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(visIcon, size: 14, color: visColor),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    topic.title,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      // Add mock item for the unsaved draft
+      if (hasNewTopicDraft) {
+        items.add(
+          DropdownMenuItem<String>(
+            value: 'new_topic_draft',
+            child: Row(
+              children: [
+                const Icon(Icons.edit_document, size: 14, color: Colors.purpleAccent),
+                const SizedBox(width: 8),
+                Text(
+                  'Draft: $draftTitle',
+                  style: const TextStyle(
+                    color: Colors.purpleAccent,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+
+      items.add(
+        const DropdownMenuItem<String>(
+          value: 'add_private_by_passcode',
+          child: Row(
+            children: [
+              Icon(Icons.vpn_key_rounded, size: 16, color: Colors.amber),
+              SizedBox(width: 8),
+              Text(
+                'Add Private Topic by Passcode',
+                style: TextStyle(
+                  color: Colors.amber,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      items.add(
+        const DropdownMenuItem<String>(
+          value: 'create_new_topic',
+          child: Row(
+            children: [
+              Icon(Icons.add_rounded, size: 16, color: Color(0xFF3B82F6)),
+              SizedBox(width: 8),
+              Text(
+                'Create new topic',
+                style: TextStyle(
+                  color: Color(0xFF3B82F6),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      String initialVal = '';
+      if (hasNewTopicDraft && currentTopicId == 'new_topic_draft') {
+        initialVal = 'new_topic_draft';
+      } else if (items.any((item) => item.value == currentTopicId)) {
+        initialVal = currentTopicId;
+      }
+
+      return DropdownButtonFormField<String>(
+        key: ValueKey(
+          'topic_dropdown_${topics.length}_${currentTopicId}_$hasNewTopicDraft',
+        ),
+        initialValue: initialVal,
+        decoration: InputDecoration(
+          hintText: 'Select topic',
+          prefixIcon: const Icon(
+            Icons.topic_rounded,
+            size: 20,
+            color: Color(0xFF3B82F6),
+          ),
+          filled: true,
+          fillColor: isDark ? const Color(0xFF161B22) : Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(
+              color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(
+              color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: BorderSide(color: const Color(0xFF3B82F6), width: 2),
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        ),
+        dropdownColor: isDark ? const Color(0xFF161B22) : Colors.white,
+        style: GoogleFonts.roboto(
+          fontSize: 14,
+          color: isDark ? Colors.white : const Color(0xFF111827),
+        ),
+        items: items,
+        onChanged: (String? value) {
+          if (value == 'create_new_topic') {
+            _showCreateTopicModal(isDark);
+          } else if (value == 'add_private_by_passcode') {
+            _showAddPrivateTopicByPasscodeModal(isDark);
+          } else {
+            _uploadController.selectTopic(value ?? '');
+            if (value != 'new_topic_draft') {
+              _uploadController.newTopicData.clear();
+            }
+            HapticFeedback.lightImpact();
+          }
+        },
+      );
+    });
+  }
+
+  void _showAddPrivateTopicByPasscodeModal(bool isDark) {
+    final slugController = TextEditingController();
+    final passcodeController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final isUnlocking = false.obs;
+
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF161B22) : Colors.white,
+        title: Text(
+          'Unlock Private Topic',
+          style: GoogleFonts.roboto(
+            fontWeight: FontWeight.bold,
+            color: isDark ? Colors.white : const Color(0xFF111827),
+          ),
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: slugController,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                decoration: const InputDecoration(
+                  labelText: 'Topic Slug',
+                  hintText: 'e.g. artificial-intelligence',
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Slug is required';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: passcodeController,
+                obscureText: true,
+                style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                decoration: const InputDecoration(
+                  labelText: 'Passcode',
+                  hintText: 'Enter passcode',
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Passcode is required';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              _uploadController.selectTopic('');
+              Get.back();
+            },
+            child: const Text('Cancel'),
+          ),
+          Obx(() {
+            return ElevatedButton(
+              onPressed: isUnlocking.value
+                  ? null
+                  : () async {
+                      if (formKey.currentState!.validate()) {
+                        isUnlocking.value = true;
+                        final success = await _uploadController.unlockPrivateTopic(
+                          slugController.text.trim(),
+                          passcodeController.text.trim(),
+                        );
+                        isUnlocking.value = false;
+                        if (success) {
+                          Get.back();
+                        }
+                      }
+                    },
+              child: isUnlocking.value
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Unlock & Add'),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  void _showCreateTopicModal(bool isDark) {
+    final titleController = TextEditingController();
+    final handleController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final categoryController = TextEditingController(text: _uploadController.videoCategories.isNotEmpty ? _uploadController.videoCategories.first : 'Music');
+    final accessCodeController = TextEditingController();
+    
+    final selectedVisibility = TopicVisibilityType.public.obs;
+    final obscureAccessCode = true.obs;
+    
+    final thumbnailSource = 'video'.obs;
+    final Rx<Uint8List?> customImageBytes = Rx<Uint8List?>(null);
+    final RxString customImageName = ''.obs;
+
+    final formKey = GlobalKey<FormState>();
+
+    Get.dialog(
+      Obx(() {
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF161B22) : Colors.white,
+          title: Text(
+            'Create New Topic',
+            style: GoogleFonts.roboto(
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : const Color(0xFF111827),
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextFormField(
+                    controller: titleController,
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                    decoration: const InputDecoration(
+                      labelText: 'Topic Title',
+                      hintText: 'Enter topic title',
+                    ),
+                    validator: (val) {
+                      if (val == null || val.trim().isEmpty) {
+                        return 'Title is required';
+                      }
+                      if (val.trim().length < 3) {
+                        return 'Title must be at least 3 characters';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: handleController,
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                    decoration: const InputDecoration(
+                      labelText: 'Topic Handle',
+                      hintText: 'e.g. war',
+                      prefixText: 'T/',
+                      prefixStyle: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    validator: (val) {
+                      if (val == null || val.trim().isEmpty) {
+                        return 'Handle is required';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: descriptionController,
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                    decoration: const InputDecoration(
+                      labelText: 'Description',
+                      hintText: 'Enter topic description',
+                    ),
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  DropdownButtonFormField<String>(
+                    initialValue: categoryController.text,
+                    dropdownColor: isDark ? const Color(0xFF161B22) : Colors.white,
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                    decoration: const InputDecoration(
+                      labelText: 'Category',
+                    ),
+                    items: _uploadController.videoCategories.map((cat) {
+                      return DropdownMenuItem<String>(
+                        value: cat,
+                        child: Text(cat),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        categoryController.text = val;
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  Text(
+                    'Visibility',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<TopicVisibilityType>(
+                    initialValue: selectedVisibility.value,
+                    dropdownColor: isDark ? const Color(0xFF161B22) : Colors.white,
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                    items: const [
+                      DropdownMenuItem(
+                        value: TopicVisibilityType.public,
+                        child: Text('Public (Anyone can contribute)'),
+                      ),
+                      DropdownMenuItem(
+                        value: TopicVisibilityType.private,
+                        child: Text('Private (Passcode required for others)'),
+                      ),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        selectedVisibility.value = val;
+                      }
+                    },
+                  ),
+
+                  if (selectedVisibility.value == TopicVisibilityType.private) ...[
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: accessCodeController,
+                      obscureText: obscureAccessCode.value,
+                      style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                      decoration: InputDecoration(
+                        labelText: 'Passcode',
+                        hintText: 'Enter passcode',
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscureAccessCode.value
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                          ),
+                          onPressed: () => obscureAccessCode.toggle(),
+                        ),
+                      ),
+                      validator: (val) {
+                        if (selectedVisibility.value == TopicVisibilityType.private) {
+                          if (val == null || val.trim().isEmpty) {
+                            return 'Passcode is required for private visibility';
+                          }
+                          if (val.trim().length < 4) {
+                            return 'Passcode must be at least 4 characters';
+                          }
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+
+                  Text(
+                    'Topic Thumbnail',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: RadioListTile<String>(
+                          value: 'video',
+                          // ignore: deprecated_member_use
+                          groupValue: thumbnailSource.value,
+                          title: const Text('Use Video Thumbnail', style: TextStyle(fontSize: 11)),
+                          contentPadding: EdgeInsets.zero,
+                          // ignore: deprecated_member_use
+                          onChanged: (val) {
+                            if (val != null) thumbnailSource.value = val;
+                          },
+                        ),
+                      ),
+                      Expanded(
+                        child: RadioListTile<String>(
+                          value: 'custom',
+                          // ignore: deprecated_member_use
+                          groupValue: thumbnailSource.value,
+                          title: const Text('Upload Custom', style: TextStyle(fontSize: 11)),
+                          contentPadding: EdgeInsets.zero,
+                          // ignore: deprecated_member_use
+                          onChanged: (val) {
+                            if (val != null) thumbnailSource.value = val;
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  if (thumbnailSource.value == 'custom') ...[
+                    const SizedBox(height: 8),
+                    Center(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final result = await FilePicker.pickFiles(
+                            type: FileType.image,
+                            withData: true,
+                          );
+                          if (result != null && result.files.isNotEmpty) {
+                            final file = result.files.first;
+                            customImageBytes.value = file.bytes;
+                            customImageName.value = file.name;
+                          }
+                        },
+                        icon: const Icon(Icons.image),
+                        label: Text(customImageBytes.value == null
+                            ? 'Select Custom Image'
+                            : 'Image: ${customImageName.value}'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                _uploadController.selectTopic('');
+                Get.back();
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (formKey.currentState!.validate()) {
+                  final handleVal = handleController.text.trim();
+                  if (handleVal.isEmpty) {
+                    Get.snackbar('Error', 'Topic handle is required');
+                    return;
+                  }
+                  
+                  // Clean handle
+                  String cleanHandle = handleVal;
+                  if (cleanHandle.startsWith('T/')) {
+                    cleanHandle = cleanHandle.substring(2);
+                  }
+                  if (cleanHandle.startsWith('t/')) {
+                    cleanHandle = cleanHandle.substring(2);
+                  }
+                  cleanHandle = cleanHandle
+                      .replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '-')
+                      .replaceAll(RegExp(r'-+'), '-');
+                  if (cleanHandle.isEmpty) {
+                    Get.snackbar('Error', 'Topic handle must contain alphanumeric characters');
+                    return;
+                  }
+                  final String finalHandle = 'T/$cleanHandle';
+                  final String finalHandleLowercase = finalHandle.toLowerCase();
+
+                  // Check handle uniqueness in Firestore
+                  final existingHandle = await FirebaseFirestore.instance
+                      .collection('topics')
+                      .where('handleLowercase', isEqualTo: finalHandleLowercase)
+                      .limit(1)
+                      .get();
+
+                  if (existingHandle.docs.isNotEmpty) {
+                    Get.snackbar('Error', 'Topic handle is already taken. Please choose a different one.');
+                    return;
+                  }
+
+                  if (thumbnailSource.value == 'custom' && customImageBytes.value == null) {
+                    Get.snackbar('Error', 'Please select a custom thumbnail image');
+                    return;
+                  }
+                  
+                  _uploadController.newTopicData.value = {
+                    'title': titleController.text.trim(),
+                    'handle': finalHandle,
+                    'description': descriptionController.text.trim(),
+                    'category': categoryController.text,
+                    'visibilityType': selectedVisibility.value,
+                    'accessCode': accessCodeController.text.trim(),
+                    'thumbnailSource': thumbnailSource.value,
+                    'customThumbnailBytes': customImageBytes.value,
+                    'customThumbnailName': customImageName.value,
+                  };
+                  
+                  _uploadController.selectedTopicId.value = 'new_topic_draft';
+                  Get.back();
+                  Get.snackbar('Success', 'Topic draft created! It will be published along with your video.');
+                }
+              },
+              child: const Text('Use Topic'),
+            ),
+          ],
+        );
+      }),
+    );
   }
 
   Widget _buildChannelSelectionSection(bool isDark) {

@@ -728,11 +728,11 @@ class SearchController extends GetxController {
       switch (result.type) {
         case ResultType.video:
           final video = Video.fromDocumentSnapshot(doc);
-          Get.toNamed('/videoscreen', arguments: {"video": video});
+          Get.toNamed('/watch?v=${video.id}', arguments: {"video": video});
           break;
         case ResultType.channel:
           final channel = Channel.fromDocumentSnapshot(doc);
-          Get.toNamed('/channel-details', arguments: {"channel": channel});
+          Get.toNamed(channel.channelRoute, arguments: {"channel": channel});
           break;
         case ResultType.playlist:
           final playlist = PlaylistModel.fromDocumentSnapshot(doc);

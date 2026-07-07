@@ -272,7 +272,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 label: Text(
                   'View All',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     color: Colors.amber,
                     fontWeight: FontWeight.bold,
                   ),
@@ -373,7 +373,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 label: Text(
                   'Create Campaign',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -441,7 +441,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 label: Text(
                   'Export CSV',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     color: Colors.amber,
                     fontWeight: FontWeight.bold,
                   ),
@@ -705,7 +705,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             Text(
                               'Back to Ads List',
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'Roboto',
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -996,7 +996,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                           Text(
                             'No subtitle cues defined.',
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Roboto',
                               color: Colors.white38,
                             ),
                           ),
@@ -1015,7 +1015,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             label: Text(
                               'Add Cue',
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'Roboto',
                                 color: Colors.amber,
                               ),
                             ),
@@ -1231,7 +1231,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
           title: Text(
             'Add Subtitles Track',
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               color: Colors.white,
               fontWeight: FontWeight.bold,
             ),
@@ -1357,7 +1357,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             Text(
                               'Back to Ads List',
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'Roboto',
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -1667,7 +1667,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
           title: Text(
             'Request AI Voice Dubbing',
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               color: Colors.white,
               fontWeight: FontWeight.bold,
             ),
@@ -2332,13 +2332,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     Get.defaultDialog(
                       title: 'Moderation Details',
                       titleStyle: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Roboto',
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                       ),
                       middleText: campaign.moderationReason!,
                       middleTextStyle: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Roboto',
                         color: Colors.white70,
                       ),
                       backgroundColor: const Color(0xFF161616),
@@ -2405,14 +2405,14 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       Get.defaultDialog(
                         title: 'Delete Campaign',
                         titleStyle: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
                         middleText:
                             'Are you sure you want to delete "${campaign.title}"?',
                         middleTextStyle: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           color: Colors.white70,
                         ),
                         backgroundColor: const Color(0xFF161616),
@@ -3292,7 +3292,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         child: Text(
                           'No videos found in your channel.',
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'Roboto',
                             color: Colors.white38,
                           ),
                         ),
@@ -3624,7 +3624,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         child: Text(
                           'Done',
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'Roboto',
                             fontWeight: FontWeight.bold,
                           ),
                         ),

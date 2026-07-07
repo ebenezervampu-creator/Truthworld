@@ -11,6 +11,7 @@ import 'package:truthworld/features/video/presentation/views/comments/comment_in
 import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/features/video/presentation/views/replies/reply_input.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 
 Widget buildCommentsTab({
   required Video video,
@@ -46,6 +47,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
   late AnimationController _slideController;
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
+  final RxInt _retryTrigger = 0.obs;
 
   @override
   void initState() {
@@ -205,12 +207,14 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
         ? 24.0
         : 32.0;
 
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          StreamBuilder<QuerySnapshot>(
+    return Obx(() {
+      final _ = _retryTrigger.value;
+      return Container(
+        margin: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection("videos")
                 .doc(widget.video.id)
@@ -328,18 +332,21 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
         ],
       ),
     );
-  }
+  });
+}
 
   Widget _buildCommentsList(bool isMobile, bool isTablet, bool isDesktop) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection("videos")
-          .doc(widget.video.id)
-          .collection('comments')
-          .orderBy('createdAt', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+    return Obx(() {
+      final _ = _retryTrigger.value;
+      return StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection("videos")
+            .doc(widget.video.id)
+            .collection('comments')
+            .orderBy('createdAt', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildLoadingState(isMobile, isTablet, isDesktop);
         }
 
@@ -387,7 +394,8 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
         );
       },
     );
-  }
+  });
+}
 
   Widget _buildLoadingState(bool isMobile, bool isTablet, bool isDesktop) {
     final horizontalPadding = isMobile
@@ -599,7 +607,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
           ),
           ElevatedButton.icon(
             onPressed: () {
-              setState(() {}); // Trigger rebuild to retry
+              _retryTrigger.value++; // Trigger rebuild to retry
             },
             icon: const Icon(Icons.refresh_rounded),
             label: const Text('Retry'),
@@ -830,7 +838,7 @@ class _ModernCommentItemState extends State<ModernCommentItem>
     with TickerProviderStateMixin {
   late AnimationController _hoverController;
   late Animation<double> _hoverAnimation;
-  bool _isHovered = false;
+  final RxBool _isHovered = false.obs;
 
   @override
   void initState() {
@@ -857,9 +865,7 @@ class _ModernCommentItemState extends State<ModernCommentItem>
 
   void _onHover(bool isHovered) {
     if (widget.isDesktop) {
-      setState(() {
-        _isHovered = isHovered;
-      });
+      _isHovered.value = isHovered;
 
       if (isHovered) {
         _hoverController.forward();
@@ -895,43 +901,45 @@ class _ModernCommentItemState extends State<ModernCommentItem>
           child: MouseRegion(
             onEnter: (_) => _onHover(true),
             onExit: (_) => _onHover(false),
-            child: Container(
-              margin: EdgeInsets.symmetric(
-                horizontal: horizontalPadding,
-                vertical: verticalPadding / 2,
-              ),
-              padding: EdgeInsets.all(
-                widget.isMobile
-                    ? 16
-                    : widget.isTablet
-                    ? 20
-                    : 24,
-              ),
-              decoration: BoxDecoration(
-                color: widget.theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(
+            child: Obx(() {
+              final isHovered = _isHovered.value;
+              return Container(
+                margin: EdgeInsets.symmetric(
+                  horizontal: horizontalPadding,
+                  vertical: verticalPadding / 2,
+                ),
+                padding: EdgeInsets.all(
                   widget.isMobile
                       ? 16
                       : widget.isTablet
                       ? 20
                       : 24,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: widget.theme.colorScheme.shadow.withValues(alpha: 
-                      _isHovered ? 0.15 : 0.08,
+                decoration: BoxDecoration(
+                  color: widget.theme.colorScheme.surface,
+                  borderRadius: BorderRadius.circular(
+                    widget.isMobile
+                        ? 16
+                        : widget.isTablet
+                        ? 20
+                        : 24,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: widget.theme.colorScheme.shadow.withValues(alpha: 
+                        isHovered ? 0.15 : 0.08,
+                      ),
+                      blurRadius: isHovered ? 16 : 8,
+                      offset: Offset(0, isHovered ? 6 : 2),
                     ),
-                    blurRadius: _isHovered ? 16 : 8,
-                    offset: Offset(0, _isHovered ? 6 : 2),
+                  ],
+                  border: Border.all(
+                    color: widget.theme.colorScheme.outline.withValues(alpha: 
+                      isHovered ? 0.3 : 0.1,
+                    ),
+                    width: 1,
                   ),
-                ],
-                border: Border.all(
-                  color: widget.theme.colorScheme.outline.withValues(alpha: 
-                    _isHovered ? 0.3 : 0.1,
-                  ),
-                  width: 1,
                 ),
-              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -959,12 +967,13 @@ class _ModernCommentItemState extends State<ModernCommentItem>
                   _buildRepliesSection(),
                 ],
               ),
-            ),
-          ),
-        );
-      },
-    );
-  }
+            );
+          }),
+        ),
+      );
+    },
+  );
+}
 
   Widget _buildUserAvatar(double radius) {
     return Container(
@@ -1105,13 +1114,20 @@ class _ModernCommentItemState extends State<ModernCommentItem>
 
   Widget _buildActionButtons() {
     final bool isUserSignedIn = FirebaseAuth.instance.currentUser != null;
+    final tag = 'video_${widget.video.id}';
+    final hasCommentsCtrl = Get.isRegistered<CommentsController>(tag: tag);
+    final commentsController = hasCommentsCtrl
+        ? Get.find<CommentsController>(tag: tag)
+        : Get.put(CommentsController(video: widget.video), tag: tag);
+    final isLiked = commentsController.isCommentLikedByUser(widget.comment);
+    final isDisliked = commentsController.isCommentDislikedByUser(widget.comment);
 
     return Row(
       children: [
         // Like Icon
         IconButton(
           icon: Icon(
-            widget.comment.likedBy.containsKey(FirebaseAuth.instance.currentUser?.uid ?? '')
+            isLiked
                 ? Icons.thumb_up
                 : Icons.thumb_up_outlined,
             size: 18,
@@ -1123,10 +1139,9 @@ class _ModernCommentItemState extends State<ModernCommentItem>
               return;
             }
             HapticFeedback.lightImpact();
-            widget.mainController.likeComment(
-              videoId: widget.video.id,
+            commentsController.toggleCommentLike(
               commentId: widget.comment.id,
-              userId: FirebaseAuth.instance.currentUser!.uid,
+              likeAsChannel: false,
             );
           },
           constraints: const BoxConstraints(),
@@ -1146,7 +1161,7 @@ class _ModernCommentItemState extends State<ModernCommentItem>
         // Dislike Icon
         IconButton(
           icon: Icon(
-            widget.comment.dislikedBy.containsKey(FirebaseAuth.instance.currentUser?.uid ?? '')
+            isDisliked
                 ? Icons.thumb_down
                 : Icons.thumb_down_outlined,
             size: 18,
@@ -1158,10 +1173,9 @@ class _ModernCommentItemState extends State<ModernCommentItem>
               return;
             }
             HapticFeedback.lightImpact();
-            widget.mainController.dislikeComment(
-              videoId: widget.video.id,
+            commentsController.toggleCommentDislike(
               commentId: widget.comment.id,
-              userId: FirebaseAuth.instance.currentUser!.uid,
+              dislikeAsChannel: false,
             );
           },
           constraints: const BoxConstraints(),
@@ -1309,6 +1323,8 @@ class ModernActionButton extends StatefulWidget {
   final bool isMobile;
   final bool isTablet;
   final bool isDesktop;
+  final bool isActive;
+  final Color? activeColor;
 
   const ModernActionButton({
     super.key,
@@ -1319,6 +1335,8 @@ class ModernActionButton extends StatefulWidget {
     required this.isMobile,
     required this.isTablet,
     required this.isDesktop,
+    this.isActive = false,
+    this.activeColor,
   });
 
   @override
@@ -1350,6 +1368,9 @@ class _ModernActionButtonState extends State<ModernActionButton>
 
   @override
   Widget build(BuildContext context) {
+    final activeCol = widget.activeColor ?? widget.theme.colorScheme.primary;
+    final color = widget.isActive ? activeCol : widget.theme.colorScheme.onSurfaceVariant;
+
     return InkWell(
       onTapDown: (_) => _animationController.forward(),
       onTapUp: (_) => _animationController.reverse(),
@@ -1374,7 +1395,9 @@ class _ModernActionButtonState extends State<ModernActionButton>
                     : 8,
               ),
               decoration: BoxDecoration(
-                color: widget.theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                color: widget.isActive
+                    ? activeCol.withValues(alpha: 0.15)
+                    : widget.theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(
                   widget.isMobile
                       ? 8
@@ -1383,7 +1406,9 @@ class _ModernActionButtonState extends State<ModernActionButton>
                       : 12,
                 ),
                 border: Border.all(
-                  color: widget.theme.colorScheme.outline.withValues(alpha: 0.2),
+                  color: widget.isActive
+                      ? activeCol.withValues(alpha: 0.4)
+                      : widget.theme.colorScheme.outline.withValues(alpha: 0.2),
                   width: 1,
                 ),
               ),
@@ -1397,7 +1422,7 @@ class _ModernActionButtonState extends State<ModernActionButton>
                         : widget.isTablet
                         ? 16
                         : 18,
-                    color: widget.theme.colorScheme.onSurfaceVariant,
+                    color: color,
                   ),
                   if (widget.count != null && widget.count! > 0) ...[
                     SizedBox(
@@ -1410,13 +1435,13 @@ class _ModernActionButtonState extends State<ModernActionButton>
                     Text(
                       '${widget.count}',
                       style: GoogleFonts.roboto(
-                        color: widget.theme.colorScheme.onSurfaceVariant,
+                        color: color,
                         fontSize: widget.isMobile
                             ? 11
                             : widget.isTablet
                             ? 12
                             : 13,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: widget.isActive ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
                   ],
@@ -1459,7 +1484,7 @@ class _ModernRepliesSectionState extends State<ModernRepliesSection>
     with SingleTickerProviderStateMixin {
   late AnimationController _expansionController;
   late Animation<double> _expansionAnimation;
-  bool _isExpanded = false;
+  final RxBool _isExpanded = false.obs;
 
   @override
   void initState() {
@@ -1536,10 +1561,8 @@ class _ModernRepliesSectionState extends State<ModernRepliesSection>
                 children: [
                   InkWell(
                     onTap: () {
-                      setState(() {
-                        _isExpanded = !_isExpanded;
-                      });
-                      if (_isExpanded) {
+                      _isExpanded.value = !_isExpanded.value;
+                      if (_isExpanded.value) {
                         _expansionController.forward();
                       } else {
                         _expansionController.reverse();
@@ -1547,37 +1570,40 @@ class _ModernRepliesSectionState extends State<ModernRepliesSection>
                     },
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Small Creator Avatar
-                          CircleAvatar(
-                            radius: 10,
-                            backgroundImage: widget.video.thumbnailUrl.isNotEmpty
-                                ? NetworkImage(widget.video.thumbnailUrl)
-                                : null,
-                            backgroundColor: widget.theme.colorScheme.primary.withValues(alpha: 0.2),
-                            child: widget.video.thumbnailUrl.isEmpty
-                                ? const Icon(Icons.person, size: 8)
-                                : null,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${replies.length} ${replies.length == 1 ? 'reply' : 'replies'}',
-                            style: GoogleFonts.roboto(
-                              color: widget.theme.colorScheme.primary,
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
+                      child: Obx(() {
+                        final isExpanded = _isExpanded.value;
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Small Creator Avatar
+                            CircleAvatar(
+                              radius: 10,
+                              backgroundImage: widget.video.thumbnailUrl.isNotEmpty
+                                  ? NetworkImage(widget.video.thumbnailUrl)
+                                  : null,
+                              backgroundColor: widget.theme.colorScheme.primary.withValues(alpha: 0.2),
+                              child: widget.video.thumbnailUrl.isEmpty
+                                  ? const Icon(Icons.person, size: 8)
+                                  : null,
                             ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            _isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
-                            size: 18,
-                            color: widget.theme.colorScheme.primary,
-                          ),
-                        ],
-                      ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${replies.length} ${replies.length == 1 ? 'reply' : 'replies'}',
+                              style: GoogleFonts.roboto(
+                                color: widget.theme.colorScheme.primary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              isExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                              size: 18,
+                              color: widget.theme.colorScheme.primary,
+                            ),
+                          ],
+                        );
+                      }),
                     ),
                   ),
                   SizeTransition(
@@ -1644,227 +1670,238 @@ class ModernReplyItem extends StatelessWidget {
         ? 16.0
         : 18.0;
 
-    return Container(
-      margin: EdgeInsets.only(
-        bottom: isMobile
-            ? 12
-            : isTablet
-            ? 16
-            : 20,
-      ),
-      padding: EdgeInsets.all(
-        isMobile
-            ? 12
-            : isTablet
-            ? 16
-            : 20,
-      ),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(
+    final tag = 'video_${video.id}';
+    final hasCommentsCtrl = Get.isRegistered<CommentsController>(tag: tag);
+    final commentsController = hasCommentsCtrl
+        ? Get.find<CommentsController>(tag: tag)
+        : Get.put(CommentsController(video: video), tag: tag);
+
+    return Obx(() {
+      final isLiked = commentsController.isReplyLikedByUser(reply.id);
+      final isDisliked = commentsController.isReplyDislikedByUser(reply.id);
+
+      return Container(
+        margin: EdgeInsets.only(
+          bottom: isMobile
+              ? 12
+              : isTablet
+              ? 16
+              : 20,
+        ),
+        padding: EdgeInsets.all(
           isMobile
               ? 12
               : isTablet
               ? 16
               : 20,
         ),
-        border: Border.all(
-          color: theme.colorScheme.outline.withValues(alpha: 0.2),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  theme.colorScheme.secondary.withValues(alpha: 0.2),
-                  theme.colorScheme.secondary.withValues(alpha: 0.1),
-                ],
-              ),
-              border: Border.all(
-                color: theme.colorScheme.secondary.withValues(alpha: 0.3),
-                width: 1.5,
-              ),
-            ),
-            child: CircleAvatar(
-              radius: avatarRadius,
-              backgroundColor: Colors.transparent,
-              backgroundImage:
-                  reply.userProfilePicUrl.isNotEmpty
-                  ? NetworkImage(reply.userProfilePicUrl)
-                  : null,
-              child:
-                  reply.userProfilePicUrl.isEmpty
-                  ? Text(
-                      reply.userName.isNotEmpty
-                          ? reply.userName[0].toUpperCase()
-                          : 'U',
-                      style: GoogleFonts.roboto(
-                        color: theme.colorScheme.secondary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: isMobile
-                            ? 10
-                            : isTablet
-                            ? 12
-                            : 14,
-                      ),
-                    )
-                  : null,
-            ),
-          ),
-          SizedBox(
-            width: isMobile
-                ? 10
-                : isTablet
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(
+            isMobile
                 ? 12
-                : 16,
+                : isTablet
+                ? 16
+                : 20,
           ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(
-                      reply.userName,
-                      style: GoogleFonts.roboto(
-                        fontWeight: FontWeight.w500,
-                        fontSize: isMobile
-                            ? 12
-                            : isTablet
-                            ? 13
-                            : 14,
-                        color: theme.colorScheme.onSurface,
-                      ),
-                    ),
-                    SizedBox(
-                      width: isMobile
-                          ? 6
-                          : isTablet
-                          ? 8
-                          : 10,
-                    ),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isMobile
-                            ? 4
-                            : isTablet
-                            ? 6
-                            : 8,
-                        vertical: isMobile
-                            ? 2
-                            : isTablet
-                            ? 3
-                            : 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 
-                          0.5,
-                        ),
-                        borderRadius: BorderRadius.circular(
-                          isMobile
-                              ? 6
-                              : isTablet
-                              ? 8
-                              : 10,
-                        ),
-                      ),
-                      child: Text(
-                        timeago.format(reply.createdAt.toDate()),
+          border: Border.all(
+            color: theme.colorScheme.outline.withValues(alpha: 0.2),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.secondary.withValues(alpha: 0.2),
+                    theme.colorScheme.secondary.withValues(alpha: 0.1),
+                  ],
+                ),
+                border: Border.all(
+                  color: theme.colorScheme.secondary.withValues(alpha: 0.3),
+                  width: 1.5,
+                ),
+              ),
+              child: CircleAvatar(
+                radius: avatarRadius,
+                backgroundColor: Colors.transparent,
+                backgroundImage:
+                    reply.userProfilePicUrl.isNotEmpty
+                    ? NetworkImage(reply.userProfilePicUrl)
+                    : null,
+                child:
+                    reply.userProfilePicUrl.isEmpty
+                    ? Text(
+                        reply.userName.isNotEmpty
+                            ? reply.userName[0].toUpperCase()
+                            : 'U',
                         style: GoogleFonts.roboto(
-                          color: theme.colorScheme.onSurfaceVariant,
+                          color: theme.colorScheme.secondary,
+                          fontWeight: FontWeight.bold,
                           fontSize: isMobile
                               ? 10
                               : isTablet
-                              ? 11
-                              : 12,
+                              ? 12
+                              : 14,
+                        ),
+                      )
+                    : null,
+              ),
+            ),
+            SizedBox(
+              width: isMobile
+                  ? 10
+                  : isTablet
+                  ? 12
+                  : 16,
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        reply.userName,
+                        style: GoogleFonts.roboto(
                           fontWeight: FontWeight.w500,
+                          fontSize: isMobile
+                              ? 12
+                              : isTablet
+                              ? 13
+                              : 14,
+                          color: theme.colorScheme.onSurface,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-                SizedBox(
-                  height: isMobile
-                      ? 6
-                      : isTablet
-                      ? 8
-                      : 10,
-                ),
-                Text(
-                  reply.text,
-                  style: GoogleFonts.roboto(
-                    fontSize: isMobile
-                        ? 13
-                        : isTablet
-                        ? 14
-                        : 15,
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.9),
-                    height: 1.4,
+                      SizedBox(
+                        width: isMobile
+                            ? 6
+                            : isTablet
+                            ? 8
+                            : 10,
+                      ),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isMobile
+                              ? 4
+                              : isTablet
+                              ? 6
+                              : 8,
+                          vertical: isMobile
+                              ? 2
+                              : isTablet
+                              ? 3
+                              : 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 
+                            0.5,
+                          ),
+                          borderRadius: BorderRadius.circular(
+                            isMobile
+                                ? 6
+                                : isTablet
+                                ? 8
+                                : 10,
+                          ),
+                        ),
+                        child: Text(
+                          timeago.format(reply.createdAt.toDate()),
+                          style: GoogleFonts.roboto(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontSize: isMobile
+                                ? 10
+                                : isTablet
+                                ? 11
+                                : 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                SizedBox(
-                  height: isMobile
-                      ? 8
-                      : isTablet
-                      ? 10
-                      : 12,
-                ),
-                Row(
-                  children: [
-                    ModernActionButton(
-                      icon: Icons.thumb_up_alt_outlined,
-                      count: reply.likeCount,
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        mainController.likeReply(
-                          videoId: video.id,
-                          commentId: reply.commentId,
-                          replyId: reply.id,
-                          userId: FirebaseAuth.instance.currentUser!.uid,
-                        );
-                      },
-                      theme: theme,
-                      isMobile: isMobile,
-                      isTablet: isTablet,
-                      isDesktop: isDesktop,
-                    ),
-                    SizedBox(
-                      width: isMobile
-                          ? 12
+                  SizedBox(
+                    height: isMobile
+                        ? 6
+                        : isTablet
+                        ? 8
+                        : 10,
+                  ),
+                  Text(
+                    reply.text,
+                    style: GoogleFonts.roboto(
+                      fontSize: isMobile
+                          ? 13
                           : isTablet
-                          ? 16
-                          : 20,
+                          ? 14
+                          : 15,
+                      color: theme.colorScheme.onSurface.withValues(alpha: 0.9),
+                      height: 1.4,
                     ),
-                    ModernActionButton(
-                      icon: Icons.thumb_down_alt_outlined,
-                      count: reply.dislikeCount,
-                      onTap: () {
-                        HapticFeedback.lightImpact();
-                        mainController.dislikeReply(
-                          videoId: video.id,
-                          commentId: reply.commentId,
-                          replyId: reply.id,
-                          userId: FirebaseAuth.instance.currentUser!.uid,
-                        );
-                      },
-                      theme: theme,
-                      isMobile: isMobile,
-                      isTablet: isTablet,
-                      isDesktop: isDesktop,
-                    ),
-                  ],
-                ),
-              ],
+                  ),
+                  SizedBox(
+                    height: isMobile
+                        ? 8
+                        : isTablet
+                        ? 10
+                        : 12,
+                  ),
+                  Row(
+                    children: [
+                      ModernActionButton(
+                        icon: isLiked ? Icons.thumb_up : Icons.thumb_up_alt_outlined,
+                        count: reply.likeCount,
+                        isActive: isLiked,
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          commentsController.toggleReplyLike(
+                            commentId: reply.commentId,
+                            replyId: reply.id,
+                            likeAsChannel: false,
+                          );
+                        },
+                        theme: theme,
+                        isMobile: isMobile,
+                        isTablet: isTablet,
+                        isDesktop: isDesktop,
+                      ),
+                      SizedBox(
+                        width: isMobile
+                            ? 12
+                            : isTablet
+                            ? 16
+                            : 20,
+                      ),
+                      ModernActionButton(
+                        icon: isDisliked ? Icons.thumb_down : Icons.thumb_down_alt_outlined,
+                        count: reply.dislikeCount,
+                        isActive: isDisliked,
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          commentsController.toggleReplyDislike(
+                            commentId: reply.commentId,
+                            replyId: reply.id,
+                            dislikeAsChannel: false,
+                          );
+                        },
+                        theme: theme,
+                        isMobile: isMobile,
+                        isTablet: isTablet,
+                        isDesktop: isDesktop,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    });
   }
 }
 

@@ -154,7 +154,7 @@ export const createChannel = onCall(
         const adsRevShare = channelType === 'custom' ? 1.0 : 0.75;
         const memberRevShare = channelType === 'custom' ? 0.75 : 1.0;
 
-        const channelDoc: Channel = {
+                const channelDoc: any = {
           id: channelId,
           ownerId: userId,
           handle: normalizedSlug,
@@ -165,6 +165,8 @@ export const createChannel = onCall(
           hasPaidSubscriptionBuyout: false,
           createdAt: now,
           updatedAt: now,
+          status: "underReview",
+          moderationReason: "",
           profile: {
             photoUrl: avatarUrl || "",
             coverUrl: bannerUrl || "",

@@ -23,7 +23,7 @@ class SearchPageController extends BaseController {
 
   Future<void> performSearch(String query) async {
     try {
-      setState(ViewState.loading);
+      setViewState(ViewState.loading);
       isSearching.value = true;
       
       // Basic search logic using Firestore
@@ -39,7 +39,7 @@ class SearchPageController extends BaseController {
           .get();
 
       searchResults.assignAll(snapshot.docs.map((doc) => Video.fromDocumentSnapshot(doc)).toList());
-      setState(ViewState.success);
+      setViewState(ViewState.success);
     } catch (e) {
       handleError(e);
     } finally {

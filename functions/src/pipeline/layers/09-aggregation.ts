@@ -17,6 +17,21 @@ import { CredibilityResult } from "../types";
 
 const db = () => admin.firestore();
 
+function getDownloadUrl(gsOrPath: string, defaultBucket?: string): string {
+  if (!gsOrPath) return "";
+  if (gsOrPath.startsWith("http://") || gsOrPath.startsWith("https://")) {
+    return gsOrPath;
+  }
+  let bucketName = defaultBucket || admin.storage().bucket().name;
+  let filePath = gsOrPath;
+  if (gsOrPath.startsWith("gs://")) {
+    const parts = gsOrPath.replace("gs://", "").split("/");
+    bucketName = parts[0];
+    filePath = parts.slice(1).join("/");
+  }
+  return `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(filePath)}?alt=media`;
+}
+
 export class AggregationLayer {
   private readonly distribution: DistributionLayer;
 
@@ -161,6 +176,11 @@ export class AggregationLayer {
         }
 
         const transSnap = await transaction.get(db().collection("transcripts").doc(jobId));
+
+        // Fetch job outputs document (scale check split)
+        const jobOutputsRef = db().collection("job_outputs").doc(jobId);
+        const jobOutputsSnap = await transaction.get(jobOutputsRef);
+        const jobOutputsData = jobOutputsSnap.exists ? jobOutputsSnap.data() : {};
         
         // 3.5. Fetch localization artifacts (Dubbing) per language
         const [dubbingSnaps, subtitleSnaps] = await Promise.all([
@@ -177,7 +197,10 @@ export class AggregationLayer {
 
         // Note: Partial results might be missing if stages were skipped
         const trans = transSnap.exists ? transSnap.data() as any : null;
-        const jobOutputs = jobData.outputs || {};
+        const jobOutputs = {
+          ...(jobData.outputs || {}),
+          ...(jobOutputsData || {})
+        };
 
         // 🚀 Resolve full credibility result from GCS (Industry Standard for large payloads)
         let cred: CredibilityResult | null = null;
@@ -203,13 +226,15 @@ export class AggregationLayer {
             const url = data.vttPath || data.srtPath || data.url || data.subtitleUrl;
             if (!url) continue;
 
+            const directUrl = getDownloadUrl(url);
             subtitlesMap[lang] = {
-              url,
+              ...data,
+              url: directUrl,
               format: data.vttPath ? "vtt" : (data.srtPath ? "srt" : (data.format || data.subtitleFormat || "srt")),
               language: lang,
               updatedAt: data.createdAt || data.updatedAt || Date.now(),
             };
-            flatSubtitles[lang] = url;
+            flatSubtitles[lang] = directUrl;
           }
         }
         
@@ -218,13 +243,14 @@ export class AggregationLayer {
           const data = sourceSubSnap.data();
           const url = data?.subtitleUrl;
           if (url) {
+            const directUrl = getDownloadUrl(url);
             subtitlesMap[sourceLang] = {
-              url,
+              url: directUrl,
               format: data?.subtitleFormat || "srt",
               language: sourceLang,
               updatedAt: data?.createdAt || Date.now(),
             };
-            flatSubtitles[sourceLang] = url;
+            flatSubtitles[sourceLang] = directUrl;
           }
         }
 
@@ -234,31 +260,49 @@ export class AggregationLayer {
             const lang = data?.language;
             const url = data?.subtitleUrl;
             if (lang && url) {
+              const directUrl = getDownloadUrl(url);
               subtitlesMap[lang] = {
-                url,
+                url: directUrl,
                 format: data?.subtitleFormat || "srt",
                 language: lang,
                 updatedAt: data?.createdAt || Date.now(),
               };
-              flatSubtitles[lang] = url;
+              flatSubtitles[lang] = directUrl;
             }
           }
         });
 
-        const dubbedMap: Record<string, any> = { ...(jobData.outputs?.dubbed || {}) };
+        const dubbedMap: Record<string, any> = {};
+        if (jobData.outputs?.dubbed) {
+          for (const [lang, data] of Object.entries(jobData.outputs.dubbed) as [string, any][]) {
+            if (data.audioUrl) {
+              const directAudioUrl = getDownloadUrl(data.audioUrl);
+              const directVideoUrl = data.videoUrl ? getDownloadUrl(data.videoUrl) : (data.path ? getDownloadUrl(data.path) : "");
+              dubbedMap[lang] = {
+                ...data,
+                audioUrl: directAudioUrl,
+                path: directVideoUrl || data.path || data.videoUrl,
+              };
+            }
+          }
+        }
         const audioTracksMap: Record<string, string> = {}; // Flat map for video doc convenience
 
         dubbingSnaps.forEach(snap => {
           if (snap.exists) {
             const data = snap.data();
             if (data?.videoUrl) {
+              const directVideoUrl = getDownloadUrl(data.videoUrl);
+              const directAudioUrl = getDownloadUrl(data.audioUrl);
               dubbedMap[data.language] = {
-                path:      data.videoUrl,
-                audioUrl:  data.audioUrl,
+                path:      directVideoUrl,
+                audioUrl:  directAudioUrl,
                 createdAt: data.createdAt || Date.now(),
               };
             }
-            if (data?.audioUrl) audioTracksMap[data.language] = data.audioUrl;
+            if (data?.audioUrl) {
+              audioTracksMap[data.language] = getDownloadUrl(data.audioUrl);
+            }
           }
         });
 
@@ -268,6 +312,11 @@ export class AggregationLayer {
         await EdgeLayer.updateStageSync(jobId, "finalizing", { 
           status: "running", progress: 50, startedAt: Date.now() 
         });
+
+        const directFactCheckUrl = getDownloadUrl(jobOutputs.factCheckUrl || "");
+        const bucket = admin.storage().bucket();
+        const transcriptUrl = `gs://${bucket.name}/transcripts/${jobId}/full.json`;
+        const directTranscriptUrl = getDownloadUrl(transcriptUrl);
 
         const output: AggregatedOutput = {
           jobId,
@@ -290,7 +339,7 @@ export class AggregationLayer {
           reviewTriggered: cred?.reviewTriggered || false,
           reviewReason: cred?.reviewReason || "",
           verifiedAt: cred?.verifiedAt || Date.now(),
-          factCheckUrl: jobOutputs.factCheckUrl || "",
+          factCheckUrl: directFactCheckUrl,
           diagnostics: cred?.diagnostics || [],
           confidenceNotes: cred?.confidenceNotes || [],
           checkedClaimsRatio: cred?.factCheckStats?.checkedClaimsRatio || 0, // v5.0
@@ -302,7 +351,8 @@ export class AggregationLayer {
           media: {
             subtitles: flatSubtitles,
             audioTracks: audioTracksMap,
-            factCheckUrl: jobOutputs.factCheckUrl || "",
+            factCheckUrl: directFactCheckUrl,
+            transcriptionUrl: directTranscriptUrl,
           },
           dubbedVideoUrl: dubbedMap[plan.languages?.[0] || ""]?.path || "", 
           dubbedVideos: dubbedMap,
@@ -362,12 +412,17 @@ export class AggregationLayer {
             conclusion: cred?.conclusion || null,
             viewerNote: cred?.viewerNote || "",
             checkedClaimsRatio: cred?.factCheckStats?.checkedClaimsRatio || 0, // v5.0
-            subtitles: subtitlesMap,
-            dubbed: dubbedMap,
-            audioTracks: audioTracksMap,
             factCheckUrl: jobOutputs.factCheckUrl || null,
           }
         });
+
+        // Write the heavy fields to the separate job_outputs document:
+        transaction.set(jobOutputsRef, {
+          subtitles: subtitlesMap,
+          dubbed: dubbedMap,
+          audioTracks: audioTracksMap,
+          updatedAt: now,
+        }, { merge: true });
 
         await EdgeLayer.updateStageSync(jobId, "finalizing", { 
           status: "completed", progress: 100, completedAt: Date.now() 
@@ -424,15 +479,25 @@ export class AggregationLayer {
             trustIndex: jobOutputs.trustScore || 0,
             videoRating: jobOutputs.videoRating || 0,
             contentIntent: jobOutputs.contentIntent?.primaryIntent || null,
-            factCheckUrl: jobOutputs.factCheckUrl || "",
-            subtitles: subtitlesMap,
-            "media.subtitles": flatSubtitles,
-            "media.audioTracks": audioTracksMap,
+            factCheckUrl: directFactCheckUrl,
+            trustLabel: cred?.trustLabel || null,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          // Write localization data to videos/{videoId}/media/localization
+          const locRef = vRef.collection("media").doc("localization");
+          transaction.set(locRef, {
+            subtitles: flatSubtitles,
             dubbedVideos: dubbedMap,
             audioTracks: audioTracksMap,
-            "media.factCheckUrl": jobOutputs.factCheckUrl || "",
-            chapters: trans?.chapters || [], // ✅ v7.5: Persistence to video document
-            // v8.0: Category-Aware Epistemic Scoring Propagation
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+
+          // Write credibility data to videos/{videoId}/media/credibility
+          const credRef = vRef.collection("media").doc("credibility");
+          transaction.set(credRef, {
+            trustScore: jobOutputs.trustScore || cred?.trustScore || 0,
+            videoRating: jobOutputs.videoRating || 0,
             trustLabel: cred?.trustLabel || null,
             scoringFactors: cred?.factors || null,
             deductions: cred?.deductions || [],
@@ -440,24 +505,29 @@ export class AggregationLayer {
             honestyBreakdown: cred?.honestyBreakdown || null,
             harmCapApplied: cred?.harmCapApplied || false,
             harmCapReason: cred?.harmCapReason || null,
-            videoCategory: cred?.videoCategory || null,
-            effectiveCategory: cred?.effectiveCategory || null, // v8.1
             categoryWeightProfile: cred?.categoryWeightProfile || null,
             confidenceNotes: cred?.confidenceNotes || [],
             diagnostics: cred?.diagnostics || [],
-            
-            // v8.1: Hardened Trust Propagation
-            hardeningMetadata: cred?.hardeningMetadata || null,
             intentToMisleadScore: cred?.intentToMisleadScore || 0,
-
+            hardeningMetadata: cred?.hardeningMetadata || null,
             factCheckStats: cred?.factCheckStats ? {
               totalClaims: cred.factCheckStats.totalClaims,
               correct: cred.factCheckStats.correct,
               incorrect: cred.factCheckStats.incorrect,
               unverifiable: cred.factCheckStats.unverifiable,
+              extractionPartial: cred.factCheckStats.extractionPartial || false
             } : null,
+            factCheckUrl: directFactCheckUrl,
+            transcriptionUrl: directTranscriptUrl,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
+          }, { merge: true });
+
+          // Write streaming data to videos/{videoId}/media/streaming
+          const streamRef = vRef.collection("media").doc("streaming");
+          transaction.set(streamRef, {
+            chapters: trans?.chapters || [],
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
 
           // v8.1: Regulatory Audit Logging (DSA/India compliance)
           if (cred?.hardeningMetadata) {
@@ -525,14 +595,15 @@ export class AggregationLayer {
           const [content] = await bucket.file(path).download();
           cred = JSON.parse(content.toString()) as CredibilityResult;
           
+          const directFactCheckUrl = getDownloadUrl(jobOutputs.factCheckUrl);
           updateData.trustIndex = cred.trustScore || 0;
           updateData.videoRating = cred.videoRating || (cred.trustScore ? Number((cred.trustScore / 10).toFixed(1)) : 0);
           updateData.trustLabel = cred.trustLabel || "Low Reliability";
-          updateData.factCheckUrl = jobOutputs.factCheckUrl;
+          updateData.factCheckUrl = directFactCheckUrl;
           updateData.summary = cred.summary || "";
           updateData.viewerNote = cred.viewerNote || "";
           
-          updateData["media.factCheckUrl"] = jobOutputs.factCheckUrl;
+          updateData["media.factCheckUrl"] = directFactCheckUrl;
           
           // Full Epistemic Breakdown (v8.0+)
           updateData.scoringFactors = cred.factors || null;
@@ -554,6 +625,7 @@ export class AggregationLayer {
               correct: cred.factCheckStats.correct,
               incorrect: cred.factCheckStats.incorrect,
               unverifiable: cred.factCheckStats.unverifiable,
+              extractionPartial: cred.factCheckStats.extractionPartial || false
             };
           }
           
@@ -568,20 +640,38 @@ export class AggregationLayer {
         // We'll update the dubbedVideos and subtitles if they are ready in jobOutputs
         if (jobOutputs.subtitles) {
           const flatSubtitles: Record<string, string> = {};
+          const subtitlesMap: Record<string, any> = {};
           for (const [lang, data] of Object.entries(jobOutputs.subtitles) as [string, any][]) {
             const url = data.vttPath || data.srtPath || data.url || data.subtitleUrl;
-            if (url) flatSubtitles[lang] = url;
+            if (url) {
+              const directUrl = getDownloadUrl(url);
+              flatSubtitles[lang] = directUrl;
+              subtitlesMap[lang] = {
+                ...data,
+                url: directUrl,
+              };
+            }
           }
-          updateData.subtitles = jobOutputs.subtitles;
+          updateData.subtitles = subtitlesMap;
           updateData["media.subtitles"] = flatSubtitles;
         }
 
         if (jobOutputs.dubbed) {
           const audioTracks: Record<string, string> = {};
+          const dubbedMap: Record<string, any> = {};
           for (const [lang, data] of Object.entries(jobOutputs.dubbed) as [string, any][]) {
-            if (data.audioUrl) audioTracks[lang] = data.audioUrl;
+            if (data.audioUrl) {
+              const directAudioUrl = getDownloadUrl(data.audioUrl);
+              const directVideoUrl = data.videoUrl ? getDownloadUrl(data.videoUrl) : (data.path ? getDownloadUrl(data.path) : "");
+              audioTracks[lang] = directAudioUrl;
+              dubbedMap[lang] = {
+                ...data,
+                audioUrl: directAudioUrl,
+                path: directVideoUrl || data.path || data.videoUrl,
+              };
+            }
           }
-          updateData.dubbedVideos = jobOutputs.dubbed;
+          updateData.dubbedVideos = dubbedMap;
           updateData.audioTracks = audioTracks;
           updateData["media.audioTracks"] = audioTracks;
         }

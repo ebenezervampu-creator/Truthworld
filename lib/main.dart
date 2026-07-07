@@ -1,12 +1,10 @@
 import 'dart:async';
-// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'package:universal_html/js.dart' as js;
 import 'package:flutter/foundation.dart';
 import 'package:truthworld/core/utils/url_strategy/url_strategy.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/firebase_options.dart';
 import 'package:truthworld/routes/app_pages.dart';
@@ -67,6 +65,12 @@ void main() {
             options: DefaultFirebaseOptions.currentPlatform,
           );
           logger.info('Firebase initialized successfully', tag: 'Startup');
+
+          // Enable Firestore offline cache/persistence with unlimited size
+          FirebaseFirestore.instance.settings = const Settings(
+            persistenceEnabled: true,
+            cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+          );
           // Initialize App Check with reCAPTCHA Enterprise and Web Debug Provider support
           try {
             await FirebaseAppCheck.instance.activate(
@@ -207,8 +211,8 @@ class Truthworld extends StatelessWidget {
       theme: buildAppTheme(),
       darkTheme: buildAppTheme(),
       themeMode: ThemeMode.dark,
-      defaultTransition: Transition.fadeIn,
-      transitionDuration: const Duration(milliseconds: 300),
+      defaultTransition: kIsWeb ? Transition.noTransition : Transition.native,
+      transitionDuration: kIsWeb ? Duration.zero : const Duration(milliseconds: 250),
       initialRoute: AppPages.routes.first.name,
       initialBinding: InitialBinding(),
       getPages: AppPages.routes,

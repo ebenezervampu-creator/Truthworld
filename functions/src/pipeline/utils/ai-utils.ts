@@ -44,6 +44,47 @@ export class AiPacer {
   }
 }
 
+// ─── GLOBAL VERIFICATION SEMAPHORE (v11.1) ───────────────────────────────────
+
+export class GlobalSemaphore {
+  private static instance: GlobalSemaphore;
+  private activeCount: number = 0;
+  private maxConcurrent: number = 25; // platform-wide cap for Gemini calls
+  private queue: (() => void)[] = [];
+
+  private constructor() {}
+
+  public static getInstance(): GlobalSemaphore {
+    if (!GlobalSemaphore.instance) {
+      GlobalSemaphore.instance = new GlobalSemaphore();
+    }
+    return GlobalSemaphore.instance;
+  }
+
+  public async acquire(): Promise<void> {
+    if (this.activeCount < this.maxConcurrent) {
+      this.activeCount++;
+      return;
+    }
+    return new Promise(resolve => {
+      this.queue.push(resolve);
+    });
+  }
+
+  public release(): void {
+    if (this.queue.length > 0) {
+      const next = this.queue.shift();
+      if (next) next();
+    } else {
+      this.activeCount--;
+    }
+  }
+
+  public getStatus() {
+    return { active: this.activeCount, queued: this.queue.length };
+  }
+}
+
 // ─── GLOBAL CIRCUIT BREAKER ─────────────────────────────────────────────────
 
 export interface CircuitBreakerState {
@@ -157,13 +198,18 @@ const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 export async function withAiRetry<T>(
   fn: (model: string) => Promise<T>,
   chain: ModelFallbackChain,
-  options: { maxAttempts: number; instanceId: string }
+  options: { maxAttempts: number; instanceId: string; signal?: AbortSignal }
 ): Promise<T> {
   const pacer = AiPacer.getInstance();
+  const semaphore = GlobalSemaphore.getInstance();
   let currentModel = chain.primary;
   let attempts = 0;
+
+  await semaphore.acquire();
+  try {
   
   while (attempts < options.maxAttempts) {
+    if (options.signal?.aborted) throw new Error('ABORTED');
     // Step 1: Check circuit breaker before every attempt
     const circuitStatus = await checkCircuitBreaker();
     
@@ -180,17 +226,31 @@ export async function withAiRetry<T>(
     try {
       await pacer.pace();
 
-      const timeoutMs = 90_000; // v10.6: 90s to accommodate Pro + grounding calls
+      const timeoutMs = 180_000; // v18.0: 180s for grounding + multi-source verification batches
+      let timeoutId: any;
       const result = await Promise.race([
         fn(currentModel),
-        new Promise<T>((_, reject) => 
-          setTimeout(() => {
+        new Promise<T>((_, reject) => {
+          timeoutId = setTimeout(() => {
             logger.warn(`[withAiRetry] Internal ${timeoutMs}ms timeout reached for model ${currentModel}`);
-            // v10.6: Assign status 503 so isCapacityError catches this and triggers fallback/circuit breaker
             reject(Object.assign(new Error('AI_INTERNAL_TIMEOUT'), { status: 503 }));
-          }, timeoutMs)
-        )
+          }, timeoutMs);
+
+          if (options.signal) {
+            if (options.signal.aborted) {
+              clearTimeout(timeoutId);
+              reject(new Error('ABORTED'));
+            }
+            options.signal.addEventListener('abort', () => {
+              clearTimeout(timeoutId);
+              reject(new Error('ABORTED'));
+            });
+          }
+        })
       ]);
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       
       // Successful call — close circuit if it was half-open
       if (circuitStatus === 'half-open') {
@@ -240,4 +300,7 @@ export async function withAiRetry<T>(
   }
   
   throw new Error(`[withAiRetry] Exhausted ${options.maxAttempts} attempts on model chain.`);
+  } finally {
+    semaphore.release();
+  }
 }

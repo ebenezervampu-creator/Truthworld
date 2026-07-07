@@ -18,6 +18,7 @@ import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:uuid/uuid.dart';
 import 'package:video_player/video_player.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
 
 // ignore: avoid_web_libraries_in_flutter
 import 'package:universal_html/html.dart' as html;
@@ -51,6 +52,11 @@ class UploadController extends GetxController with ContentValidationMixin {
   RxBool enableComments = true.obs;
   RxBool allowRatings = false.obs;
   RxString selectedPlaylist = ''.obs;
+  RxString selectedTopicId = ''.obs;
+  RxList<Topic> availableTopics = <Topic>[].obs;
+  RxBool isTopicsLoading = false.obs;
+  RxString topicsError = ''.obs;
+  final RxMap<String, dynamic> newTopicData = <String, dynamic>{}.obs;
   RxBool isScheduled = false.obs;
   Rx<DateTime> scheduledDate = DateTime.now().add(Duration(days: 1)).obs;
   final RxString finalstatus = "".obs;
@@ -226,6 +232,7 @@ class UploadController extends GetxController with ContentValidationMixin {
     super.onInit();
     initializeContentFilters();
     fetchChannelsWithRetry();
+    fetchAvailableTopics();
     
     // Every video doesn't have video rating only when user enabled Factchecking
     ever(aiFactCheckEnabled, (bool enabled) {
@@ -1319,6 +1326,93 @@ class UploadController extends GetxController with ContentValidationMixin {
         'aiFeatures': buildFeaturesMap(pipelineStage: 'published'),
       };
 
+      // Handle inline topic creation if needed
+      if (newTopicData.isNotEmpty) {
+        debugPrint('🆕 Creating new inline topic: ${newTopicData['title']}');
+        
+        final String newTitle = newTopicData['title'];
+        final String newDescription = newTopicData['description'] ?? '';
+        final String newCategory = newTopicData['category'] ?? 'Music';
+        final TopicVisibilityType newVisibility = newTopicData['visibilityType'] ?? TopicVisibilityType.public;
+        final String? newAccessCode = newTopicData['accessCode'];
+        final String thumbnailSource = newTopicData['thumbnailSource'] ?? 'video';
+        
+        String? finalThumbnailUrl;
+        if (thumbnailSource == 'custom' && newTopicData['customThumbnailBytes'] != null) {
+          final bytes = newTopicData['customThumbnailBytes'] as Uint8List;
+          final fileName = newTopicData['customThumbnailName'] ?? 'custom_topic_thumb.jpg';
+          finalThumbnailUrl = await uploadTopicCustomThumbnail(bytes, fileName);
+        } else {
+          // Use first video's thumbnail
+          finalThumbnailUrl = thumbnailUrl.value;
+        }
+        
+        final String newSlug = newTitle
+            .toLowerCase()
+            .replaceAll(RegExp(r'[^a-z0-9\s-]'), '')
+            .replaceAll(RegExp(r'\s+'), '-');
+            
+        final existingSlug = await _firestore
+            .collection('topics')
+            .where('slug', isEqualTo: newSlug)
+            .limit(1)
+            .get();
+            
+        String finalSlug = newSlug;
+        if (existingSlug.docs.isNotEmpty) {
+          finalSlug = '$newSlug-${const Uuid().v4().substring(0, 6)}';
+        }
+
+        final String rawHandle = newTopicData['handle'] ?? '';
+        String cleanHandle = rawHandle.trim();
+        if (cleanHandle.startsWith('T/')) {
+          cleanHandle = cleanHandle.substring(2);
+        }
+        if (cleanHandle.startsWith('t/')) {
+          cleanHandle = cleanHandle.substring(2);
+        }
+        cleanHandle = cleanHandle
+            .replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '-')
+            .replaceAll(RegExp(r'-+'), '-');
+        if (cleanHandle.isEmpty) {
+          cleanHandle = finalSlug;
+        }
+        final String finalHandle = 'T/$cleanHandle';
+        final String finalHandleLowercase = finalHandle.toLowerCase();
+        
+        final newTopicRef = _firestore.collection('topics').doc();
+        final newTopic = Topic(
+          id: newTopicRef.id,
+          title: newTitle,
+          slug: finalSlug,
+          handle: finalHandle,
+          handleLowercase: finalHandleLowercase,
+          description: newDescription,
+          category: newCategory,
+          thumbnailUrl: finalThumbnailUrl,
+          channelId: channelId.trim(),
+          creatorId: userId,
+          visibilityType: newVisibility,
+          accessCode: newVisibility == TopicVisibilityType.private ? newAccessCode : null,
+          videoCount: 1, // Enforces the rule that it has 1 video now
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        
+        await newTopicRef.set(newTopic.toMap());
+        debugPrint('✅ Inline topic created with slug: $finalSlug and handle: $finalHandle');
+        
+        selectedTopicId.value = finalSlug;
+        newTopicData.clear();
+      }
+
+      // Link video to topic if selected
+      if (selectedTopicId.value.isNotEmpty) {
+        debugPrint('🔗 Linking video to topic: ${selectedTopicId.value}');
+        updateData['topicId'] = selectedTopicId.value;
+        updateData['topics'] = [selectedTopicId.value];
+      }
+
       if (isScheduled.value) {
         updateData['scheduledTime'] = Timestamp.fromDate(scheduledDate.value);
       }
@@ -1330,6 +1424,24 @@ class UploadController extends GetxController with ContentValidationMixin {
       await docRef.update(updateData);
 
       debugPrint('✅ Document updated successfully!');
+
+      if (selectedTopicId.value.isNotEmpty) {
+        final topicQuery = await _firestore.collection('topics')
+            .where('slug', isEqualTo: selectedTopicId.value)
+            .limit(1)
+            .get();
+        if (topicQuery.docs.isNotEmpty) {
+          final topicDoc = topicQuery.docs.first;
+          final topicData = Topic.fromDocumentSnapshot(topicDoc);
+          if (DateTime.now().difference(topicData.createdAt).inSeconds > 5) {
+            await topicDoc.reference.update({
+              'videoCount': FieldValue.increment(1),
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+            debugPrint('✅ Incremented videoCount for existing topic: ${selectedTopicId.value}');
+          }
+        }
+      }
 
       // Add to playlist if selected
       if (selectedPlaylist.value.isNotEmpty) {
@@ -1556,8 +1668,124 @@ class UploadController extends GetxController with ContentValidationMixin {
     videoPlayerController?.dispose();
     videoPlayerController = null;
     selectedPlaylist.value = '';
+    selectedTopicId.value = '';
+    newTopicData.clear();
     isScheduled.value = false;
     _currentVideoId = null;
+  }
+
+  Future<void> fetchAvailableTopics() async {
+    isTopicsLoading.value = true;
+    topicsError.value = '';
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        isTopicsLoading.value = false;
+        return;
+      }
+      
+      final snap = await _firestore.collection('topics')
+          .where('status', isNotEqualTo: 'deletion_pending')
+          .get();
+          
+      final List<Topic> fetched = [];
+      for (var doc in snap.docs) {
+        try {
+          final t = Topic.fromDocumentSnapshot(doc);
+          if (t.visibilityType == TopicVisibilityType.public ||
+              t.creatorId == user.uid ||
+              (selectedChannel.value != null && t.channelId == selectedChannel.value!.id)) {
+            fetched.add(t);
+          }
+        } catch (e) {
+          debugPrint('Error parsing topic doc: $e');
+        }
+      }
+      
+      availableTopics.value = fetched;
+      debugPrint('Fetched ${availableTopics.length} available topics for upload screen');
+    } catch (e) {
+      debugPrint('Error fetching topics: $e');
+      topicsError.value = e.toString();
+    } finally {
+      isTopicsLoading.value = false;
+    }
+  }
+
+  void selectTopic(String id) {
+    selectedTopicId.value = id;
+  }
+
+  Future<bool> unlockPrivateTopic(String slug, String passcode) async {
+    try {
+      final query = await _firestore
+          .collection('topics')
+          .where('slug', isEqualTo: slug)
+          .limit(1)
+          .get();
+          
+      if (query.docs.isEmpty) {
+        Get.snackbar(
+          "Error",
+          "Topic not found with slug: $slug",
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return false;
+      }
+      
+      final topicDoc = query.docs.first;
+      final topic = Topic.fromDocumentSnapshot(topicDoc);
+      
+      if (topic.visibilityType == TopicVisibilityType.private) {
+        if (topic.accessCode != passcode) {
+          Get.snackbar(
+            "Error",
+            "Incorrect passcode for private topic",
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+          );
+          return false;
+        }
+      }
+      
+      if (!availableTopics.any((t) => t.slug == topic.slug)) {
+        availableTopics.add(topic);
+      }
+      selectedTopicId.value = topic.slug;
+      Get.snackbar(
+        "Success",
+        "Successfully unlocked private topic: ${topic.title}",
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+      return true;
+    } catch (e) {
+      Get.snackbar(
+        "Error",
+        "Failed to unlock topic: $e",
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+      return false;
+    }
+  }
+
+  Future<String?> uploadTopicCustomThumbnail(Uint8List bytes, String fileName) async {
+    try {
+      await _ensureStorageAuthReady();
+      final ref = FirebaseStorage.instance.ref().child('thumbnails/topics/$fileName');
+      final metadata = SettableMetadata(
+        contentType: 'image/jpeg',
+        customMetadata: {'uploaded': DateTime.now().toString()},
+      );
+      final uploadTask = ref.putData(bytes, metadata);
+      await uploadTask.timeout(const Duration(seconds: 20));
+      return await ref.getDownloadURL();
+    } catch (e) {
+      debugPrint('Error uploading topic custom thumbnail: $e');
+      return null;
+    }
   }
 }
 

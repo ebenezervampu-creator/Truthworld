@@ -9,6 +9,7 @@ export 'compatibility_layer.dart';
 ThemeData buildAppTheme() {
   return ThemeData(
     useMaterial3: true,
+    fontFamily: GoogleFonts.roboto().fontFamily,
     brightness: Brightness.dark,
     primaryColor: AppColors.brand,
     scaffoldBackgroundColor: AppColors.bgPage,

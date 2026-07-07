@@ -207,7 +207,7 @@ class _TopicPageState extends State<TopicPage> {
 
     return InkWell(
       onTap: () => Get.toNamed(
-        '/videoscreen',
+        '/watch?v=${video.id}',
         arguments: {
           'video': video,
           'heroTag': controller.getHeroTag(video.id),

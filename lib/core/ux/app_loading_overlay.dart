@@ -74,7 +74,7 @@ class AppLoadingOverlay {
                     message,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       fontSize: 14,
                       color: AppColors.textSecondary,
                       height: 1.4,

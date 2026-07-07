@@ -130,7 +130,7 @@ class ImageVerificationOverlay extends StatelessWidget {
                   child: Text(
                     label,
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       color: Colors.white,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,

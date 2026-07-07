@@ -11,7 +11,7 @@
  */
 
 import { v3, v2 } from "@google-cloud/translate";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { VertexAI } from "@google-cloud/vertexai";
 import { TranslationResult, TranslatedSegment, CreatorDNA } from "../types";
 import { SpeakerProfile } from "./speaker-profiling";
 import { costEngine } from "./cost-engine";
@@ -31,7 +31,7 @@ const V3_BATCH_SIZE = 100;
 export class TranslationService {
   private v3Client: v3.TranslationServiceClient | null = null;
   private v2Client: v2.Translate | null = null;
-  private gemini:   GoogleGenerativeAI | null = null;
+  private gemini:   VertexAI | null = null;
 
   /** v3 parent path: projects/{project}/locations/{location} */
   private get parent(): string {
@@ -63,10 +63,7 @@ export class TranslationService {
     }
 
     // ── Premium: Gemini 2.0 Flash ───────────────────────────────────────────
-    const geminiKey = PIPELINE_CONFIG.GEMINI_API_KEY;
-    if (geminiKey) {
-      this.gemini = new GoogleGenerativeAI(geminiKey);
-    }
+    this.gemini = new VertexAI({ project: "truthworld-1", location: "asia-south1" });
   }
 
   // ─── Single text translation ───────────────────────────────────────────────
@@ -423,7 +420,7 @@ Segments to translate:
 ${JSON.stringify(chunk.map((t, idx) => `${batchHooks[idx] ? "[HOOK] " : ""}${t}`), null, 2)}`;
 
       const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
+      const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       
       if (!jsonMatch) throw new Error("No JSON in premium translation response");

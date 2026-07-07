@@ -3,6 +3,8 @@ import 'package:truthworld/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:truthworld/features/video/data/services/comment_service.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
 // ------------------------------------------------------------
@@ -180,11 +182,34 @@ class StudioCommentsController extends GetxController {
   final selectedSort = 'newest'.obs;
   final searchQuery = ''.obs;
   final expandedCommentIds = <String>{}.obs;
+  final userCommentInteractions = <String, Map<String, bool>>{}.obs;
+
+  Future<void> _loadUserInteractions() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (userId.isEmpty) return;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('comment_interactions')
+          .get();
+      for (var doc in snap.docs) {
+        final data = doc.data();
+        final type = data['type'];
+        userCommentInteractions[doc.id] = {
+          'isLiked': type == 'like',
+          'isDisliked': type == 'dislike',
+        };
+      }
+    } catch (e) {
+      debugPrint('Failed to load user interactions: $e');
+    }
+  }
 
   @override
   void onInit() {
     super.onInit();
-    _loadComments();
+    _loadUserInteractions().then((_) => _loadComments());
   }
 
   Future<void> _loadComments() async {
@@ -276,48 +301,64 @@ class StudioCommentsController extends GetxController {
   }
 
   Future<void> toggleLike(String videoId, String commentId, bool isLike) async {
-    final docRef = FirebaseFirestore.instance
-        .collection('videos')
-        .doc(videoId)
-        .collection('comments')
-        .doc(commentId);
+    final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (userId.isEmpty) return;
 
-    await FirebaseFirestore.instance.runTransaction((transaction) async {
-      final snapshot = await transaction.get(docRef);
-      if (!snapshot.exists) return;
+    final currentStatus = userCommentInteractions[commentId];
+    final wasLiked = currentStatus?['isLiked'] ?? false;
+    final wasDisliked = currentStatus?['isDisliked'] ?? false;
 
-      final data = snapshot.data()!;
-      List<String> likedBy =
-          (data['likedBy'] as List<dynamic>?)?.cast<String>() ?? [];
-      List<String> dislikedBy =
-          (data['dislikedBy'] as List<dynamic>?)?.cast<String>() ?? [];
-
-      final array = isLike ? likedBy : dislikedBy;
-      final otherArray = isLike ? dislikedBy : likedBy;
-      final countField = isLike ? 'likeCount' : 'dislikeCount';
-      final arrayField = isLike ? 'likedBy' : 'dislikedBy';
-      final otherCountField = isLike ? 'dislikeCount' : 'likeCount';
-      final otherArrayField = isLike ? 'dislikedBy' : 'likedBy';
-
-      if (otherArray.contains(channelId)) {
-        transaction.update(docRef, {
-          otherCountField: FieldValue.increment(-1),
-          otherArrayField: FieldValue.arrayRemove([channelId]),
-        });
-      }
-
-      if (array.contains(channelId)) {
-        transaction.update(docRef, {
-          countField: FieldValue.increment(-1),
-          arrayField: FieldValue.arrayRemove([channelId]),
-        });
+    try {
+      if (isLike) {
+        if (wasLiked) {
+          userCommentInteractions[commentId] = {
+            'isLiked': false,
+            'isDisliked': false,
+          };
+          await CommentService().removeCommentInteraction(
+            videoId: videoId,
+            commentId: commentId,
+            userId: userId,
+          );
+        } else {
+          userCommentInteractions[commentId] = {
+            'isLiked': true,
+            'isDisliked': false,
+          };
+          await CommentService().likeComment(
+            videoId: videoId,
+            commentId: commentId,
+            userId: userId,
+            asChannel: true,
+          );
+        }
       } else {
-        transaction.update(docRef, {
-          countField: FieldValue.increment(1),
-          arrayField: FieldValue.arrayUnion([channelId]),
-        });
+        if (wasDisliked) {
+          userCommentInteractions[commentId] = {
+            'isLiked': false,
+            'isDisliked': false,
+          };
+          await CommentService().removeCommentInteraction(
+            videoId: videoId,
+            commentId: commentId,
+            userId: userId,
+          );
+        } else {
+          userCommentInteractions[commentId] = {
+            'isLiked': false,
+            'isDisliked': true,
+          };
+          await CommentService().dislikeComment(
+            videoId: videoId,
+            commentId: commentId,
+            userId: userId,
+            asChannel: true,
+          );
+        }
       }
-    });
+    } catch (e) {
+      debugPrint('Failed to toggle comment interaction: $e');
+    }
 
     await _loadComments();
   }
@@ -858,21 +899,22 @@ class CommentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final comment = videoComment.comment;
-    final isExpanded = controller.expandedCommentIds.contains(comment.id);
-    final hasLiked = comment.likedBy.contains(controller.channelId);
-    final hasDisliked = comment.dislikedBy.contains(controller.channelId);
+    return Obx(() {
+      final comment = videoComment.comment;
+      final isExpanded = controller.expandedCommentIds.contains(comment.id);
+      final hasLiked = controller.userCommentInteractions[comment.id]?['isLiked'] ?? false;
+      final hasDisliked = controller.userCommentInteractions[comment.id]?['isDisliked'] ?? false;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1F1F1F),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: comment.hasCreatorReply
-              ? AppColors.textLink.withValues(alpha: 0.3)
-              : const Color(0xFF2F2F2F),
+      return Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF1F1F1F),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: comment.hasCreatorReply
+                ? AppColors.textLink.withValues(alpha: 0.3)
+                : const Color(0xFF2F2F2F),
+          ),
         ),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1225,6 +1267,7 @@ class CommentCard extends StatelessWidget {
         ],
       ),
     );
+    });
   }
 }
 

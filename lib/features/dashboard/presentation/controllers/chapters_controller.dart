@@ -7,6 +7,8 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
+import 'package:truthworld/features/video/data/services/video_media_service.dart';
+import 'package:truthworld/features/video/data/models/video_media.dart';
 
 /// Professional Chapters Management Controller
 class ChaptersController extends BaseController {
@@ -45,7 +47,7 @@ class ChaptersController extends BaseController {
 
   Future<void> _initializeContext() async {
     try {
-      setState(ViewState.loading);
+      setViewState(ViewState.loading);
       final currentUser = _auth.currentUser;
       if (currentUser == null) {
         setError('User not authenticated');
@@ -114,7 +116,7 @@ class ChaptersController extends BaseController {
             videos.value = loadedVideos;
             _applyFilters();
 
-            setState(
+            setViewState(
               loadedVideos.isEmpty ? ViewState.empty : ViewState.success,
             );
 
@@ -172,7 +174,7 @@ class ChaptersController extends BaseController {
     filteredVideos.value = list;
   }
 
-  void selectVideo(Video? video) {
+  void selectVideo(Video? video) async {
     selectedVideo.value = video;
     hasUnsavedChanges.value = false;
     if (video == null) {
@@ -181,9 +183,14 @@ class ChaptersController extends BaseController {
     }
 
     logger.info('Selected video for chapters: ${video.title}', tag: _tag);
+
+    // Lazy-load streaming from subcollection first (contains chapters)
+    await VideoMediaService().getStreaming(video.id);
+
     currentChapters.value = List<VideoChapter>.from(video.chapters);
     // Sort chapters by startTime just in case they aren't ordered in database
     currentChapters.sort((a, b) => a.startTime.compareTo(b.startTime));
+    selectedVideo.refresh();
   }
 
   void addChapter(String title, Duration startTime) {
@@ -244,15 +251,30 @@ class ChaptersController extends BaseController {
     try {
       final chapterMaps = currentChapters.map((c) => c.toMap()).toList();
 
-      await _firestore.collection('videos').doc(video.id).update({
-        'chapters': chapterMaps,
-      });
+      // Save to media/streaming subcollection
+      await _firestore
+          .collection('videos')
+          .doc(video.id)
+          .collection('media')
+          .doc('streaming')
+          .set({
+            'chapters': chapterMaps,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
-      // Update local object to immediately reflect changes
-      selectedVideo.value = Video.fromMap({
-        ...video.toMap(),
-        'chapters': chapterMaps,
-      }, video.id);
+      // Update static cache to reflect changes immediately
+      VideoMediaService.streamingCache[video.id] = VideoMediaStreaming(
+        originalUrl: video.originalUrl,
+        hlsUrl: video.hlsUrl,
+        dashUrl: video.dashUrl,
+        adaptiveResolutions: video.adaptiveResolutions,
+        thumbnailVariants: video.thumbnailVariants,
+        animatedPreviewUrl: video.animatedPreviewUrl,
+        chapters: currentChapters,
+      );
+
+      // Force reactive notification
+      selectedVideo.refresh();
 
       hasUnsavedChanges.value = false;
       showSuccess('Video chapters saved successfully!');

@@ -91,6 +91,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   static const int indexDownloads = 8;
   static const int indexWatchLater = 9;
   static const int indexPlaylists = 10;
+  static const int indexSavedTopics = 18;
   static const int indexClips = 17;
 
   // Special Pages (Not shown in navigation, used for nested content)
@@ -203,14 +204,12 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     ever(sideNavSelectedIndex, (index) {
       if (index == indexHome) {
         bottomNavSelectedIndex.value = 0;
-      } else if (index == indexDiscover) {
-        bottomNavSelectedIndex.value = 1;
       } else if (index == indexExploreTopics) {
-        bottomNavSelectedIndex.value = 2;
+        bottomNavSelectedIndex.value = 1;
       } else if (index == indexSubscriptions) {
+        bottomNavSelectedIndex.value = 2;
+      } else if (index == indexLibrary || index == indexSavedTopics) {
         bottomNavSelectedIndex.value = 3;
-      } else if (index == indexLibrary) {
-        bottomNavSelectedIndex.value = 4;
       }
     });
   }
@@ -721,7 +720,21 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   }
 
   /// Handle bottom navigation tap
-  void onBottomNavItemTapped(int index) {
+  void onBottomNavItemTapped(int index) async {
+    if (index == 3 && !isAuthenticated) {
+      await signInWithGoogle();
+      if (isAuthenticated) {
+        bottomNavSelectedIndex.value = 0;
+        sideNavSelectedIndex.value = indexHome;
+        final bool isAtHome =
+            Get.currentRoute == '/' || Get.currentRoute == '/home';
+        if (!isAtHome) {
+          Get.offAllNamed('/');
+        }
+      }
+      return;
+    }
+
     bottomNavSelectedIndex.value = index;
     _triggerSelectionAnimation();
 
@@ -742,15 +755,19 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
         }
         break;
       case 1:
-        sideNavSelectedIndex.value = indexDiscover;
+        sideNavSelectedIndex.value = indexExploreTopics;
         if (!isAtHome) {
-          Get.offAllNamed('/home');
+          Get.offAllNamed('/');
         }
         break;
       case 2:
-        sideNavSelectedIndex.value = indexExploreTopics;
+        if (!isAuthenticated) {
+          showSignInSnackbar();
+          return;
+        }
+        sideNavSelectedIndex.value = indexSubscriptions;
         if (!isAtHome) {
-          Get.offAllNamed('/home');
+          Get.offAllNamed('/');
         }
         break;
       case 3:
@@ -758,19 +775,9 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
           showSignInSnackbar();
           return;
         }
-        sideNavSelectedIndex.value = indexSubscriptions;
-        if (!isAtHome) {
-          Get.offAllNamed('/home');
-        }
-        break;
-      case 4:
-        if (!isAuthenticated) {
-          showSignInSnackbar();
-          return;
-        }
         sideNavSelectedIndex.value = indexLibrary;
         if (!isAtHome) {
-          Get.offAllNamed('/home');
+          Get.offAllNamed('/');
         }
         break;
     }

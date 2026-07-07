@@ -34,6 +34,18 @@ const WEIGHT_PROFILES: Record<VideoCategory, CategoryWeightProfile> = {
     falsehood_penalty: -3.0, misleading_penalty: -1.5,
     harm_cap: 3.0, harm_cap_severity: ['high', 'extreme'],
   },
+  financial: {
+    category: 'financial',
+    weights: { accuracy: 25, evidence: 20, consensus: 10, consistency: 5, integrity: 10, expertise: 10, freshness: 10, safety: 5, honesty: 5 },
+    falsehood_penalty: -3.5, misleading_penalty: -2.0,
+    harm_cap: 3.0, harm_cap_severity: ['high', 'extreme'],
+  },
+  legal: {
+    category: 'legal',
+    weights: { accuracy: 25, evidence: 20, consensus: 10, consistency: 10, integrity: 5, expertise: 15, freshness: 5, safety: 5, honesty: 5 },
+    falsehood_penalty: -3.0, misleading_penalty: -1.5,
+    harm_cap: null, harm_cap_severity: [],
+  },
   news: {
     category: 'news',
     weights: { accuracy: 25, evidence: 15, consensus: 10, consistency: 10, integrity: 10, expertise: 5, freshness: 10, safety: 5, honesty: 10 },
@@ -100,7 +112,9 @@ const WEIGHT_PROFILES: Record<VideoCategory, CategoryWeightProfile> = {
 
 const RISK_HIERARCHY: VideoCategory[] = [
   'health', 
+  'financial',
   'science', 
+  'legal',
   'news', 
   'politics', 
   'history', 
@@ -124,6 +138,8 @@ function getRiskRank(cat: VideoCategory): number {
 const CATEGORY_MAP: Record<string, VideoCategory> = {
   'science': 'science', 'technology': 'science', 'tech': 'science',
   'health': 'health', 'medicine': 'health', 'medical': 'health',
+  'financial': 'financial', 'finance': 'financial', 'investing': 'financial', 'stocks': 'financial', 'crypto': 'financial', 'money': 'financial', 'economic': 'financial',
+  'legal': 'legal', 'law': 'legal', 'court': 'legal', 'lawyer': 'legal', 'judiciary': 'legal', 'rights': 'legal',
   'news': 'news', 'breaking news': 'news',
   'politics': 'politics', 'political': 'politics',
   'history': 'history', 'historical': 'history', 'geography': 'history',
@@ -196,7 +212,7 @@ function getClaimHonestyContribution(c: ClaimForHonesty): number {
 
   // Empirical claims — penalise confidently wrong
   if (claimType === 'empirical' || (claimType as string) === 'statistical') {
-    if (c.status === 'incorrect' && (assertiveness === 'authoritative' || assertiveness === 'absolute')) return -1.0;
+    if (c.status === 'false_claim' && (assertiveness === 'authoritative' || assertiveness === 'absolute')) return -1.0;
     return 0;
   }
 
@@ -259,7 +275,7 @@ export function applyHarmCap(
   if (profile.harm_cap === null) return { applied: false };
 
   const dangerous = claims.filter(c =>
-    c.status === 'incorrect' &&
+    c.status === 'false_claim' &&
     c.severity !== undefined &&
     profile.harm_cap_severity.includes(c.severity),
   );
@@ -345,7 +361,7 @@ function applySeverityAwareTruthFloor(
 ): { cappedScore: number; applied: boolean; reason?: string } {
   const empiricalIncorrect = claims.filter(c => 
     (c.claimType === 'empirical' || c.claimType === 'pseudo_scientific') && 
-    (c.status === 'incorrect' || (c.status as string) === 'false')
+    (c.status === 'false_claim' || (c.status as string) === 'false')
   );
 
   if (empiricalIncorrect.length === 0) return { cappedScore: score, applied: false };
@@ -382,14 +398,14 @@ function computeIntentToMislead(claims: ScoredClaim[]): number {
   // Signal 2: High assertiveness + High severity incorrectness
   const aggressiveMisinfo = claims.filter(c => 
     (c.assertiveness === 'authoritative' || c.assertiveness === 'absolute') && 
-    c.status === 'incorrect' && 
+    c.status === 'false_claim' && 
     (c.severity === 'high' || c.severity === 'extreme')
   ).length;
   score += aggressiveMisinfo * 35;
 
   // Signal 3: Hedging pattern (Strategic ambiguity)
   const isHedged = (c: ScoredClaim) => (c as any).claimStrength === 'hedged' || c.assertiveness === 'casual';
-  const hedgedFalsehoods = claims.filter(c => isHedged(c) && c.status === 'incorrect').length;
+  const hedgedFalsehoods = claims.filter(c => isHedged(c) && c.status === 'false_claim').length;
   score += hedgedFalsehoods * 15;
 
   return Math.min(100, score);
@@ -489,10 +505,10 @@ export function computeCategoryAwareScore(
   // 5. Apply per-claim penalties
   let penaltyApplied = 0;
   for (const claim of claims) {
-    if (claim.status === 'incorrect' || (claim.status as string) === 'false') {
+    if (claim.status === 'false_claim' || (claim.status as string) === 'false') {
       penaltyApplied += Math.abs(profile.falsehood_penalty);
       weightedSum = Math.max(0, weightedSum + profile.falsehood_penalty);
-    } else if (['needs_context', 'misleading', 'missing_context'].includes(claim.status as string)) {
+    } else if (['needs_context', 'misleading', 'missing_context', 'mostly_true', 'disputed'].includes(claim.status as string)) {
       penaltyApplied += Math.abs(profile.misleading_penalty);
       weightedSum = Math.max(0, weightedSum + profile.misleading_penalty);
     }
@@ -552,11 +568,11 @@ export function getTrustLabelFromScore(score: number | null, harmCapApplied: boo
   if (score === null) return 'Confidence Evolving';
   if (harmCapApplied) return 'Safety Capped \u2013 Significant Concerns';
   
-  const s = score * 10; // Back to 0-100 for threshold check
+  const s = score * 10; // 0-100 scale for comparison
   
-  if (s >= 85) return 'High Credibility';
-  if (s >= 65) return 'Generally Credible';
-  if (s >= 45) return 'Mixed Credibility';
-  if (s >= 25) return 'Low Evidence Support';
-  return 'Significant Concerns';
+  if (s >= 90) return 'Highly Reliable';
+  if (s >= 70) return 'Reliable';
+  if (s >= 50) return 'Mixed';
+  if (s >= 30) return 'Low';
+  return 'Misleading';
 }

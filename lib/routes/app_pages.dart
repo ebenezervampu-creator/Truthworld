@@ -40,7 +40,10 @@ import 'package:truthworld/features/miniplayer/presentation/bindings/miniplayer_
 import 'package:truthworld/features/watchtime/presentation/pages/watchtime_details_page.dart';
 import 'package:truthworld/features/trending/presentation/views/trending/trending_page.dart';
 import 'package:truthworld/features/video/presentation/views/clips/clips_page.dart';
+import 'package:truthworld/features/topics/presentation/pages/saved_topics_page.dart' deferred as saved_topics;
 // import 'package:truthworld/features/watchlater/presentation/views/watchlater/watchlater_screen.dart';
+
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 
 class AppPages {
   static final routes = [
@@ -51,22 +54,16 @@ class AppPages {
         loader: dashboard.loadLibrary,
         builder: () => dashboard.DashboardScreen(),
       ),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
       middlewares: [AuthGuard()],
     ),
     GetPage(
       name: "/home",
       page: () => Home(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
       binding: HomeBinding(),
     ),
     GetPage(
       name: "/channelscreen",
       page: () => ChannelScreen(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
       middlewares: [ChannelCreationGuard()],
     ),
     GetPage(
@@ -75,8 +72,6 @@ class AppPages {
         loader: dashboard.loadLibrary,
         builder: () => dashboard.DashboardScreen(),
       ),
-      transition: Transition.zoom,
-      transitionDuration: const Duration(milliseconds: 300),
       middlewares: [AuthGuard()],
     ),
     GetPage(
@@ -85,8 +80,6 @@ class AppPages {
         loader: history.loadLibrary,
         builder: () => history.WatchHistory(),
       ),
-      transition: Transition.rightToLeftWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
     ),
     GetPage(
       name: "/likedvideos",
@@ -94,8 +87,6 @@ class AppPages {
         loader: liked_video.loadLibrary,
         builder: () => liked_video.LikedVideoScreen(),
       ),
-      transition: Transition.rightToLeftWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
     ),
     GetPage(
       name: "/playlistscreen",
@@ -103,8 +94,14 @@ class AppPages {
         loader: playlist_screen.loadLibrary,
         builder: () => playlist_screen.PlaylistScreen(),
       ),
-      transition: Transition.rightToLeftWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
+    ),
+    GetPage(
+      name: "/saved-topics",
+      page: () => DeferredWidget(
+        loader: saved_topics.loadLibrary,
+        builder: () => saved_topics.SavedTopicsPage(),
+      ),
+      middlewares: [AuthGuard()],
     ),
     GetPage(
       name: "/myvideos",
@@ -112,8 +109,6 @@ class AppPages {
         loader: my_videos.loadLibrary,
         builder: () => my_videos.MyVideos(),
       ),
-      transition: Transition.rightToLeftWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
       middlewares: [AuthGuard()],
     ),
     GetPage(
@@ -122,8 +117,7 @@ class AppPages {
         loader: channel_details.loadLibrary,
         builder: () => channel_details.ChannelDetailsPage(),
       ),
-      transition: Transition.zoom,
-      transitionDuration: const Duration(milliseconds: 300),
+      middlewares: [ChannelDetailsRedirectMiddleware()],
     ),
     GetPage(
       name: "/videoscreen",
@@ -134,12 +128,33 @@ class AppPages {
           builder: () => video_screen.VideoScreen(videoTag: video?.id),
         );
       },
-      transition: Transition.zoom,
-      transitionDuration: const Duration(milliseconds: 300),
       preventDuplicates: false,
+      middlewares: [VideoScreenRedirectMiddleware()],
       binding: BindingsBuilder(() {
         final video = Get.arguments?['video'];
         final videoId = video?.id;
+        MiniplayerBinding().dependencies();
+        Get.put<VideoController>(VideoController(), tag: videoId);
+        Get.put<ChannelController>(ChannelController(), tag: videoId);
+      }),
+    ),
+    GetPage(
+      name: "/watch",
+      page: () {
+        final video = Get.arguments?['video'];
+        if (video != null) {
+          return DeferredWidget(
+            loader: video_screen.loadLibrary,
+            builder: () => video_screen.VideoScreen(videoTag: video.id),
+          );
+        } else {
+          return VideoLoaderScreen();
+        }
+      },
+      preventDuplicates: false,
+      binding: BindingsBuilder(() {
+        final video = Get.arguments?['video'];
+        final videoId = video?.id ?? Get.parameters['v'] ?? Get.parameters['videoId'];
         MiniplayerBinding().dependencies();
         Get.put<VideoController>(VideoController(), tag: videoId);
         Get.put<ChannelController>(ChannelController(), tag: videoId);
@@ -151,37 +166,37 @@ class AppPages {
         loader: upload.loadLibrary,
         builder: () => upload.EnhancedUploadScreen(),
       ),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
       middlewares: [AuthGuard()],
     ),
     GetPage(name: '/library', page: () => const LibraryScreen()),
     GetPage(
       name: '/watch/:videoId',
       page: () => VideoLoaderScreen(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
     ),
     GetPage(
       name: '/playlist/:playlistId',
       page: () => PlaylistLoaderScreen(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
     ),
     GetPage(
       name: '/playlist-detail',
       page: () => const PlaylistDetailScreen(),
-      transition: Transition.rightToLeftWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
       binding: BindingsBuilder(() {
         Get.lazyPut<PlaylistDetailController>(() => PlaylistDetailController());
       }),
     ),
     GetPage(
       name: '/channel/:channelId',
-      page: () => ChannelLoaderScreen(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
+      page: () {
+        final channel = Get.arguments?['channel'];
+        if (channel != null) {
+          return DeferredWidget(
+            loader: channel_details.loadLibrary,
+            builder: () => channel_details.ChannelDetailsPage(channel: channel),
+          );
+        } else {
+          return ChannelLoaderScreen();
+        }
+      },
       binding: BindingsBuilder(() {
         Get.lazyPut<ChannelController>(() => ChannelController());
       }),
@@ -189,27 +204,25 @@ class AppPages {
     GetPage(
       name: "/category",
       page: () => CategoryPage(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
     ),
     GetPage(
       name: "/topic/:slug",
       page: () => const TopicPage(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
+      middlewares: [TopicRedirectMiddleware()],
+    ),
+    GetPage(
+      name: "/T/:slug",
+      page: () => const TopicPage(),
+      middlewares: [TopicRedirectMiddleware()],
     ),
     GetPage(
       name: "/settings",
       page: () => SettingsScreen(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
       middlewares: [AuthGuard()],
     ),
     GetPage(
       name: '/feedback',
       page: () => const SendFeedbackPage(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
       binding: BindingsBuilder(() {
         Get.lazyPut(() => SendFeedbackController());
       }),
@@ -217,57 +230,39 @@ class AppPages {
     GetPage(
       name: "/help",
       page: () => HelpPage(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
     ),
     GetPage(
       name: "/notifications",
       page: () => VideoFeedNotificationScreen(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
     ),
     GetPage(
       name: "/downloads",
       page: () => DownloadsPage(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
     ),
     GetPage(
       name: "/privacy",
       page: () => PrivacyPolicyScreen(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
     ),
     GetPage(
       name: "/terms",
       page: () => TermsAndConditionsPage(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
     ),
     GetPage(
       name: "/community-guidelines",
       page: () => const CommunityGuidelinesPage(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
     ),
     GetPage(
       name: "/subscriptions",
       page: () => SubscriptionsPage(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
       middlewares: [AuthGuard()],
     ),
     GetPage(
       name: "/about",
       page: () => const AboutPage(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
     ),
     GetPage(
       name: "/search",
       page: () => const SearchPage(),
-      transition: Transition.fade,
-      transitionDuration: const Duration(milliseconds: 400),
       binding: BindingsBuilder(() {
         Get.lazyPut(() => app.SearchController());
       }),
@@ -278,31 +273,35 @@ class AppPages {
         channelId: '',
         isDarkMode: false,
       ), // channelId and isDarkMode should be set dynamically
-      transition: Transition.rightToLeftWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
     ),
     GetPage(
       name: "/trending",
       page: () => TrendingVideosPage(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
     ),
     GetPage(
       name: "/browse",
       page: () => CategoryPage(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 300),
     ),
     GetPage(
       name: "/clips",
       page: () => const ClipsPage(),
-      transition: Transition.leftToRightWithFade,
-      transitionDuration: const Duration(milliseconds: 500),
+    ),
+    GetPage(
+      name: '/:handle',
+      page: () {
+        final channel = Get.arguments?['channel'];
+        if (channel != null) {
+          return DeferredWidget(
+            loader: channel_details.loadLibrary,
+            builder: () => channel_details.ChannelDetailsPage(channel: channel),
+          );
+        } else {
+          return ChannelLoaderScreen();
+        }
+      },
+      binding: BindingsBuilder(() {
+        Get.lazyPut<ChannelController>(() => ChannelController());
+      }),
     ),
   ];
 }
-
-
-
-
-

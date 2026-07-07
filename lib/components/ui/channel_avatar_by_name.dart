@@ -143,7 +143,7 @@ class _ChannelAvatarByNameState extends State<ChannelAvatarByName> {
                 style:
                     widget.nameStyle ??
                     TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                       color: AppColors.textPrimary,

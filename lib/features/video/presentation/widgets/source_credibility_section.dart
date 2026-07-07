@@ -88,7 +88,7 @@ class SourceCredibilitySection extends StatelessWidget {
         Text(
           'EVIDENCE SOURCES',
           style: TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'Roboto',
             fontSize: 12,
             fontWeight: FontWeight.w700,
             color: AppColors.textTertiary,
@@ -134,7 +134,7 @@ class SourceCredibilitySection extends StatelessWidget {
                     Text(
                       '$_uniqueDomains',
                       style: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Roboto',
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
@@ -144,7 +144,7 @@ class SourceCredibilitySection extends StatelessWidget {
                     Text(
                       'INDEPENDENT SOURCES',
                       style: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Roboto',
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textTertiary,
@@ -168,7 +168,7 @@ class SourceCredibilitySection extends StatelessWidget {
                       child: Text(
                         _diversityLabel.toUpperCase(),
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                           color: _diversityColor,
@@ -180,7 +180,7 @@ class SourceCredibilitySection extends StatelessWidget {
                     Text(
                       'Evidence Diversity',
                       style: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Roboto',
                         fontSize: 11,
                         color: AppColors.textSecondary,
                       ),
@@ -196,7 +196,7 @@ class SourceCredibilitySection extends StatelessWidget {
               Text(
                 '${sources.fold<int>(0, (sum, s) => sum + s.citationCount)}',
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -253,7 +253,7 @@ class SourceCredibilitySection extends StatelessWidget {
                 Text(
                   '$count',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: color,
@@ -262,7 +262,7 @@ class SourceCredibilitySection extends StatelessWidget {
                 Text(
                   '${(fraction * 100).toInt()}%',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textTertiary,
@@ -352,7 +352,7 @@ class SourceCredibilitySection extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: Colors.white.withValues(alpha: 0.9),
@@ -371,7 +371,7 @@ class SourceCredibilitySection extends StatelessWidget {
                             Text(
                               source.domain!,
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'Roboto',
                                 fontSize: 11,
                                 color: AppColors.textTertiary,
                               ),
@@ -386,7 +386,7 @@ class SourceCredibilitySection extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontFamily: 'Inter',
+                                  fontFamily: 'Roboto',
                                   fontSize: 11,
                                   color: AppColors.textTertiary.withValues(
                                     alpha: 0.6,
@@ -411,7 +411,7 @@ class SourceCredibilitySection extends StatelessWidget {
                       Text(
                         '${source.citationCount} claims',
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           fontSize: 11,
                           color: AppColors.textTertiary,
                           fontWeight: FontWeight.w500,
@@ -458,7 +458,7 @@ class SourceCredibilitySection extends StatelessWidget {
       icon: const Icon(Icons.expand_more_rounded, size: 16),
       label: Text(
         'Show all ${sources.length} sources',
-        style: TextStyle(fontFamily: 'Inter', fontSize: 12),
+        style: TextStyle(fontFamily: 'Roboto', fontSize: 12),
       ),
       style: TextButton.styleFrom(
         foregroundColor: AppColors.textTertiary,
@@ -473,7 +473,7 @@ class SourceCredibilitySection extends StatelessWidget {
       icon: const Icon(Icons.expand_less_rounded, size: 16),
       label: Text(
         'Show fewer',
-        style: TextStyle(fontFamily: 'Inter', fontSize: 12),
+        style: TextStyle(fontFamily: 'Roboto', fontSize: 12),
       ),
       style: TextButton.styleFrom(
         foregroundColor: AppColors.textTertiary,

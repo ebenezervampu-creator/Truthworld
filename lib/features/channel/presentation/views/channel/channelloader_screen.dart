@@ -14,29 +14,48 @@ class ChannelLoaderController extends GetxController {
 
   Future<void> _loadChannel() async {
     final channelId = Get.parameters['channelId'];
+    final handle = Get.parameters['handle'];
 
-    if (channelId == null) {
-      Get.snackbar("Error", "No channel ID found in URL");
+    if (channelId == null && (handle == null || !handle.startsWith('@'))) {
+      Get.offAllNamed('/');
       return;
     }
 
     try {
-      DocumentSnapshot doc = await FirebaseFirestore.instance
-          .collection('channels')
-          .doc(channelId)
-          .get();
+      DocumentSnapshot? doc;
+      if (channelId != null) {
+        doc = await FirebaseFirestore.instance
+            .collection('channels')
+            .doc(channelId)
+            .get();
+      } else if (handle != null) {
+        String cleanHandle = handle;
+        if (cleanHandle.startsWith('@')) {
+          cleanHandle = cleanHandle.substring(1);
+        }
+        final query = await FirebaseFirestore.instance
+            .collection('channels')
+            .where('handleLowercase', isEqualTo: cleanHandle.toLowerCase())
+            .limit(1)
+            .get();
+        if (query.docs.isNotEmpty) {
+          doc = query.docs.first;
+        }
+      }
 
-      if (!doc.exists) {
+      if (doc == null || !doc.exists) {
         Get.snackbar("Error", "Channel not found");
+        Get.offAllNamed('/');
         return;
       }
 
       final channel = Channel.fromDocumentSnapshot(doc);
 
-      Get.offNamed("/channel-details", arguments: {"channel": channel});
+      Get.offNamed(channel.channelRoute, arguments: {"channel": channel});
       debugPrint("🧭 All route params: ${Get.parameters}");
     } catch (e) {
       Get.snackbar("Error", "Something went wrong: $e");
+      Get.offAllNamed('/');
     }
   }
 }

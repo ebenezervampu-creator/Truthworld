@@ -397,25 +397,28 @@ export class DubbingEngine {
         }
 
         for (const vid of linkedVideoIds) {
-          await db().collection("videos").doc(vid).update({
-            [`subtitles.${targetLang}`]: {
+          await db().collection("videos").doc(vid).collection("media").doc("localization").set({
+            subtitles: {
+              [targetLang]: subtitleUrl,
+            },
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
+
+        // Also update the job_outputs document's subtitles map
+        await db().collection("job_outputs").doc(jobId).set({
+          subtitles: {
+            [targetLang]: {
               url: subtitleUrl,
               format: "srt",
               language: targetLang,
               updatedAt: Date.now(),
-            },
-            [`media.subtitles.${targetLang}`]: subtitleUrl,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
-        }
+            }
+          }
+        }, { merge: true });
 
-        // Also update the job document's outputs map
+        // Update the job document's updatedAt timestamp
         await db().collection("video_jobs").doc(jobId).update({
-          [`outputs.subtitles.${targetLang}`]: {
-            url: subtitleUrl,
-            format: "srt",
-            language: targetLang,
-          },
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 

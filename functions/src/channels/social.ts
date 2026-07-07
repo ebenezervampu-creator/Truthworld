@@ -1,11 +1,11 @@
-﻿import * as admin from "firebase-admin";
+import * as admin from "firebase-admin";
 import { onCall, HttpsError, onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 
 const db = () => admin.firestore();
 
 /**
- * ðŸ¤ FOLLOW CHANNEL (Callable)
+ * 🤝 FOLLOW CHANNEL (Callable)
  * Atomically links user to channel, updates counts.
  */
 export const followChannel = onCall(
@@ -55,7 +55,7 @@ export const followChannel = onCall(
 );
 
 /**
- * ðŸ‘‹ UNFOLLOW CHANNEL (Callable)
+ * 👋 UNFOLLOW CHANNEL (Callable)
  */
 export const unfollowChannel = onCall(
   { region: "asia-south1", memory: "256MiB" },
@@ -97,7 +97,7 @@ export const unfollowChannel = onCall(
 );
 
 /**
- * ðŸ“° GET FOLLOWING FEED (HTTPS)
+ * 📰 GET FOLLOWING FEED (HTTPS)
  * Fetches latest content from channels the user follows.
  */
 export const getFollowingFeed = onRequest(

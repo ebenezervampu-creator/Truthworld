@@ -280,7 +280,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   Widget _buildTopicsGrid(bool isDesktop, bool isTablet) {
     final bool isMobile = !isDesktop && !isTablet;
     final int crossAxisCount = isMobile ? 1 : 2;
-    final double childAspectRatio = isMobile ? 1.4 : (isTablet ? 1.6 : 1.8);
+    final double childAspectRatio = 16 / 9;
     return SliverGrid(
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
@@ -298,7 +298,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   Widget _buildShimmerGrid(bool isDesktop, bool isTablet) {
     final bool isMobile = !isDesktop && !isTablet;
     final int crossAxisCount = isMobile ? 1 : 2;
-    final double childAspectRatio = isMobile ? 1.4 : (isTablet ? 1.6 : 1.8);
+    final double childAspectRatio = 16 / 9;
     return SliverGrid(
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,

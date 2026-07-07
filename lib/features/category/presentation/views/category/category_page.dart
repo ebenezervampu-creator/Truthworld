@@ -1273,7 +1273,7 @@ class _CategoryPageState extends State<CategoryPage>
         child: InkWell(
           onTap: () {
             HapticFeedback.lightImpact();
-            Get.toNamed("/videoscreen", arguments: {'video': video});
+            Get.toNamed('/watch?v=${video.id}', arguments: {'video': video});
           },
           borderRadius: BorderRadius.circular(16),
           child: Container(

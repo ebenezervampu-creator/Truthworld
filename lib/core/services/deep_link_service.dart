@@ -49,9 +49,16 @@ class DeepLinkService {
       '$baseUrl/playlist/$playlistId';
 
   /// Generates a shareable topic URL.
-  /// Pattern: https://www.truthworld.in/topic/{slug}
-  static String topicUrl(String slug) => '$baseUrl/topic/$slug';
-
+  /// Pattern: https://www.truthworld.in/T/{id_or_slug_or_handle}
+  static String topicUrl(String slugOrHandle) {
+    String clean = slugOrHandle.trim();
+    if (clean.startsWith('T/')) {
+      clean = clean.substring(2);
+    } else if (clean.startsWith('t/')) {
+      clean = clean.substring(2);
+    }
+    return '$baseUrl/T/$clean';
+  }
 
   // ═══════════════════════════════════════════════════════════════════
   // SHARE FUNCTIONS

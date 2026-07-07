@@ -339,7 +339,7 @@ class SettingsScreen extends StatelessWidget {
             onPressed: () async {
               try {
                 await AuthService.to.deleteAccount();
-                Get.offAllNamed('/home');
+                Get.offAllNamed('/');
                 Get.snackbar(
                   'Account Deleted',
                   'Your account has been successfully deleted.',

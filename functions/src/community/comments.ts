@@ -137,8 +137,6 @@ export const addCommentNested = onCall(
         reportCount: 0,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         hasCreatorReply: false,
-        likedBy: {},
-        dislikedBy: {},
       };
 
       await docRef.set(commentData);
@@ -199,8 +197,6 @@ export const addReplyNested = onCall(
         dislikeCount: 0,
         reportCount: 0,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        likedBy: {},
-        dislikedBy: {},
       };
 
       await docRef.set(replyData);
@@ -214,7 +210,7 @@ export const addReplyNested = onCall(
 
 /**
  * 👍👎 TOGGLE COMMENT INTERACTION (Callable)
- * Safely executes backend transaction to increment/decrement likeCount/dislikeCount
+ * Safely executes backend transaction to increment/decrement likeCount/dislikeCount using subcollections
  */
 export const toggleCommentInteraction = onCall(
   { region: "asia-south1", memory: "256MiB" },
@@ -229,7 +225,15 @@ export const toggleCommentInteraction = onCall(
     }
 
     const docRef = db().collection("videos").doc(videoId).collection("comments").doc(commentId);
-    const key = asChannel ? `${userId}_channel` : `${userId}_user`;
+    const userInteractRef = db()
+      .collection("users")
+      .doc(userId)
+      .collection("comment_interactions")
+      .doc(commentId);
+    const commentInteractRef = docRef.collection("interactions").doc(userId);
+
+    const keyUser = `${userId}_user`;
+    const keyChannel = `${userId}_channel`;
 
     try {
       await db().runTransaction(async (tx) => {
@@ -237,31 +241,92 @@ export const toggleCommentInteraction = onCall(
         if (!snap.exists) throw new HttpsError("not-found", "Comment not found.");
 
         const data = snap.data() || {};
-        const likedBy = { ...(data.likedBy || {}) };
-        const dislikedBy = { ...(data.dislikedBy || {}) };
+        const legacyLikedBy = { ...(data.likedBy || {}) };
+        const legacyDislikedBy = { ...(data.dislikedBy || {}) };
 
-        if (interactionType === "remove") {
-          delete likedBy[`${userId}_user`];
-          delete likedBy[`${userId}_channel`];
-          delete dislikedBy[`${userId}_user`];
-          delete dislikedBy[`${userId}_channel`];
-        } else if (interactionType === "like") {
-          delete dislikedBy[key];
-          likedBy[key] = true;
-        } else if (interactionType === "dislike") {
-          delete likedBy[key];
-          dislikedBy[key] = true;
+        // Determine old interaction type
+        let oldType: "like" | "dislike" | null = null;
+        let foundLegacy = false;
+
+        if (legacyLikedBy[keyUser] || legacyLikedBy[keyChannel]) {
+          oldType = "like";
+          foundLegacy = true;
+        } else if (legacyDislikedBy[keyUser] || legacyDislikedBy[keyChannel]) {
+          oldType = "dislike";
+          foundLegacy = true;
         }
 
-        const likeCount = Object.keys(likedBy).length;
-        const dislikeCount = Object.keys(dislikedBy).length;
+        // Check subcollection
+        const interactSnap = await tx.get(commentInteractRef);
+        if (interactSnap.exists) {
+          const interactData = interactSnap.data() || {};
+          oldType = interactData.type;
+          foundLegacy = false; // Subcollection overrides legacy
+        }
 
-        tx.update(docRef, {
-          likedBy,
-          dislikedBy,
-          likeCount,
-          dislikeCount,
-        });
+        // Calculate count diffs
+        let likeDiff = 0;
+        let dislikeDiff = 0;
+
+        if (interactionType === "remove") {
+          if (oldType === "like") likeDiff = -1;
+          if (oldType === "dislike") dislikeDiff = -1;
+        } else if (interactionType === "like") {
+          if (oldType === "dislike") {
+            likeDiff = 1;
+            dislikeDiff = -1;
+          } else if (oldType === null) {
+            likeDiff = 1;
+          }
+        } else if (interactionType === "dislike") {
+          if (oldType === "like") {
+            likeDiff = -1;
+            dislikeDiff = 1;
+          } else if (oldType === null) {
+            dislikeDiff = 1;
+          }
+        }
+
+        // Write/Delete interaction docs
+        if (interactionType === "remove") {
+          tx.delete(commentInteractRef);
+          tx.delete(userInteractRef);
+        } else {
+          const interactPayload = {
+            type: interactionType,
+            asChannel: asChannel || false,
+            videoId,
+            commentId,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          };
+          tx.set(commentInteractRef, interactPayload);
+          tx.set(userInteractRef, interactPayload);
+        }
+
+        // Update comment document
+        const updatePayload: any = {};
+
+        // Garbage collect legacy fields if they exist to shrink document size
+        if (
+          foundLegacy ||
+          legacyLikedBy[keyUser] !== undefined ||
+          legacyLikedBy[keyChannel] !== undefined ||
+          legacyDislikedBy[keyUser] !== undefined ||
+          legacyDislikedBy[keyChannel] !== undefined
+        ) {
+          delete legacyLikedBy[keyUser];
+          delete legacyLikedBy[keyChannel];
+          delete legacyDislikedBy[keyUser];
+          delete legacyDislikedBy[keyChannel];
+          updatePayload.likedBy = legacyLikedBy;
+          updatePayload.dislikedBy = legacyDislikedBy;
+        }
+
+        // Atomic increments
+        updatePayload.likeCount = admin.firestore.FieldValue.increment(likeDiff);
+        updatePayload.dislikeCount = admin.firestore.FieldValue.increment(dislikeDiff);
+
+        tx.update(docRef, updatePayload);
       });
 
       return { success: true };
@@ -274,6 +339,7 @@ export const toggleCommentInteraction = onCall(
 
 /**
  * 👍👎 TOGGLE REPLY INTERACTION (Callable)
+ * Safely executes backend transaction to increment/decrement likeCount/dislikeCount on replies using subcollections
  */
 export const toggleReplyInteraction = onCall(
   { region: "asia-south1", memory: "256MiB" },
@@ -294,7 +360,15 @@ export const toggleReplyInteraction = onCall(
       .collection("replies")
       .doc(replyId);
 
-    const key = asChannel ? `${userId}_channel` : `${userId}_user`;
+    const userInteractRef = db()
+      .collection("users")
+      .doc(userId)
+      .collection("reply_interactions")
+      .doc(replyId);
+    const replyInteractRef = docRef.collection("interactions").doc(userId);
+
+    const keyUser = `${userId}_user`;
+    const keyChannel = `${userId}_channel`;
 
     try {
       await db().runTransaction(async (tx) => {
@@ -302,31 +376,93 @@ export const toggleReplyInteraction = onCall(
         if (!snap.exists) throw new HttpsError("not-found", "Reply not found.");
 
         const data = snap.data() || {};
-        const likedBy = { ...(data.likedBy || {}) };
-        const dislikedBy = { ...(data.dislikedBy || {}) };
+        const legacyLikedBy = { ...(data.likedBy || {}) };
+        const legacyDislikedBy = { ...(data.dislikedBy || {}) };
 
-        if (interactionType === "remove") {
-          delete likedBy[`${userId}_user`];
-          delete likedBy[`${userId}_channel`];
-          delete dislikedBy[`${userId}_user`];
-          delete dislikedBy[`${userId}_channel`];
-        } else if (interactionType === "like") {
-          delete dislikedBy[key];
-          likedBy[key] = true;
-        } else if (interactionType === "dislike") {
-          delete likedBy[key];
-          dislikedBy[key] = true;
+        // Determine old interaction type
+        let oldType: "like" | "dislike" | null = null;
+        let foundLegacy = false;
+
+        if (legacyLikedBy[keyUser] || legacyLikedBy[keyChannel]) {
+          oldType = "like";
+          foundLegacy = true;
+        } else if (legacyDislikedBy[keyUser] || legacyDislikedBy[keyChannel]) {
+          oldType = "dislike";
+          foundLegacy = true;
         }
 
-        const likeCount = Object.keys(likedBy).length;
-        const dislikeCount = Object.keys(dislikedBy).length;
+        // Check subcollection
+        const interactSnap = await tx.get(replyInteractRef);
+        if (interactSnap.exists) {
+          const interactData = interactSnap.data() || {};
+          oldType = interactData.type;
+          foundLegacy = false;
+        }
 
-        tx.update(docRef, {
-          likedBy,
-          dislikedBy,
-          likeCount,
-          dislikeCount,
-        });
+        // Calculate count diffs
+        let likeDiff = 0;
+        let dislikeDiff = 0;
+
+        if (interactionType === "remove") {
+          if (oldType === "like") likeDiff = -1;
+          if (oldType === "dislike") dislikeDiff = -1;
+        } else if (interactionType === "like") {
+          if (oldType === "dislike") {
+            likeDiff = 1;
+            dislikeDiff = -1;
+          } else if (oldType === null) {
+            likeDiff = 1;
+          }
+        } else if (interactionType === "dislike") {
+          if (oldType === "like") {
+            likeDiff = -1;
+            dislikeDiff = 1;
+          } else if (oldType === null) {
+            dislikeDiff = 1;
+          }
+        }
+
+        // Write/Delete interaction docs
+        if (interactionType === "remove") {
+          tx.delete(replyInteractRef);
+          tx.delete(userInteractRef);
+        } else {
+          const interactPayload = {
+            type: interactionType,
+            asChannel: asChannel || false,
+            videoId,
+            commentId,
+            replyId,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          };
+          tx.set(replyInteractRef, interactPayload);
+          tx.set(userInteractRef, interactPayload);
+        }
+
+        // Update reply document
+        const updatePayload: any = {};
+
+        // Garbage collect legacy fields if they exist to shrink document size
+        if (
+          foundLegacy ||
+          legacyLikedBy[keyUser] !== undefined ||
+          legacyLikedBy[keyChannel] !== undefined ||
+          legacyDislikedBy[keyUser] !== undefined ||
+          legacyDislikedBy[keyChannel] !== undefined
+        ) {
+          delete legacyLikedBy[keyUser];
+          delete legacyLikedBy[keyChannel];
+          delete legacyDislikedBy[keyUser];
+          delete legacyDislikedBy[keyChannel];
+          updatePayload.likedBy = legacyLikedBy;
+          updatePayload.dislikedBy = legacyDislikedBy;
+        }
+
+        // Atomic increments
+        updatePayload.likeCount = admin.firestore.FieldValue.increment(likeDiff);
+        updatePayload.dislikeCount = admin.firestore.FieldValue.increment(dislikeDiff);
+
+        tx.update(docRef, updatePayload);
       });
 
       return { success: true };

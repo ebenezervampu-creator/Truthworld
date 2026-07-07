@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:video_player/video_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
@@ -20,11 +20,8 @@ import 'package:truthworld/features/miniplayer/presentation/controllers/miniplay
 ///   • Keyboard shortcut: `I` to expand to the full video screen, `Esc` to
 ///     close the expanded mode.
 ///   • A separate full-screen expanded mode is used for one-tap dive in.
-class MiniplayerWidget extends GetView<MiniplayerController> {
+class MiniplayerWidget extends StatelessWidget {
   const MiniplayerWidget({super.key});
-
-  @override
-  String? get tag => 'miniplayer';
 
   // Theme tokens
   static const Color _bg = AppColors.bgPage;
@@ -36,11 +33,8 @@ class MiniplayerWidget extends GetView<MiniplayerController> {
 
   @override
   Widget build(BuildContext context) {
-    if (!Get.isRegistered<MiniplayerController>(tag: 'miniplayer')) {
-      return const SizedBox.shrink();
-    }
-
     return Obx(() {
+      final controller = MiniplayerController.to;
       final mode = controller.mode.value;
       if (mode == MiniplayerMode.dismissed) return const SizedBox.shrink();
 
@@ -69,7 +63,7 @@ class _FloatingCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final width = MiniplayerConfig.widthForScreen(screenSize.width);
-    final height = MiniplayerConfig.heightForWidth(width);
+    final height = MiniplayerConfig.heightForWidth(width) + 2.0; // Account for top/bottom borders
     final cardSize = Size(width, height);
 
     return Obx(() {
@@ -224,7 +218,10 @@ class _VideoFrame extends StatelessWidget {
             child: SizedBox(
               width: vpc.value.size.width,
               height: vpc.value.size.height,
-              child: VideoPlayer(vpc),
+              child: MobileFriendlyVideoPlayer(
+                controller: vpc,
+                looping: false,
+              ),
             ),
           );
         }),
@@ -706,7 +703,10 @@ class _ExpandedVideo extends StatelessWidget {
               return Center(
                 child: AspectRatio(
                   aspectRatio: vpc.value.aspectRatio,
-                  child: VideoPlayer(vpc),
+                  child: MobileFriendlyVideoPlayer(
+                    controller: vpc,
+                    looping: false,
+                  ),
                 ),
               );
             }),

@@ -103,7 +103,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                                 child: Text(
                                   channel.channelName,
                                   style: TextStyle(
-                                    fontFamily: 'Inter',
+                                    fontFamily: 'Roboto',
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
                                     color: isDark ? Colors.white : Colors.black87,
@@ -204,7 +204,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                                   child: Text(
                                     channel.channelName,
                                     style: TextStyle(
-                                      fontFamily: 'Inter',
+                                      fontFamily: 'Roboto',
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
                                       color: isDark ? Colors.white : Colors.black87,
@@ -267,7 +267,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
         Text(
           'Add 1 image, any aspect ratio. Max 20 MB.',
           style: TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'Roboto',
             fontSize: 12,
             color: isDark ? AppColors.textPrimary38 : AppColors.textSecondary,
           ),
@@ -403,7 +403,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                             Text(
                               'Tap to change',
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'Roboto',
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,
                                 color: AppColors.textPrimary,
@@ -443,7 +443,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                         Text(
                           'JPEG, PNG, GIF • Any aspect ratio',
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'Roboto',
                             fontSize: 12,
                             color: isDark
                                 ? AppColors.textPrimary38
@@ -476,7 +476,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
             title: Text(
               'Add a poll',
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Roboto',
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
                 color: isDark ? AppColors.textPrimary : AppColors.bgPage,
@@ -485,7 +485,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
             subtitle: Text(
               'Let your community vote',
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Roboto',
                 fontSize: 12,
                 color: isDark
                     ? AppColors.textPrimary38
@@ -544,7 +544,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
               Text(
                 'Options (3Ã¢â‚¬â€œ5)',
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: isDark ? AppColors.textPrimary70 : AppColors.bgPage,
@@ -567,7 +567,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                           child: Text(
                             '${i + 1}',
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Roboto',
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
                               color: AppColors.textSecondary,
@@ -581,7 +581,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                           initialValue: _c.pollOptions[i],
                           onChanged: (v) => _c.updatePollOption(i, v),
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'Roboto',
                             fontSize: 14,
                             color: isDark
                                 ? AppColors.textPrimary
@@ -590,7 +590,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                           decoration: InputDecoration(
                             hintText: 'Option ${i + 1}',
                             hintStyle: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Roboto',
                               color: isDark
                                   ? AppColors.textPrimary30
                                   : AppColors.textSecondary,
@@ -650,7 +650,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                   label: Text(
                     'Add Option',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                       color: AppColors.textSecondary,
@@ -700,7 +700,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 Text(
                   'Poll Duration',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                     color: isDark ? AppColors.textPrimary70 : AppColors.bgPage,
@@ -741,7 +741,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                           ? '1 day'
                           : '$days days',
                       style: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Roboto',
                         fontSize: 12,
                         fontWeight: isSelected
                             ? FontWeight.w500
@@ -807,7 +807,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 13,
                     fontWeight: isSelected ? FontWeight.w500 : FontWeight.w500,
                     color: isSelected
@@ -841,7 +841,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               fontSize: 14,
               fontWeight: FontWeight.w500,
               color: color,
@@ -906,7 +906,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
         Text(
           'Visibility',
           style: TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'Roboto',
             fontSize: 13,
             fontWeight: FontWeight.w500,
             color: isDark ? AppColors.textPrimary70 : AppColors.bgPage,
@@ -920,7 +920,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
         Text(
           'Category',
           style: TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'Roboto',
             fontSize: 13,
             fontWeight: FontWeight.w500,
             color: isDark ? AppColors.textPrimary70 : AppColors.bgPage,
@@ -957,7 +957,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                   child: Text(
                     cat,
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       fontSize: 12,
                       fontWeight: isSelected
                           ? FontWeight.w500
@@ -982,7 +982,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
             title: Text(
               'Schedule Post',
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Roboto',
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
                 color: isDark ? AppColors.textPrimary : AppColors.bgPage,
@@ -999,7 +999,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
             title: Text(
               'Kid Friendly',
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Roboto',
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
                 color: isDark ? AppColors.textPrimary : AppColors.bgPage,
@@ -1069,7 +1069,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 Text(
                   'Preview',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: isDark ? AppColors.textPrimary : AppColors.bgPage,
@@ -1153,7 +1153,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
           Text(
             'Community Post',
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: isDark ? AppColors.textPrimary : AppColors.bgPage,
@@ -1197,7 +1197,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
           Text(
             'Community Post',
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: isDark ? AppColors.textPrimary : AppColors.bgPage,
@@ -1220,7 +1220,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
           label: Text(
             'Back to Home',
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -1268,7 +1268,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
           label: Text(
             _c.isSavingDraft.value ? 'Saving...' : 'Save as Draft',
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -1330,7 +1330,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
               Text(
                 title,
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   color: isDark ? AppColors.textPrimary : AppColors.bgPage,
@@ -1426,7 +1426,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 Text(
                   title,
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     color: statusColor,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -1436,7 +1436,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 Text(
                   message,
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     color: isDark ? Colors.white70 : Colors.black87,
                     fontSize: 12,
                   ),

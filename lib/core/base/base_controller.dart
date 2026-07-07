@@ -16,13 +16,13 @@ abstract class BaseController extends GetxController {
   bool get isEmpty => state == ViewState.empty;
   bool get isSuccess => state == ViewState.success;
 
-  void setState(ViewState state) {
+  void setViewState(ViewState state) {
     rxState.value = state;
   }
 
   void setError(String message) {
     _errorMessage.value = message;
-    setState(ViewState.error);
+    setViewState(ViewState.error);
   }
 
   /// Pagination support
@@ -50,7 +50,7 @@ abstract class BaseController extends GetxController {
 
   void clearError() {
     _errorMessage.value = '';
-    if (state == ViewState.error) setState(ViewState.idle);
+    if (state == ViewState.error) setViewState(ViewState.idle);
   }
 
   void handleError(dynamic error) {
@@ -100,11 +100,11 @@ abstract class BaseController extends GetxController {
   /// execute a task safely with automatic error handling and loading state
   Future<void> safeExecute(Future<void> Function() task, {bool showLoading = true, String? loadingMessage}) async {
     try {
-      if (showLoading && items.isEmpty) setState(ViewState.loading);
+      if (showLoading && items.isEmpty) setViewState(ViewState.loading);
       // We could use the loadingMessage here to show a specific snackbar/overlay if needed
       await task();
-      if (state == ViewState.loading) setState(ViewState.success);
-      if (items.isEmpty && state != ViewState.error) setState(ViewState.empty);
+      if (state == ViewState.loading) setViewState(ViewState.success);
+      if (items.isEmpty && state != ViewState.error) setViewState(ViewState.empty);
     } catch (e) {
       handleError(e);
     }

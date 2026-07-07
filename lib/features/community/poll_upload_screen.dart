@@ -118,7 +118,7 @@ class PollUploadScreen extends StatelessWidget {
                             child: Text(
                               channel.channelName,
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'Roboto',
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                                 color: isDark ? Colors.white : Colors.black87,
@@ -229,7 +229,7 @@ class PollUploadScreen extends StatelessWidget {
                 Text(
                   'Options (3â€“5)',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                     color: isDark ? AppColors.textPrimary70 : Color(0xFFFFB703),
@@ -254,7 +254,7 @@ class PollUploadScreen extends StatelessWidget {
                         child: Text(
                           '${i + 1}',
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'Roboto',
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                             color: AppColors.textSecondary,
@@ -268,7 +268,7 @@ class PollUploadScreen extends StatelessWidget {
                         initialValue: _c.pollOptions[i],
                         onChanged: (v) => _c.updateOption(i, v),
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           fontSize: 14,
                           color: isDark
                               ? AppColors.textPrimary
@@ -277,7 +277,7 @@ class PollUploadScreen extends StatelessWidget {
                         decoration: InputDecoration(
                           hintText: 'Option ${i + 1}',
                           hintStyle: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'Roboto',
                             color: isDark
                                 ? AppColors.textPrimary30
                                 : AppColors.textSecondary,
@@ -339,7 +339,7 @@ class PollUploadScreen extends StatelessWidget {
                   label: Text(
                     'Add Option',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                       color: AppColors.textSecondary,
@@ -364,7 +364,7 @@ class PollUploadScreen extends StatelessWidget {
               Text(
                 'Poll Duration',
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: isDark
@@ -408,7 +408,7 @@ class PollUploadScreen extends StatelessWidget {
                         ? '1 day'
                         : '$days days',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       fontSize: 12,
                       fontWeight: isSelected
                           ? FontWeight.w500
@@ -440,7 +440,7 @@ class PollUploadScreen extends StatelessWidget {
         Text(
           'Visibility',
           style: TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'Roboto',
             fontSize: 13,
             fontWeight: FontWeight.w500,
             color: isDark ? AppColors.textPrimary70 : const Color(0xFFFFB703),
@@ -512,7 +512,7 @@ class PollUploadScreen extends StatelessWidget {
                 Text(
                   'Create Poll',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 18,
                     fontWeight: FontWeight.w700,
                     color: isDark ? AppColors.textPrimary : AppColors.bgPage,
@@ -552,7 +552,7 @@ class PollUploadScreen extends StatelessWidget {
                             child: Text(
                               channel.channelName,
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'Roboto',
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                                 color: isDark ? Colors.white : Colors.black87,
@@ -612,7 +612,7 @@ class PollUploadScreen extends StatelessWidget {
           Text(
             'Create Poll',
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: isDark ? AppColors.textPrimary : AppColors.bgPage,
@@ -635,7 +635,7 @@ class PollUploadScreen extends StatelessWidget {
           label: Text(
             'Back',
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -696,7 +696,7 @@ class PollUploadScreen extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 13,
                     fontWeight: isSelected ? FontWeight.w500 : FontWeight.w500,
                     color: isSelected
@@ -730,7 +730,7 @@ class PollUploadScreen extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               fontSize: 14,
               fontWeight: FontWeight.w500,
               color: color,
@@ -783,7 +783,7 @@ class PollUploadScreen extends StatelessWidget {
               Text(
                 title,
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   color: isDark ? AppColors.textPrimary : AppColors.bgPage,
@@ -857,7 +857,7 @@ class PollUploadScreen extends StatelessWidget {
                 Text(
                   title,
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     color: statusColor,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -867,7 +867,7 @@ class PollUploadScreen extends StatelessWidget {
                 Text(
                   message,
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     color: isDark ? Colors.white70 : Colors.black87,
                     fontSize: 12,
                   ),

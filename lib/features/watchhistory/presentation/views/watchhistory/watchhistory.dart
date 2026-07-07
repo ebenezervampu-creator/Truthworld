@@ -430,7 +430,7 @@ class _WatchHistoryListCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () {
-        Get.toNamed('/videoscreen', arguments: {'video': video});
+        Get.toNamed('/watch?v=${video.id}', arguments: {'video': video});
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

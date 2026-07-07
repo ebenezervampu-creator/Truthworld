@@ -244,7 +244,7 @@ class StateOverlay extends StatelessWidget {
           () => Text(
             'Poor network · ${ctrl.abr.currentTier.label}',
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               color: Colors.orange,
               fontSize: 13,
             ),
@@ -440,7 +440,7 @@ class SeekPreviewTooltip extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Roboto',
                               color: Colors.white,
                               fontSize: 11,
                               height: 1.2,
@@ -453,7 +453,7 @@ class SeekPreviewTooltip extends StatelessWidget {
                               ' ',
                             ),
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Roboto',
                               color: getVerdictColor(hoveredClaim.verdict),
                               fontSize: 11,
                               fontWeight: FontWeight.bold,

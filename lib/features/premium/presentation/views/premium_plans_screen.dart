@@ -35,7 +35,7 @@ class PremiumPlansScreen extends StatelessWidget {
             Text(
               'Premium',
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Roboto',
                 fontWeight: FontWeight.w600,
                 fontSize: 20,
                 color: Colors.white,
@@ -93,7 +93,7 @@ class PremiumPlansScreen extends StatelessWidget {
                     Text(
                       'Choose the plan that fits you',
                       style: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Roboto',
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
@@ -116,7 +116,7 @@ class PremiumPlansScreen extends StatelessWidget {
                   Text(
                     'Compare Free vs Premium',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -133,7 +133,7 @@ class PremiumPlansScreen extends StatelessWidget {
                   Text(
                     'Frequently asked questions',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -227,7 +227,7 @@ class PremiumPlansScreen extends StatelessWidget {
               Text(
                 'Premium',
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 36,
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
@@ -241,7 +241,7 @@ class PremiumPlansScreen extends StatelessWidget {
             'Ad-free, offline, and in the background',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: Colors.white,
@@ -252,7 +252,7 @@ class PremiumPlansScreen extends StatelessWidget {
             'Enjoy Truthworld and Truthworld Music uninterrupted. Plus, get enhanced bitrate 1080p Premium quality.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               fontSize: 15,
               color: Colors.white60,
               height: 1.4,
@@ -279,7 +279,7 @@ class PremiumPlansScreen extends StatelessWidget {
                       ? 'Get Prepaid Plan'
                       : 'Try it free',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: Colors.black,
@@ -314,7 +314,7 @@ class PremiumPlansScreen extends StatelessWidget {
                   Text(
                     'Active Premium Member',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       color: Colors.amber,
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
@@ -382,7 +382,7 @@ class PremiumPlansScreen extends StatelessWidget {
                       Text(
                         feat.title,
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
@@ -392,7 +392,7 @@ class PremiumPlansScreen extends StatelessWidget {
                       Text(
                         feat.description,
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           fontSize: 13,
                           color: Colors.white54,
                           height: 1.4,
@@ -454,7 +454,7 @@ class PremiumPlansScreen extends StatelessWidget {
                 Text(
                   'Membership details',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
@@ -488,7 +488,7 @@ class PremiumPlansScreen extends StatelessWidget {
                 child: Text(
                   'Cancel Membership',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     color: Colors.redAccent,
                     fontWeight: FontWeight.bold,
                   ),
@@ -519,7 +519,7 @@ class PremiumPlansScreen extends StatelessWidget {
               Text(
                 'Developer Sandbox Panel',
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: Colors.white70,
@@ -544,7 +544,7 @@ class PremiumPlansScreen extends StatelessWidget {
               label: Text(
                 'Simulate Upgrade (Unlock)',
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   color: Colors.black87,
                   fontWeight: FontWeight.bold,
                 ),
@@ -666,7 +666,7 @@ class PremiumPlansScreen extends StatelessWidget {
                             child: Text(
                               plan.title,
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'Roboto',
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
@@ -676,7 +676,7 @@ class PremiumPlansScreen extends StatelessWidget {
                           Text(
                             plan.priceLabel.split('/')[0],
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Roboto',
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: isSelected ? Colors.red : Colors.white,
@@ -763,7 +763,7 @@ class PremiumPlansScreen extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'Roboto',
             fontSize: 16,
             fontWeight: FontWeight.bold,
             color: Colors.black,
@@ -813,14 +813,14 @@ class PremiumPlansScreen extends StatelessWidget {
           padding: const EdgeInsets.all(16.0),
           child: Text(
             'Features',
-            style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.bold),
+            style: TextStyle(fontFamily: 'Roboto', fontWeight: FontWeight.bold),
           ),
         ),
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: Text(
             'Free',
-            style: TextStyle(fontFamily: 'Inter', color: Colors.white54),
+            style: TextStyle(fontFamily: 'Roboto', color: Colors.white54),
           ),
         ),
         Padding(
@@ -828,7 +828,7 @@ class PremiumPlansScreen extends StatelessWidget {
           child: Text(
             'Premium',
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               color: Colors.red,
               fontWeight: FontWeight.bold,
             ),
@@ -907,7 +907,7 @@ class PremiumPlansScreen extends StatelessWidget {
             title: Text(
               faq.q,
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Roboto',
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: Colors.white,

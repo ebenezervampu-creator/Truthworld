@@ -2,32 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
-class VideoPipelineStatusWidget extends StatefulWidget {
+class VideoPipelineStatusWidget extends StatelessWidget {
   final Video video;
   final bool isDarkMode;
+  final RxBool _isExpanded;
 
-  const VideoPipelineStatusWidget({
+  VideoPipelineStatusWidget({
     super.key,
     required this.video,
     required this.isDarkMode,
-  });
-
-  @override
-  State<VideoPipelineStatusWidget> createState() => _VideoPipelineStatusWidgetState();
-}
-
-class _VideoPipelineStatusWidgetState extends State<VideoPipelineStatusWidget> {
-  late bool _isExpanded;
-
-  @override
-  void initState() {
-    super.initState();
-    // Expand by default if the video is still processing
-    _isExpanded = widget.video.status.name != 'ready';
-  }
+  }) : _isExpanded = (video.status.name != 'ready').obs;
 
   String? _getThumbnailFileName(String url) {
     if (url.isEmpty) return null;
@@ -64,32 +52,29 @@ class _VideoPipelineStatusWidgetState extends State<VideoPipelineStatusWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final thumbnailFile = _getThumbnailFileName(widget.video.thumbnailUrl);
+    final thumbnailFile = _getThumbnailFileName(video.thumbnailUrl);
 
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('videos').doc(widget.video.id).snapshots(),
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance.collection('videos').doc(video.id).snapshots(),
       builder: (context, videoDocSnap) {
-        return StreamBuilder<DocumentSnapshot>(
+        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: thumbnailFile != null
               ? FirebaseFirestore.instance.collection('image_verification').doc(thumbnailFile).snapshots()
-              : const Stream.empty(),
+              : Stream<DocumentSnapshot<Map<String, dynamic>>>.empty(),
           builder: (context, imageSnap) {
-            return StreamBuilder<DocumentSnapshot>(
-              stream: FirebaseFirestore.instance.collection('resolution_jobs').doc(widget.video.id).snapshots(),
+            return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance.collection('resolution_jobs').doc(video.id).snapshots(),
               builder: (context, resolutionSnap) {
                 return StreamBuilder<QuerySnapshot>(
                   stream: FirebaseFirestore.instance
                       .collection('video_jobs')
-                      .where('videoId', isEqualTo: widget.video.id)
+                      .where('videoId', isEqualTo: video.id)
                       .limit(1)
                       .snapshots(),
                   builder: (context, jobsSnap) {
-                    final videoDocData = videoDocSnap.data?.data() as Map<String, dynamic>?;
-                    final imageDoc = imageSnap.data?.data() as Map<String, dynamic>?;
-                    final resolutionDoc = resolutionSnap.data?.data() as Map<String, dynamic>?;
-                    final jobDoc = jobsSnap.data?.docs.isNotEmpty == true
-                        ? jobsSnap.data!.docs.first.data() as Map<String, dynamic>?
-                        : null;
+                    final videoDocData = videoDocSnap.data?.data();
+                    final imageDoc = imageSnap.data?.data();
+                    final resolutionDoc = resolutionSnap.data?.data();
 
                     // Video Content Moderation (Gemini Audio Analysis)
                     final moderationData = videoDocData?['moderation'] as Map<String, dynamic>?;
@@ -99,203 +84,206 @@ class _VideoPipelineStatusWidgetState extends State<VideoPipelineStatusWidget> {
                     final moderationCategories = (moderationData?['violationCategories'] as List<dynamic>?)?.cast<String>() ?? [];
                     final moderationTime = moderationData?['processingTimeMs'] as num?;
 
-                    final imageStatus = imageDoc?['status'] as String? ?? 'PENDING';
+                    // Thumbnail Safety Verification (Vertex AI Vision)
+                    final imageStatus = (imageDoc?['status'] as String?)?.toUpperCase() ?? 'PENDING';
                     final imageReason = imageDoc?['reason'] as String?;
-                    
+
+                    // Resolution job status mapping
                     final variants = resolutionDoc?['variants'] as Map<String, dynamic>? ?? {};
 
-                    final stages = jobDoc?['stages'] as Map<String, dynamic>? ?? {};
+                    // Pipeline timeline stages mapping from videoDoc
+                    final stages = videoDocData?['stages'] as Map<String, dynamic>? ?? {};
 
-                return Container(
-                  margin: const EdgeInsets.only(top: 12),
-                  decoration: BoxDecoration(
-                    color: widget.isDarkMode
-                        ? AppColors.bgSurface.withValues(alpha: 0.5)
-                        : Colors.grey.shade100,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: widget.isDarkMode
-                          ? AppColors.bgDivider.withValues(alpha: 0.5)
-                          : Colors.grey.shade300,
-                    ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Header Row (Click to toggle expansion)
-                      InkWell(
-                        onTap: () {
-                          setState(() {
-                            _isExpanded = !_isExpanded;
-                          });
-                        },
-                        borderRadius: BorderRadius.circular(12),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          key: const Key('pipeline_header_row'),
-                          child: Row(
-                            children: [
-                              Icon(
-                                Icons.settings_suggest_outlined,
-                                color: widget.isDarkMode ? AppColors.brand : Colors.deepPurple,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                "Processing Pipeline",
-                                style: GoogleFonts.roboto(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: widget.isDarkMode ? AppColors.textPrimary : Colors.black87,
-                                ),
-                              ),
-                              const Spacer(),
-                              // Thumbnail Moderation Tag
-                              _buildMiniBadge(
-                                label: "Content: $moderationStatus",
-                                color: _getSafetyColor(moderationStatus),
-                              ),
-                              const SizedBox(width: 6),
-                              _buildMiniBadge(
-                                label: "Thumb: $imageStatus",
-                                color: _getSafetyColor(imageStatus),
-                              ),
-                              const SizedBox(width: 8),
-                              // Status Indicator
-                              _buildMiniBadge(
-                                label: widget.video.status.name.toUpperCase(),
-                                color: widget.video.status.name == 'ready'
-                                    ? AppColors.success
-                                    : (widget.video.status.name == 'failed'
-                                        ? AppColors.error
-                                        : AppColors.warning),
-                              ),
-                              const SizedBox(width: 10),
-                              Icon(
-                                _isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-                                color: widget.isDarkMode ? AppColors.textSecondary : Colors.black54,
-                                size: 20,
-                              ),
-                            ],
+                    return Obx(() {
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 16),
+                        decoration: BoxDecoration(
+                          color: isDarkMode
+                              ? AppColors.bgSurface
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isDarkMode
+                                ? AppColors.bgDivider.withValues(alpha: 0.5)
+                                : Colors.grey.shade300,
                           ),
                         ),
-                      ),
-                      
-                      // Collapsible Body
-                      AnimatedCrossFade(
-                        firstChild: const SizedBox.shrink(),
-                        secondChild: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Divider(height: 16),
-                              
-                              // Section 1: Video Content Moderation (Gemini Audio Analysis)
-                              _buildSectionTitle("Video Content Moderation (Gemini)"),
-                              const SizedBox(height: 6),
-                              _buildModerationPanel(
-                                status: moderationStatus,
-                                reason: moderationReason,
-                                summary: moderationSummary,
-                                categories: moderationCategories,
-                                processingTimeMs: moderationTime?.toInt(),
-                              ),
-
-                              const SizedBox(height: 16),
-
-                              // Section 2: Thumbnail Safety Verification
-                              _buildSectionTitle("Thumbnail Safety Verification"),
-                              const SizedBox(height: 6),
-                              Row(
-                                children: [
-                                  Icon(
-                                    _getSafetyIcon(imageStatus),
-                                    color: _getSafetyColor(imageStatus),
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    imageReason ?? "Awaiting safety checks from Vertex AI Vision...",
-                                    style: GoogleFonts.roboto(
-                                      fontSize: 13,
-                                      color: widget.isDarkMode ? AppColors.textSecondary : Colors.black87,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Header Row (Click to toggle expansion)
+                            InkWell(
+                              onTap: () {
+                                _isExpanded.value = !_isExpanded.value;
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                key: const Key('pipeline_header_row'),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.settings_suggest_outlined,
+                                      color: isDarkMode ? AppColors.brand : Colors.deepPurple,
+                                      size: 20,
                                     ),
-                                  ),
-                                ],
-                              ),
-                              
-                              const SizedBox(height: 16),
-                              
-                              // Section 2: Adaptive Resolution Transcoding
-                              _buildSectionTitle("Resolution Transcoding (Adaptive HLS)"),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  _buildResolutionChip("144p", variants["144p"]),
-                                  _buildResolutionChip("240p", variants["240p"]),
-                                  _buildResolutionChip("360p", variants["360p"]),
-                                  _buildResolutionChip("480p", variants["480p"]),
-                                  _buildResolutionChip("720p", variants["720p"]),
-                                ],
-                              ),
-                              
-                              const SizedBox(height: 16),
-                              
-                              // Section 3: AI Processing Timeline Stages
-                              _buildSectionTitle("AI Metadata & Pipeline Stages"),
-                              const SizedBox(height: 10),
-                              _buildPipelineTimeline(stages),
-                              
-                              // Section 4: Direct Links & Stored Artifacts (Only if ready)
-                              if (widget.video.status.name == 'ready' || stages.isNotEmpty) ...[
-                                const SizedBox(height: 16),
-                                _buildSectionTitle("Direct Links & Stored Artifacts"),
-                                const SizedBox(height: 8),
-                                _buildArtifactLinksPanel(),
-                              ],
-
-                              // Section 5: Gemini Generated Summary (Low Latency Stored)
-                              if (widget.video.description.isNotEmpty && widget.video.status.name == 'ready') ...[
-                                const SizedBox(height: 16),
-                                _buildSectionTitle("Gemini Video Summary"),
-                                const SizedBox(height: 8),
-                                Container(
-                                  width: double.infinity,
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: widget.isDarkMode
-                                        ? AppColors.bgSurfaceHover
-                                        : Colors.grey.shade200,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    widget.video.description,
-                                    style: GoogleFonts.roboto(
-                                      fontSize: 12.5,
-                                      color: widget.isDarkMode ? AppColors.textSecondary : Colors.black87,
-                                      height: 1.4,
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      "Processing Pipeline",
+                                      style: GoogleFonts.roboto(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+                                      ),
                                     ),
-                                  ),
+                                    const Spacer(),
+                                    // Thumbnail Moderation Tag
+                                    _buildMiniBadge(
+                                      label: "Content: $moderationStatus",
+                                      color: _getSafetyColor(moderationStatus),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    _buildMiniBadge(
+                                      label: "Thumb: $imageStatus",
+                                      color: _getSafetyColor(imageStatus),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    // Status Indicator
+                                    _buildMiniBadge(
+                                      label: video.status.name.toUpperCase(),
+                                      color: video.status.name == 'ready'
+                                          ? AppColors.success
+                                          : (video.status.name == 'failed'
+                                              ? AppColors.error
+                                              : AppColors.warning),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Icon(
+                                      _isExpanded.value ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                                      color: isDarkMode ? AppColors.textSecondary : Colors.black54,
+                                      size: 20,
+                                    ),
+                                  ],
                                 ),
-                              ],
-                            ],
-                          ),
+                              ),
+                            ),
+                            
+                            // Collapsible Body
+                            AnimatedCrossFade(
+                              firstChild: const SizedBox.shrink(),
+                              secondChild: Padding(
+                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Divider(height: 16),
+                                    
+                                    // Section 1: Video Content Moderation (Gemini Audio Analysis)
+                                    _buildSectionTitle("Video Content Moderation (Gemini)"),
+                                    const SizedBox(height: 6),
+                                    _buildModerationPanel(
+                                      status: moderationStatus,
+                                      reason: moderationReason,
+                                      summary: moderationSummary,
+                                      categories: moderationCategories,
+                                      processingTimeMs: moderationTime?.toInt(),
+                                    ),
+
+                                    const SizedBox(height: 16),
+
+                                    // Section 2: Thumbnail Safety Verification
+                                    _buildSectionTitle("Thumbnail Safety Verification"),
+                                    const SizedBox(height: 6),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          _getSafetyIcon(imageStatus),
+                                          color: _getSafetyColor(imageStatus),
+                                          size: 18,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          imageReason ?? "Awaiting safety checks from Vertex AI Vision...",
+                                          style: GoogleFonts.roboto(
+                                            fontSize: 13,
+                                            color: isDarkMode ? AppColors.textSecondary : Colors.black87,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    
+                                    const SizedBox(height: 16),
+                                    
+                                    // Section 2: Adaptive Resolution Transcoding
+                                    _buildSectionTitle("Resolution Transcoding (Adaptive HLS)"),
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: [
+                                        _buildResolutionChip("144p", variants["144p"]),
+                                        _buildResolutionChip("240p", variants["240p"]),
+                                        _buildResolutionChip("360p", variants["360p"]),
+                                        _buildResolutionChip("480p", variants["480p"]),
+                                        _buildResolutionChip("720p", variants["720p"]),
+                                      ],
+                                    ),
+                                    
+                                    const SizedBox(height: 16),
+                                    
+                                    // Section 3: AI Processing Timeline Stages
+                                    _buildSectionTitle("AI Metadata & Pipeline Stages"),
+                                    const SizedBox(height: 10),
+                                    _buildPipelineTimeline(stages),
+                                    
+                                    // Section 4: Direct Links & Stored Artifacts (Only if ready)
+                                    if (video.status.name == 'ready' || stages.isNotEmpty) ...[
+                                      const SizedBox(height: 16),
+                                      _buildSectionTitle("Direct Links & Stored Artifacts"),
+                                      const SizedBox(height: 8),
+                                      _buildArtifactLinksPanel(),
+                                    ],
+
+                                    // Section 5: Gemini Generated Summary (Low Latency Stored)
+                                    if (video.description.isNotEmpty && video.status.name == 'ready') ...[
+                                      const SizedBox(height: 16),
+                                      _buildSectionTitle("Gemini Video Summary"),
+                                      const SizedBox(height: 8),
+                                      Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: isDarkMode
+                                              ? AppColors.bgSurfaceHover
+                                              : Colors.grey.shade200,
+                                          borderRadius: BorderRadius.circular(8),
+                                        ),
+                                        child: Text(
+                                          video.description,
+                                          style: GoogleFonts.roboto(
+                                            fontSize: 12.5,
+                                            color: isDarkMode ? AppColors.textSecondary : Colors.black87,
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              crossFadeState: _isExpanded.value ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                              duration: const Duration(milliseconds: 250),
+                            ),
+                          ],
                         ),
-                        crossFadeState: _isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-                        duration: const Duration(milliseconds: 250),
-                      ),
-                    ],
-                  ),
+                      );
+                    });
+                  },
                 );
               },
             );
           },
         );
-      },
-    );
       },
     );
   }
@@ -350,7 +338,7 @@ class _VideoPipelineStatusWidgetState extends State<VideoPipelineStatusWidget> {
                   style: GoogleFonts.roboto(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
-                    color: widget.isDarkMode ? AppColors.textPrimary : Colors.black87,
+                    color: isDarkMode ? AppColors.textPrimary : Colors.black87,
                   ),
                 ),
               ),
@@ -409,7 +397,7 @@ class _VideoPipelineStatusWidgetState extends State<VideoPipelineStatusWidget> {
               summary,
               style: GoogleFonts.roboto(
                 fontSize: 11.5,
-                color: widget.isDarkMode ? AppColors.textSecondary : Colors.black87,
+                color: isDarkMode ? AppColors.textSecondary : Colors.black87,
                 height: 1.3,
               ),
               maxLines: 3,
@@ -427,7 +415,7 @@ class _VideoPipelineStatusWidgetState extends State<VideoPipelineStatusWidget> {
       style: GoogleFonts.roboto(
         fontSize: 12,
         fontWeight: FontWeight.bold,
-        color: widget.isDarkMode ? AppColors.textTertiary : Colors.grey.shade700,
+        color: isDarkMode ? AppColors.textTertiary : Colors.grey.shade700,
         letterSpacing: 0.5,
       ),
     );
@@ -523,7 +511,7 @@ class _VideoPipelineStatusWidgetState extends State<VideoPipelineStatusWidget> {
             style: GoogleFonts.roboto(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: widget.isDarkMode ? AppColors.textPrimary : Colors.black87,
+              color: isDarkMode ? AppColors.textPrimary : Colors.black87,
             ),
           ),
         ],
@@ -596,7 +584,7 @@ class _VideoPipelineStatusWidgetState extends State<VideoPipelineStatusWidget> {
                     fontWeight: status == 'running' ? FontWeight.bold : FontWeight.normal,
                     color: status == 'pending'
                         ? AppColors.textTertiary
-                        : (widget.isDarkMode ? AppColors.textPrimary : Colors.black87),
+                        : (isDarkMode ? AppColors.textPrimary : Colors.black87),
                   ),
                 ),
               ),
@@ -637,22 +625,22 @@ class _VideoPipelineStatusWidgetState extends State<VideoPipelineStatusWidget> {
           runSpacing: 8,
           children: [
             // 1. Transcription jsonUrl
-            if (widget.video.transcriptionUrl.isNotEmpty)
+            if (video.transcriptionUrl.isNotEmpty)
               _buildActionButton(
                 icon: Icons.description_outlined,
                 label: "Transcript JSON",
-                onPressed: () => _launchURL(widget.video.transcriptionUrl),
+                onPressed: () => _launchURL(video.transcriptionUrl),
               ),
             // 2. Factchecking report Url
-            if (widget.video.factCheckUrl.isNotEmpty)
+            if (video.factCheckUrl.isNotEmpty)
               _buildActionButton(
                 icon: Icons.fact_check_outlined,
                 label: "Fact-Check Report",
-                onPressed: () => _launchURL(widget.video.factCheckUrl),
+                onPressed: () => _launchURL(video.factCheckUrl),
               ),
             // 3. Subtitles
-            if (widget.video.mediaSubtitles.isNotEmpty)
-              ...widget.video.mediaSubtitles.entries.map((entry) {
+            if (video.mediaSubtitles.isNotEmpty)
+              ...video.mediaSubtitles.entries.map((entry) {
                 return _buildActionButton(
                   icon: Icons.subtitles_outlined,
                   label: "SRT/VTT (${entry.key.toUpperCase()})",
@@ -660,8 +648,8 @@ class _VideoPipelineStatusWidgetState extends State<VideoPipelineStatusWidget> {
                 );
               }),
             // 4. Audio Tracks / Dubs
-            if (widget.video.audioTracks.isNotEmpty)
-              ...widget.video.audioTracks.entries.map((entry) {
+            if (video.audioTracks.isNotEmpty)
+              ...video.audioTracks.entries.map((entry) {
                 return _buildActionButton(
                   icon: Icons.audiotrack_outlined,
                   label: "Audio (${entry.key.toUpperCase()})",
@@ -669,8 +657,8 @@ class _VideoPipelineStatusWidgetState extends State<VideoPipelineStatusWidget> {
                 );
               }),
             // 5. Resolution variants
-            if (widget.video.resolutions.isNotEmpty)
-              ...widget.video.adaptiveResolutions.map((res) {
+            if (video.resolutions.isNotEmpty)
+              ...video.adaptiveResolutions.map((res) {
                 return _buildActionButton(
                   icon: Icons.hd_outlined,
                   label: "${res.label} Direct Link",
@@ -690,15 +678,15 @@ class _VideoPipelineStatusWidgetState extends State<VideoPipelineStatusWidget> {
   }) {
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
-        backgroundColor: widget.isDarkMode
+        backgroundColor: isDarkMode
             ? AppColors.bgSurfaceHover
             : Colors.grey.shade200,
-        foregroundColor: widget.isDarkMode ? AppColors.textPrimary : Colors.black87,
+        foregroundColor: isDarkMode ? AppColors.textPrimary : Colors.black87,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(6),
           side: BorderSide(
-            color: widget.isDarkMode
+            color: isDarkMode
                 ? AppColors.bgDivider.withValues(alpha: 0.4)
                 : Colors.grey.shade300,
           ),
@@ -709,7 +697,7 @@ class _VideoPipelineStatusWidgetState extends State<VideoPipelineStatusWidget> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: widget.isDarkMode ? AppColors.brand : Colors.deepPurple),
+          Icon(icon, size: 14, color: isDarkMode ? AppColors.brand : Colors.deepPurple),
           const SizedBox(width: 6),
           Text(
             label,

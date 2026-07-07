@@ -5,12 +5,12 @@
  * accurate voice matching and identity preservation.
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { VertexAI } from "@google-cloud/vertexai";
 import { PIPELINE_CONFIG } from "../config";
 import { Utterance } from "../types";
 import { logger } from "../utils/logger";
 
-const genAI = new GoogleGenerativeAI(PIPELINE_CONFIG.GEMINI_API_KEY);
+const genAI = new VertexAI({ project: "truthworld-1", location: "asia-south1" });
 
 export interface SpeakerProfile {
   speakerId:   string;
@@ -59,7 +59,7 @@ Return a JSON object with:
 Return ONLY valid JSON.`;
 
         const result = await this.model.generateContent(prompt);
-        const text = result.response.text();
+        const text = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
         const jsonMatch = text.match(/\{[\s\S]*\}/);
         
         if (!jsonMatch) throw new Error("No JSON in speaker profile response");

@@ -117,18 +117,21 @@ class VideoFeedNotificationService {
   Future<void> markVideoAsSeen(String userId, String videoId) async {
     if (userId == 'guest_user' || userId.isEmpty) return;
     try {
-      // 1. Maintain global legacy arrays for offline fallback/references
-      await _firestore.collection('users').doc(userId).update({
-        'seenVideoIds': FieldValue.arrayUnion([videoId]),
-      });
+      // ⚡ SCALE FIX: Removed legacy seenVideoIds arrayUnion — unbounded array growth.
+      // The feed_inbox isSeen flag is the authoritative source of truth.
 
-      // 2. Explicitly flag the specific feed inbox document
+      // Flag the specific feed inbox document as seen
       await _firestore
           .collection('users')
           .doc(userId)
           .collection('feed_inbox')
           .doc(videoId)
           .update({'isSeen': true});
+
+      // Update lastSeenNotifications timestamp only (no array)
+      await _firestore.collection('users').doc(userId).update({
+        'lastSeenNotifications': FieldValue.serverTimestamp(),
+      });
     } catch (e) {
       debugPrint('Error marking video as seen: $e');
     }
@@ -140,13 +143,13 @@ class VideoFeedNotificationService {
   Future<void> markAllAsSeen(String userId, List<String> videoIds) async {
     if (userId == 'guest_user' || userId.isEmpty || videoIds.isEmpty) return;
     try {
-      // 1. Update legacy document tracking
+      // ⚡ SCALE FIX: Removed legacy seenVideoIds arrayUnion — unbounded array growth.
+      // Only update lastSeenNotifications timestamp and feed_inbox flags.
       await _firestore.collection('users').doc(userId).update({
-        'seenVideoIds': FieldValue.arrayUnion(videoIds),
         'lastSeenNotifications': FieldValue.serverTimestamp(),
       });
 
-      // 2. Perform optimal batched status propagation across local collection
+      // Perform optimal batched status propagation across feed_inbox
       final batch = _firestore.batch();
       for (final vid in videoIds) {
         final ref = _firestore
@@ -1990,7 +1993,7 @@ class _VideoFeedNotificationScreenState
                 category: 'Alerts',
                 tags: const [],
               );
-              Get.toNamed("/videoscreen", arguments: {
+              Get.toNamed('/watch?v=${mockVideo.id}', arguments: {
                 'video': mockVideo,
                 'commentId': alert.metadata?['commentId'],
                 'replyId': alert.metadata?['replyId'],
@@ -2134,7 +2137,7 @@ class _VideoFeedNotificationScreenState
   }
 
   void _navigateToVideo(Video notification) {
-    Get.toNamed("/videoscreen", arguments: {'video': notification});
+    Get.toNamed('/watch?v=${notification.id}', arguments: {'video': notification});
   }
 }
 

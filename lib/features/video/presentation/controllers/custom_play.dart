@@ -555,7 +555,7 @@ class TowerPlayerController extends GetxController {
     
     // Navigate to new video screen with proper arguments
     // GetX will handle cleanup of current controller
-    Get.offNamed('/videoscreen', arguments: {
+    Get.offNamed('/watch?v=${video.id}', arguments: {
       'video': video,
       'playlist': vc.currentPlaylist.value,
       'heroTag': 'video_${video.id}_${DateTime.now().millisecondsSinceEpoch}',
@@ -1214,7 +1214,7 @@ class _SwitchingResolutionOverlay extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text(
                     'Optimizing Quality...',
-                    style: GoogleFonts.outfit(
+                    style: GoogleFonts.roboto(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
@@ -1224,7 +1224,7 @@ class _SwitchingResolutionOverlay extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     'Switching to a better resolution',
-                    style: GoogleFonts.outfit(
+                    style: GoogleFonts.roboto(
                       color: Colors.white70,
                       fontSize: 12,
                     ),
@@ -1281,7 +1281,7 @@ class _AudioOnlyOverlay extends StatelessWidget {
             const SizedBox(height: 28),
             Text(
               'Audio Only Mode',
-              style: GoogleFonts.outfit(
+              style: GoogleFonts.roboto(
                 color: Colors.white,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -1299,7 +1299,7 @@ class _AudioOnlyOverlay extends StatelessWidget {
                   : null;
               return Text(
                 svc?.currentTrackTitle.value ?? '',
-                style: GoogleFonts.outfit(color: Colors.white54, fontSize: 14),
+                style: GoogleFonts.roboto(color: Colors.white54, fontSize: 14),
                 textAlign: TextAlign.center,
               );
             }),
@@ -1434,7 +1434,7 @@ class _StateOverlay extends StatelessWidget {
           Obx(
             () => Text(
               'Poor network · ${ctrl.abr.currentTier.label}',
-              style: GoogleFonts.outfit(color: Colors.orange, fontSize: 13),
+              style: GoogleFonts.roboto(color: Colors.orange, fontSize: 13),
             ),
           ),
         ],
@@ -1457,7 +1457,7 @@ class _StateOverlay extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               'Playback Error',
-              style: GoogleFonts.outfit(
+              style: GoogleFonts.roboto(
                 color: Colors.white,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -1466,7 +1466,7 @@ class _StateOverlay extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               ctrl.vv.errorDescription ?? 'An unknown error occurred',
-              style: GoogleFonts.outfit(color: Colors.white54, fontSize: 13),
+              style: GoogleFonts.roboto(color: Colors.white54, fontSize: 13),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -1521,7 +1521,7 @@ class _DoubleTapRipple extends StatelessWidget {
               ),
               Text(
                 '10 seconds',
-                style: GoogleFonts.outfit(color: Colors.white70, fontSize: 12),
+                style: GoogleFonts.roboto(color: Colors.white70, fontSize: 12),
               ),
             ],
           ),
@@ -1589,7 +1589,7 @@ class _SeekPreviewTooltip extends StatelessWidget {
                       child: Text(
                         _fmtDuration(pos),
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.outfit(
+                        style: GoogleFonts.roboto(
                           color: Colors.white,
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
@@ -1639,7 +1639,7 @@ class _SubtitleOverlay extends StatelessWidget {
           child: Text(
             text,
             textAlign: TextAlign.center,
-            style: GoogleFonts.outfit(
+            style: GoogleFonts.roboto(
               color: Colors.white,
               fontSize: 18,
               fontWeight: FontWeight.w500,
@@ -1677,7 +1677,7 @@ class _Toast extends StatelessWidget {
         ),
         child: Text(
           message,
-          style: GoogleFonts.outfit(
+          style: GoogleFonts.roboto(
             color: Colors.white,
             fontSize: 14,
             fontWeight: FontWeight.w500,
@@ -1740,7 +1740,7 @@ class _MainControls extends StatelessWidget {
           const SizedBox(width: 12),
           Text(
             'Exit Fullscreen',
-            style: GoogleFonts.outfit(
+            style: GoogleFonts.roboto(
               color: Colors.white,
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -1926,7 +1926,7 @@ class _NetworkBadge extends StatelessWidget {
               bw > 1000
                   ? '${(bw / 1000).toStringAsFixed(1)} Mbps'
                   : '${bw.toStringAsFixed(0)} kbps',
-              style: GoogleFonts.outfit(
+              style: GoogleFonts.roboto(
                 color: color,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
@@ -1978,7 +1978,7 @@ class _AbrBadge extends StatelessWidget {
           ),
           child: Text(
             label,
-            style: GoogleFonts.outfit(
+            style: GoogleFonts.roboto(
               color: Colors.white70,
               fontSize: 11,
               fontWeight: FontWeight.bold,
@@ -2231,7 +2231,7 @@ class _TimeDisplay extends StatelessWidget {
           children: [
             Text(
               '${_fmt(ctrl.vv.position)} / ${_fmt(ctrl.vv.duration)}',
-              style: GoogleFonts.outfit(
+              style: GoogleFonts.roboto(
                 color: Colors.white.withValues(alpha: 0.9),
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
@@ -2249,7 +2249,7 @@ class _TimeDisplay extends StatelessWidget {
                   ctrl.currentChapter.value!.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.outfit(
+                  style: GoogleFonts.roboto(
                     color: PT.primary,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -2552,7 +2552,7 @@ class _QualityPanel extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text(
                     'Video Not Available',
-                    style: GoogleFonts.outfit(
+                    style: GoogleFonts.roboto(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -2562,7 +2562,7 @@ class _QualityPanel extends StatelessWidget {
                   Text(
                     'No playable resolutions found for this video',
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.outfit(
+                    style: GoogleFonts.roboto(
                       color: Colors.white70,
                       fontSize: 13,
                     ),
@@ -2593,14 +2593,14 @@ class _QualityPanel extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   'Network: ',
-                  style: GoogleFonts.outfit(
+                  style: GoogleFonts.roboto(
                     color: Colors.white38,
                     fontSize: 12,
                   ),
                 ),
                 Text(
                   _bwLabel(ctrl.abr.measuredBandwidthKbps.value),
-                  style: GoogleFonts.outfit(
+                  style: GoogleFonts.roboto(
                     color: _qualityColor(ctrl.abr.networkQuality.value),
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
@@ -2609,14 +2609,14 @@ class _QualityPanel extends StatelessWidget {
                 const Spacer(),
                 Text(
                   'Buffer: ',
-                  style: GoogleFonts.outfit(
+                  style: GoogleFonts.roboto(
                     color: Colors.white38,
                     fontSize: 12,
                   ),
                 ),
                 Text(
                   '${ctrl.abr.bufferHealthSeconds.value.toStringAsFixed(1)}s',
-                  style: GoogleFonts.outfit(
+                  style: GoogleFonts.roboto(
                     color: ctrl.abr.bufferHealthSeconds.value < 3
                         ? PT.primary
                         : Colors.greenAccent,
@@ -2720,7 +2720,7 @@ class _SubtitlesPanel extends StatelessWidget {
                 const SizedBox(width: 16),
                 Text(
                   'Subtitles',
-                  style: GoogleFonts.outfit(
+                  style: GoogleFonts.roboto(
                     color: Colors.white,
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
@@ -2752,7 +2752,7 @@ class _SubtitlesPanel extends StatelessWidget {
                     child: Center(
                       child: Text(
                         'No subtitles available',
-                        style: GoogleFonts.outfit(color: Colors.white38, fontSize: 13),
+                        style: GoogleFonts.roboto(color: Colors.white38, fontSize: 13),
                       ),
                     ),
                   );
@@ -2809,7 +2809,7 @@ class _LanguagePanel extends StatelessWidget {
                     child: Center(
                       child: Text(
                         'Original audio only',
-                        style: GoogleFonts.outfit(color: Colors.white38, fontSize: 13),
+                        style: GoogleFonts.roboto(color: Colors.white38, fontSize: 13),
                       ),
                     ),
                   );
@@ -2879,7 +2879,7 @@ class _RatingPanel extends StatelessWidget {
                       ),
                       child: Text(
                         m.rating,
-                        style: GoogleFonts.outfit(
+                        style: GoogleFonts.roboto(
                           color: PT.primary,
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -2908,7 +2908,7 @@ class _RatingPanel extends StatelessWidget {
                                 ),
                                 child: Text(
                                   a,
-                                  style: GoogleFonts.outfit(
+                                  style: GoogleFonts.roboto(
                                     color: Colors.white60,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w500,
@@ -2956,7 +2956,7 @@ class _RatingPanel extends StatelessWidget {
                                     children: [
                                       Text(
                                         'Video Rating: ${rating.toStringAsFixed(1)}%',
-                                        style: GoogleFonts.outfit(
+                                        style: GoogleFonts.roboto(
                                           color: Colors.white,
                                           fontWeight: FontWeight.bold,
                                           fontSize: 14,
@@ -2971,7 +2971,7 @@ class _RatingPanel extends StatelessWidget {
                                 ),
                                 Text(
                                   'VIEW REPORT',
-                                  style: GoogleFonts.outfit(
+                                  style: GoogleFonts.roboto(
                                     color: PT.primary,
                                     fontSize: 11,
                                     fontWeight: FontWeight.bold,
@@ -3008,7 +3008,7 @@ class _RatingPanel extends StatelessWidget {
                     width: 100,
                     child: Text(
                       row.$1,
-                      style: GoogleFonts.outfit(
+                      style: GoogleFonts.roboto(
                         color: Colors.white38,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -3018,7 +3018,7 @@ class _RatingPanel extends StatelessWidget {
                   Expanded(
                     child: Text(
                       row.$2,
-                      style: GoogleFonts.outfit(
+                      style: GoogleFonts.roboto(
                         color: Colors.white,
                         fontSize: 13,
                       ),
@@ -3127,7 +3127,7 @@ class _PremiumButton extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 label,
-                style: GoogleFonts.outfit(
+                style: GoogleFonts.roboto(
                   color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -3168,7 +3168,7 @@ class _PanelHeader extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: GoogleFonts.outfit(
+              style: GoogleFonts.roboto(
                 color: Colors.white,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
@@ -3211,7 +3211,7 @@ class _SettingsTile extends StatelessWidget {
               const SizedBox(width: 16),
               Text(
                 title,
-                style: GoogleFonts.outfit(
+                style: GoogleFonts.roboto(
                   color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -3231,7 +3231,7 @@ class _SettingsTile extends StatelessWidget {
                   ),
                   child: Text(
                     badge!,
-                    style: GoogleFonts.outfit(
+                    style: GoogleFonts.roboto(
                       color: PT.primary,
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
@@ -3242,7 +3242,7 @@ class _SettingsTile extends StatelessWidget {
               ],
               Text(
                 value,
-                style: GoogleFonts.outfit(color: Colors.white54, fontSize: 12),
+                style: GoogleFonts.roboto(color: Colors.white54, fontSize: 12),
               ),
               const SizedBox(width: 6),
               const Icon(Icons.chevron_right, color: Colors.white24, size: 18),
@@ -3276,7 +3276,7 @@ class _ToggleTile extends StatelessWidget {
           const SizedBox(width: 16),
           Text(
             title,
-            style: GoogleFonts.outfit(
+            style: GoogleFonts.roboto(
               color: Colors.white,
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -3342,7 +3342,7 @@ class _SelectTile extends StatelessWidget {
                   child: Center(
                     child: Text(
                       badge!,
-                      style: GoogleFonts.outfit(
+                      style: GoogleFonts.roboto(
                         color: selected ? PT.primary : Colors.white38,
                         fontSize: 9,
                         fontWeight: FontWeight.bold,
@@ -3358,7 +3358,7 @@ class _SelectTile extends StatelessWidget {
                   children: [
                     Text(
                       label,
-                      style: GoogleFonts.outfit(
+                      style: GoogleFonts.roboto(
                         color: dimmed
                             ? Colors.white24
                             : selected
@@ -3373,7 +3373,7 @@ class _SelectTile extends StatelessWidget {
                     if (sublabel != null)
                       Text(
                         sublabel!,
-                        style: GoogleFonts.outfit(
+                        style: GoogleFonts.roboto(
                           color: dimmed ? Colors.white12 : Colors.white38,
                           fontSize: 11,
                         ),

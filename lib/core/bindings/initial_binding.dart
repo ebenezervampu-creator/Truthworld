@@ -6,12 +6,16 @@ import 'package:truthworld/features/analytics/data/services/video_analytics_serv
 import 'package:truthworld/features/analytics/data/services/viewer_identity_service.dart';
 import 'package:truthworld/features/analytics/data/services/impression_tracking_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
+import 'package:truthworld/features/miniplayer/presentation/bindings/miniplayer_binding.dart';
 
 class InitialBinding extends Bindings {
   @override
   void dependencies() {
     /// ❌ DO NOT put AuthService here anymore
     /// It must be initialized in main() using Get.putAsync()
+
+    // Initialize miniplayer
+    MiniplayerBinding().dependencies();
 
     // Core analytics services (lazy, fenix for recreation if needed)
     Get.lazyPut(() => GeolocationService(), fenix: true);

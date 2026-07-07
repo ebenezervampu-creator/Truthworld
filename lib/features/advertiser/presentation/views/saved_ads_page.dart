@@ -45,7 +45,7 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                   Text(
                     'Interacted Ads',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
                       color: Colors.white,
@@ -55,7 +55,7 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                   Text(
                     'Your liked, bookmarked, and commented advertiser sponsor layers',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       fontSize: 14,
                       color: Colors.white38,
                     ),
@@ -240,7 +240,7 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                             Text(
                               ad.advertiser,
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'Roboto',
                                 color: Colors.amber,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 11,
@@ -251,7 +251,7 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'Roboto',
                                 color: Colors.white,
                                 fontWeight: FontWeight.w500,
                                 fontSize: 13,
@@ -290,7 +290,7 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                             Text(
                               'Your Comment:',
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'Roboto',
                                 color: Colors.white38,
                                 fontSize: 11,
                               ),
@@ -299,7 +299,7 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                             Text(
                               comment.text,
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'Roboto',
                                 color: Colors.white70,
                                 fontSize: 13,
                               ),
@@ -336,7 +336,7 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                               Text(
                                 '${comment.repliedBy ?? 'Sponsor'} (Advertiser Reply)',
                                 style: TextStyle(
-                                  fontFamily: 'Inter',
+                                  fontFamily: 'Roboto',
                                   color: Colors.amber,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 11,
@@ -348,7 +348,7 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                           Text(
                             comment.replyText!,
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Roboto',
                               color: Colors.white,
                               fontSize: 13,
                             ),
@@ -382,7 +382,7 @@ class _SavedAdsPageState extends State<SavedAdsPage>
             Text(
               title,
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Roboto',
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 color: Colors.white70,
@@ -393,7 +393,7 @@ class _SavedAdsPageState extends State<SavedAdsPage>
               subtitle,
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Roboto',
                 fontSize: 13,
                 color: Colors.white38,
               ),

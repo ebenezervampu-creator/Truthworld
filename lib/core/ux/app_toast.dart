@@ -151,7 +151,7 @@ class AppToast {
             child: Text.rich(
               inlineText,
               style: const TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Roboto',
                 fontSize: 13.5,
                 height: 1.3,
               ),
@@ -184,7 +184,7 @@ class AppToast {
               child: Text(
                 actionLabel,
                 style: const TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),

@@ -173,7 +173,7 @@ class CustomSearchDelegate extends SearchDelegate {
 
                   if (!context.mounted) return;
                   close(context, videoModel);
-                  Get.toNamed('/videoscreen', arguments: {'video': videoModel});
+                  Get.toNamed('/watch?v=${videoModel.id}', arguments: {'video': videoModel});
                 },
               );
             },
@@ -1713,7 +1713,7 @@ class VideoCard extends StatelessWidget {
       onExit: (_) => _isHovered.value = false,
       child: InkWell(
         onTap: () =>
-            Get.toNamed("/videoscreen", arguments: {"video": video}),
+            Get.toNamed('/watch?v=${video.id}', arguments: {'video': video}),
         child: Obx(() => AnimatedScale(
           scale: _isHovered.value ? 1.02 : 1.0,
           duration: const Duration(milliseconds: 200),

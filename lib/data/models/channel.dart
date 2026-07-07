@@ -82,7 +82,12 @@ class Channel {
   String get bannerImageUrl => bannerUrl;
   bool get isArchived => status == ChannelStatus.deleted;
   String get websiteUrl => socialLinks?['website'] ?? '';
-  String get channelRoute => '/channel/$id';
+  String get channelRoute {
+    if (handle.isNotEmpty) {
+      return handle.startsWith('@') ? '/$handle' : '/@$handle';
+    }
+    return '/channel/$id';
+  }
 
   Channel({
     required this.id,

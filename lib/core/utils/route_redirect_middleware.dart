@@ -96,3 +96,43 @@ class PlaylistDetailRedirectMiddleware extends GetMiddleware {
     return const RouteSettings(name: '/');
   }
 }
+
+/// Middleware that redirects `/topic/:slug` to the topic's proper `/T/:slug` or `/T/:handle` route
+/// *before* the page widget is built.
+class TopicRedirectMiddleware extends GetMiddleware {
+  @override
+  int? get priority => 1;
+
+  @override
+  RouteSettings? redirect(String? route) {
+    final args = Get.arguments;
+    if (args != null && args is Map && args['topic'] != null) {
+      final topic = args['topic'];
+      try {
+        final topicRoute = topic.topicRoute as String?;
+        if (topicRoute != null && topicRoute.isNotEmpty) {
+          return RouteSettings(name: topicRoute, arguments: args);
+        }
+      } catch (_) {}
+    }
+
+    // Fallback: parse route path parameter
+    final uri = Uri.tryParse(route ?? '');
+    if (uri != null) {
+      final pathSegments = uri.pathSegments;
+      if (pathSegments.length >= 2 && (pathSegments[0] == 'topic' || pathSegments[0] == 'T')) {
+        final slug = pathSegments[1];
+        // Clean handle prefix if present
+        String clean = slug.trim();
+        if (clean.startsWith('T/')) {
+          clean = clean.substring(2);
+        } else if (clean.startsWith('t/')) {
+          clean = clean.substring(2);
+        }
+        return RouteSettings(name: '/T/$clean', arguments: args);
+      }
+    }
+
+    return null;
+  }
+}

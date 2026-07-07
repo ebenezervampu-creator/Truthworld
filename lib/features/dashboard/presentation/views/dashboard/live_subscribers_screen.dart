@@ -29,7 +29,7 @@ class LiveSubscribersScreen extends StatelessWidget {
         title: Text(
           'Live Subscriber Count',
           style: TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'Roboto',
             color: isDarkMode ? Colors.white : Colors.black,
             fontWeight: FontWeight.bold,
           ),
@@ -53,7 +53,7 @@ class LiveSubscribersScreen extends StatelessWidget {
                   Text(
                     'LIVE',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       color: Colors.red,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 2,
@@ -68,7 +68,7 @@ class LiveSubscribersScreen extends StatelessWidget {
               return Text(
                 '$rawSubs',
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 120,
                   fontWeight: FontWeight.w600,
                   color: isDarkMode ? Colors.white : Colors.black,
@@ -81,7 +81,7 @@ class LiveSubscribersScreen extends StatelessWidget {
             Text(
               'Subscribers',
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Roboto',
                 fontSize: 24,
                 color: isDarkMode
                     ? AppTheme.colors.textSecondary
@@ -97,7 +97,7 @@ class LiveSubscribersScreen extends StatelessWidget {
               return Text(
                 channelName,
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 20,
                   color: isDarkMode ? Colors.white70 : Colors.black87,
                   fontWeight: FontWeight.w600,

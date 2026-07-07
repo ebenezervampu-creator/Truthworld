@@ -5,6 +5,7 @@ import 'package:video_player/video_player.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 
 /// A premium, YouTube-style hover-to-play video preview card.
 ///
@@ -242,7 +243,10 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
                             height: _controller.value!.value.size.height > 0
                                 ? _controller.value!.value.size.height
                                 : 90,
-                            child: VideoPlayer(_controller.value!),
+                            child: MobileFriendlyVideoPlayer(
+                              controller: _controller.value!,
+                              looping: true,
+                            ),
                           ),
                         ),
 

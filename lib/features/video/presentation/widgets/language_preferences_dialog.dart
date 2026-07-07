@@ -15,7 +15,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
         Text(
           title,
           style: TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'Roboto',
             color: Colors.white70,
             fontSize: 14,
             fontWeight: FontWeight.w600,
@@ -31,7 +31,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
           label: Text(
             'Edit',
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               color: AppColors.brand,
               fontSize: 13,
             ),
@@ -64,7 +64,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               color: Colors.white,
               fontSize: 13,
             ),
@@ -196,7 +196,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
                   Text(
                     'Preferred Languages',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       color: Colors.white,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -213,7 +213,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
               Text(
                 'Set your language profile to automatically enable matched subtitles and dubs.',
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   color: Colors.white38,
                   fontSize: 13,
                 ),
@@ -237,7 +237,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
                 Text(
                   'None configured',
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     color: Colors.white24,
                     fontSize: 13,
                     fontStyle: FontStyle.italic,
@@ -289,7 +289,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
                     child: Text(
                       'Cancel',
                       style: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Roboto',
                         color: Colors.white54,
                         fontWeight: FontWeight.w600,
                       ),
@@ -312,7 +312,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
                     child: Text(
                       'Save Preferences',
                       style: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Roboto',
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -396,7 +396,7 @@ class LanguageSelectionDialog extends StatelessWidget {
                 Text(
                   title,
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -459,7 +459,7 @@ class LanguageSelectionDialog extends StatelessWidget {
                       title: Text(
                         lang.name,
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           color: isSelected ? AppColors.brand : Colors.white,
                           fontWeight: isSelected
                               ? FontWeight.bold
@@ -470,7 +470,7 @@ class LanguageSelectionDialog extends StatelessWidget {
                       subtitle: Text(
                         lang.nativeName,
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           color: Colors.white30,
                           fontSize: 11,
                         ),
@@ -506,7 +506,7 @@ class LanguageSelectionDialog extends StatelessWidget {
                   child: Text(
                     'Cancel',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       color: Colors.white54,
                       fontWeight: FontWeight.w600,
                     ),
@@ -531,7 +531,7 @@ class LanguageSelectionDialog extends StatelessWidget {
                   child: Text(
                     'Confirm',
                     style: TextStyle(
-                      fontFamily: 'Inter',
+                      fontFamily: 'Roboto',
                       fontWeight: FontWeight.w600,
                     ),
                   ),

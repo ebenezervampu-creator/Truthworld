@@ -11,8 +11,8 @@ const db = () => admin.firestore();
  * Internal utility to compute creator's cut based on channel type and buyout status.
  */
 export function calculateShare(
-  gross: number, 
-  sourceType: "ads" | "members", 
+  gross: number,
+  sourceType: "ads" | "members",
   channelType: ChannelType,
   hasPaidSubscriptionBuyout: boolean = false
 ): number {
@@ -44,7 +44,7 @@ export const getCreatorRevenue = onCall(
       const statements = statementsSnap.docs.map(doc => doc.data() as RevenueStatement);
 
       const currentMonth = new Date().toISOString().slice(0, 7);
-      
+
       // Mocked data for current month estimate
       return {
         currentMonth,
@@ -61,6 +61,13 @@ export const getCreatorRevenue = onCall(
     }
   }
 );
+
+/**
+ * 🔄 SYNC CHANNEL STATEMENTS (Internal/Stub)
+ */
+export async function syncChannelStatements(channel: any, userId: string): Promise<void> {
+  logger.info(`[Economy] Syncing channel statements for creator: ${userId}, channel: ${channel?.id || 'unknown'}`);
+}
 
 /**
  * 📝 GENERATE MONTHLY STATEMENT (Internal/Admin)

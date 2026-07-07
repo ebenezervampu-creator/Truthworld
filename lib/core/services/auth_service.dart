@@ -52,7 +52,9 @@ class AuthService extends GetxService {
         // explicit plugin initialization to avoid the "ClientID not set" assertion.
         debugPrint('AuthService: Web platform detected. Skipping explicit GoogleSignIn initialization.');
       } else {
-        await _googleSignIn.initialize();
+        await _googleSignIn.initialize(
+          serverClientId: '768266102263-f1bou7fgaqn2rkqh0cn5p6voksb163qt.apps.googleusercontent.com',
+        );
       }
     } catch (e) {
       // On some platforms, this might not be implemented or handled automatically.

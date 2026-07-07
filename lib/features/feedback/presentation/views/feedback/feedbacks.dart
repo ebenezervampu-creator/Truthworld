@@ -179,7 +179,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
         elevation: 0,
         title: Text(
           'Feedback',
-          style: GoogleFonts.outfit(
+          style: GoogleFonts.roboto(
             fontSize: 24,
             fontWeight: FontWeight.bold,
             color: AppColors.textPrimary,
@@ -237,7 +237,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
       children: [
         Text(
           'We value your voice',
-          style: GoogleFonts.outfit(
+          style: GoogleFonts.roboto(
             fontSize: 28,
             fontWeight: FontWeight.w700,
             color: AppColors.textPrimary,

@@ -12,6 +12,8 @@ import 'package:truthworld/features/playlist/presentation/controllers/playlist_c
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/features/watchhistory/presentation/controllers/watch_history_controller.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/topics/presentation/controllers/saved_topics_controller.dart';
 
 // ==========================================================================
 // YOUTUBE-STYLE THEME COLORS
@@ -407,11 +409,13 @@ class LibraryScreenState extends State<LibraryScreen>
                 // 2. History Section
                 _buildHistorySection(userId),
                 const SizedBox(height: 24),
-
                 // 3. Playlists Section
                 _buildPlaylistsSection(userId),
                 const SizedBox(height: 24),
 
+                // Saved Topics Section
+                _buildSavedTopicsSection(userId),
+                const SizedBox(height: 24),
                 // 4. Liked Videos Section
                 _buildLikedVideosSection(userId),
                 const SizedBox(height: 24),
@@ -659,7 +663,7 @@ class LibraryScreenState extends State<LibraryScreen>
       width: 160,
       margin: const EdgeInsets.only(right: 12),
       child: InkWell(
-        onTap: () => Get.toNamed('/videoscreen', arguments: {'video': video}),
+        onTap: () => Get.toNamed('/watch?v=${video.id}', arguments: {'video': video}),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -865,6 +869,145 @@ class LibraryScreenState extends State<LibraryScreen>
     );
   }
 
+  Widget _buildSavedTopicsSection(String userId) {
+    if (!Get.isRegistered<SavedTopicsController>()) {
+      Get.put(SavedTopicsController());
+    }
+    final controller = Get.find<SavedTopicsController>();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(
+          title: "Saved Topics",
+          onViewAll: () {
+            if (Get.isRegistered<HomeController>()) {
+              final homeController = Get.find<HomeController>();
+              homeController.sideNavSelectedIndex.value = HomeController.indexSavedTopics;
+            } else {
+              Get.toNamed('/saved-topics');
+            }
+          },
+          showArrows: true,
+        ),
+        Obx(() {
+          if (controller.isLoading.value) {
+            return SizedBox(
+              height: 160,
+              child: Center(
+                child: CircularProgressIndicator(color: primaryText),
+              ),
+            );
+          }
+          if (controller.savedTopics.isEmpty) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                "Topics you follow will show up here.",
+                style: GoogleFonts.roboto(color: secondaryText, fontSize: 14),
+              ),
+            );
+          }
+          return SizedBox(
+            height: 160,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: controller.savedTopics.length,
+              itemBuilder: (context, index) {
+                final topic = controller.savedTopics[index];
+                return _buildLibraryTopicCard(topic);
+              },
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildLibraryTopicCard(Topic topic) {
+    return Container(
+      width: 140,
+      margin: const EdgeInsets.only(right: 16),
+      child: InkWell(
+        onTap: () {
+          Get.toNamed(
+            topic.topicRoute,
+            arguments: {
+              'slug': topic.slug,
+              'topic': topic,
+            },
+          );
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              alignment: Alignment.bottomCenter,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: CachedNetworkImage(
+                    imageUrl: topic.coverImage ?? topic.thumbnailUrl ?? 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop',
+                    height: 80,
+                    width: 140,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(color: buttonBg),
+                  ),
+                ),
+                Positioned(
+                  bottom: 6,
+                  right: 6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.people_outline_rounded, color: Colors.white, size: 12),
+                        const SizedBox(width: 4),
+                        Text(
+                          "${topic.followerCount}",
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              topic.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.roboto(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: primaryText,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              "Topic • ${topic.videoCount} videos",
+              style: GoogleFonts.roboto(
+                fontSize: 11,
+                color: secondaryText,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildLikedVideosSection(String userId) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -972,7 +1115,7 @@ class LibraryScreenState extends State<LibraryScreen>
             channelImage: '',
             duration: '0:00',
           );
-          Get.toNamed('/videoscreen', arguments: {
+          Get.toNamed('/watch?v=${videoShell.id}', arguments: {
             'video': videoShell,
             'clip': clip,
           });

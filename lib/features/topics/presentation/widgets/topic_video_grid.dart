@@ -88,7 +88,7 @@ class TopicVideoGrid extends StatelessWidget {
             isGrid: true,
             heroPrefix: heroPrefix,
             onTap: () => Get.toNamed(
-              '/videoscreen',
+              '/watch?v=${video.id}',
               arguments: {
                 'video': video,
                 'heroTag': '${heroPrefix}_${video.id}',

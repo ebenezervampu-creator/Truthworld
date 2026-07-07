@@ -3,13 +3,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
-import 'package:truthworld/features/video/presentation/controllers/comments_controller_v2.dart';
+import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Premium reply display widget matching comment styling
 class PremiumReplyWidget extends StatefulWidget {
   final Reply reply;
-  final CommentsControllerV2 controller;
+  final CommentsController controller;
   final Function(Reply)? onReportTap;
   final bool isCreatorView;
 

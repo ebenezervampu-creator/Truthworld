@@ -46,6 +46,9 @@ class DashboardCommentsController extends BaseController {
   final isLoadingComments = false.obs;
   final commentsError = Rx<String?>(null);
 
+  /// User comment interactions state
+  final userCommentInteractions = RxMap<String, Map<String, bool>>();
+
   /// User info
   final userChannelId = RxString('');
   final userChannelName = RxString('');
@@ -67,12 +70,35 @@ class DashboardCommentsController extends BaseController {
       sub.cancel();
     }
     _commentSubscriptions.clear();
+    userCommentInteractions.clear();
     super.onClose();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // USER INITIALIZATION
   // ═══════════════════════════════════════════════════════════════════════════
+
+  Future<void> _loadUserInteractions() async {
+    final currentUser = _auth.currentUser;
+    if (currentUser == null) return;
+    try {
+      final snap = await _firestore
+          .collection('users')
+          .doc(currentUser.uid)
+          .collection('comment_interactions')
+          .get();
+      for (var doc in snap.docs) {
+        final data = doc.data();
+        final type = data['type'];
+        userCommentInteractions[doc.id] = {
+          'isLiked': type == 'like',
+          'isDisliked': type == 'dislike',
+        };
+      }
+    } catch (e) {
+      logger.warning('Failed to load user comment interactions: $e', tag: _tag);
+    }
+  }
 
   Future<void> _initializeUser() async {
     try {
@@ -125,6 +151,8 @@ class DashboardCommentsController extends BaseController {
         }
       }
 
+      // Load user interactions and creator videos
+      await _loadUserInteractions();
       _loadCreatorVideos();
     } catch (e, stackTrace) {
       logger.error(
@@ -512,16 +540,12 @@ class DashboardCommentsController extends BaseController {
 
   /// Check if current user (creator) liked a comment
   bool isCommentLikedByCreator(Comment comment) {
-    final userId = _auth.currentUser?.uid ?? '';
-    final key = '${userId}_channel';
-    return comment.likedBy[key] ?? false;
+    return userCommentInteractions[comment.id]?['isLiked'] ?? false;
   }
 
   /// Check if current user (creator) disliked a comment
   bool isCommentDislikedByCreator(Comment comment) {
-    final userId = _auth.currentUser?.uid ?? '';
-    final key = '${userId}_channel';
-    return comment.dislikedBy[key] ?? false;
+    return userCommentInteractions[comment.id]?['isDisliked'] ?? false;
   }
 }
 

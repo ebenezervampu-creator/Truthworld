@@ -13,7 +13,7 @@
  * Cost: ~$0.001 per call vs ~$0.05 for deep tier
  */
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { VertexAI } from "@google-cloud/vertexai";
 import { logger } from "../utils/logger";
 import { z } from "zod";
 
@@ -51,10 +51,10 @@ const FastResponseSchema = z.object({
 });
 
 export class FastVerificationService {
-  private readonly genAI: GoogleGenerativeAI;
+  private readonly genAI: VertexAI;
 
   constructor(geminiApiKey: string) {
-    this.genAI = new GoogleGenerativeAI(geminiApiKey);
+    this.genAI = new VertexAI({ project: "truthworld-1", location: "asia-south1" });
   }
 
   /**
@@ -110,7 +110,7 @@ Return ONLY valid JSON matching this schema:
         ),
       ]);
 
-      const responseText = result.response.text();
+      const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
 
       if (!jsonMatch) {

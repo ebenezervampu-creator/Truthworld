@@ -7,6 +7,8 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/services/video_media_service.dart';
+import 'package:truthworld/features/video/data/models/video_media.dart';
 
 /// Internal Audio Track layout representation for the studio preview editor
 class AudioTrackItem {
@@ -100,7 +102,7 @@ class AudioTracksController extends BaseController {
             channelId.value = snapshot.docs.first.id;
             _listenToChannelVideos();
           } else {
-            setState(ViewState.empty);
+            setViewState(ViewState.empty);
           }
         })
         .catchError((e) {
@@ -109,14 +111,14 @@ class AudioTracksController extends BaseController {
             error: e,
             tag: _tag,
           );
-          setState(ViewState.error);
+          setViewState(ViewState.error);
         });
   }
 
   void _listenToChannelVideos() {
     if (channelId.value.isEmpty) return;
 
-    setState(ViewState.loading);
+    setViewState(ViewState.loading);
     _videosSubscription?.cancel();
 
     // Stream uploaded items sorted client-side to strictly avoid composite index configuration failures
@@ -150,7 +152,7 @@ class AudioTracksController extends BaseController {
               }
             }
 
-            setState(loadedList.isEmpty ? ViewState.empty : ViewState.success);
+            setViewState(loadedList.isEmpty ? ViewState.empty : ViewState.success);
           },
           onError: (e) {
             logger.error(
@@ -158,7 +160,7 @@ class AudioTracksController extends BaseController {
               error: e,
               tag: _tag,
             );
-            setState(ViewState.error);
+            setViewState(ViewState.error);
           },
         );
   }
@@ -181,7 +183,7 @@ class AudioTracksController extends BaseController {
     }).toList();
   }
 
-  void selectVideo(Video? video) {
+  void selectVideo(Video? video) async {
     selectedVideo.value = video;
     hasUnsavedChanges.value = false;
     if (video == null) {
@@ -196,6 +198,9 @@ class AudioTracksController extends BaseController {
       tag: _tag,
     );
 
+    // Lazy-load localization from subcollection first
+    await VideoMediaService().getLocalization(video.id);
+
     // Extract pre-existing secondary audio map layouts
     final audioMap = video.audioTracks;
     final langs = audioMap.keys.toList();
@@ -208,6 +213,7 @@ class AudioTracksController extends BaseController {
     availableLanguages.value = langs;
     selectedLanguage.value = langs.first;
     _parseAudioTracksForLanguage(langs.first, audioMap);
+    selectedVideo.refresh();
   }
 
   void switchLanguageTrack(String langCode) {
@@ -317,22 +323,28 @@ class AudioTracksController extends BaseController {
       final updatedAudioMap = Map<String, String>.from(video.audioTracks);
       updatedAudioMap[lang] = payloadLink;
 
-      await _firestore.collection('videos').doc(video.id).update({
-        'media.audioTracks': updatedAudioMap,
-        'audioTracks': updatedAudioMap, // Keep fallback object synchronized
-      });
+      // Save to media/localization subcollection
+      await _firestore
+          .collection('videos')
+          .doc(video.id)
+          .collection('media')
+          .doc('localization')
+          .set({
+            'subtitles': video.mediaSubtitles,
+            'dubbedVideos': video.dubbedVideos,
+            'audioTracks': updatedAudioMap,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
 
-      // Update active loaded model instance inline immediately
-      selectedVideo.value = Video.fromMap({
-        ...video.toMap(),
-        'media': {
-          'subtitles': video.mediaSubtitles,
-          'dubbedVideos': video.dubbedVideos,
-          'audioTracks': updatedAudioMap,
-          'factCheckUrl': video.factCheckUrl,
-        },
-        'audioTracks': updatedAudioMap,
-      }, video.id);
+      // Update static cache to reflect changes immediately
+      VideoMediaService.localizationCache[video.id] = VideoMediaLocalization(
+        subtitles: video.mediaSubtitles,
+        dubbedVideos: video.dubbedVideos,
+        audioTracks: updatedAudioMap,
+      );
+
+      // Force reactive notification
+      selectedVideo.refresh();
 
       hasUnsavedChanges.value = false;
       showSuccess(

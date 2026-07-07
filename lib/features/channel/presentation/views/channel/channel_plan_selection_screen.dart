@@ -118,7 +118,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                   "Choose Your Creator Path",
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: isDesktop ? 48 : 32,
                     fontWeight: FontWeight.bold,
                     color: isDark ? Colors.white : const Color(0xFF1A202C),
@@ -130,7 +130,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                   "Select the monetization plan that aligns with your goals.\nYou can choose standard YouTube-like sharing or our unique Custom plan.",
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 16,
                     color: isDark ? Colors.white70 : const Color(0xFF1E293B),
                     height: 1.5,
@@ -208,7 +208,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                       child: Text(
                         "Continue",
                         style: TextStyle(
-                          fontFamily: 'Inter',
+                          fontFamily: 'Roboto',
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
                           color: controller.selectedPlan.value != null
@@ -330,7 +330,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                           Text(
                             isStandard ? "Standard Plan" : "Custom Plan",
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Roboto',
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
                               color: isDark
@@ -343,7 +343,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                                 ? "YouTube-style Model"
                                 : "Maximum Revenue",
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Roboto',
                               fontSize: 14,
                               color: primaryColor,
                               fontWeight: FontWeight.w600,
@@ -439,7 +439,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                 Text(
                   mainText,
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: color,
@@ -448,7 +448,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                 Text(
                   subText,
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontSize: 13,
                     color: color.withValues(alpha: 0.8),
                   ),
@@ -480,7 +480,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
             child: Text(
               text,
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Roboto',
                 fontSize: 15,
                 color: isDark ? Colors.white70 : const Color(0xFF334155),
                 height: 1.4,

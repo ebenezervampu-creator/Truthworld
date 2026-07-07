@@ -75,7 +75,7 @@ export const submitVideo = onRequest(
   {
     cors: true,
     region: "asia-south1",
-    minInstances: 1,
+    minInstances: 0,
     maxInstances: 10,
     concurrency: 100,
     timeoutSeconds: 30,
@@ -220,9 +220,9 @@ export const handleTranscription = onRequest(
   {
     cors: false,
     region: "asia-south1",
-    timeoutSeconds: 540, // Increased for inline polling support
+    timeoutSeconds: 540,
     memory: "512MiB",
-    minInstances: 0,
+    minInstances: 0,        // Scale-to-zero to optimize costs
     maxInstances: 10,
   },
   async (req, res) => {
@@ -716,6 +716,9 @@ export const onVideoPublished = onDocumentUpdated(
       isAlreadyPublished &&
       JSON.stringify(getTranslationLangs(beforeData)) !== JSON.stringify(getTranslationLangs(afterData));
 
+    // v2.0: Gate 2.5 (moderation wait) REMOVED — pipeline starts immediately.
+    // Moderation runs in parallel via Storage trigger and cancels job if rejected.
+
     if (!becamePublished && !languagesChanged) {
       return; // No relevant change — exit silently
     }
@@ -737,10 +740,30 @@ export const onVideoPublished = onDocumentUpdated(
 
     // ═══════════════════════════════════════════════════════════════════════════
     // SCENARIO A: First-time publish → Create video_job + trigger full pipeline
+    // v2.0: SPECULATIVE START — pipeline begins immediately, moderation runs in
+    // parallel. If moderation rejects, the Storage trigger cancels the job.
+    // This saves ~25-30s of sequential moderation wait time.
     // ═══════════════════════════════════════════════════════════════════════════
     if (becamePublished && !afterData.jobId) {
-      logger.info("[PublishGate] First publish detected — creating pipeline job", {
+
+      // v2.0: Check if already rejected BEFORE creating job (handles case where
+      // moderation completed before user clicked Publish)
+      const moderationStatus = afterData.moderation?.status;
+      if (moderationStatus === "rejected") {
+        logger.warn("[PublishGate] Video already REJECTED by moderation — blocking pipeline", {
+          videoId,
+          reason: afterData.moderation?.reason,
+        });
+        await db.collection("videos").doc(videoId).update({
+          status: "rejected",
+          rejectionReason: afterData.moderation?.reason || "Content violates Community Guidelines",
+        });
+        return;
+      }
+
+      logger.info("[PublishGate] First publish — SPECULATIVE pipeline start (moderation runs in parallel)", {
         videoId,
+        moderationStatus: moderationStatus || "pending",
         features: {
           factChecking: aiFeatures.factChecking,
           genLangSubs: aiFeatures.genLangSubs,
@@ -816,7 +839,13 @@ export const onVideoPublished = onDocumentUpdated(
       const now = Date.now();
       const shard = EdgeLayer.shardKey(userId);
 
+      // v2.0: Determine moderation stage status from current video doc
+      const modStageStatus = moderationStatus === "approved"
+        ? { status: "completed", progress: 100, completedAt: now }
+        : { status: "running", progress: 50, startedAt: now }; // Running in parallel
+
       const stages: Record<string, any> = {
+        moderation:    modStageStatus, // v2.0: Runs in parallel via Storage trigger
         upload:        { status: "completed", progress: 100, completedAt: now },
         validation:    { status: "completed", progress: 100, completedAt: now },
         queue:         { status: "running",   progress: 50,  startedAt: now },
@@ -1004,6 +1033,12 @@ export const onVideoPublished = onDocumentUpdated(
 );
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// FEATURE 2.5: VIDEO CONTENT MODERATION — Community Guidelines Gate
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export { onVideoUploadedForModeration } from "./moderation/videoModeration";
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // FEATURE 3: VERIFICATION — Image Verification
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1031,6 +1066,7 @@ export {
 
 // ─── Channel Management ──────────────────────────────────────────────────────
 export { createChannel, switchChannelType } from "./channels/channels";
+export { onChannelWritten } from "./channels/moderation";
 
 export { 
   updateChannelProfile, 
@@ -1199,3 +1235,7 @@ export const syncJobToShard = onDocumentWritten(
     await db.collection(`video_jobs_${shard}`).doc(jobId).set(replicaData, { merge: true });
   }
 );
+
+// ─── SEO Server Cloud Function ───────────────────────────────────────────────
+export { seoServer } from "./seo/seoServer";
+

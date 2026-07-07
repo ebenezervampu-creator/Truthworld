@@ -488,7 +488,7 @@ class NetworkBadge extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontFamily: 'Inter',
+                fontFamily: 'Roboto',
                 color: col,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
@@ -618,7 +618,7 @@ class TimeDisplay extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   color: PT.primary,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -727,7 +727,7 @@ class PremiumButton extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,

@@ -4,11 +4,11 @@ import 'package:get/get.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
+import 'package:truthworld/features/topics/presentation/widgets/topic_card_widget.dart';
 
 class TopicManagementScreen extends StatelessWidget {
   final String channelId;
@@ -42,7 +42,7 @@ class TopicManagementScreen extends StatelessWidget {
         label: Text(
           "Create Topic",
           style: TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'Roboto',
             fontWeight: FontWeight.w600,
             color: Colors.white,
           ),
@@ -85,7 +85,7 @@ class TopicManagementScreen extends StatelessWidget {
             final bool isDesktop = size.width >= 1024;
             final bool isTablet = size.width >= 600 && size.width < 1024;
             final int crossAxisCount = isDesktop ? 3 : (isTablet ? 2 : 1);
-            final double childAspectRatio = isDesktop ? 1.7 : 1.6;
+            final double childAspectRatio = 16 / 9;
 
             return GridView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
@@ -98,7 +98,7 @@ class TopicManagementScreen extends StatelessWidget {
               itemCount: topics.length,
               itemBuilder: (context, index) {
                 final topic = topics[index];
-                return _buildTopicCard(context, topic, controller);
+                return TopicCardWidget(topic: topic, showEditOption: true);
               },
             );
           },
@@ -126,7 +126,7 @@ class TopicManagementScreen extends StatelessWidget {
           Text(
             'No Topics Yet',
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               fontSize: 22,
               fontWeight: FontWeight.bold,
               color: isDarkMode
@@ -138,7 +138,7 @@ class TopicManagementScreen extends StatelessWidget {
           Text(
             'Create your first topic to organize content!',
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               fontSize: 16,
               color: isDarkMode
                   ? AppTheme.colors.textPrimary54
@@ -186,7 +186,7 @@ class TopicManagementScreen extends StatelessWidget {
           Text(
             'No matching topics found',
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               fontSize: 18,
               fontWeight: FontWeight.w500,
               color: isDarkMode
@@ -222,7 +222,7 @@ class TopicManagementScreen extends StatelessWidget {
     final bool isDesktop = size.width >= 1024;
     final bool isTablet = size.width >= 600 && size.width < 1024;
     final int crossAxisCount = isDesktop ? 3 : (isTablet ? 2 : 1);
-    final double childAspectRatio = isDesktop ? 1.7 : 1.6;
+    final double childAspectRatio = 16 / 9;
 
     return Shimmer.fromColors(
       baseColor: const Color(0xFF1F1F1F),
@@ -286,7 +286,7 @@ class TopicManagementScreen extends StatelessWidget {
               Text(
                 'Failed to Load Topics',
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -297,7 +297,7 @@ class TopicManagementScreen extends StatelessWidget {
                 error,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontFamily: 'Inter',
+                  fontFamily: 'Roboto',
                   fontSize: 13,
                   color: Colors.white70,
                   height: 1.4,
@@ -336,472 +336,12 @@ class TopicManagementScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildTopicCard(
-    BuildContext context,
-    Topic topic,
-    TopicManagementController controller,
-  ) {
-    return GestureDetector(
-      onTap: () {
-        Get.toNamed(
-          '/topic/${topic.slug}',
-          arguments: {'slug': topic.slug, 'fromCard': true},
-        );
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF0F0F0F),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Stack(
-          children: [
-            // Background Image
-            Positioned.fill(
-              child: () {
-                final imageUrl =
-                    (topic.thumbnailUrl != null &&
-                        topic.thumbnailUrl!.isNotEmpty)
-                    ? topic.thumbnailUrl!
-                    : (topic.coverImage != null && topic.coverImage!.isNotEmpty)
-                    ? topic.coverImage!
-                    : '';
-                if (imageUrl.isNotEmpty) {
-                  return CachedNetworkImage(
-                    imageUrl: imageUrl,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) =>
-                        Container(color: const Color(0xFF1F1F1F)),
-                    errorWidget: (context, url, error) =>
-                        Container(color: const Color(0xFF1F1F1F)),
-                  );
-                }
-                return Container(color: const Color(0xFF1F1F1F));
-              }(),
-            ),
-
-            // Gradient Overlay
-            Positioned.fill(
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.8),
-                    ],
-                    stops: const [0.3, 1.0],
-                  ),
-                ),
-              ),
-            ),
-
-            // Content
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Top Row (Badges + Deletion menu)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          // Red badge for category
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.red.shade700,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.circle,
-                                  size: 6,
-                                  color: Colors.white,
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  topic.category.toUpperCase(),
-                                  style: TextStyle(
-                                    fontFamily: 'Inter',
-                                    color: Colors.white,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          // Visibility Badge
-                          if (topic.visibilityType ==
-                              TopicVisibilityType.private)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.amber.shade800,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.lock,
-                                    size: 10,
-                                    color: Colors.white,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    "PRIVATE",
-                                    style: TextStyle(
-                                      fontFamily: 'Inter',
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          else if (topic.visibilityType ==
-                              TopicVisibilityType.channelOnly)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.shade700,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.person,
-                                    size: 10,
-                                    color: Colors.white,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    "CHANNEL ONLY",
-                                    style: TextStyle(
-                                      fontFamily: 'Inter',
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          else
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.green.shade700,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.public,
-                                    size: 10,
-                                    color: Colors.white,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    "PUBLIC",
-                                    style: TextStyle(
-                                      fontFamily: 'Inter',
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      ),
-
-                      // Actions Popup menu
-                      PopupMenuButton<String>(
-                        onSelected: (value) {
-                          if (value == 'delete') {
-                            Get.defaultDialog(
-                              title: "Delete Topic?",
-                              middleText:
-                                  "Are you sure you want to delete '${topic.title}'?",
-                              textConfirm: "Delete",
-                              textCancel: "Cancel",
-                              confirmTextColor: Colors.white,
-                              buttonColor: Colors.red,
-                              onConfirm: () {
-                                controller.deleteTopic(topic);
-                                Get.back();
-                              },
-                            );
-                          } else if (value == 'view_code') {
-                            Get.defaultDialog(
-                              title: "Topic Access Code",
-                              middleText:
-                                  "The setup access code for '${topic.title}' is:\n\n${topic.accessCode ?? 'N/A'}",
-                              textConfirm: "Dismiss",
-                              confirmTextColor: Colors.white,
-                              buttonColor: const Color(0xFF6366F1),
-                              onConfirm: () => Get.back(),
-                            );
-                          } else if (value == 'edit') {
-                            _showEditTopicDialog(context, controller, topic);
-                          }
-                        },
-                        itemBuilder: (BuildContext context) =>
-                            <PopupMenuEntry<String>>[
-                              const PopupMenuItem<String>(
-                                value: 'edit',
-                                child: ListTile(
-                                  leading: Icon(
-                                    Icons.edit_outlined,
-                                    color: Colors.blueAccent,
-                                  ),
-                                  title: Text(
-                                    'Edit Topic',
-                                    style: TextStyle(color: Colors.blueAccent),
-                                  ),
-                                ),
-                              ),
-                              if (topic.visibilityType ==
-                                  TopicVisibilityType.private)
-                                const PopupMenuItem<String>(
-                                  value: 'view_code',
-                                  child: ListTile(
-                                    leading: Icon(
-                                      Icons.vpn_key_outlined,
-                                      color: Colors.amber,
-                                    ),
-                                    title: Text(
-                                      'View Access Code',
-                                      style: TextStyle(color: Colors.amber),
-                                    ),
-                                  ),
-                                ),
-                              const PopupMenuItem<String>(
-                                value: 'delete',
-                                child: ListTile(
-                                  leading: Icon(
-                                    Icons.delete_outline,
-                                    color: Colors.red,
-                                  ),
-                                  title: Text(
-                                    'Delete',
-                                    style: TextStyle(color: Colors.red),
-                                  ),
-                                ),
-                              ),
-                            ],
-                        icon: const Icon(Icons.more_vert, color: Colors.white),
-                      ),
-                    ],
-                  ),
-
-                  const Spacer(),
-
-                  // Title
-                  Text(
-                    topic.title,
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontSize: 20,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                      height: 1.2,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // Meta Row
-                  Row(
-                    children: [
-                      Text(
-                        '${topic.videoCount} videos • ${topic.likeCount} likes • ${topic.views} views',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          color: Colors.white70,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          topic.category,
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            color: Colors.white70,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // Description
-                  Text(
-                    topic.description,
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      color: Colors.white54,
-                      fontSize: 12,
-                      height: 1.4,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Buttons Row
-                  Row(
-                    children: [
-                      // Explore Topic Button
-                      Expanded(
-                        child: SizedBox(
-                          height: 36,
-                          child: ElevatedButton.icon(
-                            onPressed: () {
-                              Get.toNamed(
-                                '/topic/${topic.slug}',
-                                arguments: {
-                                  'slug': topic.slug,
-                                  'fromCard': true,
-                                },
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: Colors.black,
-                              padding: EdgeInsets.zero,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
-                              ),
-                            ),
-                            icon: const Icon(Icons.play_arrow, size: 16),
-                            label: const Text(
-                              'Explore Topic',
-                              style: TextStyle(
-                                color: Colors.black,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // Delete Button
-                      Expanded(
-                        child: SizedBox(
-                          height: 36,
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              Get.defaultDialog(
-                                title: "Delete Topic?",
-                                middleText:
-                                    "Are you sure you want to delete '${topic.title}'?",
-                                textConfirm: "Delete",
-                                textCancel: "Cancel",
-                                confirmTextColor: Colors.white,
-                                buttonColor: Colors.red,
-                                onConfirm: () {
-                                  controller.deleteTopic(topic);
-                                  Get.back();
-                                },
-                              );
-                            },
-                            style: OutlinedButton.styleFrom(
-                              backgroundColor: Colors.red.withValues(
-                                alpha: 0.1,
-                              ),
-                              foregroundColor: Colors.redAccent,
-                              side: BorderSide(
-                                color: Colors.red.withValues(alpha: 0.2),
-                              ),
-                              padding: EdgeInsets.zero,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(18),
-                              ),
-                            ),
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              size: 16,
-                              color: Colors.redAccent,
-                            ),
-                            label: const Text(
-                              'Delete',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _showCreateTopicDialog(
     BuildContext context,
     TopicManagementController controller,
   ) {
     final titleController = TextEditingController();
+    final handleController = TextEditingController();
     final descriptionController = TextEditingController();
     final categoryController = TextEditingController(text: "Technology");
     final accessCodeController = TextEditingController();
@@ -827,7 +367,7 @@ class TopicManagementScreen extends StatelessWidget {
           title: Text(
             "Create New Topic",
             style: TextStyle(
-              fontFamily: 'Inter',
+              fontFamily: 'Roboto',
               fontWeight: FontWeight.bold,
               color: isDarkMode
                   ? AppTheme.colors.textPrimary
@@ -848,6 +388,40 @@ class TopicManagementScreen extends StatelessWidget {
                   ),
                   decoration: InputDecoration(
                     labelText: "Topic Title",
+                    labelStyle: TextStyle(
+                      color: isDarkMode
+                          ? AppTheme.colors.textPrimary54
+                          : AppTheme.colors.textSecondary,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(
+                        color: isDarkMode
+                            ? const Color(0xFF374151)
+                            : AppColors.bgDivider,
+                      ),
+                    ),
+                    focusedBorder: const OutlineInputBorder(
+                      borderSide: BorderSide(color: Color(0xFF6366F1)),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: handleController,
+                  style: TextStyle(
+                    color: isDarkMode
+                        ? AppTheme.colors.textPrimary
+                        : AppTheme.colors.background,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: "Topic Handle (e.g. war)",
+                    prefixText: "T/",
+                    prefixStyle: TextStyle(
+                      color: isDarkMode
+                          ? AppTheme.colors.textPrimary
+                          : AppTheme.colors.background,
+                      fontWeight: FontWeight.bold,
+                    ),
                     labelStyle: TextStyle(
                       color: isDarkMode
                           ? AppTheme.colors.textPrimary54
@@ -897,7 +471,7 @@ class TopicManagementScreen extends StatelessWidget {
                 Text(
                   "Category",
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                     color: isDarkMode
@@ -987,7 +561,7 @@ class TopicManagementScreen extends StatelessWidget {
                 Text(
                   "Visibility Type",
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                     color: isDarkMode
@@ -1086,7 +660,7 @@ class TopicManagementScreen extends StatelessWidget {
                 Text(
                   "Topic Thumbnail",
                   style: TextStyle(
-                    fontFamily: 'Inter',
+                    fontFamily: 'Roboto',
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                     color: isDarkMode
@@ -1128,7 +702,7 @@ class TopicManagementScreen extends StatelessWidget {
                             child: Text(
                               "Use Video Thumbnail",
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'Roboto',
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 color: thumbnailSource.value == 'video'
@@ -1158,7 +732,7 @@ class TopicManagementScreen extends StatelessWidget {
                             child: Text(
                               "Upload Custom",
                               style: TextStyle(
-                                fontFamily: 'Inter',
+                                fontFamily: 'Roboto',
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 color: thumbnailSource.value == 'custom'
@@ -1195,7 +769,7 @@ class TopicManagementScreen extends StatelessWidget {
                         child: Text(
                           "No videos found on your channel. Upload a video first to create topics.",
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'Roboto',
                             color: Colors.redAccent,
                             fontSize: 13,
                           ),
@@ -1299,7 +873,7 @@ class TopicManagementScreen extends StatelessWidget {
                                       Text(
                                         "Tap to upload topic thumbnail",
                                         style: TextStyle(
-                                          fontFamily: 'Inter',
+                                          fontFamily: 'Roboto',
                                           fontSize: 12,
                                           color: isDarkMode
                                               ? Colors.white54
@@ -1338,7 +912,7 @@ class TopicManagementScreen extends StatelessWidget {
                           Text(
                             "Select which video's thumbnail to use:",
                             style: TextStyle(
-                              fontFamily: 'Inter',
+                              fontFamily: 'Roboto',
                               fontSize: 12,
                               color: isDarkMode
                                   ? AppTheme.colors.textPrimary70
@@ -1448,133 +1022,135 @@ class TopicManagementScreen extends StatelessWidget {
                       );
                     }
 
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        renderThumbnailSelector(),
-                        const SizedBox(height: 20),
-                        Text(
-                          "Link Videos (At least 1 required)",
-                          style: TextStyle(
-                            fontFamily: 'Inter',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: isDarkMode
-                                ? AppTheme.colors.textPrimary70
-                                : AppTheme.colors.background54,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Material(
-                          color: isDarkMode
-                              ? const Color(0xFF161B22)
-                              : const Color(0xFFF9FAFB),
-                          clipBehavior: Clip.antiAlias,
-                          shape: RoundedRectangleBorder(
-                            side: BorderSide(
+                    return Obx(() {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          renderThumbnailSelector(),
+                          const SizedBox(height: 20),
+                          Text(
+                            "Link Videos (At least 1 required)",
+                            style: TextStyle(
+                              fontFamily: 'Roboto',
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
                               color: isDarkMode
-                                  ? const Color(0xFF30363D)
-                                  : const Color(0xFFE5E7EB),
+                                  ? AppTheme.colors.textPrimary70
+                                  : AppTheme.colors.background54,
                             ),
-                            borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: channelVideos.map((video) {
-                              final String videoId = video['id'];
-                              final String title = video['title'];
-                              final String thumbnailUrl = video['thumbnailUrl'];
-                              final isSelected = selectedVideoIds.contains(
-                                videoId,
-                              );
+                          const SizedBox(height: 8),
+                          Material(
+                            color: isDarkMode
+                                ? const Color(0xFF161B22)
+                                : const Color(0xFFF9FAFB),
+                            clipBehavior: Clip.antiAlias,
+                            shape: RoundedRectangleBorder(
+                              side: BorderSide(
+                                color: isDarkMode
+                                    ? const Color(0xFF30363D)
+                                    : const Color(0xFFE5E7EB),
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: channelVideos.map((video) {
+                                final String videoId = video['id'];
+                                final String title = video['title'];
+                                final String thumbnailUrl = video['thumbnailUrl'];
+                                final isSelected = selectedVideoIds.contains(
+                                  videoId,
+                                );
 
-                              return Material(
-                                color: Colors.transparent,
-                                child: CheckboxListTile(
-                                  activeColor: const Color(0xFF6366F1),
-                                  checkColor: Colors.white,
-                                  value: isSelected,
-                                  title: Text(
-                                    title,
-                                    style: TextStyle(
-                                      color: isDarkMode
-                                          ? Colors.white
-                                          : Colors.black,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
+                                return Material(
+                                  color: Colors.transparent,
+                                  child: CheckboxListTile(
+                                    activeColor: const Color(0xFF6366F1),
+                                    checkColor: Colors.white,
+                                    value: isSelected,
+                                    title: Text(
+                                      title,
+                                      style: TextStyle(
+                                        color: isDarkMode
+                                            ? Colors.white
+                                            : Colors.black,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  secondary: ClipRRect(
-                                    borderRadius: BorderRadius.circular(6),
-                                    child: thumbnailUrl.isNotEmpty
-                                        ? Image.network(
-                                            thumbnailUrl,
-                                            width: 44,
-                                            height: 25,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (c, o, s) =>
-                                                Container(
-                                                  width: 44,
-                                                  height: 25,
-                                                  color: Colors.grey.withValues(
-                                                    alpha: 0.3,
+                                    secondary: ClipRRect(
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: thumbnailUrl.isNotEmpty
+                                          ? Image.network(
+                                              thumbnailUrl,
+                                              width: 44,
+                                              height: 25,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (c, o, s) =>
+                                                  Container(
+                                                    width: 44,
+                                                    height: 25,
+                                                    color: Colors.grey.withValues(
+                                                      alpha: 0.3,
+                                                    ),
+                                                    child: const Icon(
+                                                      Icons.video_library,
+                                                      size: 14,
+                                                    ),
                                                   ),
-                                                  child: const Icon(
-                                                    Icons.video_library,
-                                                    size: 14,
-                                                  ),
-                                                ),
-                                          )
-                                        : Container(
-                                            width: 44,
-                                            height: 25,
-                                            color: Colors.grey.withValues(
-                                              alpha: 0.3,
+                                            )
+                                          : Container(
+                                              width: 44,
+                                              height: 25,
+                                              color: Colors.grey.withValues(
+                                                alpha: 0.3,
+                                              ),
+                                              child: const Icon(
+                                                Icons.video_library,
+                                                size: 14,
+                                              ),
                                             ),
-                                            child: const Icon(
-                                              Icons.video_library,
-                                              size: 14,
-                                            ),
-                                          ),
-                                  ),
-                                  onChanged: (bool? checked) {
-                                    if (checked == true) {
-                                      selectedVideoIds.add(videoId);
-                                    } else {
-                                      selectedVideoIds.remove(videoId);
-                                    }
-                                    // Sync chosen video thumbnail
-                                    if (selectedVideoIds.isNotEmpty) {
-                                      final selectedMap = channelVideos
-                                          .where(
-                                            (v) => selectedVideoIds.contains(
-                                              v['id'],
-                                            ),
-                                          )
-                                          .toList();
-                                      if (chosenVideoThumbnailUrl.value ==
-                                              null ||
-                                          !selectedMap.any(
-                                            (v) =>
-                                                v['thumbnailUrl'] ==
-                                                chosenVideoThumbnailUrl.value,
-                                          )) {
-                                        chosenVideoThumbnailUrl.value =
-                                            selectedMap.first['thumbnailUrl'];
+                                    ),
+                                    onChanged: (bool? checked) {
+                                      if (checked == true) {
+                                        selectedVideoIds.add(videoId);
+                                      } else {
+                                        selectedVideoIds.remove(videoId);
                                       }
-                                    } else {
-                                      chosenVideoThumbnailUrl.value = null;
-                                    }
-                                  },
-                                ),
-                              );
-                            }).toList(),
+                                      // Sync chosen video thumbnail
+                                      if (selectedVideoIds.isNotEmpty) {
+                                        final selectedMap = channelVideos
+                                            .where(
+                                              (v) => selectedVideoIds.contains(
+                                                v['id'],
+                                              ),
+                                            )
+                                            .toList();
+                                        if (chosenVideoThumbnailUrl.value ==
+                                                null ||
+                                            !selectedMap.any(
+                                              (v) =>
+                                                  v['thumbnailUrl'] ==
+                                                  chosenVideoThumbnailUrl.value,
+                                            )) {
+                                          chosenVideoThumbnailUrl.value =
+                                              selectedMap.first['thumbnailUrl'];
+                                        }
+                                      } else {
+                                        chosenVideoThumbnailUrl.value = null;
+                                      }
+                                    },
+                                  ),
+                                );
+                              }).toList(),
+                            ),
                           ),
-                        ),
-                      ],
-                    );
+                        ],
+                      );
+                    });
                   },
                 ),
               ],
@@ -1596,10 +1172,19 @@ class TopicManagementScreen extends StatelessWidget {
               onPressed: isSaving.value
                   ? null
                   : () async {
-                      if (titleController.text.isEmpty) {
+                       if (titleController.text.isEmpty) {
                         AppSnackbar.show(
                           "Error",
                           "Title is required",
+                          backgroundColor: Colors.red,
+                          colorText: Colors.white,
+                        );
+                        return;
+                      }
+                      if (handleController.text.trim().isEmpty) {
+                        AppSnackbar.show(
+                          "Error",
+                          "Topic handle is required",
                           backgroundColor: Colors.red,
                           colorText: Colors.white,
                         );
@@ -1645,6 +1230,7 @@ class TopicManagementScreen extends StatelessWidget {
                         await controller.createTopic(
                           channelId: channelId,
                           title: titleController.text,
+                          handle: handleController.text,
                           description: descriptionController.text,
                           category: categoryController.text.isEmpty
                               ? "General"
@@ -1682,21 +1268,6 @@ class TopicManagementScreen extends StatelessWidget {
           ],
         );
       }),
-    );
-  }
-
-  void _showEditTopicDialog(
-    BuildContext context,
-    TopicManagementController controller,
-    Topic topic,
-  ) {
-    Get.dialog(
-      EditTopicDialog(
-        topic: topic,
-        channelId: channelId,
-        isDarkMode: isDarkMode,
-        controller: controller,
-      ),
     );
   }
 }
@@ -1844,7 +1415,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
         title: Text(
           "Edit Topic",
           style: TextStyle(
-            fontFamily: 'Inter',
+            fontFamily: 'Roboto',
             fontWeight: FontWeight.bold,
             color: widget.isDarkMode
                 ? AppTheme.colors.textPrimary
@@ -1921,7 +1492,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                     Text(
                       "Category",
                       style: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Roboto',
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                         color: widget.isDarkMode
@@ -1968,7 +1539,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                     Text(
                       "Visibility Type",
                       style: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Roboto',
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                         color: widget.isDarkMode
@@ -2068,7 +1639,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                     Text(
                       "Topic Thumbnail",
                       style: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Roboto',
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                         color: widget.isDarkMode
@@ -2112,7 +1683,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                 child: Text(
                                   "Use Video Thumbnail",
                                   style: TextStyle(
-                                    fontFamily: 'Inter',
+                                    fontFamily: 'Roboto',
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                     color: thumbnailSource.value == 'video'
@@ -2144,7 +1715,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                 child: Text(
                                   "Upload Custom",
                                   style: TextStyle(
-                                    fontFamily: 'Inter',
+                                    fontFamily: 'Roboto',
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
                                     color: thumbnailSource.value == 'custom'
@@ -2264,7 +1835,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                           Text(
                                             "Tap to upload a custom topic thumbnail",
                                             style: TextStyle(
-                                              fontFamily: 'Inter',
+                                              fontFamily: 'Roboto',
                                               fontSize: 12,
                                               color: widget.isDarkMode
                                                   ? Colors.white54
@@ -2295,7 +1866,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                         Text(
                           "Select which video's thumbnail to use:",
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'Roboto',
                             fontSize: 12,
                             color: widget.isDarkMode
                                 ? AppTheme.colors.textPrimary70
@@ -2416,7 +1987,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                     Text(
                       "Link Videos (At least 1 required)",
                       style: TextStyle(
-                        fontFamily: 'Inter',
+                        fontFamily: 'Roboto',
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
                         color: widget.isDarkMode
@@ -2432,7 +2003,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                         child: Text(
                           "No videos found on your channel. Upload a video first to link to topics.",
                           style: TextStyle(
-                            fontFamily: 'Inter',
+                            fontFamily: 'Roboto',
                             color: Colors.redAccent,
                             fontSize: 13,
                           ),
