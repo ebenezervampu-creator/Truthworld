@@ -32,7 +32,12 @@ export const PIPELINE_CONFIG = {
     return requireEnv("GEMINI_API_KEY");
   },
   get GOOGLE_TRANSLATION_API_KEY(): string {
-    return requireEnv("GOOGLE_TRANSLATION_API_KEY");
+    const value = process.env.GOOGLE_TRANSLATION_API_KEY || process.env.GOOGLE_TRANSLATION_API_KEEY;
+    if (!value) {
+      console.warn("[PIPELINE_CONFIG] ⚠️ Missing required env var: GOOGLE_TRANSLATION_API_KEY (or GOOGLE_TRANSLATION_API_KEEY)");
+      return "";
+    }
+    return value;
   },
   FFMPEG_SERVICE_URL: process.env.FFMPEG_SERVICE_URL || "https://placeholder.run",
   PUBLIC_FUNCTION_BASE_URL: "https://asia-south1-truthworld-1.cloudfunctions.net",

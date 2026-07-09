@@ -331,7 +331,7 @@ export const handleDubbing = onRequest(
     memory: "1GiB",
     minInstances: 0,
     maxInstances: 5,
-    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY"],
+    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY", "GOOGLE_TRANSLATION_API_KEEY"],
   },
   async (req, res) => {
     try {
