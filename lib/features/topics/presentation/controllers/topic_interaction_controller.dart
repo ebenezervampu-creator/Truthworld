@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
-import 'package:truthworld/features/topics/presentation/controllers/saved_topics_controller.dart';
+import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 
 class TopicInteractionController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -90,14 +90,6 @@ class TopicInteractionController extends GetxController {
       if (likedTopicsDoc.exists) {
         isLiked.value = true;
         dbIsLiked.value = true;
-      } else {
-        // Fallback check on legacy root collection
-        final likeDoc = await _firestore
-            .collection('topic_likes')
-            .doc('${topicId}_$currentUserId')
-            .get();
-        isLiked.value = likeDoc.exists;
-        dbIsLiked.value = likeDoc.exists;
       }
       hasCheckedInteraction.value = true;
       _updateLikeCount();
@@ -164,7 +156,6 @@ class TopicInteractionController extends GetxController {
       return;
     }
 
-    final docId = '${topicId}_$currentUserId';
     final wasLiked = isLiked.value;
 
     // Optimistic UI updates
@@ -174,7 +165,6 @@ class TopicInteractionController extends GetxController {
     try {
       final batch = _firestore.batch();
       final topicRef = _firestore.collection('topics').doc(topicId);
-      final legacyLikeRef = _firestore.collection('topic_likes').doc(docId);
       final topicLikeRef = topicRef.collection('likes').doc(currentUserId);
       final userLikedRef = _firestore
           .collection('users')
@@ -183,13 +173,7 @@ class TopicInteractionController extends GetxController {
           .doc(topicId);
 
       if (isLiked.value) {
-        // Legacy
-        batch.set(legacyLikeRef, {
-          'userId': currentUserId,
-          'topicId': topicId,
-          'timestamp': FieldValue.serverTimestamp(),
-        });
-        // Nested subcollections
+        // Nested subcollections only (YouTube-standard, no legacy writes)
         batch.set(topicLikeRef, {
           'userId': currentUserId,
           'timestamp': FieldValue.serverTimestamp(),
@@ -199,31 +183,14 @@ class TopicInteractionController extends GetxController {
           'timestamp': FieldValue.serverTimestamp(),
         });
 
-        // ALSO follow/save the topic automatically (along with saved Topics)
+        // ALSO follow/save the topic automatically
         final userSavedRef = _firestore
             .collection('users')
             .doc(currentUserId)
             .collection('savedTopics')
             .doc(topicId);
-        final topicFollowerRef = _firestore
-            .collection('topics')
-            .doc(topicId)
-            .collection('followers')
-            .doc(currentUserId);
-        final legacyFollowRef = _firestore
-            .collection('topic_followers')
-            .doc('${topicId}_$currentUserId');
 
         batch.set(userSavedRef, {
-          'topicId': topicId,
-          'savedAt': FieldValue.serverTimestamp(),
-        });
-        batch.set(topicFollowerRef, {
-          'userId': currentUserId,
-          'savedAt': FieldValue.serverTimestamp(),
-        });
-        batch.set(legacyFollowRef, {
-          'userId': currentUserId,
           'topicId': topicId,
           'savedAt': FieldValue.serverTimestamp(),
         });
@@ -234,9 +201,7 @@ class TopicInteractionController extends GetxController {
           'followerCount': FieldValue.increment(1),
         });
       } else {
-        // Legacy
-        batch.delete(legacyLikeRef);
-        // Nested subcollections
+        // Nested subcollections only
         batch.delete(topicLikeRef);
         batch.delete(userLikedRef);
         batch.update(topicRef, {'likeCount': FieldValue.increment(-1)});
@@ -248,14 +213,14 @@ class TopicInteractionController extends GetxController {
       dbIsLiked.value = isLiked.value;
       _updateLikeCount();
 
-      if (Get.isRegistered<SavedTopicsController>()) {
-        final ctrl = Get.find<SavedTopicsController>();
+      if (Get.isRegistered<FollowingTopicsController>()) {
+        final ctrl = Get.find<FollowingTopicsController>();
         if (isLiked.value && _topic != null) {
           if (!ctrl.favoriteTopics.any((t) => t.id == topicId)) {
             ctrl.favoriteTopics.add(_topic!);
           }
-          if (!ctrl.savedTopics.any((t) => t.id == topicId)) {
-            ctrl.savedTopics.add(_topic!);
+          if (!ctrl.followedTopics.any((t) => t.id == topicId)) {
+            ctrl.followedTopics.add(_topic!);
           }
         } else if (!isLiked.value) {
           ctrl.favoriteTopics.removeWhere((t) => t.id == topicId);

@@ -457,13 +457,29 @@ class SubscriptionController extends GetxController {
         return;
       }
 
-      await _firestore.collection('subscriptions').add({
-        'userId': currentUserId,
-        'channelId': channelId,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+      // YouTube-standard: deterministic doc ID for dedup + atomic count
+      final subDocId = '${channelId}_$currentUserId';
+      final subRef = _firestore.collection('subscriptions').doc(subDocId);
+      final channelRef = _firestore.collection('channels').doc(channelId);
 
-      await loadSubscriptions();
+      await _firestore.runTransaction((tx) async {
+        final existing = await tx.get(subRef);
+        if (existing.exists) return;
+        tx.set(subRef, {
+          'userId': currentUserId,
+          'channelId': channelId,
+          'subscribedAt': FieldValue.serverTimestamp(),
+        });
+        tx.update(channelRef, {
+          'subscriberCount': FieldValue.increment(1),
+        });
+      }, maxAttempts: 3);
+
+      // Optimistic local update instead of full reload
+      subscriptions.add(Subscription(
+        userId: currentUserId!,
+        channelId: channelId,
+      ));
       await loadSubscribedChannels();
       await loadAllContent();
       applyFilters();
@@ -479,17 +495,41 @@ class SubscriptionController extends GetxController {
     if (currentUserId == null) return;
 
     try {
-      final snapshot = await _firestore
-          .collection('subscriptions')
-          .where('userId', isEqualTo: currentUserId)
-          .where('channelId', isEqualTo: channelId)
-          .get();
+      // Try deterministic ID first (new standard)
+      final subDocId = '${channelId}_$currentUserId';
+      final subRef = _firestore.collection('subscriptions').doc(subDocId);
+      final channelRef = _firestore.collection('channels').doc(channelId);
 
-      for (var doc in snapshot.docs) {
-        await doc.reference.delete();
+      final subDoc = await subRef.get();
+      if (subDoc.exists) {
+        // Deterministic ID doc found — atomic delete + decrement
+        await _firestore.runTransaction((tx) async {
+          tx.delete(subRef);
+          tx.update(channelRef, {
+            'subscriberCount': FieldValue.increment(-1),
+          });
+        }, maxAttempts: 3);
+      } else {
+        // Fallback: query for legacy auto-generated ID docs
+        final snapshot = await _firestore
+            .collection('subscriptions')
+            .where('userId', isEqualTo: currentUserId)
+            .where('channelId', isEqualTo: channelId)
+            .get();
+        if (snapshot.docs.isNotEmpty) {
+          final batch = _firestore.batch();
+          for (var doc in snapshot.docs) {
+            batch.delete(doc.reference);
+          }
+          batch.update(channelRef, {
+            'subscriberCount': FieldValue.increment(-1),
+          });
+          await batch.commit();
+        }
       }
 
-      await loadSubscriptions();
+      // Optimistic local update
+      subscriptions.removeWhere((s) => s.channelId == channelId);
       await loadSubscribedChannels();
       await loadAllContent();
       applyFilters();

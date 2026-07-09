@@ -40,7 +40,7 @@ import 'package:truthworld/features/miniplayer/presentation/bindings/miniplayer_
 import 'package:truthworld/features/watchtime/presentation/pages/watchtime_details_page.dart';
 import 'package:truthworld/features/trending/presentation/views/trending/trending_page.dart';
 import 'package:truthworld/features/video/presentation/views/clips/clips_page.dart';
-import 'package:truthworld/features/topics/presentation/pages/saved_topics_page.dart' deferred as saved_topics;
+import 'package:truthworld/features/topics/presentation/pages/following_topics_page.dart' deferred as following_topics;
 // import 'package:truthworld/features/watchlater/presentation/views/watchlater/watchlater_screen.dart';
 
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
@@ -96,10 +96,10 @@ class AppPages {
       ),
     ),
     GetPage(
-      name: "/saved-topics",
+      name: "/following-topics",
       page: () => DeferredWidget(
-        loader: saved_topics.loadLibrary,
-        builder: () => saved_topics.SavedTopicsPage(),
+        loader: following_topics.loadLibrary,
+        builder: () => following_topics.FollowingTopicsPage(),
       ),
       middlewares: [AuthGuard()],
     ),

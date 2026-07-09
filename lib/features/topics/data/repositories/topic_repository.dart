@@ -438,19 +438,9 @@ class TopicRepository {
           .doc(userId)
           .collection('savedTopics')
           .doc(topicId);
-      final topicFollowerRef = topicRef.collection('followers').doc(userId);
-      final legacyFollowRef = _firestore.collection('topic_followers').doc('${topicId}_$userId');
 
+      // YouTube-standard: user-centric subcollection + denormalized count only
       batch.set(userSavedRef, {
-        'topicId': topicId,
-        'savedAt': FieldValue.serverTimestamp(),
-      });
-      batch.set(topicFollowerRef, {
-        'userId': userId,
-        'savedAt': FieldValue.serverTimestamp(),
-      });
-      batch.set(legacyFollowRef, {
-        'userId': userId,
         'topicId': topicId,
         'savedAt': FieldValue.serverTimestamp(),
       });
@@ -475,12 +465,9 @@ class TopicRepository {
           .doc(userId)
           .collection('savedTopics')
           .doc(topicId);
-      final topicFollowerRef = topicRef.collection('followers').doc(userId);
-      final legacyFollowRef = _firestore.collection('topic_followers').doc('${topicId}_$userId');
 
+      // YouTube-standard: only delete user-centric doc + decrement count
       batch.delete(userSavedRef);
-      batch.delete(topicFollowerRef);
-      batch.delete(legacyFollowRef);
       batch.update(topicRef, {
         'followerCount': FieldValue.increment(-1),
       });

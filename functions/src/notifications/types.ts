@@ -2,6 +2,8 @@ export type NotificationType =
   | "ranking_change"
   | "milestone_achieved"
   | "new_video_followed"
+  | "new_community_post"
+  | "new_video_topic"
   | "trust_score_change"
   | "new_follower"
   | "weekly_digest"
@@ -11,7 +13,9 @@ export type NotificationType =
   | "performance_warning"
   | "system_announcement"
   | "comment_like"
-  | "comment_reply";
+  | "comment_reply"
+  | "comment"
+  | "mention";
 
 export type NotificationSeverity = "info" | "success" | "warning" | "priority";
 

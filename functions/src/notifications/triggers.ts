@@ -1,268 +1,268 @@
 import * as admin from "firebase-admin";
-import { onDocumentCreated, onDocumentUpdated } from "firebase-functions/v2/firestore";
-import { onSchedule } from "firebase-functions/v2/scheduler";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions/v2";
 import { notifyUser } from "./notifications";
 
 const db = admin.firestore();
 
-/**
- * 🔔 TRIGGER: ON NEW VIDEO
- * Notifies followers when a creator uploads a new video.
- */
-export const onNewVideoFromFollowed = onDocumentCreated("videos/{videoId}", async (event) => {
-  const video = event.data?.data();
-  if (!video) return;
+// ═══════════════════════════════════════════════════════════════════════════════
+// NOTE: onNewVideoFromFollowed has been MERGED into onVideoPublished in index.ts
+// to eliminate a duplicate Firestore trigger on videos/{videoId} that was 
+// doubling invocation costs on every video document update.
+// ═══════════════════════════════════════════════════════════════════════════════
 
-  const { channelId, title, creatorName } = video;
-  const channelNameStr = creatorName || video.channelName || "Unknown Channel";
+/**
+ * 🔔 TRIGGER: ON NEW COMMUNITY POST
+ * Notifies subscribers when a creator uploads a new community post.
+ *
+ * COST-OPTIMIZED: Paginated fan-out in batches of 500.
+ */
+export const onCommunityPostCreated = onDocumentCreated(
+  {
+    document: "Community/{postId}",
+    region: "asia-south1",
+    memory: "256MiB",
+    maxInstances: 10,
+  },
+  async (event) => {
+  const post = event.data?.data();
+  if (!post) return;
+
+  const { channelId, title, ownerId, channelName } = post;
+  const channelNameStr = channelName || "Unknown Channel";
+  const postId = event.params.postId;
 
   try {
-    // 1. Get all active subscribers from the core client schema
-    const subscribersSnap = await db.collection("subscriptions")
-      .where("channelId", "==", channelId)
-      .get();
+    // Paginated subscriber fan-out (500 per batch)
+    const BATCH_SIZE = 500;
+    let lastDoc: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+    let totalNotified = 0;
 
-    // 2. Perform Fan-Out Feed Materialization + Alert Notification
-    const batch = db.batch();
-    const notifications: Promise<any>[] = [];
+    while (true) {
+      let query = db.collection("subscriptions")
+        .where("channelId", "==", channelId)
+        .limit(BATCH_SIZE);
 
-    subscribersSnap.docs.forEach(doc => {
-      const { userId } = doc.data();
-      if (!userId) return;
+      if (lastDoc) {
+        query = query.startAfter(lastDoc);
+      }
 
-      // Materialize video reference into the user's explicit feed inbox subcollection
-      const inboxRef = db.collection("users").doc(userId).collection("feed_inbox").doc(event.params.videoId);
-      batch.set(inboxRef, {
-        id: event.params.videoId,
-        channelId: channelId || "",
-        channelName: channelNameStr,
-        channelImage: video.channelImage || "",
-        title: title || "Untitled Video",
-        thumbnailUrl: video.thumbnailUrl || "",
-        uploadedAt: video.uploadedAt || video.createdAt || admin.firestore.FieldValue.serverTimestamp(),
-        views: video.views || 0,
-        duration: video.duration || "0:00",
-        category: video.category || "General",
-        isSeen: false,
-        materializedAt: admin.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
+      const subscribersSnap = await query.get();
+      if (subscribersSnap.empty) break;
 
-      // Dispatch real-time system notification alert
-      notifications.push(
-        notifyUser({
-          userId,
-          type: "new_video_followed",
-          severity: "info",
-          title: `New Video from ${channelNameStr}`,
-          message: `${channelNameStr} just uploaded: ${title}`,
-          actionUrl: `/video/${event.params.videoId}`,
-          metadata: { 
-            channelId, 
-            videoId: event.params.videoId,
-            thumbnailUrl: video.thumbnailUrl 
-          }
-        })
-      );
-    });
+      const notifications: Promise<any>[] = [];
 
-    await batch.commit();
-    await Promise.all(notifications);
-    logger.info(`[Trigger] Fan-Out Materialized & Notified ${subscribersSnap.size} subscribers for video ${event.params.videoId}`);
+      subscribersSnap.docs.forEach(doc => {
+        const { userId } = doc.data();
+        if (!userId) return;
+
+        // Don't notify the creator of their own post
+        if (userId === ownerId) return;
+
+        notifications.push(
+          notifyUser({
+            userId,
+            type: "new_community_post",
+            severity: "info",
+            title: `New Post from ${channelNameStr}`,
+            message: `${channelNameStr} shared a new post: ${title || "View image"}`,
+            actionUrl: `/channel/${channelId}`,
+            metadata: { 
+              channelId, 
+              postId,
+              thumbnailUrl: post.image || "",
+              avatarUrl: post.channelImage || ""
+            }
+          })
+        );
+      });
+
+      await Promise.allSettled(notifications);
+      totalNotified += subscribersSnap.size;
+
+      lastDoc = subscribersSnap.docs[subscribersSnap.docs.length - 1];
+      if (subscribersSnap.size < BATCH_SIZE) break;
+    }
+
+    logger.info(`[Trigger] Notified ${totalNotified} subscribers for community post ${postId}`);
   } catch (err) {
-    logger.error("[Trigger] onNewVideoFromFollowed Error:", err);
+    logger.error("[Trigger] onCommunityPostCreated Error:", err);
   }
 });
 
 /**
- * 📈 TRIGGER: ON CHANNEL UPDATED
- * Notifies creator if their Tier, Trust Index, or Grace Status changes.
+ * 💬 TRIGGER: ON COMMENT CREATED
+ * Notifies the video owner when someone comments on their video.
  */
-export const onChannelStateChange = onDocumentUpdated("channels/{channelId}", async (event) => {
-  const before = event.data?.before.data() as any;
-  const after = event.data?.after.data() as any;
-  if (!before || !after) return;
+export const onCommentCreated = onDocumentCreated(
+  {
+    document: "videos/{videoId}/comments/{commentId}",
+    region: "asia-south1",
+    memory: "256MiB",
+    maxInstances: 10,
+  },
+  async (event) => {
+  const comment = event.data?.data();
+  if (!comment) return;
 
-  const oldScore = before.reputation?.avgTrustIndex || 0;
-  const newScore = after.reputation?.avgTrustIndex || 0;
-  const userId = after.ownerId;
+  const { userId: commentAuthorId, userName: commentAuthorName, text, userProfilePicUrl, channelName, channelProfilePicUrl } = comment;
+  const displayName = channelName || commentAuthorName || "Someone";
+  const avatarUrl = channelProfilePicUrl || userProfilePicUrl || "";
 
-  // 1. Significant change check (e.g. > 0.5)
-  if (Math.abs(newScore - oldScore) >= 0.5) {
-    const direction = newScore > oldScore ? "rose" : "fell";
-    await notifyUser({
-      userId,
-      type: "trust_score_change",
-      severity: newScore > oldScore ? "success" : "warning",
-      title: `Trust Index ${direction.toUpperCase()}`,
-      message: `Your channel's Trust Index has ${direction} to ${newScore.toFixed(1)}.`,
-      actionUrl: `/@${after.slug}`,
-      metadata: { oldScore, newScore }
-    });
-  }
+  try {
+    // 1. Get the video to find the owner/creator
+    const videoSnap = await db.collection("videos").doc(event.params.videoId).get();
+    if (!videoSnap.exists) return;
+    const videoOwnerId = videoSnap.data()?.ownerId;
 
-  // 2. Milestone detection (e.g. crossing 8.0 or 9.0)
-  const milestones = [7.0, 8.0, 9.0];
-  for (const m of milestones) {
-    if (oldScore < m && newScore >= m) {
+    // Notify video owner (if not commenting on own video)
+    if (commentAuthorId !== videoOwnerId) {
       await notifyUser({
-        userId,
-        type: "milestone_achieved",
-        severity: "priority",
-        title: "New Milestone Reached!",
-        message: `Congratulations! Your channel has reached a Trust Index of ${m.toFixed(1)}. You've unlocked a new badge!`,
-        actionUrl: `/@${after.slug}`,
-        metadata: { milestone: m }
+        userId: videoOwnerId,
+        type: "comment",
+        severity: "info",
+        title: "New Comment!",
+        message: `${displayName} commented: "${text.substring(0, 30)}..."`,
+        actionUrl: `/video/${event.params.videoId}`,
+        metadata: { 
+          videoId: event.params.videoId, 
+          commentId: event.params.commentId,
+          commentAuthorId,
+          avatarUrl,
+        }
       });
     }
-  }
 
-  // 3. TIER CHANGE DETECTION
-  const oldTier = before.tier || "basic";
-  const newTier = after.tier || "basic";
-  if (oldTier !== newTier) {
-    const isPromotion = TIERS.indexOf(newTier) > TIERS.indexOf(oldTier);
-    await notifyUser({
-      userId,
-      type: isPromotion ? "tier_promotion" : "tier_downgrade",
-      severity: isPromotion ? "priority" : "warning",
-      title: isPromotion ? "🎉 You've Been Promoted!" : "⚠️ Channel Tier Update",
-      message: isPromotion 
-        ? `Congratulations! Your channel has been promoted to the ${newTier.toUpperCase()} tier.`
-        : `Your channel has moved to the ${newTier.toUpperCase()} tier. Maintain consistency to climb back up!`,
-      actionUrl: `/@${after.slug}`,
-      metadata: { oldTier, newTier }
-    });
-  }
-
-  // 4. GRACE PERIOD WARNINGS
-  const oldInactive = before.reputation?.inactiveMonths || 0;
-  const newInactive = after.reputation?.inactiveMonths || 0;
-  const oldWeak = before.reputation?.weakMonths || 0;
-  const newWeak = after.reputation?.weakMonths || 0;
-
-  if (newInactive === 1 && oldInactive === 0) {
-    await notifyUser({
-      userId,
-      type: "inactivity_warning",
-      severity: "warning",
-      title: "⚠️ Inactivity Warning",
-      message: "You haven't uploaded any videos this month. One more month of inactivity will result in a tier downgrade.",
-      actionUrl: "/studio",
-      metadata: { inactiveMonths: 1 }
-    });
-  }
-
-  if (newWeak === 1 && oldWeak === 0) {
-    await notifyUser({
-      userId,
-      type: "performance_warning",
-      severity: "warning",
-      title: "📉 Performance Warning",
-      message: `Your performance fell below the requirements for ${newTier.toUpperCase()}. You have one month to recover before a downgrade.`,
-      actionUrl: "/studio",
-      metadata: { weakMonths: 1 }
-    });
-  }
-});
-
-const TIERS = ["basic", "creator", "advanced", "elite"];
-
-/**
- * 🗓️ SCHEDULED: WEEKLY DIGEST
- * Every Sunday at 10:00 AM.
- */
-export const weeklyDigest = onSchedule("every sunday 10:00", async (event) => {
-  logger.info("[Schedule] Running Weekly Digest...");
-  
-  // In a real app, we would:
-  // 1. Identify "Rising Stars" for the week.
-  // 2. Send a summary notification to all active users.
-  // 3. For now, we'll log the intention.
-});
-
-/**
- * ❤️ TRIGGER: ON COMMENT LIKED
- */
-export const onCommentLiked = onDocumentUpdated("videos/{videoId}/comments/{commentId}", async (event) => {
-  const before = event.data?.before.data() as any;
-  const after = event.data?.after.data() as any;
-  if (!before || !after) return;
-
-  const oldLikes = before.likedBy || {};
-  const newLikes = after.likedBy || {};
-
-  // Find the new liker
-  const newLikerKey = Object.keys(newLikes).find(key => !oldLikes[key]);
-  if (!newLikerKey) return;
-
-  const likerId = newLikerKey.split("_")[0];
-  const commentAuthorId = after.userId;
-
-  // Don't notify if user liked their own comment
-  if (likerId === commentAuthorId) return;
-
-  try {
-    const likerSnap = await db.collection("users").doc(likerId).get();
-    const likerName = likerSnap.data()?.username || "Someone";
-
-    await notifyUser({
-      userId: commentAuthorId,
-      type: "comment_like",
-      severity: "info",
-      title: "New Like!",
-      message: `${likerName} liked your comment: "${after.text.substring(0, 30)}..."`,
+    // 2. Scan comment text for channel mentions
+    await notifyMentions({
+      text: text || "",
+      senderUserId: commentAuthorId || "",
+      senderName: displayName,
       actionUrl: `/video/${event.params.videoId}`,
-      metadata: { 
-        videoId: event.params.videoId, 
+      title: "Mentioned in a Comment!",
+      message: `${displayName} mentioned you: "${text.substring(0, 30)}..."`,
+      metadata: {
+        videoId: event.params.videoId,
         commentId: event.params.commentId,
-        likerId
+        commentAuthorId,
+        avatarUrl,
       }
     });
   } catch (err) {
-    logger.error("[Trigger] onCommentLiked Error:", err);
+    logger.error("[Trigger] onCommentCreated Error:", err);
   }
 });
 
 /**
- * 💬 TRIGGER: ON REPLY CREATED
+ * 🤝 TRIGGER: ON NEW SUBSCRIPTION (Channel Got Liked/Followed)
+ * Notifies the channel owner when someone subscribes to their channel.
  */
-export const onReplyCreated = onDocumentCreated("videos/{videoId}/comments/{commentId}/replies/{replyId}", async (event) => {
-  const reply = event.data?.data();
-  if (!reply) return;
+export const onNewSubscription = onDocumentCreated(
+  {
+    document: "subscriptions/{subscriptionId}",
+    region: "asia-south1",
+    memory: "256MiB",
+    maxInstances: 10,
+  },
+  async (event) => {
+  const subscription = event.data?.data();
+  if (!subscription) return;
 
-  const { userId: replierId, userName: replierName, text } = reply;
+  const { userId: subscriberId, channelId } = subscription;
+  if (!subscriberId || !channelId) return;
 
   try {
-    // 1. Get the parent comment to find the author
-    const commentSnap = await db.collection("videos")
-      .doc(event.params.videoId)
-      .collection("comments")
-      .doc(event.params.commentId)
-      .get();
+    // 1. Get channel ownerId
+    const channelSnap = await db.collection("channels").doc(channelId).get();
+    if (!channelSnap.exists) return;
+    const channelOwnerId = channelSnap.data()?.ownerId;
 
-    if (!commentSnap.exists) return;
-    const commentAuthorId = commentSnap.data()?.userId;
+    // Don't notify if subscribing to own channel
+    if (subscriberId === channelOwnerId) return;
 
-    // Don't notify if user replied to their own comment
-    if (replierId === commentAuthorId) return;
+    // 2. Get subscriber name
+    const subscriberSnap = await db.collection("users").doc(subscriberId).get();
+    const subscriberName = subscriberSnap.data()?.username || "Someone";
 
     await notifyUser({
-      userId: commentAuthorId,
-      type: "comment_reply",
+      userId: channelOwnerId,
+      type: "new_follower",
       severity: "info",
-      title: "New Reply!",
-      message: `${replierName} replied: "${text.substring(0, 30)}..."`,
-      actionUrl: `/video/${event.params.videoId}`,
+      title: "New Subscriber!",
+      message: `${subscriberName} subscribed to your channel.`,
+      actionUrl: `/channel/${channelId}`,
       metadata: { 
-        videoId: event.params.videoId, 
-        commentId: event.params.commentId,
-        replyId: event.params.replyId,
-        replierId
+        channelId, 
+        subscriberId 
       }
     });
   } catch (err) {
-    logger.error("[Trigger] onReplyCreated Error:", err);
+    logger.error("[Trigger] onNewSubscription Error:", err);
   }
 });
 
+/**
+ * 📣 HELPER: NOTIFY CHANNEL MENTIONS
+ * Parses `@channelhandle` in text and dispatches info notifications of type "mention" to matching channel owners.
+ * Capped at 5 mentions per invocation to prevent abuse.
+ * 
+ * Exported for use by the merged onVideoPublished trigger in index.ts.
+ */
+export async function notifyMentions(params: {
+  text: string;
+  senderUserId: string;
+  senderName: string;
+  actionUrl: string;
+  title: string;
+  message: string;
+  metadata?: Record<string, any>;
+}) {
+  try {
+    if (!params.text) return;
+    
+    // Regex matches '@' followed by word characters, hyphens and underscores
+    const matches = params.text.match(/@[\w\-]+/g) || [];
+    if (matches.length === 0) return;
+
+    // Get unique raw handles in lowercase, stripping the '@' prefix
+    // Cap at 5 to prevent abuse via text with 100+ @mentions
+    const rawHandles = [...new Set(matches.map(m => m.substring(1).toLowerCase()))].slice(0, 5);
+    
+    for (const handle of rawHandles) {
+      // Find channels where handle or handleLowercase matches either 'handle' or '@handle'
+      const searchHandles = [handle, `@${handle}`];
+      
+      const channelSnap = await db.collection("channels")
+        .where("handleLowercase", "in", searchHandles)
+        .limit(1)
+        .get();
+        
+      if (!channelSnap.empty) {
+        const channelDoc = channelSnap.docs[0];
+        const channelData = channelDoc.data();
+        const targetUserId = channelData.ownerId;
+        
+        // Don't notify if the user mentioned their own channel
+        if (targetUserId === params.senderUserId) {
+          continue;
+        }
+
+        await notifyUser({
+          userId: targetUserId,
+          type: "mention",
+          severity: "info",
+          title: params.title,
+          message: params.message,
+          actionUrl: params.actionUrl,
+          metadata: {
+            ...params.metadata,
+            mentionedChannelId: channelDoc.id,
+            avatarUrl: params.metadata?.avatarUrl || channelData.avatarUrl || "",
+          }
+        });
+      }
+    }
+  } catch (err) {
+    logger.error("[notifyMentions] Error:", err);
+  }
+}

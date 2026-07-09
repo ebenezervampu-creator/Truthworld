@@ -358,14 +358,11 @@ export const onVideoDeleted = onDocumentDeleted(
     await deleteQueryBatch(db.collection("video_stats_hourly").where("videoId", "==", videoId));
 
     // 8. Delete qualified views (docs matching pattern: videoId_*)
-    const qualifiedViewsSnap = await db.collection("qualified_views").get();
-    const qViewsToDelete = qualifiedViewsSnap.docs.filter(doc => doc.id.startsWith(`${videoId}_`));
-    const qBatchSize = 400;
-    for (let i = 0; i < qViewsToDelete.length; i += qBatchSize) {
-      const batch = db.batch();
-      qViewsToDelete.slice(i, i + qBatchSize).forEach(doc => batch.delete(doc.ref));
-      await batch.commit();
-    }
+    // Using document ID range query instead of full collection scan + filter
+    const qualifiedViewsQuery = db.collection("qualified_views")
+      .where(admin.firestore.FieldPath.documentId(), ">=", `${videoId}_`)
+      .where(admin.firestore.FieldPath.documentId(), "<", `${videoId}_\uf8ff`);
+    await deleteQueryBatch(qualifiedViewsQuery);
 
     // 9. Delete view dedup
     const viewDedupRef = db.collection("viewDedup").doc(videoId);

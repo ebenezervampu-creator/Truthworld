@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/features/commnuity/data/models/community_post_model.dart';
 import 'package:truthworld/theme/app_theme.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
 
 class CommunityPostCard extends StatelessWidget {
   final CommunityPostModel post;
@@ -144,14 +145,11 @@ class CommunityPostCard extends StatelessWidget {
         SizedBox(height: AppTheme.spacing.xs),
         Row(
           children: [
-            CircleAvatar(
+            UserAvatar(
               radius: 12,
-              backgroundImage: post.channelImage.isNotEmpty
-                  ? CachedNetworkImageProvider(post.channelImage)
-                  : null,
-              child: post.channelImage.isEmpty
-                  ? Icon(Icons.person, size: 14)
-                  : null,
+              photoUrl: post.channelImage,
+              displayName: post.channelName,
+              fontSize: 12,
             ),
             SizedBox(width: AppTheme.spacing.xs),
             Expanded(

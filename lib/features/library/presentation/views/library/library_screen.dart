@@ -13,7 +13,8 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/features/watchhistory/presentation/controllers/watch_history_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
-import 'package:truthworld/features/topics/presentation/controllers/saved_topics_controller.dart';
+import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
 
 // ==========================================================================
 // YOUTUBE-STYLE THEME COLORS
@@ -413,8 +414,8 @@ class LibraryScreenState extends State<LibraryScreen>
                 _buildPlaylistsSection(userId),
                 const SizedBox(height: 24),
 
-                // Saved Topics Section
-                _buildSavedTopicsSection(userId),
+                // Following Topics Section
+                _buildFollowingTopicsSection(userId),
                 const SizedBox(height: 24),
                 // 4. Liked Videos Section
                 _buildLikedVideosSection(userId),
@@ -448,15 +449,13 @@ class LibraryScreenState extends State<LibraryScreen>
         children: [
           Row(
             children: [
-              CircleAvatar(
+              UserAvatar(
                 radius: 40,
+                photoUrl: user?.photoURL,
+                displayName: displayName,
                 backgroundColor: buttonBg,
-                backgroundImage: user?.photoURL != null
-                    ? CachedNetworkImageProvider(user!.photoURL!)
-                    : null,
-                child: user?.photoURL == null
-                    ? Icon(Icons.person, color: primaryText, size: 40)
-                    : null,
+                textColor: primaryText,
+                fontSize: 32,
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -869,23 +868,23 @@ class LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  Widget _buildSavedTopicsSection(String userId) {
-    if (!Get.isRegistered<SavedTopicsController>()) {
-      Get.put(SavedTopicsController());
+  Widget _buildFollowingTopicsSection(String userId) {
+    if (!Get.isRegistered<FollowingTopicsController>()) {
+      Get.put(FollowingTopicsController());
     }
-    final controller = Get.find<SavedTopicsController>();
+    final controller = Get.find<FollowingTopicsController>();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionHeader(
-          title: "Saved Topics",
+          title: "Following Topics",
           onViewAll: () {
             if (Get.isRegistered<HomeController>()) {
               final homeController = Get.find<HomeController>();
-              homeController.sideNavSelectedIndex.value = HomeController.indexSavedTopics;
+              homeController.sideNavSelectedIndex.value = HomeController.indexFollowingTopics;
             } else {
-              Get.toNamed('/saved-topics');
+              Get.toNamed('/following-topics');
             }
           },
           showArrows: true,
@@ -899,7 +898,7 @@ class LibraryScreenState extends State<LibraryScreen>
               ),
             );
           }
-          if (controller.savedTopics.isEmpty) {
+          if (controller.followedTopics.isEmpty) {
             return Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
@@ -913,9 +912,9 @@ class LibraryScreenState extends State<LibraryScreen>
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: controller.savedTopics.length,
+              itemCount: controller.followedTopics.length,
               itemBuilder: (context, index) {
-                final topic = controller.savedTopics[index];
+                final topic = controller.followedTopics[index];
                 return _buildLibraryTopicCard(topic);
               },
             ),
@@ -1482,15 +1481,13 @@ class LibraryScreenState extends State<LibraryScreen>
     final user = FirebaseAuth.instance.currentUser;
     return Row(
       children: [
-        CircleAvatar(
+        UserAvatar(
           radius: 24,
+          photoUrl: user?.photoURL,
+          displayName: user?.displayName ?? "User",
           backgroundColor: buttonBg,
-          backgroundImage: user?.photoURL != null
-              ? CachedNetworkImageProvider(user!.photoURL!)
-              : null,
-          child: user?.photoURL == null
-              ? const Icon(Icons.person, color: Colors.white, size: 24)
-              : null,
+          textColor: Colors.white,
+          fontSize: 18,
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -1674,6 +1671,7 @@ class LibraryScreenState extends State<LibraryScreen>
               ? DecorationImage(
                   image: CachedNetworkImageProvider(playlist.thumbnailUrl),
                   fit: BoxFit.cover,
+                  onError: (exception, stackTrace) {},
                 )
               : null,
         ),

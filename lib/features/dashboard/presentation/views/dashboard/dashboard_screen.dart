@@ -7,6 +7,7 @@ import 'package:truthworld/theme/app_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
@@ -52,6 +53,7 @@ class DashboardController extends GetxController {
   DashboardController({required this.channelId});
 
   final Rx<Channel?> currentChannel = Rx<Channel?>(null);
+  final RxBool showApprovalBanner = false.obs;
 
   var selectedIndex = 1.obs;
   var isDrawerExpanded = true.obs;
@@ -130,6 +132,17 @@ class DashboardController extends GetxController {
       if (snapshot.exists) {
         final channel = Channel.fromDocumentSnapshot(snapshot);
         currentChannel.value = channel;
+
+        if (channel.status == ChannelStatus.active) {
+          final storage = GetStorage();
+          final key = 'approval_shown_${channel.id}';
+          final shown = storage.read<bool>(key) ?? false;
+          if (!shown) {
+            showApprovalBanner.value = true;
+            storage.write(key, true);
+          }
+        }
+
         // Only update if summary stats are missing or zeros
         if (channelStats.isEmpty || (channelStats['views'] == '0' && channel.viewCount > 0)) {
           channelStats.value = {
@@ -315,6 +328,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       isSelectingDefault.value = true;
       _selectDefaultChannel();
     } else {
+      isSelectingDefault.value = false;
       String channelId = '';
       if (channelData is Map<String, dynamic> &&
           channelData.containsKey('id')) {
@@ -323,6 +337,10 @@ class _DashboardScreenState extends State<DashboardScreen>
         channelId = channelData.id;
       }
       controller = Get.put(DashboardController(channelId: channelId));
+      final tabIndex = Get.arguments?['tab'] as int?;
+      if (tabIndex != null) {
+        controller.selectedIndex.value = tabIndex;
+      }
       // Ensure VideoManagementController is available for ContentScreen/Get.find
       if (!Get.isRegistered<VideoManagementController>()) {
         Get.put(VideoManagementController());
@@ -345,7 +363,14 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (snapshot.docs.isNotEmpty) {
         final firstChannel = snapshot.docs.first;
         final channelMap = {'id': firstChannel.id, ...firstChannel.data()};
-        Get.offAndToNamed("/studio", arguments: {'channel': channelMap});
+        final tabIndex = Get.arguments?['tab'] as int?;
+        final args = <String, dynamic>{
+          'channel': channelMap,
+        };
+        if (tabIndex != null) {
+          args['tab'] = tabIndex;
+        }
+        Get.offAndToNamed("/studio", arguments: args);
       } else {
         isSelectingDefault.value = false;
         controller = Get.put(DashboardController(channelId: ''));
@@ -1578,13 +1603,17 @@ class _DashboardScreenState extends State<DashboardScreen>
               case 6:
                 final currentChannel = channel;
                 if (currentChannel != null) {
-                  final channelData = currentChannel is Map<String, dynamic>
-                      ? currentChannel
-                      : (currentChannel as DocumentSnapshot).data()
-                            as Map<String, dynamic>;
+                  final String channelId = currentChannel is Map
+                      ? (currentChannel['id'] ?? '') as String
+                      : (currentChannel as DocumentSnapshot).id;
+                  final String ownerId = currentChannel is Map
+                      ? (currentChannel['ownerId'] ?? '') as String
+                      : ((currentChannel as DocumentSnapshot).data()
+                              as Map<String, dynamic>?)?['ownerId'] as String? ??
+                          '';
                   return ChannelCustomizationPage(
-                    channelId: channelData['id'],
-                    ownerId: channelData['ownerId'],
+                    channelId: channelId,
+                    ownerId: ownerId,
                   );
                 }
                 return _buildNoChannelSelected(isDarkMode);
@@ -1735,6 +1764,12 @@ class _DashboardScreenState extends State<DashboardScreen>
           Obx(() {
             final ch = controller.currentChannel.value;
             if (ch == null) return const SizedBox.shrink();
+            if (ch.status == ChannelStatus.active) {
+              if (controller.showApprovalBanner.value) {
+                return _buildApprovalBanner(isDarkMode);
+              }
+              return const SizedBox.shrink();
+            }
             return _buildModerationStatusBanner(isDarkMode, ch);
           }),
           _buildChannelStatsGrid(isDarkMode),
@@ -1984,10 +2019,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                   const SizedBox(height: 12),
                   ElevatedButton.icon(
                     onPressed: () {
-                      controller.selectedIndex.value = 6; // Navigate to Customization page
+                      Get.toNamed('/community-guidelines', arguments: {
+                        'fromRejectedChannelId': channel.id,
+                        'ownerId': channel.ownerId,
+                      });
                     },
-                    icon: const Icon(Icons.edit_rounded, size: 16),
-                    label: const Text('Update Channel Details'),
+                    icon: const Icon(Icons.description_outlined, size: 16),
+                    label: const Text('Review Community Guidelines'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: bannerColor,
                       foregroundColor: Colors.white,
@@ -2001,6 +2039,65 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ],
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildApprovalBanner(bool isDarkMode) {
+    final bannerColor = const Color(0xFF10B981); // Emerald green
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 24),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: bannerColor.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: bannerColor.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.check_circle_outline_rounded, color: bannerColor, size: 28),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Branding Approved by Gemini AI!',
+                  style: GoogleFonts.roboto(
+                    color: bannerColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Congratulations! Your channel details are approved. You can now customize your channel and upload videos.',
+                  style: GoogleFonts.roboto(
+                    color: isDarkMode ? Colors.white70 : AppColors.textSecondary,
+                    fontSize: 14,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () {
+              controller.showApprovalBanner.value = false;
+            },
+            icon: const Icon(Icons.close_rounded),
+            color: isDarkMode ? Colors.white54 : Colors.black54,
+            iconSize: 20,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
           ),
         ],
       ),

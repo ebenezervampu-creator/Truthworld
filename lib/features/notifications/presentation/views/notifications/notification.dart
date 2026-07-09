@@ -502,10 +502,11 @@ class UserNotificationController extends GetxController {
   }
 
   List<UserNotification> get filteredNotifications {
+    final nonMentions = notifications.where((n) => n.type.toLowerCase() != 'mention').toList();
     if (selectedSeverityFilter.value == 'all') {
-      return notifications.toList();
+      return nonMentions;
     }
-    return notifications
+    return nonMentions
         .where((n) =>
             n.severity.name.toLowerCase() ==
             selectedSeverityFilter.value.toLowerCase())
@@ -513,6 +514,36 @@ class UserNotificationController extends GetxController {
   }
 
   int get unreadCount => notifications.where((n) => !n.read).length;
+
+  Future<void> markAllMentionsAsRead() async {
+    final unreadMentions = notifications.where((n) => n.type.toLowerCase() == 'mention' && !n.read).toList();
+    if (unreadMentions.isEmpty) return;
+
+    final unreadIds = unreadMentions.map((n) => n.id).toList();
+    await _service.markAllAsReadBatch(userId, unreadIds);
+    for (var n in notifications) {
+      if (n.type.toLowerCase() == 'mention') {
+        n.read = true;
+      }
+    }
+    notifications.refresh();
+    HapticFeedback.mediumImpact();
+  }
+
+  Future<void> markAllNonMentionsAsRead() async {
+    final unreadNonMentions = notifications.where((n) => n.type.toLowerCase() != 'mention' && !n.read).toList();
+    if (unreadNonMentions.isEmpty) return;
+
+    final unreadIds = unreadNonMentions.map((n) => n.id).toList();
+    await _service.markAllAsReadBatch(userId, unreadIds);
+    for (var n in notifications) {
+      if (n.type.toLowerCase() != 'mention') {
+        n.read = true;
+      }
+    }
+    notifications.refresh();
+    HapticFeedback.mediumImpact();
+  }
 }
 
 // ==========================================================================
@@ -604,12 +635,20 @@ class _VideoFeedNotificationScreenState
               Obx(() => SliverToBoxAdapter(
                     child: _selectedTabIndex.value == 0
                         ? _buildFilters()
-                        : _buildCloudAlertsFilters(),
+                        : (_selectedTabIndex.value == 1
+                            ? _buildCloudAlertsFilters()
+                            : const SizedBox.shrink()),
                   )),
               const SliverToBoxAdapter(child: SizedBox(height: 8)),
-              Obx(() => _selectedTabIndex.value == 0
-                  ? _buildContent()
-                  : _buildCloudAlertsContent()),
+              Obx(() {
+                if (_selectedTabIndex.value == 0) {
+                  return _buildContent();
+                } else if (_selectedTabIndex.value == 1) {
+                  return _buildCloudAlertsContent();
+                } else {
+                  return _buildMentionsContent();
+                }
+              }),
             ],
           ),
         ),
@@ -752,8 +791,21 @@ class _VideoFeedNotificationScreenState
               ),
             ),
             Obx(() {
-              final unseen = controller.unseenCount;
-              final today = controller.todayCount;
+              final extraAlerts = userNotificationController.notifications.where((n) {
+                final typeLower = n.type.toLowerCase();
+                return typeLower == 'new_community_post' || typeLower == 'new_video_topic';
+              });
+              final extraUnseen = extraAlerts.where((n) => !n.read).length;
+              
+              final now = DateTime.now();
+              final extraToday = extraAlerts.where((n) {
+                return n.createdAt.year == now.year &&
+                    n.createdAt.month == now.month &&
+                    n.createdAt.day == now.day;
+              }).length;
+
+              final unseen = controller.unseenCount + extraUnseen;
+              final today = controller.todayCount + extraToday;
               return Text(
                 '$unseen new • $today today',
                 style: GoogleFonts.roboto(fontSize: 11, color: Colors.white60),
@@ -1065,7 +1117,7 @@ class _VideoFeedNotificationScreenState
   }
 
   Widget _buildContent() {
-    if (controller.isLoading.value) {
+    if (controller.isLoading.value || userNotificationController.isLoading.value) {
       return SliverFillRemaining(child: _buildLoadingState());
     }
 
@@ -1073,10 +1125,91 @@ class _VideoFeedNotificationScreenState
       return SliverFillRemaining(child: _buildErrorState());
     }
 
-    final filteredNotifications = controller.filteredNotifications;
+    final filteredVideos = controller.filteredNotifications;
 
-    if (filteredNotifications.isEmpty) {
+    var filteredAlerts = userNotificationController.notifications.where((n) {
+      final typeLower = n.type.toLowerCase();
+      return typeLower == 'new_community_post' || typeLower == 'new_video_topic';
+    }).toList();
+
+    // Apply Search filter
+    if (controller.searchQuery.isNotEmpty) {
+      final query = controller.searchQuery.value.toLowerCase();
+      filteredAlerts = filteredAlerts.where((n) {
+        return n.title.toLowerCase().contains(query) ||
+            n.message.toLowerCase().contains(query) ||
+            (n.metadata?['channelName'] as String? ?? '').toLowerCase().contains(query);
+      }).toList();
+    }
+
+    // Apply Time filter
+    final now = DateTime.now();
+    switch (controller.selectedTimeFilter.value) {
+      case 'today':
+        filteredAlerts = filteredAlerts.where((n) {
+          return n.createdAt.year == now.year &&
+              n.createdAt.month == now.month &&
+              n.createdAt.day == now.day;
+        }).toList();
+        break;
+      case 'this_week':
+        final weekAgo = now.subtract(const Duration(days: 7));
+        filteredAlerts = filteredAlerts
+            .where((n) => n.createdAt.isAfter(weekAgo))
+            .toList();
+        break;
+      case 'this_month':
+        filteredAlerts = filteredAlerts.where((n) {
+          return n.createdAt.year == now.year &&
+              n.createdAt.month == now.month;
+        }).toList();
+        break;
+    }
+
+    // Apply Seen filter
+    switch (controller.selectedSeenFilter.value) {
+      case 'unseen':
+        filteredAlerts = filteredAlerts.where((n) => !n.read).toList();
+        break;
+      case 'seen':
+        filteredAlerts = filteredAlerts.where((n) => n.read).toList();
+        break;
+    }
+
+    // Apply Category filter: community posts/topic videos are filtered out if category != 'all'
+    if (controller.selectedCategory.value != 'all') {
+      filteredAlerts = [];
+    }
+
+    if (filteredVideos.isEmpty && filteredAlerts.isEmpty) {
       return SliverFillRemaining(child: _buildEmptyState());
+    }
+
+    final List<_UnifiedNotification> unifiedItems = [];
+    for (final v in filteredVideos) {
+      unifiedItems.add(_UnifiedNotification(
+        video: v,
+        timestamp: v.uploadedAt.toDate(),
+        isSeen: v.isSeen,
+      ));
+    }
+    for (final a in filteredAlerts) {
+      unifiedItems.add(_UnifiedNotification(
+        alert: a,
+        timestamp: a.createdAt,
+        isSeen: a.read,
+      ));
+    }
+
+    // Sort by timestamp descending
+    unifiedItems.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    Widget buildItemTile(_UnifiedNotification item) {
+      if (item.video != null) {
+        return _buildVideoCard(item.video!);
+      } else {
+        return _buildCloudAlertCard(item.alert!);
+      }
     }
 
     // Desktop/Tablet: Grid layout with corrected aspect ratios for minimal height
@@ -1093,10 +1226,10 @@ class _VideoFeedNotificationScreenState
             mainAxisSpacing: 20,
             childAspectRatio: isDesktop
                 ? 1.1
-                : 1.05, // Fixed: Matches ~content (w/h); reduces extra space
+                : 1.05, // Matches ~content (w/h); reduces extra space
           ),
           delegate: SliverChildBuilderDelegate((context, index) {
-            final notification = filteredNotifications[index];
+            final item = unifiedItems[index];
             return TweenAnimationBuilder<double>(
               duration: Duration(milliseconds: 300 + (index * 50)),
               tween: Tween(begin: 0.0, end: 1.0),
@@ -1105,12 +1238,12 @@ class _VideoFeedNotificationScreenState
                   offset: Offset(0, 30 * (1 - value)),
                   child: Opacity(
                     opacity: value,
-                    child: _buildVideoCard(notification),
+                    child: buildItemTile(item),
                   ),
                 );
               },
             );
-          }, childCount: filteredNotifications.length),
+          }, childCount: unifiedItems.length),
         ),
       );
     }
@@ -1120,7 +1253,7 @@ class _VideoFeedNotificationScreenState
       padding: EdgeInsets.symmetric(horizontal: 16),
       sliver: SliverList(
         delegate: SliverChildBuilderDelegate((context, index) {
-          final notification = filteredNotifications[index];
+          final item = unifiedItems[index];
           return TweenAnimationBuilder<double>(
             duration: Duration(milliseconds: 300 + (index * 50)),
             tween: Tween(begin: 0.0, end: 1.0),
@@ -1129,12 +1262,12 @@ class _VideoFeedNotificationScreenState
                 offset: Offset(0, 30 * (1 - value)),
                 child: Opacity(
                   opacity: value,
-                  child: _buildVideoCard(notification),
+                  child: buildItemTile(item),
                 ),
               );
             },
           );
-        }, childCount: filteredNotifications.length),
+        }, childCount: unifiedItems.length),
       ),
     );
   }
@@ -1642,8 +1775,15 @@ class _VideoFeedNotificationScreenState
   Widget _buildFloatingButtons() {
     return Obx(() {
       final hasUnread = _selectedTabIndex.value == 0
-          ? controller.unseenCount > 0
-          : userNotificationController.unreadCount > 0;
+          ? (controller.unseenCount + 
+              userNotificationController.notifications.where((n) {
+                final typeLower = n.type.toLowerCase();
+                final isExtra = typeLower == 'new_community_post' || typeLower == 'new_video_topic';
+                return isExtra && !n.read;
+              }).length) > 0
+          : (_selectedTabIndex.value == 1
+              ? userNotificationController.notifications.where((n) => n.type.toLowerCase() != 'mention' && !n.read).isNotEmpty
+              : userNotificationController.notifications.where((n) => n.type.toLowerCase() == 'mention' && !n.read).isNotEmpty);
 
       return Column(
         mainAxisSize: MainAxisSize.min,
@@ -1679,8 +1819,10 @@ class _VideoFeedNotificationScreenState
               onPressed: () {
                 if (_selectedTabIndex.value == 0) {
                   controller.markAllAsSeen();
+                } else if (_selectedTabIndex.value == 1) {
+                  userNotificationController.markAllNonMentionsAsRead();
                 } else {
-                  userNotificationController.markAllAsRead();
+                  userNotificationController.markAllMentionsAsRead();
                 }
                 HapticFeedback.mediumImpact();
               },
@@ -1693,8 +1835,10 @@ class _VideoFeedNotificationScreenState
                 ),
               ),
               backgroundColor: _selectedTabIndex.value == 0
-                  ? const Color(0xFF10B981)
-                  : const Color(0xFF6366F1),
+                  ? const Color(0xFF6366F1)
+                  : (_selectedTabIndex.value == 1
+                      ? const Color(0xFF10B981)
+                      : const Color(0xFFF59E0B)),
               elevation: 8,
             ),
         ],
@@ -1722,7 +1866,12 @@ class _VideoFeedNotificationScreenState
                   title: 'Content Feed',
                   icon: Icons.video_library_rounded,
                   isSelected: _selectedTabIndex.value == 0,
-                  badgeCount: controller.unseenCount,
+                  badgeCount: controller.unseenCount + 
+                      userNotificationController.notifications.where((n) {
+                        final typeLower = n.type.toLowerCase();
+                        final isExtra = typeLower == 'new_community_post' || typeLower == 'new_video_topic';
+                        return isExtra && !n.read;
+                      }).length,
                   activeColor: const Color(0xFF6366F1),
                   onTap: () {
                     _selectedTabIndex.value = 0;
@@ -1735,7 +1884,9 @@ class _VideoFeedNotificationScreenState
                   title: 'Activity & Alerts',
                   icon: Icons.notifications_active_rounded,
                   isSelected: _selectedTabIndex.value == 1,
-                  badgeCount: userNotificationController.unreadCount,
+                  badgeCount: userNotificationController.notifications.where((n) {
+                    return n.type.toLowerCase() != 'mention' && !n.read;
+                  }).length,
                   activeColor: const Color(0xFF10B981),
                   onTap: () {
                     _selectedTabIndex.value = 1;
@@ -1743,7 +1894,70 @@ class _VideoFeedNotificationScreenState
                   },
                 )),
           ),
+          Expanded(
+            child: Obx(() => _buildPremiumTabButton(
+                  title: 'Mentions',
+                  icon: Icons.alternate_email_rounded,
+                  isSelected: _selectedTabIndex.value == 2,
+                  badgeCount: userNotificationController.notifications.where((n) {
+                    return n.type.toLowerCase() == 'mention' && !n.read;
+                  }).length,
+                  activeColor: const Color(0xFFF59E0B),
+                  onTap: () {
+                    _selectedTabIndex.value = 2;
+                    HapticFeedback.selectionClick();
+                  },
+                )),
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMentionsContent() {
+    if (userNotificationController.isLoading.value &&
+        userNotificationController.notifications.isEmpty) {
+      return const SliverFillRemaining(
+        child: Center(
+          child: CircularProgressIndicator(color: Color(0xFFF59E0B)),
+        ),
+      );
+    }
+
+    final mentions = userNotificationController.notifications
+        .where((n) => n.type.toLowerCase() == 'mention')
+        .toList();
+
+    if (mentions.isEmpty) {
+      return SliverFillRemaining(
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.alternate_email_rounded,
+                  size: 64, color: Colors.white30),
+              const SizedBox(height: 16),
+              Text(
+                'No mentions found',
+                style: GoogleFonts.roboto(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white70),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: EdgeInsets.symmetric(
+          horizontal: isDesktop ? 32 : 16, vertical: 8),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final alert = mentions[index];
+          return _buildCloudAlertCard(alert);
+        }, childCount: mentions.length),
       ),
     );
   }
@@ -2012,16 +2226,42 @@ class _VideoFeedNotificationScreenState
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: severityColor.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                        color: severityColor.withValues(alpha: 0.3)),
-                  ),
-                  child: Icon(severityIcon, color: severityColor, size: 20),
-                ),
+                // Premium Left Side Avatar/Icon
+                Builder(builder: (context) {
+                  final avatarUrl = alert.metadata?['avatarUrl'] as String? ?? 
+                                    alert.metadata?['userAvatar'] as String? ?? '';
+                  if (avatarUrl.isNotEmpty) {
+                    return Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: severityColor.withValues(alpha: 0.3),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: ClipOval(
+                        child: Image.network(
+                          avatarUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              Icon(severityIcon, color: severityColor, size: 20),
+                        ),
+                      ),
+                    );
+                  }
+                  return Container(
+                    padding: EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: severityColor.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: severityColor.withValues(alpha: 0.3)),
+                    ),
+                    child: Icon(severityIcon, color: severityColor, size: 20),
+                  );
+                }),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
@@ -2084,12 +2324,40 @@ class _VideoFeedNotificationScreenState
                     ],
                   ),
                 ),
+                // Premium Right Side Video/Post Thumbnail
+                Builder(builder: (context) {
+                  final thumbnailUrl = alert.metadata?['thumbnailUrl'] as String? ?? '';
+                  if (thumbnailUrl.isNotEmpty) {
+                    return Container(
+                      width: 60,
+                      height: 36,
+                      margin: const EdgeInsets.only(left: 12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: Colors.white10,
+                          width: 1,
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.network(
+                          thumbnailUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const SizedBox.shrink(),
+                        ),
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                }),
                 if (!alert.read) ...[
                   const SizedBox(width: 12),
                   Container(
                     width: 8,
                     height: 8,
-                    margin: EdgeInsets.only(top: 6),
+                    margin: EdgeInsets.only(top: 14),
                     decoration: BoxDecoration(
                       color: severityColor,
                       shape: BoxShape.circle,
@@ -2139,6 +2407,20 @@ class _VideoFeedNotificationScreenState
   void _navigateToVideo(Video notification) {
     Get.toNamed('/watch?v=${notification.id}', arguments: {'video': notification});
   }
+}
+
+class _UnifiedNotification {
+  final Video? video;
+  final UserNotification? alert;
+  final DateTime timestamp;
+  final bool isSeen;
+
+  _UnifiedNotification({
+    this.video,
+    this.alert,
+    required this.timestamp,
+    required this.isSeen,
+  });
 }
 
 

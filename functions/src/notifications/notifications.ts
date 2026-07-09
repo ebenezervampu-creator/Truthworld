@@ -36,7 +36,13 @@ export async function notifyUser(params: {
 
     await db.collection(COL_NOTIFICATIONS).doc(notificationId).set(notification);
     
-    // TODO: Trigger push notification via FCM if user has token
+    // Fire-and-forget: Push notification delivery is non-blocking.
+    // The Firestore write above is the critical path; FCM delivery can
+    // happen asynchronously without delaying the caller. This is critical
+    // during fan-out where hundreds of notifyUser() calls run in parallel.
+    _sendPushNotification(params, notificationId).catch(pushErr => {
+      logger.warn("[notifyUser] FCM push failed (non-critical):", { userId: params.userId, err: String(pushErr) });
+    });
     
     return notificationId;
   } catch (err) {
@@ -46,11 +52,59 @@ export async function notifyUser(params: {
 }
 
 /**
+ * 🔔 INTERNAL: Send FCM push notification to user's registered devices.
+ * Separated from notifyUser to enable fire-and-forget pattern.
+ */
+async function _sendPushNotification(
+  params: { userId: string; type: string; severity: string; title: string; message: string; actionUrl?: string },
+  notificationId: string
+): Promise<void> {
+  const userDoc = await db.collection("users").doc(params.userId).get();
+  if (!userDoc.exists) return;
+
+  const userData = userDoc.data();
+  const fcmTokensMap = userData?.fcmTokens as Record<string, string> | undefined;
+  if (!fcmTokensMap) return;
+
+  const tokens = Object.values(fcmTokensMap).filter(t => typeof t === "string" && t.length > 0);
+  if (tokens.length === 0) return;
+
+  const payload = {
+    tokens,
+    notification: {
+      title: params.title,
+      body: params.message,
+    },
+    data: {
+      click_action: "FLUTTER_NOTIFICATION_CLICK",
+      actionUrl: params.actionUrl || "",
+      type: String(params.type),
+      severity: String(params.severity),
+      notificationId: String(notificationId),
+    },
+    android: {
+      priority: "high" as const,
+      notification: {
+        sound: "default",
+        channelId: "truthworld_notifications",
+      },
+    },
+    apns: {
+      headers: { "apns-priority": "10" },
+      payload: { aps: { sound: "default", badge: 1 } },
+    },
+  };
+
+  const response = await admin.messaging().sendEachForMulticast(payload);
+  logger.info(`[FCM] Sent to ${tokens.length} devices for user ${params.userId}. OK: ${response.successCount}, Fail: ${response.failureCount}`);
+}
+
+/**
  * 📥 GET NOTIFICATIONS (Callable)
  * Retrieves latest notifications for the logged-in user.
  */
 export const getNotifications = onCall(
-  { region: "asia-south1", memory: "256MiB" },
+  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -77,7 +131,7 @@ export const getNotifications = onCall(
  * ✅ MARK NOTIFICATION AS READ (Callable)
  */
 export const markNotificationRead = onCall(
-  { region: "asia-south1", memory: "256MiB" },
+  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
   async (request) => {
     const userId = request.auth?.uid;
     const { notificationId } = request.data;

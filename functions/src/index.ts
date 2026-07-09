@@ -1,13 +1,16 @@
 /**
- * 🚀 FIREBASE CLOUD FUNCTIONS — ENTRY POINT (Updated: 2026-04-22T17:31Z)
+ * 🚀 FIREBASE CLOUD FUNCTIONS — ENTRY POINT
  *
- * Exports EXACTLY 3 features:
- *   1. Pipeline  — 10-layer video processing pipeline
- *   2. Resolution — Video resolution processing (≤ 720p)
- *   3. Verification — Image verification (thumbnails, avatars, banners, community posts)
+ * Unified deployment entry point for truthworld Cloud Functions.
+ *
+ * Features exported:
+ *   - Video Processing Pipeline (Ingestion, Transcription, Credibility, Dubbing, Aggregation)
+ *   - Cost Governance APIs (Dashboard & Job Cost Breakdowns)
+ *   - Scheduled Publishing Scheduler
+ *   - Notification Fan-Out & Habit Loops
  *
  * ✅ NO REDIS
- * ✅ minInstances: 0 (scale-to-zero) except edge (minInstances: 1)
+ * ✅ minInstances: 0 (scale-to-zero) for cost optimization
  * ✅ Explicit maxInstances caps per function
  * ✅ Region: asia-south1
  */
@@ -24,6 +27,10 @@ import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onRequest } from "firebase-functions/v2/https";
 import { onDocumentUpdated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { v4 as uuidv4 } from "uuid";
+import { requireAuth, requireAdmin } from "./utils/auth";
+import { strictLimiter } from "./utils/rate-limiter";
+import { notifyUser } from "./notifications/notifications";
+import { notifyMentions } from "./notifications/triggers";
 
 // ─── Pipeline imports ────────────────────────────────────────────────────────
 import { EdgeLayer } from "./pipeline/layers/01-edge";
@@ -80,14 +87,18 @@ export const submitVideo = onRequest(
     concurrency: 100,
     timeoutSeconds: 30,
     memory: "256MiB",
-    
+
   },
   async (req, res) => {
     try {
-      const { userId, videoUrl, fileName, config } = req.body;
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
 
-      if (!userId || !videoUrl) {
-        res.status(400).json({ error: "Missing userId or videoUrl" });
+      const { videoUrl, fileName, config } = req.body;
+      const userId = authUser.uid;
+
+      if (!videoUrl) {
+        res.status(400).json({ error: "Missing videoUrl" });
         return;
       }
 
@@ -121,10 +132,13 @@ export const getProgressiveStatus = onRequest(
     maxInstances: 10,
     timeoutSeconds: 30,
     memory: "256MiB",
-    
+
   },
   async (req, res) => {
     try {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+
       const jobId = req.query.jobId as string;
       if (!jobId) {
         res.status(400).json({ error: "Missing jobId" });
@@ -159,10 +173,13 @@ export const getFinalOutput = onRequest(
     maxInstances: 10,
     timeoutSeconds: 30,
     memory: "256MiB",
-    
+
   },
   async (req, res) => {
     try {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+
       const jobId = req.query.jobId as string;
       if (!jobId) {
         res.status(400).json({ error: "Missing jobId" });
@@ -194,13 +211,19 @@ export const onVideoUpload = onObjectFinalized(
     bucket: "truthworld-1.firebasestorage.app",
     minInstances: 0,
     maxInstances: 10,
+    memory: "256MiB",
   },
   async (event) => {
     try {
-      const bucket = event.data.bucket;
       const filePath = event.data.name;
       const contentType = event.data.contentType || "";
 
+      // COST GUARD: Skip non-video files immediately to avoid wasted compute
+      if (!filePath.startsWith("videos/") || !contentType.startsWith("video/")) {
+        return;
+      }
+
+      const bucket = event.data.bucket;
       console.log(`[Upload Trigger] Processing: ${filePath}`);
 
       await ingestionLayer.handleVideoUpload(bucket, filePath, contentType);
@@ -220,10 +243,11 @@ export const handleTranscription = onRequest(
   {
     cors: false,
     region: "asia-south1",
-    timeoutSeconds: 540,
-    memory: "512MiB",
-    minInstances: 0,        // Scale-to-zero to optimize costs
+    timeoutSeconds: 120,
+    memory: "256MiB",   // Reduced from 512MiB — only submits to AssemblyAI API (I/O bound)
+    minInstances: 0,
     maxInstances: 10,
+    secrets: ["ASSEMBLYAI_KEY"],
   },
   async (req, res) => {
     try {
@@ -249,19 +273,8 @@ export const handleTranscription = onRequest(
   }
 );
 
-/**
- * 🎯 AssemblyAI Webhook Handler (DEPRECATED)
- *
- * Migration Note: Polling is now used instead of webhooks to bypass 
- * restricted network policies and ensure immediate fan-out.
- */
-export const handleTranscriptionWebhook = onRequest(
-  { region: "asia-south1" },
-  async (req, res) => {
-    logger.info("[Webhook] Received request on deprecated endpoint. Logic migrated to polling.");
-    res.status(200).send("Migrated to polling");
-  }
-);
+// NOTE: handleTranscriptionWebhook REMOVED — was deprecated and wasting cold start costs.
+// If still deployed, run: firebase functions:delete handleTranscriptionWebhook --region asia-south1
 
 
 /**
@@ -277,7 +290,7 @@ export const handleCredibility = onRequest(
     memory: "1GiB",
     minInstances: 0,
     maxInstances: 5,
-    
+    secrets: ["GEMINI_API_KEY"],
   },
   async (req, res) => {
     try {
@@ -318,7 +331,7 @@ export const handleDubbing = onRequest(
     memory: "1GiB",
     minInstances: 0,
     maxInstances: 5,
-    
+    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY"],
   },
   async (req, res) => {
     try {
@@ -364,7 +377,7 @@ export const handleFactComplete = onRequest(
     minInstances: 0,
     maxInstances: 5,
     memory: "256MiB",
-    
+
   },
   async (req, res) => {
     try {
@@ -408,7 +421,7 @@ export const handleDubbingComplete = onRequest(
     minInstances: 0,
     maxInstances: 5,
     memory: "256MiB",
-    
+
   },
   async (req, res) => {
     try {
@@ -451,10 +464,13 @@ export const setupPipeline = onRequest(
     minInstances: 0,
     maxInstances: 1,
     timeoutSeconds: 60,
-    
+
   },
-  async (_req, res) => {
+  async (req, res) => {
     try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+
       console.log("[Setup] Initializing pipeline topics...");
       await distributionLayer.ensureTopicsExist();
       res.status(200).json({
@@ -486,11 +502,15 @@ export const handleFastVerification = onRequest(
     cors: true,
     region: "asia-south1",
     timeoutSeconds: 30,
-    memory: "512MiB",
+    memory: "256MiB",   // Reduced from 512MiB — Gemini API call is I/O bound
     minInstances: 0,
-    maxInstances: 20,
+    maxInstances: 10,   // Reduced from 20 — cost cap
+    secrets: ["GEMINI_API_KEY"],
   },
   async (req, res) => {
+    // Rate limit: 10 requests per minute per IP (expensive Gemini API call)
+    if (await strictLimiter(req, res)) return;
+
     try {
       const { text, domain, category } = req.body;
 
@@ -538,17 +558,15 @@ export const getCreatorCostDashboard = onRequest(
     maxInstances: 5,
     timeoutSeconds: 30,
     memory: "256MiB",
-    
+
   },
   async (req, res) => {
     try {
-      const userId = req.query.userId as string;
-      const month = req.query.month as string | undefined;
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
 
-      if (!userId) {
-        res.status(400).json({ error: "Missing userId" });
-        return;
-      }
+      const userId = authUser.uid;
+      const month = req.query.month as string | undefined;
 
       const dashboard = await costEngine.getCreatorDashboard(userId, month);
 
@@ -586,12 +604,14 @@ export const getSystemCostOverview = onRequest(
     minInstances: 0,
     maxInstances: 2,
     timeoutSeconds: 60,
-    memory: "512MiB",
-    
+    memory: "256MiB",   // Reduced from 512MiB — simple Firestore aggregation
+
   },
   async (req, res) => {
     try {
-      // TODO: Add admin auth check here
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+
       const month = req.query.month as string | undefined;
       const overview = await costEngine.getSystemOverview(month);
       res.status(200).json(overview);
@@ -616,10 +636,13 @@ export const getJobCostBreakdown = onRequest(
     maxInstances: 5,
     timeoutSeconds: 30,
     memory: "256MiB",
-    
+
   },
   async (req, res) => {
     try {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+
       const jobId = req.query.jobId as string;
 
       if (!jobId) {
@@ -632,6 +655,22 @@ export const getJobCostBreakdown = onRequest(
       if (!breakdown) {
         res.status(404).json({ error: "No cost data found for this job" });
         return;
+      }
+
+      // Enforce Ownership Gate: Creator can only see their own job's cost breakdown
+      const jobOwnerId = breakdown.lineItems?.[0]?.userId;
+      if (jobOwnerId && jobOwnerId !== authUser.uid) {
+        // Allow admins to view any job cost
+        const isAdmin = authUser.isAdmin === true;
+        if (!isAdmin) {
+          logger.warn("[getJobCostBreakdown] Unauthorized access attempt", {
+            jobId,
+            requesterId: authUser.uid,
+            ownerId: jobOwnerId,
+          });
+          res.status(403).json({ error: "Unauthorized access to job cost breakdown" });
+          return;
+        }
       }
 
       res.status(200).json(breakdown);
@@ -690,13 +729,13 @@ export const onVideoPublished = onDocumentUpdated(
     document: "videos/{videoId}",
     region: "asia-south1",
     retry: true,
-    memory: "512MiB",
+    memory: "256MiB",  // Reduced from 512MiB — only does Firestore writes + Pub/Sub
     maxInstances: 10,
   },
   async (event) => {
     const beforeData = event.data?.before.data();
-    const afterData  = event.data?.after.data();
-    const videoId    = event.params.videoId;
+    const afterData = event.data?.after.data();
+    const videoId = event.params.videoId;
 
     if (!afterData) return;
 
@@ -724,7 +763,7 @@ export const onVideoPublished = onDocumentUpdated(
     }
 
     // ─── GATE 3: Metadata completeness check ────────────────────────────────
-    const title    = afterData.title || "";
+    const title = afterData.title || "";
     const videoUrl = afterData.videoUrl || "";
 
     if (!title || title === "Uploading..." || !videoUrl) {
@@ -745,6 +784,19 @@ export const onVideoPublished = onDocumentUpdated(
     // This saves ~25-30s of sequential moderation wait time.
     // ═══════════════════════════════════════════════════════════════════════════
     if (becamePublished && !afterData.jobId) {
+
+      // ── IDEMPOTENCY GUARD: Prevent duplicate jobs on Firestore trigger retry ──
+      const existingJobSnap = await db.collection("video_jobs")
+        .where("videoId", "==", videoId)
+        .limit(1)
+        .get();
+      if (!existingJobSnap.empty) {
+        logger.info("[PublishGate] Job already exists for this video — skipping (retry idempotency)", {
+          videoId,
+          existingJobId: existingJobSnap.docs[0].id,
+        });
+        return;
+      }
 
       // v2.0: Check if already rejected BEFORE creating job (handles case where
       // moderation completed before user clicked Publish)
@@ -776,24 +828,24 @@ export const onVideoPublished = onDocumentUpdated(
         },
       });
 
-      const userId  = afterData.userId || afterData.ownerId;
+      const userId = afterData.userId || afterData.ownerId;
       if (!userId) {
         logger.error("[PublishGate] No userId/ownerId on video doc", { videoId });
         return;
       }
 
-      const jobId   = `job_${Date.now()}_${uuidv4().substring(0, 8)}`;
+      const jobId = `job_${Date.now()}_${uuidv4().substring(0, 8)}`;
       const eventId = uuidv4();
 
       // ── Map ALL aiFeatures → ExecutionPlan ──────────────────────────────────
       const requestedLanguages: string[] = getTranslationLangs(afterData);
-      const enableFactChecking  = aiFeatures.factChecking ?? false;
-      const enableGenLangSubs   = aiFeatures.genLangSubs ?? false;
-      const enableDubbing       = aiFeatures.generateDubbing ?? false;
-      const enableSummary       = aiFeatures.summary ?? false;
-      const enableDiarization   = aiFeatures.diarization ?? false;
-      const hasTargetLanguages  = requestedLanguages.length > 0;
-      const enablePath2         = enableDubbing || enableGenLangSubs || hasTargetLanguages;
+      const enableFactChecking = aiFeatures.factChecking ?? false;
+      const enableGenLangSubs = aiFeatures.genLangSubs ?? false;
+      const enableDubbing = aiFeatures.generateDubbing ?? false;
+      const enableSummary = aiFeatures.summary ?? false;
+      const enableDiarization = aiFeatures.diarization ?? false;
+      const hasTargetLanguages = requestedLanguages.length > 0;
+      const enablePath2 = enableDubbing || enableGenLangSubs || hasTargetLanguages;
 
       // TTS config mapping
       const ttsConfig = aiFeatures.tts || {};
@@ -804,32 +856,32 @@ export const onVideoPublished = onDocumentUpdated(
 
       const executionPlan: ExecutionPlan = {
         jobId,
-        enablePath1:       enableFactChecking,
+        enablePath1: enableFactChecking,
         enablePath2,
         enableTruthEngine: enableFactChecking,
         enableReachEngine: enablePath2,
-        enableAuxiliary:   enableSummary,
-        languages:         Array.from(new Set(["en", ...requestedLanguages])),
-        dubbingMode:       voiceType === "voice_clone" ? "voice_clone" : (enableDubbing ? "standard" : "none"),
-        generateDubbing:   enableDubbing,
-        genLangSubs:       enableGenLangSubs,
-        channelType:       afterData.channelType || "standard",
-        autoChapters:      aiFeatures.autoChapters ?? false,
-        maxClaims:         enableFactChecking ? (afterData.channelType === 'custom' ? 100 : 20) : 0,
-        priority:          afterData.channelType === 'custom' ? "high" : "normal",
+        enableAuxiliary: enableSummary,
+        languages: Array.from(new Set(["en", ...requestedLanguages])),
+        dubbingMode: voiceType === "voice_clone" ? "voice_clone" : (enableDubbing ? "standard" : "none"),
+        generateDubbing: enableDubbing,
+        genLangSubs: enableGenLangSubs,
+        channelType: afterData.channelType || "standard",
+        autoChapters: aiFeatures.autoChapters ?? false,
+        maxClaims: enableFactChecking ? (afterData.channelType === 'custom' ? 100 : 20) : 0,
+        priority: afterData.channelType === 'custom' ? "high" : "normal",
 
-        skipCache:         false,
+        skipCache: false,
 
         // Creator Intelligence (v7)
         expectedSpeakerCount: speakerCount as '1' | '2-3' | '4+' | 'not_sure',
-        contentFormat:        enableDiarization ? "general" : "solo",
+        contentFormat: enableDiarization ? "general" : "solo",
 
         // Translation & Localization
         translationModel: afterData.channelType === "custom" ? "dynamic" : "standard",
 
-        toneMode:         "formal",
-        localeStyle:      requestedLanguages.includes("hi") ? "hinglish" : "neutral",
-        targetPlatform:   afterData.targetPlatform || "youtube",
+        toneMode: "formal",
+        localeStyle: requestedLanguages.includes("hi") ? "hinglish" : "neutral",
+        targetPlatform: afterData.targetPlatform || "youtube",
 
         // Duration from video doc metadata
         duration: afterData.duration ? parseInt(String(afterData.duration)) : undefined,
@@ -845,16 +897,16 @@ export const onVideoPublished = onDocumentUpdated(
         : { status: "running", progress: 50, startedAt: now }; // Running in parallel
 
       const stages: Record<string, any> = {
-        moderation:    modStageStatus, // v2.0: Runs in parallel via Storage trigger
-        upload:        { status: "completed", progress: 100, completedAt: now },
-        validation:    { status: "completed", progress: 100, completedAt: now },
-        queue:         { status: "running",   progress: 50,  startedAt: now },
-        transcription: { status: "pending",   progress: 0 },
-        credibility:   enableFactChecking ? { status: "pending", progress: 0 } : { status: "skipped", progress: 100 },
-        dubbing:       enablePath2        ? { status: "pending", progress: 0 } : { status: "skipped", progress: 100 },
-        rendering:     { status: "pending", progress: 0 },
-        finalizing:    { status: "pending", progress: 0 },
-        aggregation:   { status: "pending", progress: 0 },
+        moderation: modStageStatus, // v2.0: Runs in parallel via Storage trigger
+        upload: { status: "completed", progress: 100, completedAt: now },
+        validation: { status: "completed", progress: 100, completedAt: now },
+        queue: { status: "running", progress: 50, startedAt: now },
+        transcription: { status: "pending", progress: 0 },
+        credibility: enableFactChecking ? { status: "pending", progress: 0 } : { status: "skipped", progress: 100 },
+        dubbing: enablePath2 ? { status: "pending", progress: 0 } : { status: "skipped", progress: 100 },
+        rendering: { status: "pending", progress: 0 },
+        finalizing: { status: "pending", progress: 0 },
+        aggregation: { status: "pending", progress: 0 },
       };
 
       // Add per-language stages for localization tracking
@@ -939,6 +991,12 @@ export const onVideoPublished = onDocumentUpdated(
         source: "publish-gate",
       });
 
+      // ── MERGED: Subscriber notification fan-out (was onNewVideoFromFollowed) ──
+      // Fire-and-forget: Don't await — pipeline is more important than notifications
+      _fanOutSubscriberNotifications(afterData, videoId).catch(err =>
+        logger.warn("[PublishGate] Subscriber notification fan-out failed (non-critical)", { videoId, err: String(err) })
+      );
+
       return;
     }
 
@@ -981,17 +1039,17 @@ export const onVideoPublished = onDocumentUpdated(
         ...jobData.executionPlan,
         languages: Array.from(new Set(["en", ...getTranslationLangs(afterData)])),
         generateDubbing: aiFeatures.generateDubbing ?? jobData.executionPlan.generateDubbing,
-        genLangSubs:     aiFeatures.genLangSubs ?? jobData.executionPlan.genLangSubs,
-        enablePath2:     true,
+        genLangSubs: aiFeatures.genLangSubs ?? jobData.executionPlan.genLangSubs,
+        enablePath2: true,
         enableReachEngine: true,
         jobId,
       };
 
       await distributionLayer.publish("dubbing-processing", {
-        eventId:   uuidv4(),
+        eventId: uuidv4(),
         eventType: "dubbing-processing",
         jobId,
-        userId:    jobData.userId,
+        userId: jobData.userId,
         timestamp: Date.now(),
         data: {
           videoUrl: jobData.videoUrl,
@@ -1032,15 +1090,121 @@ export const onVideoPublished = onDocumentUpdated(
   }
 );
 
+// ─── MERGED HELPER: Subscriber Notification Fan-Out ──────────────────────────
+// Previously was a SEPARATE onDocumentUpdated trigger (onNewVideoFromFollowed),
+// causing DOUBLE invocations on every video document update. Now inlined as a
+// fire-and-forget helper called only when status actually becomes "published".
+async function _fanOutSubscriberNotifications(video: any, videoId: string): Promise<void> {
+  const db = admin.firestore();
+  const { channelId, title, creatorName } = video;
+  const channelNameStr = creatorName || video.channelName || "Unknown Channel";
+  const creatorId = video.ownerId || video.userId;
+
+  // 1. Paginated subscriber fan-out (400 per batch = safe Firestore batch limit)
+  const BATCH_SIZE = 400;
+  let lastDoc: FirebaseFirestore.QueryDocumentSnapshot | undefined;
+  let totalNotified = 0;
+
+  while (true) {
+    let query = db.collection("subscriptions")
+      .where("channelId", "==", channelId)
+      .limit(BATCH_SIZE);
+    if (lastDoc) query = query.startAfter(lastDoc);
+
+    const snap = await query.get();
+    if (snap.empty) break;
+
+    const batch = db.batch();
+    const notifications: Promise<any>[] = [];
+
+    snap.docs.forEach(doc => {
+      const { userId } = doc.data();
+      if (!userId || userId === creatorId) return;
+
+      batch.set(
+        db.collection("users").doc(userId).collection("feed_inbox").doc(videoId),
+        {
+          id: videoId,
+          channelId: channelId || "",
+          channelName: channelNameStr,
+          channelImage: video.channelImage || "",
+          title: title || "Untitled Video",
+          thumbnailUrl: video.thumbnailUrl || "",
+          uploadedAt: video.uploadedAt || video.createdAt || admin.firestore.FieldValue.serverTimestamp(),
+          views: video.views || 0,
+          duration: video.duration || "0:00",
+          category: video.category || "General",
+          isSeen: false,
+          materializedAt: admin.firestore.FieldValue.serverTimestamp()
+        },
+        { merge: true }
+      );
+
+      notifications.push(
+        notifyUser({
+          userId,
+          type: "new_video_followed",
+          severity: "info",
+          title: `New Video from ${channelNameStr}`,
+          message: `${channelNameStr} just uploaded: ${title}`,
+          actionUrl: `/video/${videoId}`,
+          metadata: { channelId, videoId, thumbnailUrl: video.thumbnailUrl, avatarUrl: video.channelImage || "" }
+        })
+      );
+    });
+
+    await batch.commit();
+    await Promise.allSettled(notifications);
+    totalNotified += snap.size;
+    lastDoc = snap.docs[snap.docs.length - 1];
+    if (snap.size < BATCH_SIZE) break;
+  }
+
+  logger.info(`[FanOut] Notified ${totalNotified} subscribers for video ${videoId}`);
+
+  // 2. Topic follower notifications (capped at 500)
+  const topicId = video.topicId || (video.topics?.length > 0 ? video.topics[0] : null);
+  if (topicId) {
+    const topicSnap = await db.collection("topics").where("slug", "==", topicId).limit(1).get();
+    if (!topicSnap.empty) {
+      const topicDoc = topicSnap.docs[0];
+      const topicTitle = topicDoc.data().title || "Followed Topic";
+      const savedSnap = await db.collectionGroup("savedTopics").where("topicId", "==", topicDoc.id).limit(500).get();
+      const topicNotifs = savedSnap.docs
+        .map(d => d.ref.path.split("/")[1])
+        .filter(uid => uid && uid !== creatorId)
+        .map(uid => notifyUser({
+          userId: uid,
+          type: "new_video_topic",
+          severity: "info",
+          title: `New Video in Topic: ${topicTitle}`,
+          message: `A new video was added to ${topicTitle}: ${title}`,
+          actionUrl: `/video/${videoId}`,
+          metadata: { topicId: topicDoc.id, videoId, thumbnailUrl: video.thumbnailUrl }
+        }));
+      await Promise.allSettled(topicNotifs);
+    }
+  }
+
+  // 3. @mention notifications
+  const combinedText = `${title || ""} ${video.description || ""}`;
+  await notifyMentions({
+    text: combinedText,
+    senderUserId: creatorId || "",
+    senderName: channelNameStr,
+    actionUrl: `/video/${videoId}`,
+    title: "Mentioned in a Video!",
+    message: `${channelNameStr} mentioned your channel in their video: "${title}"`,
+    metadata: { videoId, thumbnailUrl: video.thumbnailUrl, avatarUrl: video.channelImage || "" }
+  });
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // FEATURE 2.5: VIDEO CONTENT MODERATION — Community Guidelines Gate
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/*
 export { onVideoUploadedForModeration } from "./moderation/videoModeration";
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// FEATURE 3: VERIFICATION — Image Verification
-// ═══════════════════════════════════════════════════════════════════════════════
 
 export {
   ingestUploadedImage,
@@ -1056,7 +1220,6 @@ export {
   scheduledRetryProcessor,
 } from "./verification/verification";
 
-// ─── Watchtime Functions ─────────────────────────────────────────────────────
 export {
   trackWatchEvent,
   aggregateWatchStats,
@@ -1064,7 +1227,6 @@ export {
   getCreatorStats,
 } from "./watchtime/watchtime";
 
-// ─── Channel Management ──────────────────────────────────────────────────────
 export { createChannel, switchChannelType } from "./channels/channels";
 export { onChannelWritten } from "./channels/moderation";
 
@@ -1088,22 +1250,22 @@ export {
 export {
   getTrustBadge
 } from "./channels/embeds";
+*/
 
-// ─── Notifications & Habit Loops ─────────────────────────────────────────────
 export {
   getNotifications,
   markNotificationRead
 } from "./notifications/notifications";
 
 export {
-  onNewVideoFromFollowed,
-  onChannelStateChange,
-  weeklyDigest
+  onCommentCreated,
+  onNewSubscription,
+  onCommunityPostCreated
 } from "./notifications/triggers";
 
+/*
 export { onFactCheckCompleted } from "./channels/reputation_triggers";
 
-// ─── Recommendations & Personalization ──────────────────────────────────────
 export {
   getHomeFeed,
   getDiscoveryModules
@@ -1125,10 +1287,9 @@ export {
   requestInstitutionalVerification,
   approveVerification
 } from "./channels/verification";
+*/
 
 export {
-  addComment,
-  getComments,
   addCommentNested,
   addReplyNested,
   toggleCommentInteraction,
@@ -1138,9 +1299,10 @@ export {
   reportCommentNested,
 } from "./community/comments";
 
-// Decommissioned: processMonthlyPromotions from "./channels/promotion";
+// ── Infrastructure: Idempotency TTL Cleanup ──────────────────────────────────
+export { cleanupProcessedEvents } from "./shared/idempotency";
 
-// ─── Channel Analytics ────────────────────────────────────────────────────────
+/*
 export {
   getChannelOverview,
   getChannelViewsDetails,
@@ -1149,36 +1311,20 @@ export {
   getChannelRevenueDetails,
 } from "./channels/analytics";
 
-// ─── Image Caching & Proxy ──────────────────────────────────────────────────
 export {
   getCachedImage
 } from "./services/image-proxy";
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// FEATURE 4: SCHEDULED PUBLISHING — Pub/Sub-Triggered Video Publishing
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * ⏰ Main Pub/Sub handler for scheduled video publishing
- * 
- * Triggered by Cloud Scheduler every 5 minutes
- * Publishes any videos where scheduledTime <= now
- * Cost-efficient: Only pays for actual videos published, not polling
- */
 export {
   scheduledPublishing,
 } from "./publishing/scheduledPublishing";
 
-/**
- * 🔧 Admin HTTP endpoints for manual testing & diagnostics
- * 
- * All require Firebase Auth + admin claim
- */
 export {
   manualTriggerPublishing,    // POST /api/admin/publish/trigger
   getScheduledVideos,          // GET /api/admin/publish/scheduled
   publishSingleVideo,          // POST /api/admin/publish/video/{videoId}
 } from "./publishing/adminEndpoints";
+*/
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FEATURE 5: INFRASTRUCTURE — Unified Source of Truth Replication
@@ -1196,12 +1342,12 @@ export const syncJobToShard = onDocumentWritten(
     region: "asia-south1",
     retry: true,
     memory: "256MiB",
-    maxInstances: 50, // High concurrency for replication throughput
+    maxInstances: 10, // Reduced from 50 — was causing excessive parallel invocations
   },
   async (event: any) => {
     const jobId = event.params.jobId;
     const beforeData = event.data?.before.data();
-    const afterData  = event.data?.after.data();
+    const afterData = event.data?.after.data();
 
     const db = admin.firestore();
 
@@ -1219,9 +1365,17 @@ export const syncJobToShard = onDocumentWritten(
     const shard = afterData.shard || "0";
     const version = afterData.version || 0;
 
-    // Skip if nothing changed (prevents redundant writes)
-    if (beforeData && JSON.stringify(beforeData) === JSON.stringify(afterData)) {
-      return;
+    // Skip if version hasn't changed (reliable field-level check)
+    // NOTE: Previously used JSON.stringify() which is unreliable because
+    // JavaScript object key order is not guaranteed, causing the check to
+    // almost never match and triggering redundant shard writes on every update.
+    if (beforeData) {
+      const beforeVersion = beforeData.version || 0;
+      const beforeUpdatedAt = beforeData.updatedAt || 0;
+      const afterUpdatedAt = afterData.updatedAt || 0;
+      if (beforeVersion === version && beforeUpdatedAt === afterUpdatedAt) {
+        return;
+      }
     }
 
     logger.debug("[Sync] Replicating to shard", { jobId, shard, version });
@@ -1237,5 +1391,7 @@ export const syncJobToShard = onDocumentWritten(
 );
 
 // ─── SEO Server Cloud Function ───────────────────────────────────────────────
+/*
 export { seoServer } from "./seo/seoServer";
+*/
 

@@ -12,6 +12,7 @@ import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/features/video/presentation/views/replies/reply_input.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
 
 Widget buildCommentsTab({
   required Video video,
@@ -990,30 +991,18 @@ class _ModernCommentItemState extends State<ModernCommentItem>
           width: 2,
         ),
       ),
-      child: CircleAvatar(
+      child: UserAvatar(
         radius: radius,
+        photoUrl: widget.comment.userProfilePicUrl,
+        displayName: widget.comment.userName,
         backgroundColor: Colors.transparent,
-        backgroundImage:
-            widget.comment.userProfilePicUrl.isNotEmpty
-            ? NetworkImage(widget.comment.userProfilePicUrl)
-            : null,
-        child:
-            widget.comment.userProfilePicUrl.isEmpty
-            ? Text(
-                widget.comment.userName.isNotEmpty
-                    ? widget.comment.userName[0].toUpperCase()
-                    : 'U',
-                style: GoogleFonts.roboto(
-                  color: widget.theme.colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: widget.isMobile
-                      ? 14
-                      : widget.isTablet
-                      ? 16
-                      : 18,
-                ),
-              )
-            : null,
+        textColor: widget.theme.colorScheme.primary,
+        fontSize: widget.isMobile
+            ? 14
+            : widget.isTablet
+            ? 16
+            : 18,
+        showBorder: false,
       ),
     );
   }
@@ -1204,15 +1193,13 @@ class _ModernCommentItemState extends State<ModernCommentItem>
                     shape: BoxShape.circle,
                     border: Border.all(color: Colors.black, width: 1),
                   ),
-                  child: CircleAvatar(
+                  child: UserAvatar(
                     radius: 12,
-                    backgroundImage: widget.video.thumbnailUrl.isNotEmpty
-                        ? NetworkImage(widget.video.thumbnailUrl) // Using video thumbnail as creator avatar placeholder
-                        : null,
+                    photoUrl: widget.video.thumbnailUrl,
+                    displayName: widget.video.channelName,
                     backgroundColor: widget.theme.colorScheme.surface,
-                    child: widget.video.thumbnailUrl.isEmpty
-                        ? const Icon(Icons.person, size: 12)
-                        : null,
+                    fontSize: 12,
+                    showBorder: false,
                   ),
                 ),
                 Positioned(
@@ -1576,15 +1563,13 @@ class _ModernRepliesSectionState extends State<ModernRepliesSection>
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             // Small Creator Avatar
-                            CircleAvatar(
+                            UserAvatar(
                               radius: 10,
-                              backgroundImage: widget.video.thumbnailUrl.isNotEmpty
-                                  ? NetworkImage(widget.video.thumbnailUrl)
-                                  : null,
+                              photoUrl: widget.video.thumbnailUrl,
+                              displayName: widget.video.channelName,
                               backgroundColor: widget.theme.colorScheme.primary.withValues(alpha: 0.2),
-                              child: widget.video.thumbnailUrl.isEmpty
-                                  ? const Icon(Icons.person, size: 8)
-                                  : null,
+                              fontSize: 10,
+                              showBorder: false,
                             ),
                             const SizedBox(width: 8),
                             Text(
@@ -1726,30 +1711,18 @@ class ModernReplyItem extends StatelessWidget {
                   width: 1.5,
                 ),
               ),
-              child: CircleAvatar(
+              child: UserAvatar(
                 radius: avatarRadius,
+                photoUrl: reply.userProfilePicUrl,
+                displayName: reply.userName,
                 backgroundColor: Colors.transparent,
-                backgroundImage:
-                    reply.userProfilePicUrl.isNotEmpty
-                    ? NetworkImage(reply.userProfilePicUrl)
-                    : null,
-                child:
-                    reply.userProfilePicUrl.isEmpty
-                    ? Text(
-                        reply.userName.isNotEmpty
-                            ? reply.userName[0].toUpperCase()
-                            : 'U',
-                        style: GoogleFonts.roboto(
-                          color: theme.colorScheme.secondary,
-                          fontWeight: FontWeight.bold,
-                          fontSize: isMobile
-                              ? 10
-                              : isTablet
-                              ? 12
-                              : 14,
-                        ),
-                      )
-                    : null,
+                textColor: theme.colorScheme.secondary,
+                fontSize: isMobile
+                    ? 10
+                    : isTablet
+                    ? 12
+                    : 14,
+                showBorder: false,
               ),
             ),
             SizedBox(

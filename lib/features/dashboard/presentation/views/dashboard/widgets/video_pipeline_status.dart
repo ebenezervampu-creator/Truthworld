@@ -334,7 +334,9 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                           ? "Content approved — complies with Community Guidelines"
                           : (status == 'REJECTED'
                               ? "Content rejected — violates Community Guidelines"
-                              : "Awaiting content moderation...")),
+                              : (status == 'ERROR'
+                                  ? "Moderation system error (transient failure)"
+                                  : "Awaiting content moderation..."))),
                   style: GoogleFonts.roboto(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
@@ -378,14 +380,14 @@ class VideoPipelineStatusWidget extends StatelessWidget {
               }).toList(),
             ),
           ],
-          // Reason (if rejected)
-          if (reason != null && reason.isNotEmpty && status == 'REJECTED') ...[
+          // Reason (if rejected or system error)
+          if (reason != null && reason.isNotEmpty && (status == 'REJECTED' || status == 'ERROR')) ...[
             const SizedBox(height: 6),
             Text(
               reason,
               style: GoogleFonts.roboto(
                 fontSize: 11.5,
-                color: AppColors.error,
+                color: status == 'REJECTED' ? AppColors.error : AppColors.warning,
                 height: 1.3,
               ),
             ),
@@ -446,6 +448,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
         return AppColors.success;
       case 'REJECTED':
         return AppColors.error;
+      case 'ERROR':
       case 'FLAGGED':
         return AppColors.warning;
       case 'PENDING':
@@ -460,6 +463,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
         return Icons.check_circle_outline_rounded;
       case 'REJECTED':
         return Icons.cancel_outlined;
+      case 'ERROR':
       case 'FLAGGED':
         return Icons.warning_amber_rounded;
       case 'PENDING':

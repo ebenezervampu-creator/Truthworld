@@ -465,7 +465,18 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
     if (newBytes != null) {
       imageWidget = Image.memory(newBytes, fit: BoxFit.cover);
     } else if (currentUrl.isNotEmpty) {
-      imageWidget = Image.network(currentUrl, fit: BoxFit.cover);
+      imageWidget = Image.network(
+        currentUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Container(
+          color: AppColors.bgSurface,
+          child: const Icon(
+            Icons.broken_image,
+            size: 48,
+            color: Colors.white38,
+          ),
+        ),
+      );
     } else {
       imageWidget = Container(
         color: AppColors.bgSurface,

@@ -7,6 +7,7 @@ import 'package:truthworld/features/discover/presentation/controllers/discover_c
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
 
 class DiscoverChannelsPage extends StatelessWidget {
   final bool isDashboard;
@@ -303,22 +304,13 @@ class DiscoverChannelsPage extends StatelessWidget {
                           color: AppColors.bgSurface,
                           shape: BoxShape.circle,
                         ),
-                        child: CircleAvatar(
+                        child: UserAvatar(
                           radius: 30,
+                          photoUrl: channel.avatarUrl,
+                          displayName: channel.name,
                           backgroundColor: AppTheme.secondaryBackground,
-                          backgroundImage: channel.avatarUrl.isNotEmpty
-                              ? CachedNetworkImageProvider(channel.avatarUrl)
-                              : null,
-                          child: channel.avatarUrl.isEmpty
-                              ? Text(
-                                  channel.name.isNotEmpty ? channel.name[0].toUpperCase() : 'C',
-                                  style: GoogleFonts.roboto(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 18,
-                                  ),
-                                )
-                              : null,
+                          textColor: Colors.white,
+                          fontSize: 18,
                         ),
                       ),
                     ),

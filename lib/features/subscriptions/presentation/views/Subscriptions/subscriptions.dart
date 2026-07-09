@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
 import 'package:truthworld/data/models/subscription_content.dart';
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/components/ui/playlist_card.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
 
 class SubscriptionsPage extends StatelessWidget {
   final bool isDashboard;
@@ -121,15 +121,13 @@ class SubscriptionsPage extends StatelessWidget {
               padding: const EdgeInsets.only(right: 20),
               child: Column(
                 children: [
-                  CircleAvatar(
+                  UserAvatar(
                     radius: 30,
+                    photoUrl: channel.avatarUrl,
+                    displayName: channel.name,
                     backgroundColor: AppColors.bgSurface,
-                    backgroundImage: channel.avatarUrl.isNotEmpty
-                        ? CachedNetworkImageProvider(channel.avatarUrl)
-                        : null,
-                    child: channel.avatarUrl.isEmpty
-                        ? Text(channel.name[0].toUpperCase(), style: const TextStyle(color: Colors.white))
-                        : null,
+                    textColor: Colors.white,
+                    fontSize: 24,
                   ),
                   const SizedBox(height: 8),
                   SizedBox(

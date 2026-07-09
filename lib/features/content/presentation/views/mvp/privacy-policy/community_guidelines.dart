@@ -27,6 +27,7 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
   final ScrollController _scrollController = ScrollController();
   final RxList<GuidelineSection> _sections = <GuidelineSection>[].obs;
   final RxString _introContent = ''.obs;
+  final RxBool _guidelinesAccepted = false.obs;
 
   @override
   void initState() {
@@ -140,6 +141,10 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
       color: Theme.of(context).textTheme.titleLarge?.color,
     );
 
+    final arguments = Get.arguments as Map<String, dynamic>?;
+    final fromRejectedChannelId = arguments?['fromRejectedChannelId'] as String?;
+    final ownerId = arguments?['ownerId'] as String?;
+
     return SingleChildScrollView(
       controller: _scrollController,
       padding: const EdgeInsets.all(24.0),
@@ -165,6 +170,93 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
                 ),
               );
             }),
+            if (fromRejectedChannelId != null) ...[
+              const SizedBox(height: 40),
+              const Divider(thickness: 1),
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+                    width: 1.5,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Guidelines Agreement Required',
+                      style: TextStyle(
+                        fontFamily: 'Roboto',
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Your channel details were previously rejected for violating our community guidelines. Please review the guidelines above, confirm your agreement, and proceed to customize your channel to comply with the rules.',
+                      style: bodyTextStyle,
+                    ),
+                    const SizedBox(height: 20),
+                    Material(
+                      type: MaterialType.transparency,
+                      child: CheckboxListTile(
+                        value: _guidelinesAccepted.value,
+                        onChanged: (val) {
+                          _guidelinesAccepted.value = val ?? false;
+                        },
+                        title: const Text(
+                          'I have read and agree to comply with all the community guidelines listed above.',
+                          style: TextStyle(fontFamily: 'Roboto', fontSize: 14),
+                        ),
+                        controlAffinity: ListTileControlAffinity.leading,
+                        contentPadding: EdgeInsets.zero,
+                        activeColor: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        ElevatedButton(
+                          onPressed: _guidelinesAccepted.value
+                              ? () {
+                                  Get.offAllNamed('/studio', arguments: {
+                                    'channel': {
+                                      'id': fromRejectedChannelId,
+                                      'ownerId': ownerId,
+                                    },
+                                    'tab': 6, // Customization page
+                                  });
+                                }
+                              : null,
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 16,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Accept & Customize Channel',
+                            style: TextStyle(
+                              fontFamily: 'Roboto',
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),

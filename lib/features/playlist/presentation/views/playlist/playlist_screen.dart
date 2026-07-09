@@ -1963,6 +1963,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
             image: DecorationImage(
               image: CachedNetworkImageProvider(widget.playlist.thumbnailUrl),
               fit: BoxFit.cover,
+              onError: (exception, stackTrace) {},
             ),
           ),
           child: Stack(

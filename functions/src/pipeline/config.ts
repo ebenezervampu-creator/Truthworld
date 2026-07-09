@@ -1,19 +1,42 @@
 /**
- * 🛠️ PIPELINE CONFIGURATION (HARDCODED FOR DEPLOYMENT STABILITY)
- * 
- * NOTE: These keys are added directly to bypass Secret Manager cold-start 
- * issues or health check failures. We will move these back to secrets
- * once the deployment is stable.
+ * 🛠️ PIPELINE CONFIGURATION (SECURE — Environment Variables Only)
+ *
+ * All API keys MUST be provided via Firebase Functions secrets or environment
+ * variables. Never hardcode keys in source code.
+ *
+ * Setup: firebase functions:secrets:set ASSEMBLYAI_KEY
+ *        firebase functions:secrets:set ELEVENLABS_API_KEY
+ *        firebase functions:secrets:set GEMINI_API_KEY
+ *        firebase functions:secrets:set GOOGLE_TRANSLATION_API_KEY
  */
 
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    // Warn at import time rather than crash — allows deployment health checks
+    // to pass. The actual key absence will fail at call time with a clear error.
+    console.warn(`[PIPELINE_CONFIG] ⚠️ Missing required env var: ${name}`);
+    return "";
+  }
+  return value;
+}
+
 export const PIPELINE_CONFIG = {
-  ASSEMBLYAI_KEY: "e8ed1bad856e4c329e856b32ffdd7fdf",
-  ELEVENLABS_API_KEY: "sk_387da0e729167eb8d919e10ac232c763f76023c6dcb673a0",
-  GEMINI_API_KEY: "AIzaSyBocU6vG96jzfLaZiXyoM60n1_BxISNT9I",
-  GOOGLE_TRANSLATION_API_KEY: "AIzaSyCCWwSuUAB-9-1VkyBQ_vMY6gK2D-ifF_U",
-  FFMPEG_SERVICE_URL: "https://placeholder.run",
+  get ASSEMBLYAI_KEY(): string {
+    return requireEnv("ASSEMBLYAI_KEY");
+  },
+  get ELEVENLABS_API_KEY(): string {
+    return requireEnv("ELEVENLABS_API_KEY");
+  },
+  get GEMINI_API_KEY(): string {
+    return requireEnv("GEMINI_API_KEY");
+  },
+  get GOOGLE_TRANSLATION_API_KEY(): string {
+    return requireEnv("GOOGLE_TRANSLATION_API_KEY");
+  },
+  FFMPEG_SERVICE_URL: process.env.FFMPEG_SERVICE_URL || "https://placeholder.run",
   PUBLIC_FUNCTION_BASE_URL: "https://asia-south1-truthworld-1.cloudfunctions.net",
-  VIDEO_BUCKET: "truthworld-1.firebasestorage.app", // Fallback default
+  VIDEO_BUCKET: "truthworld-1.firebasestorage.app",
 
   /**
    * 🧠 ROLE-BASED MODEL SELECTION (Multi-Model Architecture v1)

@@ -91,7 +91,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   static const int indexDownloads = 8;
   static const int indexWatchLater = 9;
   static const int indexPlaylists = 10;
-  static const int indexSavedTopics = 18;
+  static const int indexFollowingTopics = 18;
   static const int indexClips = 17;
 
   // Special Pages (Not shown in navigation, used for nested content)
@@ -208,7 +208,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
         bottomNavSelectedIndex.value = 1;
       } else if (index == indexSubscriptions) {
         bottomNavSelectedIndex.value = 2;
-      } else if (index == indexLibrary || index == indexSavedTopics) {
+      } else if (index == indexLibrary || index == indexFollowingTopics) {
         bottomNavSelectedIndex.value = 3;
       }
     });

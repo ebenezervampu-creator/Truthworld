@@ -5,6 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
 
 class CustomizationController extends GetxController {
   final String channelId;
@@ -171,16 +172,18 @@ class CustomizationController extends GetxController {
       String? updatedBannerUrl = bannerUrl.value;
 
       if (newAvatarBytes.value != null) {
+        final fileName = newAvatarName.value ?? 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
         updatedAvatarUrl = await _uploadImage(
           newAvatarBytes.value!,
-          'channels/$channelId/avatar.jpg',
+          'channels/avatars/$ownerId/$fileName',
         );
       }
 
       if (newBannerBytes.value != null) {
+        final fileName = newBannerName.value ?? 'banner_${DateTime.now().millisecondsSinceEpoch}.jpg';
         updatedBannerUrl = await _uploadImage(
           newBannerBytes.value!,
-          'channels/$channelId/banner.jpg',
+          'channels/banners/$ownerId/$fileName',
         );
       }
 
@@ -194,15 +197,21 @@ class CustomizationController extends GetxController {
         if (twitterController.text.isNotEmpty) 'twitter': twitterController.text,
         if (instagramController.text.isNotEmpty) 'instagram': instagramController.text,
         if (facebookController.text.isNotEmpty) 'facebook': facebookController.text,
+        if (websiteUrlController.text.isNotEmpty) 'website': websiteUrlController.text,
       };
 
       await _firestore.collection('channels').doc(channelId).update({
+        'name': channelNameController.text,
+        'nameLowercase': channelNameController.text.toLowerCase(),
         'channelName': channelNameController.text,
         'channelNameLowercase': channelNameController.text.toLowerCase(),
         'description': descriptionController.text,
         'customUrl': customUrlController.text.isNotEmpty ? customUrlController.text : null,
         'customUrlLowercase': customUrlController.text.isNotEmpty ? customUrlController.text.toLowerCase() : null,
+        'handle': customUrlController.text.isNotEmpty ? customUrlController.text : null,
+        'handleLowercase': customUrlController.text.isNotEmpty ? customUrlController.text.toLowerCase() : null,
         'avatarUrl': updatedAvatarUrl,
+        'bannerUrl': updatedBannerUrl,
         'bannerImageUrl': updatedBannerUrl,
         'isPublic': isPublic.value,
         'allowComments': allowComments.value,
@@ -217,6 +226,7 @@ class CustomizationController extends GetxController {
         'updatedAt': FieldValue.serverTimestamp(),
         'status': 'underReview',
         'geminiApproved': FieldValue.delete(),
+        'moderationReason': FieldValue.delete(),
       });
 
       if (updatedAvatarUrl != null) avatarUrl.value = updatedAvatarUrl;
@@ -228,6 +238,12 @@ class CustomizationController extends GetxController {
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.green,
         colorText: Colors.white);
+
+      // Redirect to the Dashboard tab (tab index 1)
+      try {
+        final dashboardController = Get.find<DashboardController>();
+        dashboardController.selectedIndex.value = 1;
+      } catch (_) {}
     } catch (e) {
       Get.snackbar('Error', 'Failed to save changes: $e',
         snackPosition: SnackPosition.BOTTOM,

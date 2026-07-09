@@ -23,7 +23,7 @@ import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
-import 'package:truthworld/features/topics/presentation/controllers/saved_topics_controller.dart';
+import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 
 // Feature Pages for Dashboard (Deferred for YouTube-speed startup)
 import 'package:truthworld/features/subscriptions/presentation/views/subscriptions/subscriptions.dart'
@@ -64,8 +64,8 @@ import 'package:truthworld/features/channel/presentation/views/channel/channel_d
     deferred as channel_details;
 import 'package:truthworld/features/topics/presentation/pages/explore_topics_page.dart'
     deferred as explore_topics;
-import 'package:truthworld/features/topics/presentation/pages/saved_topics_page.dart'
-    deferred as saved_topics;
+import 'package:truthworld/features/topics/presentation/pages/following_topics_page.dart'
+    deferred as following_topics;
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/community_guidelines.dart'
     deferred as community_guidelines;
 
@@ -603,10 +603,10 @@ class Home extends GetView<HomeController> {
           loader: playlist.loadLibrary,
           builder: () => playlist.PlaylistScreen(isDashboard: true),
         );
-      case HomeController.indexSavedTopics:
+      case HomeController.indexFollowingTopics:
         return DeferredWidget(
-          loader: saved_topics.loadLibrary,
-          builder: () => saved_topics.SavedTopicsPage(isDashboard: true),
+          loader: following_topics.loadLibrary,
+          builder: () => following_topics.FollowingTopicsPage(isDashboard: true),
         );
       case HomeController.indexClips:
         return DeferredWidget(
@@ -1430,11 +1430,11 @@ class _ModernSideNavigationRail extends StatelessWidget {
                     ),
                     _buildNavItem(
                       context,
-                      Icons.bookmarks_rounded,
-                      Icons.bookmarks_outlined,
-                      'Saved Topics',
-                      HomeController.indexSavedTopics,
-                      route: "/saved-topics",
+                      Icons.check_circle_rounded,
+                      Icons.check_circle_outline_rounded,
+                      'Following Topics',
+                      HomeController.indexFollowingTopics,
+                      route: "/following-topics",
                       requiresAuth: true,
                     ),
                     _buildNavItem(
@@ -1830,7 +1830,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
           index == HomeController.indexDownloads ||
           index == HomeController.indexWatchLater ||
           index == HomeController.indexPlaylists ||
-          index == HomeController.indexSavedTopics ||
+          index == HomeController.indexFollowingTopics ||
           index == HomeController.indexClips ||
           index == HomeController.indexExploreTopics ||
           index == HomeController.indexCommunityGuidelines ||
@@ -3127,9 +3127,9 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
     required bool isMobile,
     required double pageOffset,
   }) {
-    final savedController = Get.isRegistered<SavedTopicsController>()
-        ? Get.find<SavedTopicsController>()
-        : Get.put(SavedTopicsController());
+    final followingController = Get.isRegistered<FollowingTopicsController>()
+        ? Get.find<FollowingTopicsController>()
+        : Get.put(FollowingTopicsController());
 
     final double btnPaddingH = isMobile ? 12 : 20;
     final double btnPaddingV = isMobile ? 8 : 12;
@@ -3288,31 +3288,31 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                   runSpacing: 8,
                   children: [
                     Obx(() {
-                      final isSaved = savedController.isTopicSaved(topic.id);
+                      final isFollowed = followingController.isTopicFollowed(topic.id);
                       return ElevatedButton.icon(
                         onPressed: () {
-                          savedController.toggleFollowTopic(topic);
+                          followingController.toggleFollowTopic(topic);
                         },
                         icon: Icon(
-                          isSaved
+                          isFollowed
                               ? Icons.check_circle_outline_rounded
                               : Icons.person_add_alt_1_outlined,
-                          color: isSaved ? Colors.white : Colors.black,
+                          color: isFollowed ? Colors.white : Colors.black,
                           size: btnIconSize,
                         ),
                         label: Text(
-                          isSaved ? 'Following' : 'Follow',
+                          isFollowed ? 'Following' : 'Follow',
                           style: TextStyle(
-                            color: isSaved ? Colors.white : Colors.black,
+                            color: isFollowed ? Colors.white : Colors.black,
                             fontWeight: FontWeight.w500,
                             fontSize: btnFontSize,
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: isSaved
+                          backgroundColor: isFollowed
                               ? Colors.white.withValues(alpha: 0.15)
                               : Colors.white,
-                          foregroundColor: isSaved
+                          foregroundColor: isFollowed
                               ? Colors.white
                               : Colors.black,
                           padding: EdgeInsets.symmetric(
@@ -3321,51 +3321,12 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(24),
-                            side: isSaved
+                            side: isFollowed
                                 ? BorderSide(
                                     color: Colors.white.withValues(alpha: 0.3),
                                     width: 1,
                                   )
                                 : BorderSide.none,
-                          ),
-                          elevation: 0,
-                        ),
-                      );
-                    }),
-                    Obx(() {
-                      final isSaved = savedController.isTopicSaved(topic.id);
-                      return ElevatedButton.icon(
-                        onPressed: () {
-                          savedController.toggleFollowTopic(topic);
-                        },
-                        icon: Icon(
-                          isSaved
-                              ? Icons.bookmark_rounded
-                              : Icons.bookmark_border_rounded,
-                          color: isSaved ? AppColors.brand : Colors.white,
-                          size: btnIconSize,
-                        ),
-                        label: Text(
-                          isSaved ? 'Saved' : 'Save',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w500,
-                            fontSize: btnFontSize,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white.withValues(alpha: 0.15),
-                          foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: btnPaddingH,
-                            vertical: btnPaddingV,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(24),
-                            side: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.3),
-                              width: 1,
-                            ),
                           ),
                           elevation: 0,
                         ),

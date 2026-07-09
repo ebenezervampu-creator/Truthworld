@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
 
 /// Modern, responsive, and adaptive CommentInput with enhanced UI/UX
 /// Preserves all original backend functionality while providing premium user experience
@@ -537,24 +538,14 @@ class _ModernCommentInputState extends State<ModernCommentInput>
               width: 2,
             ),
           ),
-          child: CircleAvatar(
+          child: UserAvatar(
             radius: radius,
+            photoUrl: user.photoURL,
+            displayName: user.displayName,
             backgroundColor: Colors.transparent,
-            backgroundImage: user.photoURL != null
-                ? NetworkImage(user.photoURL!)
-                : null,
-            child: user.photoURL == null
-                ? Text(
-                    user.displayName?.isNotEmpty == true
-                        ? user.displayName![0].toUpperCase()
-                        : 'U',
-                    style: GoogleFonts.roboto(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: radius * 0.6,
-                    ),
-                  )
-                : null,
+            textColor: theme.colorScheme.primary,
+            fontSize: radius * 0.6,
+            showBorder: false,
           ),
         ),
       ),

@@ -3,6 +3,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
 
 /// Professional Comment Card Widget (Industry Standard)
 /// Displays a single comment with like/dislike/reply functionality
@@ -79,15 +80,11 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Avatar
-        CircleAvatar(
+        UserAvatar(
           radius: 18,
-          backgroundImage: NetworkImage(widget.comment.userProfilePicUrl),
-          onBackgroundImageError: (exception, stackTrace) {
-            // Fallback to placeholder
-          },
-          child: widget.comment.userProfilePicUrl.isEmpty
-              ? const Icon(Icons.person)
-              : null,
+          photoUrl: widget.comment.userProfilePicUrl,
+          displayName: widget.comment.userName,
+          fontSize: 18,
         ),
         const SizedBox(width: 12),
         // Name, channel badge, timestamp

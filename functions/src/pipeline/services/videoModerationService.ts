@@ -110,110 +110,117 @@ export class VideoModerationService {
    */
   async moderate(gcsUri: string, mimeType: string = "video/mp4"): Promise<VideoModerationResult> {
     const t0 = Date.now();
+    const MAX_RETRIES = 4;
+    const BACKOFF_BASE_MS = 2000;
 
-    try {
-      const model = this.vertexAI.getGenerativeModel({
-        model: PIPELINE_CONFIG.GEMINI_MODELS.synthesis || "gemini-2.5-flash",
-        systemInstruction: MODERATION_SYSTEM_PROMPT,
-        generationConfig: {
-          responseMimeType: "application/json",
-          temperature: 0.1, // Low temperature for consistent moderation decisions
-        },
-      });
+    let lastError: any = null;
 
-      // Send file via GCS URI — Vertex AI reads from GCS directly (zero-copy)
-      const result = await Promise.race([
-        model.generateContent({
-          contents: [
-            {
-              role: "user",
-              parts: [
-                {
-                  fileData: {
-                    mimeType,
-                    fileUri: gcsUri,
-                  },
-                },
-                {
-                  text: "Analyze this video content (focus on audio/speech) and determine if it complies with our Community Guidelines. Return your moderation decision as JSON.",
-                },
-              ],
-            },
-          ],
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("MODERATION_TIMEOUT")), 45000)
-        ),
-      ]);
-
-      const responseText =
-        result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
-
-      // Parse and validate response
-      let parsedObj: any;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
-        parsedObj = JSON.parse(responseText);
-      } catch {
-        console.error("[VideoModeration] Failed to parse JSON response:", responseText.substring(0, 200));
-        return this.failSafeResult("Moderation response was not valid JSON.", Date.now() - t0);
-      }
+        const model = this.vertexAI.getGenerativeModel({
+          model: PIPELINE_CONFIG.GEMINI_MODELS.synthesis || "gemini-2.5-flash",
+          systemInstruction: MODERATION_SYSTEM_PROMPT,
+          generationConfig: {
+            responseMimeType: "application/json",
+            temperature: 0.1, // Low temperature for consistent moderation decisions
+          },
+        });
 
-      const parsed = VideoModerationResponseSchema.safeParse(parsedObj);
-      if (!parsed.success) {
-        console.warn("[VideoModeration] Schema validation failed:", parsed.error.format());
-        return this.failSafeResult("Moderation response schema mismatch.", Date.now() - t0);
-      }
+        // Send file via GCS URI — Vertex AI reads from GCS directly (zero-copy)
+        const result = await Promise.race([
+          model.generateContent({
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  {
+                    fileData: {
+                      mimeType,
+                      fileUri: gcsUri,
+                    },
+                  },
+                  {
+                    text: "Analyze this video content (focus on audio/speech) and determine if it complies with our Community Guidelines. Return your moderation decision as JSON.",
+                  },
+                ],
+              },
+            ],
+          }),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("MODERATION_TIMEOUT")), 45000)
+          ),
+        ]);
 
-      const processingTimeMs = Date.now() - t0;
-      console.log("[VideoModeration] Completed", {
-        approved: parsed.data.approved,
-        confidence: parsed.data.confidenceScore,
-        categories: parsed.data.violationCategories,
-        durationMs: processingTimeMs,
-      });
+        const responseText =
+          result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-      return {
-        approved: parsed.data.approved,
-        violationReason: parsed.data.violationReason,
-        violationCategories: parsed.data.violationCategories,
-        confidenceScore: parsed.data.confidenceScore,
-        summary: parsed.data.summary || "Summary unavailable.",
-        processingTimeMs,
-      };
-    } catch (error) {
-      const processingTimeMs = Date.now() - t0;
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error("[VideoModeration] Critical error:", errorMsg);
+        // Parse and validate response
+        let parsedObj: any;
+        try {
+          parsedObj = JSON.parse(responseText);
+        } catch {
+          console.error("[VideoModeration] Failed to parse JSON response:", responseText.substring(0, 200));
+          throw new Error("Moderation response was not valid JSON.");
+        }
 
-      // Timeout gets a softer fail — allow manual review
-      if (errorMsg === "MODERATION_TIMEOUT") {
+        const parsed = VideoModerationResponseSchema.safeParse(parsedObj);
+        if (!parsed.success) {
+          console.warn("[VideoModeration] Schema validation failed:", parsed.error.format());
+          throw new Error("Moderation response schema mismatch.");
+        }
+
+        const processingTimeMs = Date.now() - t0;
+        console.log("[VideoModeration] Completed", {
+          approved: parsed.data.approved,
+          confidence: parsed.data.confidenceScore,
+          categories: parsed.data.violationCategories,
+          durationMs: processingTimeMs,
+        });
+
         return {
-          approved: false,
-          violationReason: "Moderation timed out — queued for manual review.",
-          violationCategories: ["timeout"],
-          confidenceScore: 0,
-          summary: "Video is pending moderation review.",
+          approved: parsed.data.approved,
+          violationReason: parsed.data.violationReason,
+          violationCategories: parsed.data.violationCategories,
+          confidenceScore: parsed.data.confidenceScore,
+          summary: parsed.data.summary || "Summary unavailable.",
           processingTimeMs,
         };
+      } catch (error) {
+        lastError = error;
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        console.error(`[VideoModeration] Attempt ${attempt + 1}/${MAX_RETRIES} failed:`, errorMsg);
+
+        // Timeout gets a softer fail — allow manual review
+        if (errorMsg === "MODERATION_TIMEOUT") {
+          const processingTimeMs = Date.now() - t0;
+          return {
+            approved: false,
+            violationReason: "Moderation timed out — queued for manual review.",
+            violationCategories: ["timeout"],
+            confidenceScore: 0,
+            summary: "Video is pending moderation review.",
+            processingTimeMs,
+          };
+        }
+
+        // Check if error is rate limit (429 / resource exhausted)
+        const isRateLimit = errorMsg.includes("429") ||
+                            errorMsg.toLowerCase().includes("too many requests") ||
+                            errorMsg.toLowerCase().includes("resource exhausted") ||
+                            errorMsg.toLowerCase().includes("resource_exhausted");
+
+        if (isRateLimit && attempt < MAX_RETRIES - 1) {
+          const delayMs = BACKOFF_BASE_MS * Math.pow(2, attempt);
+          console.log(`[VideoModeration] Rate limit hit. Retrying in ${delayMs}ms...`);
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+        } else {
+          // Throw the error so the trigger function catches it and flags it as a system error/retry
+          throw error;
+        }
       }
-
-      return this.failSafeResult(`System error: ${errorMsg}`, processingTimeMs);
     }
-  }
 
-  /**
-   * Fail-safe result — reject on system failure to prevent harmful content leaks.
-   * Industry standard: fail-closed for content moderation.
-   */
-  private failSafeResult(reason: string, processingTimeMs: number): VideoModerationResult {
-    return {
-      approved: false,
-      violationReason: `System Fallback: ${reason}`,
-      violationCategories: ["system_error"],
-      confidenceScore: 0,
-      summary: "Video is undergoing moderation review.",
-      processingTimeMs,
-    };
+    throw lastError || new Error("Moderation failed after maximum retries.");
   }
 }
 

@@ -13,6 +13,7 @@ import 'package:truthworld/features/playlist/presentation/controllers/playlist_d
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
 
 // ==========================================================================
 // YOUTUBE THEME COLORS
@@ -291,18 +292,14 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
           },
           child: Row(
             children: [
-              if (avatarUrl.isNotEmpty)
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: ytSurfaceLight,
-                  backgroundImage: CachedNetworkImageProvider(avatarUrl),
-                )
-              else
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: ytSurfaceLight,
-                  child: Icon(Icons.person, size: 18, color: ytTextSecondary),
-                ),
+              UserAvatar(
+                radius: 16,
+                photoUrl: avatarUrl,
+                displayName: channelName,
+                backgroundColor: ytSurfaceLight,
+                textColor: ytTextSecondary,
+                fontSize: 16,
+              ),
               SizedBox(width: 8),
               Flexible(
                 child: Text(

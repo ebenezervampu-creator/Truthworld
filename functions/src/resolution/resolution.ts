@@ -80,8 +80,8 @@ export const onVideoUploadedForResolution = onObjectFinalized(
   {
     bucket: "truthworld-1.firebasestorage.app",
     region: REGION,
-    memory: "512MiB",
-    timeoutSeconds: 300,
+    memory: "256MiB",       // Reduced from 512MiB — only reads GCS metadata + writes Firestore
+    timeoutSeconds: 120,    // Reduced from 300s — typical execution is <10s
     minInstances: 0,
     maxInstances: 10,
   },

@@ -188,22 +188,6 @@ class DiscoverController extends GetxController {
     _fetchChannels();
   }
 
-  Future<void> _fetchRealCountForDiscover(String channelId) async {
-    try {
-      final querySnapshot = await _firestore
-          .collection('subscriptions')
-          .where('channelId', isEqualTo: channelId)
-          .count()
-          .get();
-      final exactCount = querySnapshot.count ?? 0;
-      ChannelController.globalSubscriberCounts[channelId] = exactCount;
-    } catch (e) {
-      debugPrint(
-        'Error fetching real count for discover channel $channelId: $e',
-      );
-    }
-  }
-
   Future<void> _fetchChannels() async {
     isLoading.value = true;
     try {
@@ -216,6 +200,7 @@ class DiscoverController extends GetxController {
       final results = snapshot.docs
           .map((doc) => Channel.fromDocumentSnapshot(doc))
           .toList();
+      // Use denormalized subscriberCount from channel doc (YouTube-standard)
       for (var channel in results) {
         if (!ChannelController.globalSubscriberCounts.containsKey(
           channel.channelId,
@@ -223,7 +208,6 @@ class DiscoverController extends GetxController {
           ChannelController.globalSubscriberCounts[channel.channelId] =
               channel.subscriberCount;
         }
-        _fetchRealCountForDiscover(channel.channelId);
       }
       channels.assignAll(results);
     } catch (error) {

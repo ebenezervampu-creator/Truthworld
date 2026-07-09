@@ -465,6 +465,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
                           playlist.thumbnailUrl,
                         ),
                         fit: BoxFit.cover,
+                        onError: (exception, stackTrace) {},
                       ),
                     ),
                     child: isSelected

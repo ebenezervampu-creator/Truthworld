@@ -120,7 +120,8 @@ class UserNotification {
   }
 
   String get typeCategory {
-    switch (type.toLowerCase()) {
+    final typeLower = type.toLowerCase();
+    switch (typeLower) {
       case 'system_announcement':
       case 'system':
       case 'maintenance':
@@ -128,20 +129,34 @@ class UserNotification {
       case 'admin':
         return 'system';
       case 'new_video':
+      case 'new_video_followed':
+      case 'new_community_post':
+      case 'new_video_topic':
       case 'video':
       case 'upload':
       case 'channel_update':
       case 'channel':
         return 'content';
       case 'comment':
+      case 'comment_like':
+      case 'comment_reply':
       case 'reply':
       case 'like':
       case 'dislike':
       case 'mention':
       case 'follow':
       case 'subscribe':
+      case 'new_follower':
         return 'social';
       default:
+        if (typeLower.contains('comment') ||
+            typeLower.contains('reply') ||
+            typeLower.contains('like') ||
+            typeLower.contains('follow') ||
+            typeLower.contains('subscribe') ||
+            typeLower.contains('social')) {
+          return 'social';
+        }
         return 'other';
     }
   }

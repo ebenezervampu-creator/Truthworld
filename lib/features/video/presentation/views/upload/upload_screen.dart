@@ -172,85 +172,246 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
   }
 
   Widget _buildMainContent(bool isDark) {
-    // For web/desktop: use horizontal split layout with fixed sections
-    if (isDesktop || isTablet) {
-      return Row(
-        children: [
-          // Left sidebar - fixed width
-          Container(
-            width: 280,
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF161B22) : Colors.white,
-              border: Border(
-                right: BorderSide(
-                  color: isDark
-                      ? const Color(0xFF21262D)
-                      : const Color(0xFFE5E7EB),
-                  width: 1,
+    return Obx(() {
+      if (_uploadController.isChannelsLoading.value) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      if (_uploadController.channels.isEmpty) {
+        return Center(
+          child: SingleChildScrollView(
+            child: _buildNoChannelsCard(isDark),
+          ),
+        );
+      }
+
+      final channel = _uploadController.selectedChannel.value;
+      if (channel == null) {
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      if (channel.status != ChannelStatus.active) {
+        return Center(
+          child: SingleChildScrollView(
+            child: _buildBlockedUploadCard(isDark, channel),
+          ),
+        );
+      }
+
+      // For web/desktop: use horizontal split layout with fixed sections
+      if (isDesktop || isTablet) {
+        return Row(
+          children: [
+            // Left sidebar - fixed width
+            Container(
+              width: 280,
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF161B22) : Colors.white,
+                border: Border(
+                  right: BorderSide(
+                    color: isDark
+                        ? const Color(0xFF21262D)
+                        : const Color(0xFFE5E7EB),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _buildCompactAppBar(isDark),
+                    const SizedBox(height: 20),
+                    _buildVerticalStepper(isDark),
+                  ],
                 ),
               ),
             ),
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  _buildCompactAppBar(isDark),
-                  const SizedBox(height: 20),
-                  _buildVerticalStepper(isDark),
-                ],
+            // Main content area - flexible
+            Expanded(
+              child: DefaultTabController(
+                length: 2,
+                child: Column(
+                  children: [
+                    _buildCompactTabBar(isDark),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          _buildVideoUploadFlow(isDark),
+                          _buildCommunityUploadFlow(isDark),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
-          // Main content area - flexible
+          ],
+        );
+      }
+
+      // Mobile layout - original vertical layout
+      return Column(
+        children: [
+          _buildEnhancedAppBar(isDark),
+          _buildProgressIndicator(isDark),
           Expanded(
-            child: DefaultTabController(
-              length: 2,
-              child: Column(
-                children: [
-                  _buildCompactTabBar(isDark),
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        _buildVideoUploadFlow(isDark),
-                        _buildCommunityUploadFlow(isDark),
-                      ],
+            child: Container(
+              constraints: BoxConstraints(maxWidth: maxContentWidth),
+              margin: EdgeInsets.symmetric(horizontal: responsivePadding),
+              child: DefaultTabController(
+                length: 2,
+                child: Column(
+                  children: [
+                    _buildModernTabBar(isDark),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          _buildVideoUploadFlow(isDark),
+                          _buildCommunityUploadFlow(isDark),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
         ],
       );
+    });
+  }
+
+  Widget _buildBlockedUploadCard(bool isDark, Channel channel) {
+    Color statusColor;
+    IconData icon;
+    String title;
+    String subtitle;
+    bool showButton = false;
+
+    if (channel.status == ChannelStatus.underReview) {
+      statusColor = const Color(0xFF3B82F6); // Blue
+      icon = Icons.sync_rounded;
+      title = 'Branding Under Moderation';
+      subtitle = 'Your channel details are currently under review by Gemini AI. You can publish videos once approved.';
+    } else if (channel.status == ChannelStatus.verificationRejected) {
+      statusColor = const Color(0xFFEF4444); // Red
+      icon = Icons.error_outline_rounded;
+      title = 'Branding Verification Rejected';
+      subtitle = channel.moderationReason != null && channel.moderationReason!.isNotEmpty
+          ? channel.moderationReason!
+          : 'Your channel details were rejected by Gemini AI. Please update your name, description, or tags in customization to re-verify.';
+      showButton = true;
+    } else if (channel.status == ChannelStatus.verificationPending) {
+      statusColor = const Color(0xFFF59E0B); // Orange
+      icon = Icons.hourglass_empty_rounded;
+      title = 'Verification Pending';
+      subtitle = 'Your channel is currently verification pending. You can publish videos once your branding is verified.';
+    } else if (channel.status == ChannelStatus.suspended) {
+      statusColor = const Color(0xFFEF4444); // Red
+      icon = Icons.gavel_rounded;
+      title = 'Channel Suspended';
+      subtitle = 'Your channel has been suspended for policy violations. Publishing is disabled.';
+    } else {
+      statusColor = const Color(0xFF6B7280); // Grey
+      icon = Icons.info_outline_rounded;
+      title = 'Upload Disabled';
+      subtitle = 'Publishing is currently disabled for this channel.';
     }
 
-    // Mobile layout - original vertical layout
-    return Column(
-      children: [
-        _buildEnhancedAppBar(isDark),
-        _buildProgressIndicator(isDark),
-        Expanded(
-          child: Container(
-            constraints: BoxConstraints(maxWidth: maxContentWidth),
-            margin: EdgeInsets.symmetric(horizontal: responsivePadding),
-            child: DefaultTabController(
-              length: 2,
-              child: Column(
-                children: [
-                  _buildModernTabBar(isDark),
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        _buildVideoUploadFlow(isDark),
-                        _buildCommunityUploadFlow(isDark),
-                      ],
-                    ),
-                  ),
-                ],
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 500),
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      padding: const EdgeInsets.all(40),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF161B22) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
               ),
+              child: channel.status == ChannelStatus.underReview
+                  ? SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3.5,
+                        valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                      ),
+                    )
+                  : Icon(
+                      icon,
+                      size: 40,
+                      color: statusColor,
+                    ),
             ),
           ),
-        ),
-      ],
+          const SizedBox(height: 24),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.roboto(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: isDark ? Colors.white : const Color(0xFF0F172A),
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            subtitle,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.roboto(
+              fontSize: 14,
+              color: isDark ? Colors.white60 : AppColors.textSecondary,
+              height: 1.5,
+            ),
+          ),
+          if (showButton) ...[
+            const SizedBox(height: 28),
+            ElevatedButton.icon(
+              onPressed: () {
+                Get.toNamed('/community-guidelines', arguments: {
+                  'fromRejectedChannelId': channel.id,
+                  'ownerId': channel.ownerId,
+                });
+              },
+              icon: const Icon(Icons.description_outlined, size: 20),
+              label: Text(
+                'Review Community Guidelines',
+                style: GoogleFonts.roboto(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: statusColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -830,10 +991,24 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    'Active Channel',
+                    channel.status == ChannelStatus.active
+                        ? 'Active Channel'
+                        : channel.status == ChannelStatus.underReview
+                            ? 'Under Review'
+                            : channel.status == ChannelStatus.verificationRejected
+                                ? 'Rejected'
+                                : channel.status == ChannelStatus.verificationPending
+                                    ? 'Pending Verification'
+                                    : 'Suspended',
                     style: GoogleFonts.roboto(
                       fontSize: 11,
-                      color: isDark ? Colors.white38 : Colors.black45,
+                      color: channel.status == ChannelStatus.active
+                          ? (isDark ? Colors.white38 : Colors.black45)
+                          : channel.status == ChannelStatus.underReview
+                              ? const Color(0xFF3B82F6)
+                              : channel.status == ChannelStatus.verificationRejected
+                                  ? const Color(0xFFEF4444)
+                                  : const Color(0xFFF59E0B),
                     ),
                   ),
                 ],

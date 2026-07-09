@@ -11,6 +11,7 @@ import 'package:truthworld/features/home/presentation/controllers/home_controlle
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:algolia_helper_flutter/algolia_helper_flutter.dart';
 import 'package:truthworld/theme/app_theme.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
 
 // Constants
 const kPrimaryColor = Color(0xFF1DB954);
@@ -1903,10 +1904,12 @@ class VideoCard extends StatelessWidget {
         const SizedBox(height: kSmallPadding),
         Row(
           children: [
-            CircleAvatar(
-              backgroundImage: CachedNetworkImageProvider(video.channelImage),
+            UserAvatar(
               radius: isMobile ? 12 : 14,
+              photoUrl: video.channelImage,
+              displayName: video.channelName,
               backgroundColor: AppTheme.colors.surfaceContainerHighest,
+              fontSize: isMobile ? 12 : 14,
             ),
             const SizedBox(width: kSmallPadding),
             Expanded(
@@ -2026,18 +2029,13 @@ class ChannelCard extends StatelessWidget {
       onEnter: (_) => _isHovered.value = true,
       onExit: (_) => _isHovered.value = false,
       child: InkWell(
-        onTap: () async {
-          final subscriberCount = await FirebaseFirestore.instance
-              .collection("subscriptions")
-              .where('channelId', isEqualTo: channel.channelId)
-              .count()
-              .get()
-              .then((res) => res.count);
+        onTap: () {
+          // YouTube-standard: use denormalized subscriberCount from channel doc
           Get.toNamed(
             "/channel-details",
             arguments: {
               "channel": channel,
-              'subscribercount': subscriberCount,
+              'subscribercount': channel.subscriberCount,
             },
           );
         },
@@ -2057,94 +2055,78 @@ class ChannelCard extends StatelessWidget {
                   ),
                 ],
               ),
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection("subscriptions")
-                    .where('channelId', isEqualTo: channel.channelId)
-                    .snapshots(),
-                builder: (context, subscriptionSnapshot) {
-                  if (subscriptionSnapshot.connectionState ==
-                      ConnectionState.waiting) {
-                    return _buildChannelSkeleton(colorScheme, isMobile);
-                  }
-                  if (subscriptionSnapshot.hasError) {
-                    return _buildChannelError(colorScheme, isMobile);
-                  }
-                  final subscriberCount = subscriptionSnapshot.data?.size ?? 0;
-                  return Padding(
-                    padding: EdgeInsets.all(isMobile ? kMediumPadding : 20),
-                    child: Row(
-                      children: [
-                        Hero(
-                          tag: 'channel_${channel.channelId}',
-                          child: CircleAvatar(
-                            radius: isMobile ? 24 : 28,
-                            backgroundColor:
-                                AppTheme.colors.surfaceContainerHighest,
-                            backgroundImage: CachedNetworkImageProvider(
-                              channel.bannerImageUrl,
+              // Use denormalized subscriberCount instead of expensive StreamBuilder
+              child: Padding(
+                padding: EdgeInsets.all(isMobile ? kMediumPadding : 20),
+                child: Row(
+                  children: [
+                    Hero(
+                      tag: 'channel_${channel.channelId}',
+                      child: UserAvatar(
+                        radius: isMobile ? 24 : 28,
+                        photoUrl: channel.bannerImageUrl,
+                        displayName: channel.channelName,
+                        backgroundColor: AppTheme.colors.surfaceContainerHighest,
+                        fontSize: isMobile ? 18 : 22,
+                      ),
+                    ),
+                    const SizedBox(width: kMediumPadding),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            channel.channelName,
+                            style: GoogleFonts.roboto(
+                              fontSize: isMobile ? 16 : 18,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            channel.description,
+                            style: GoogleFonts.roboto(
+                              fontSize: isMobile ? 13 : 14,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 2,
+                          ),
+                          const SizedBox(height: kSmallPadding),
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                              horizontal: kSmallPadding,
+                              vertical: isMobile ? 4 : 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: kPrimaryColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: kPrimaryColor.withValues(alpha: 0.2),
+                              ),
+                            ),
+                            child: Text(
+                              controller.formatSubscribers(channel.subscriberCount),
+                              style: GoogleFonts.roboto(
+                                fontSize: isMobile ? 11 : 12,
+                                fontWeight: FontWeight.w500,
+                                color: kPrimaryColor,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: kMediumPadding),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                channel.channelName,
-                                style: GoogleFonts.roboto(
-                                  fontSize: isMobile ? 16 : 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: colorScheme.onSurface,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                channel.description,
-                                style: GoogleFonts.roboto(
-                                  fontSize: isMobile ? 13 : 14,
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 2,
-                              ),
-                              const SizedBox(height: kSmallPadding),
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: kSmallPadding,
-                                  vertical: isMobile ? 4 : 5,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: kPrimaryColor.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: kPrimaryColor.withValues(alpha: 0.2),
-                                  ),
-                                ),
-                                child: Text(
-                                  controller.formatSubscribers(subscriberCount),
-                                  style: GoogleFonts.roboto(
-                                    fontSize: isMobile ? 11 : 12,
-                                    fontWeight: FontWeight.w500,
-                                    color: kPrimaryColor,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(
-                          Icons.arrow_forward_ios_rounded,
-                          size: isMobile ? 16 : 18,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  );
-                },
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: isMobile ? 16 : 18,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -2153,66 +2135,6 @@ class ChannelCard extends StatelessWidget {
     );
   }
 
-  Widget _buildChannelSkeleton(ColorScheme colorScheme, bool isMobile) {
-    return Padding(
-      padding: EdgeInsets.all(isMobile ? kMediumPadding : 20),
-      child: Shimmer.fromColors(
-        baseColor: AppTheme.colors.surfaceContainerHighest,
-        highlightColor: colorScheme.surface,
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: isMobile ? 24 : 28,
-              backgroundColor: AppTheme.colors.surfaceContainerHighest,
-            ),
-            const SizedBox(width: kMediumPadding),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    height: 16,
-                    width: double.infinity,
-                    color: AppTheme.colors.surfaceContainerHighest,
-                  ),
-                  const SizedBox(height: kSmallPadding),
-                  Container(
-                    height: 12,
-                    width: 100,
-                    color: AppTheme.colors.surfaceContainerHighest,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildChannelError(ColorScheme colorScheme, bool isMobile) {
-    return Padding(
-      padding: EdgeInsets.all(isMobile ? kMediumPadding : 20),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: isMobile ? 24 : 28,
-            backgroundColor: AppTheme.colors.surfaceContainerHighest,
-          ),
-          const SizedBox(width: kMediumPadding),
-          Expanded(
-            child: Text(
-              'Failed to load subscriber count',
-              style: GoogleFonts.roboto(
-                fontSize: isMobile ? 13 : 14,
-                color: colorScheme.error,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 // Reusable PlaylistCard

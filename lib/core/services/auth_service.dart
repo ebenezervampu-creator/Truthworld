@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/google_signin_exception_handler.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/services/push_notification_service.dart';
 import 'package:truthworld/data/models/user_model.dart';
 import 'package:truthworld/data/models/channel.dart';
 
@@ -72,7 +73,9 @@ class AuthService extends GetxService {
     _updateChannelSubscription(u);
     _updateUserDocSubscription(u);
     if (u != null) {
-      _syncUserToFirestore(u);
+      _syncUserToFirestore(u).then((_) {
+        PushNotificationService.to.registerToken(u.uid);
+      });
     }
   }
 
@@ -228,6 +231,10 @@ class AuthService extends GetxService {
 
   Future<void> signOut() async {
     try {
+      final uidSnapshot = uid;
+      if (uidSnapshot.isNotEmpty) {
+        await PushNotificationService.to.unregisterToken(uidSnapshot);
+      }
       if (!kIsWeb) {
         await _googleSignIn.signOut();
       }

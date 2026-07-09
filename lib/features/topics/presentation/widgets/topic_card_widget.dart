@@ -13,14 +13,15 @@ import 'package:truthworld/features/topics/presentation/controllers/explore_topi
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_interaction_controller.dart';
-import 'package:truthworld/features/topics/presentation/controllers/saved_topics_controller.dart';
+import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
+import 'package:truthworld/core/utils/format_utils.dart';
 
 /// Unified Topic Card Widget matching the premium full-bleed hero card design.
 class TopicCardWidget extends StatefulWidget {
   final Topic? topic;
   final bool isHero;
   final bool isDashboard;
-  final VoidCallback? onSaveToggle;
+  final VoidCallback? onFollowToggle;
   final VoidCallback? onExploreTap;
   final bool showEditOption;
   final VoidCallback? onPreviousTap;
@@ -33,7 +34,7 @@ class TopicCardWidget extends StatefulWidget {
     this.topic,
     this.isHero = false,
     this.isDashboard = false,
-    this.onSaveToggle,
+    this.onFollowToggle,
     this.onExploreTap,
     this.showEditOption = true,
     this.onPreviousTap,
@@ -49,7 +50,7 @@ class TopicCardWidget extends StatefulWidget {
 class _TopicCardWidgetState extends State<TopicCardWidget>
     with SingleTickerProviderStateMixin {
   late TopicInteractionController _interactionController;
-  late final SavedTopicsController _savedTopicsController;
+  late final FollowingTopicsController _followingTopicsController;
   final RxBool _isHovered = false.obs;
   Topic? _streamedTopic;
 
@@ -90,9 +91,9 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
   @override
   void initState() {
     super.initState();
-    _savedTopicsController = Get.isRegistered<SavedTopicsController>()
-        ? Get.find<SavedTopicsController>()
-        : Get.put(SavedTopicsController());
+    _followingTopicsController = Get.isRegistered<FollowingTopicsController>()
+        ? Get.find<FollowingTopicsController>()
+        : Get.put(FollowingTopicsController());
     if (widget.topic != null && widget.topic!.id.trim().isNotEmpty) {
       _initControllers(widget.topic!);
     }
@@ -119,26 +120,6 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
     }
   }
 
-  String _formatCount(int? count) {
-    if (count == null || count < 0) count = 0;
-
-    if (count >= 1000000) {
-      final value = count / 1000000;
-      return value % 1 == 0
-          ? '${value.toInt()}M'
-          : '${value.toStringAsFixed(1)}M';
-    }
-
-    if (count >= 1000) {
-      final value = count / 1000;
-      return value % 1 == 0
-          ? '${value.toInt()}K'
-          : '${value.toStringAsFixed(1)}K';
-    }
-
-    return count.toString();
-  }
-
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
@@ -159,7 +140,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
         Get.isRegistered<ExploreTopicsController>()
         ? Get.find<ExploreTopicsController>()
         : null;
-    final SavedTopicsController savedController = _savedTopicsController;
+    final FollowingTopicsController followingController = _followingTopicsController;
 
     final bool isOwner =
         widget.showEditOption &&
@@ -171,7 +152,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
       context,
       currentTopic,
       exploreController,
-      savedController,
+      followingController,
       isOwner,
       isMobile,
       isTablet,
@@ -183,7 +164,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
     BuildContext context,
     Topic currentTopic,
     ExploreTopicsController? exploreController,
-    SavedTopicsController savedController,
+    FollowingTopicsController followingController,
     bool isOwner,
     bool isMobile,
     bool isTablet,
@@ -374,7 +355,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                         ),
                                         const SizedBox(width: 4),
                                         Text(
-                                          '${_formatCount(currentTopic.followerCount)} Followers',
+                                          '${FormatUtils.formatCount(currentTopic.followerCount)} Followers',
                                           style: AppTextStyles.labelMedium
                                               .copyWith(
                                                 color: Colors.white70,
@@ -418,7 +399,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                   Row(
                                     children: [
                                       Text(
-                                        '${_formatCount(currentTopic.videoCount)} videos • ${timeago.format(currentTopic.createdAt)}',
+                                        '${FormatUtils.formatCount(currentTopic.videoCount)} videos • ${timeago.format(currentTopic.createdAt)}',
                                         style: AppTextStyles.labelMedium
                                             .copyWith(
                                               color: Colors.white70,
@@ -543,24 +524,24 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                         ] else ...[
                                           // Follow / Following Button (White pill design)
                                           Obx(() {
-                                            final isSaved = savedController
-                                                .isTopicSaved(currentTopic.id);
+                                            final isFollowed = followingController
+                                                .isTopicFollowed(currentTopic.id);
                                             return ElevatedButton.icon(
                                               onPressed:
-                                                  widget.onSaveToggle ??
+                                                  widget.onFollowToggle ??
                                                   () {
-                                                    savedController
+                                                    followingController
                                                         .toggleFollowTopic(
                                                           currentTopic,
                                                         );
                                                   },
                                               style: ElevatedButton.styleFrom(
-                                                backgroundColor: isSaved
+                                                backgroundColor: isFollowed
                                                     ? Colors.white.withValues(
                                                         alpha: 0.12,
                                                       )
                                                     : Colors.white,
-                                                foregroundColor: isSaved
+                                                foregroundColor: isFollowed
                                                     ? Colors.white
                                                     : Colors.black,
                                                 padding: EdgeInsets.symmetric(
@@ -573,18 +554,18 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                                 elevation: 0,
                                               ),
                                               icon: Icon(
-                                                isSaved
+                                                isFollowed
                                                     ? Icons
                                                           .check_circle_outline_rounded
                                                     : Icons
                                                           .person_add_alt_1_rounded,
                                                 size: isMobile ? 15 : 18,
-                                                color: isSaved
+                                                color: isFollowed
                                                     ? AppColors.brand
                                                     : Colors.black,
                                               ),
                                               label: Text(
-                                                isSaved
+                                                isFollowed
                                                     ? "Following"
                                                     : "Follow",
                                                 style: AppTextStyles.labelMedium
@@ -594,7 +575,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                                       fontSize: isMobile
                                                           ? 12
                                                           : 13,
-                                                      color: isSaved
+                                                      color: isFollowed
                                                           ? Colors.white
                                                           : Colors.black,
                                                     ),
@@ -602,56 +583,6 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                             );
                                           }),
                                         ],
-
-                                        const SizedBox(width: 8),
-
-                                        // Save Button (always shown along save state)
-                                        Obx(() {
-                                          final isSaved = savedController
-                                              .isTopicSaved(currentTopic.id);
-                                          return ElevatedButton.icon(
-                                            onPressed:
-                                                widget.onSaveToggle ??
-                                                () {
-                                                  savedController
-                                                      .toggleFollowTopic(
-                                                        currentTopic,
-                                                      );
-                                                },
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.white
-                                                  .withValues(alpha: 0.12),
-                                              foregroundColor: Colors.white,
-                                              padding: EdgeInsets.symmetric(
-                                                horizontal: isMobile ? 14 : 20,
-                                                vertical: isMobile ? 8 : 12,
-                                              ),
-                                              shape: const StadiumBorder(),
-                                              elevation: 0,
-                                            ),
-                                            icon: Icon(
-                                              isSaved
-                                                  ? Icons.bookmark_rounded
-                                                  : Icons
-                                                        .bookmark_border_rounded,
-                                              size: isMobile ? 15 : 18,
-                                              color: isSaved
-                                                  ? AppColors.brand
-                                                  : Colors.white,
-                                            ),
-                                            label: Text(
-                                              isSaved ? "Saved" : "Save",
-                                              style: AppTextStyles.labelMedium
-                                                  .copyWith(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: isMobile
-                                                        ? 12
-                                                        : 13,
-                                                    color: Colors.white,
-                                                  ),
-                                            ),
-                                          );
-                                        }),
 
                                         const SizedBox(width: 8),
 

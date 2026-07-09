@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
 
 /// Professional Reply Widget (Industry Standard)
 /// Displays nested replies with indentation and interaction options
@@ -87,10 +88,12 @@ class _ReplyWidgetState extends State<ReplyWidget> {
     return Row(
       children: [
         // Avatar
-        CircleAvatar(
+        UserAvatar(
           radius: 14,
-          backgroundImage: NetworkImage(widget.reply.userProfilePicUrl),
+          photoUrl: widget.reply.userProfilePicUrl,
+          displayName: widget.reply.userName,
           backgroundColor: AppTheme.secondaryBackground,
+          fontSize: 14,
         ),
         const SizedBox(width: 8),
         // Name and time

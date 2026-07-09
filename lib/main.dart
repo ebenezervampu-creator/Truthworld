@@ -16,6 +16,7 @@ import 'package:truthworld/core/services/app_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/core/services/push_notification_service.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/miniplayer_overlay_manager.dart';
 
 /// Global error handler for production
@@ -45,6 +46,9 @@ void main() {
   // Catch errors outside of Flutter's error handling
   runZonedGuarded(
     () async {
+      // Use path strategy for clean URLs (removes # from URLs)
+      setPathUrlStrategy();
+
       // CRITICAL: Initialize Flutter bindings first inside the zone!
       // This must be the very first line to avoid "Binding has not yet been initialized" on Web
       // and "Zone mismatch" error when using runZonedGuarded.
@@ -89,12 +93,7 @@ void main() {
             logger.error('Firebase App Check initialization error: $e', tag: 'Startup');
           }
 
-          // Use path strategy for clean URLs (removes # from URLs)
-          try {
-            setPathUrlStrategy();
-          } catch (e) {
-            logger.warning('URL strategy error: $e', tag: 'Startup');
-          }
+
         } on FirebaseException catch (e) {
           logger.error(
             'Firebase initialization error: ${e.code} - ${e.message}',
@@ -123,6 +122,7 @@ void main() {
           Get.put(AuthService(), permanent: true).init(),
           Get.put(AppService(), permanent: true).init(),
           Get.put(ConnectivityService(), permanent: true).init(),
+          Get.put(PushNotificationService(), permanent: true).init(),
         ]).then((_) {
           logger.info('All background services initialized', tag: 'Startup');
         });

@@ -56,7 +56,18 @@ service cloud.firestore {
         allow write: if isAuthenticated() && request.auth.uid == subscriberId;
       }
 
-      // Moderators subcollection
+      // Stats subcollection (detailed analytics, watch time, views history)
+      match /stats/{docId} {
+        allow read: if isAuthenticated();
+        allow write: if false; // System only
+      }
+
+      // Daily Stats subcollection (for analytics dashboards)
+      match /daily_stats/{docId} {
+        allow read: if isAuthenticated();
+        allow write: if false; // System only
+      }
+
       match /moderators/{userId} {
         allow read: if isAuthenticated();
         allow write: if isAuthenticated() && 
@@ -215,14 +226,14 @@ service cloud.firestore {
     // Legacy Topic Likes Collection
     match /topic_likes/{likeId} {
       allow read: if true;
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow create, update: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
     
     // Legacy Topic Followers Collection
     match /topic_followers/{followId} {
       allow read: if true;
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow create, update: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
     
@@ -247,7 +258,7 @@ service cloud.firestore {
     // Subscriptions Collection (Legacy/Frontend)
     match /subscriptions/{subscriptionId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && 
+      allow create, update: if isAuthenticated() && 
                        request.resource.data.userId == request.auth.uid;
       allow delete: if isAuthenticated() && 
                        resource.data.userId == request.auth.uid;
@@ -568,18 +579,13 @@ service cloud.firestore {
 
     // Copyrights Collection
     match /copyrights/{copyrightId} {
-      allow read: if isAuthenticated() && 
-                     (resource.data.userId == request.auth.uid || 
-                      resource.data.ownerId == request.auth.uid ||
-                      resource.data.channelId == request.auth.uid);
+      allow read: if isAuthenticated();
       allow write: if false; // Only backend or system can write
     }
 
     // Content Verifications Collection
     match /content_verifications/{verificationId} {
-      allow read: if isAuthenticated() && 
-                     (resource.data.userId == request.auth.uid || 
-                      resource.data.ownerId == request.auth.uid);
+      allow read: if isAuthenticated();
       allow write: if false; // Only backend can write
     }
 

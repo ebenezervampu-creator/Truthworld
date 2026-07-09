@@ -9,6 +9,8 @@ class UserAvatar extends StatelessWidget {
   final Color? backgroundColor;
   final Color? textColor;
   final double? fontSize;
+  final Color? borderColor;
+  final bool showBorder;
 
   const UserAvatar({
     super.key,
@@ -18,6 +20,8 @@ class UserAvatar extends StatelessWidget {
     this.backgroundColor,
     this.textColor,
     this.fontSize,
+    this.borderColor,
+    this.showBorder = true,
   });
 
   @override
@@ -37,10 +41,12 @@ class UserAvatar extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: effectiveBackgroundColor,
-        border: Border.all(
-          color: theme.colorScheme.primary.withValues(alpha: 0.2),
-          width: 0.5,
-        ),
+        border: showBorder
+            ? Border.all(
+                color: borderColor ?? theme.colorScheme.primary.withValues(alpha: 0.2),
+                width: 0.5,
+              )
+            : null,
       ),
       child: ClipOval(
         child: photoUrl != null && photoUrl!.isNotEmpty

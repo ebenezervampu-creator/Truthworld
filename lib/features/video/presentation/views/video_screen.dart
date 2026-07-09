@@ -1840,6 +1840,7 @@ class VideoScreen extends GetView<VideoController> {
                                         chapter.thumbnailUrl!,
                                       ),
                                       fit: BoxFit.cover,
+                                      onError: (exception, stackTrace) {},
                                     )
                                   : null,
                             ),
@@ -2445,14 +2446,11 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                             Stack(
                               clipBehavior: Clip.none,
                               children: [
-                                CircleAvatar(
+                                UserAvatar(
                                   radius: 8,
-                                  backgroundImage: widget.channelAvatarUrl.isNotEmpty
-                                      ? NetworkImage(widget.channelAvatarUrl)
-                                      : null,
-                                  child: widget.channelAvatarUrl.isEmpty
-                                      ? const Icon(Icons.person, size: 10)
-                                      : null,
+                                  photoUrl: widget.channelAvatarUrl,
+                                  displayName: 'Creator',
+                                  fontSize: 8,
                                 ),
                                 const Positioned(
                                   bottom: -4,

@@ -2,6 +2,7 @@ import * as admin from "firebase-admin";
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions/v2";
 import { Comment } from "./types";
+import { notifyUser } from "../notifications/notifications";
 
 // Safe db access function/instance
 const db = () => admin.firestore();
@@ -23,7 +24,7 @@ function sanitizeText(text: string): string {
  * Records a comment with the author's trust snapshot for weighted ranking.
  */
 export const addComment = onCall(
-  { region: "asia-south1", memory: "256MiB" },
+  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -66,7 +67,7 @@ export const addComment = onCall(
  * 📥 GET COMMENTS (Callable - Flat Collection)
  */
 export const getComments = onCall(
-  { region: "asia-south1", memory: "256MiB" },
+  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
   async (request) => {
     const { videoId, limit = 20 } = request.data;
     if (!videoId) throw new HttpsError("invalid-argument", "Missing videoId.");
@@ -97,7 +98,7 @@ export const getComments = onCall(
  * Targets: videos/{videoId}/comments
  */
 export const addCommentNested = onCall(
-  { region: "asia-south1", memory: "256MiB" },
+  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -153,7 +154,7 @@ export const addCommentNested = onCall(
  * Targets: videos/{videoId}/comments/{commentId}/replies
  */
 export const addReplyNested = onCall(
-  { region: "asia-south1", memory: "256MiB" },
+  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -213,7 +214,7 @@ export const addReplyNested = onCall(
  * Safely executes backend transaction to increment/decrement likeCount/dislikeCount using subcollections
  */
 export const toggleCommentInteraction = onCall(
-  { region: "asia-south1", memory: "256MiB" },
+  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -235,17 +236,22 @@ export const toggleCommentInteraction = onCall(
     const keyUser = `${userId}_user`;
     const keyChannel = `${userId}_channel`;
 
+    let oldType: "like" | "dislike" | null = null;
+    let commentAuthorId = "";
+    let commentText = "";
+
     try {
       await db().runTransaction(async (tx) => {
         const snap = await tx.get(docRef);
         if (!snap.exists) throw new HttpsError("not-found", "Comment not found.");
 
         const data = snap.data() || {};
+        commentAuthorId = data.userId || "";
+        commentText = data.text || "";
         const legacyLikedBy = { ...(data.likedBy || {}) };
         const legacyDislikedBy = { ...(data.dislikedBy || {}) };
 
         // Determine old interaction type
-        let oldType: "like" | "dislike" | null = null;
         let foundLegacy = false;
 
         if (legacyLikedBy[keyUser] || legacyLikedBy[keyChannel]) {
@@ -329,6 +335,29 @@ export const toggleCommentInteraction = onCall(
         tx.update(docRef, updatePayload);
       });
 
+      if (interactionType === "like" && oldType !== "like" && commentAuthorId && commentAuthorId !== userId) {
+        try {
+          const likerSnap = await db().collection("channels").doc(userId).get();
+          const likerName = likerSnap.data()?.name || "Someone";
+          const truncatedText = commentText.length > 60 ? commentText.slice(0, 60) + "..." : commentText;
+          await notifyUser({
+            userId: commentAuthorId,
+            type: "comment_like",
+            severity: "info",
+            title: "New Comment Like",
+            message: `${likerName} liked your comment: "${truncatedText}"`,
+            actionUrl: `/watch/${videoId}`,
+            metadata: {
+              videoId,
+              commentId,
+              likerId: userId,
+            }
+          });
+        } catch (notifyErr) {
+          logger.error("[toggleCommentInteraction] Failed to notify:", notifyErr);
+        }
+      }
+
       return { success: true };
     } catch (err) {
       logger.error("[toggleCommentInteraction] Error:", err);
@@ -342,7 +371,7 @@ export const toggleCommentInteraction = onCall(
  * Safely executes backend transaction to increment/decrement likeCount/dislikeCount on replies using subcollections
  */
 export const toggleReplyInteraction = onCall(
-  { region: "asia-south1", memory: "256MiB" },
+  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -370,17 +399,22 @@ export const toggleReplyInteraction = onCall(
     const keyUser = `${userId}_user`;
     const keyChannel = `${userId}_channel`;
 
+    let oldType: "like" | "dislike" | null = null;
+    let replyAuthorId = "";
+    let replyText = "";
+
     try {
       await db().runTransaction(async (tx) => {
         const snap = await tx.get(docRef);
         if (!snap.exists) throw new HttpsError("not-found", "Reply not found.");
 
         const data = snap.data() || {};
+        replyAuthorId = data.userId || "";
+        replyText = data.text || "";
         const legacyLikedBy = { ...(data.likedBy || {}) };
         const legacyDislikedBy = { ...(data.dislikedBy || {}) };
 
         // Determine old interaction type
-        let oldType: "like" | "dislike" | null = null;
         let foundLegacy = false;
 
         if (legacyLikedBy[keyUser] || legacyLikedBy[keyChannel]) {
@@ -465,6 +499,30 @@ export const toggleReplyInteraction = onCall(
         tx.update(docRef, updatePayload);
       });
 
+      if (interactionType === "like" && oldType !== "like" && replyAuthorId && replyAuthorId !== userId) {
+        try {
+          const likerSnap = await db().collection("channels").doc(userId).get();
+          const likerName = likerSnap.data()?.name || "Someone";
+          const truncatedText = replyText.length > 60 ? replyText.slice(0, 60) + "..." : replyText;
+          await notifyUser({
+            userId: replyAuthorId,
+            type: "comment_like",
+            severity: "info",
+            title: "New Reply Like",
+            message: `${likerName} liked your reply: "${truncatedText}"`,
+            actionUrl: `/watch/${videoId}`,
+            metadata: {
+              videoId,
+              commentId,
+              replyId,
+              likerId: userId,
+            }
+          });
+        } catch (notifyErr) {
+          logger.error("[toggleReplyInteraction] Failed to notify:", notifyErr);
+        }
+      }
+
       return { success: true };
     } catch (err) {
       logger.error("[toggleReplyInteraction] Error:", err);
@@ -478,7 +536,7 @@ export const toggleReplyInteraction = onCall(
  * Safely performs cascading deletion of all replies before removing the parent comment.
  */
 export const deleteCommentNested = onCall(
-  { region: "asia-south1", memory: "256MiB" },
+  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -528,7 +586,7 @@ export const deleteCommentNested = onCall(
  * 🗑️ DELETE REPLY NESTED (Callable)
  */
 export const deleteReplyNested = onCall(
-  { region: "asia-south1", memory: "256MiB" },
+  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -573,7 +631,7 @@ export const deleteReplyNested = onCall(
  * Safely creates a report tracking record and increments reportCount server-side.
  */
 export const reportCommentNested = onCall(
-  { region: "asia-south1", memory: "256MiB" },
+  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
   async (request) => {
     const reporterId = request.auth?.uid;
     if (!reporterId) throw new HttpsError("unauthenticated", "Auth required.");
