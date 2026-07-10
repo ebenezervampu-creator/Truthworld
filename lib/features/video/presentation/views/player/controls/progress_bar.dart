@@ -24,6 +24,7 @@ class ProgressBar extends StatelessWidget {
           ? (buf.inMs / dur.inMs).clamp(0.0, 1.0)
           : 0.0;
       final hovered = ctrl.progressBarHovered.value;
+      final hasChapters = ctrl.chapters.length > 1 && dur.inMilliseconds > 0;
 
       return MouseRegion(
         cursor: SystemMouseCursors.click,
@@ -135,169 +136,170 @@ class ProgressBar extends StatelessWidget {
                 // Tall tap zone (44 dp) for accessibility
                 child: SizedBox(
                   height: 36,
-                  child: Stack(
-                    alignment: Alignment.center,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Track
+                      // Chapter name tooltip on hover/drag
+                      if (hasChapters && (hovered || ctrl.isDragging.value))
+                        _ChapterTooltip(ctrl: ctrl, barWidth: barWidth),
+                      // Progress bar
                       SizedBox(
-                        width: double.infinity,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          height: hovered || ctrl.isDragging.value
-                              ? PT.kProgressBarHover
-                              : PT.kProgressBarH,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                        ),
-                      ),
-
-                      // Chapter markers
-                      if (ctrl.chapters.isNotEmpty && dur.inMilliseconds > 0)
-                        ...ctrl.chapters.skip(1).map((ch) {
-                          final frac =
-                              (ch.startTime.inMilliseconds / dur.inMilliseconds)
-                                  .clamp(0.0, 1.0);
-                          return Align(
-                            alignment: Alignment.centerLeft,
-                            child: FractionallySizedBox(
-                              widthFactor: frac,
-                              child: Align(
-                                alignment: Alignment.centerRight,
-                                child: Container(
-                                  width: 2,
-                                  height: 8,
-                                  color: Colors.black.withValues(alpha: 0.7),
+                        height: hasChapters && (hovered || ctrl.isDragging.value)
+                            ? 16
+                            : 36,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // ── Segmented chapters OR flat track ──
+                            if (hasChapters)
+                              _ChapterSegmentedBar(
+                                ctrl: ctrl,
+                                barWidth: barWidth,
+                                played: played,
+                                buffered: buffered,
+                                hovered: hovered,
+                              )
+                            else ...[
+                              // Flat track (no chapters)
+                              SizedBox(
+                                width: double.infinity,
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 150),
+                                  height: hovered || ctrl.isDragging.value
+                                      ? PT.kProgressBarHover
+                                      : PT.kProgressBarH,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.18),
+                                    borderRadius: BorderRadius.circular(3),
+                                  ),
                                 ),
                               ),
-                            ),
-                          );
-                        }),
-
-                      // Claims markers
-                      if (ctrl
-                                  .videoController
-                                  ?.video
-                                  .uiReport
-                                  ?.keyClaims
-                                  .isNotEmpty ==
-                              true &&
-                          dur.inMilliseconds > 0)
-                        ...ctrl.videoController!.video.uiReport!.keyClaims
-                            .where((c) => c.start != null)
-                            .map((claim) {
-                              final frac =
-                                  (claim.start! / (dur.inMilliseconds / 1000.0))
-                                      .clamp(0.0, 1.0);
-                              final verdictColor = _getVerdictColor(
-                                claim.verdict,
-                              );
-                              return Align(
+                              // Buffered
+                              Align(
                                 alignment: Alignment.centerLeft,
                                 child: FractionallySizedBox(
-                                  widthFactor: frac,
-                                  child: Align(
-                                    alignment: Alignment.centerRight,
-                                    child: Container(
-                                      width: 6,
-                                      height: 6,
-                                      decoration: BoxDecoration(
-                                        color: verdictColor,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: Colors.black.withValues(
-                                            alpha: 0.6,
-                                          ),
-                                          width: 1.0,
+                                  widthFactor: buffered,
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 150),
+                                    height: hovered || ctrl.isDragging.value
+                                        ? PT.kProgressBarHover
+                                        : PT.kProgressBarH,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.3),
+                                      borderRadius: BorderRadius.circular(3),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              // Played
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: FractionallySizedBox(
+                                  widthFactor: played,
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 150),
+                                    height: hovered || ctrl.isDragging.value
+                                        ? PT.kProgressBarHover
+                                        : PT.kProgressBarH,
+                                    decoration: BoxDecoration(
+                                      color: PT.primary,
+                                      borderRadius: BorderRadius.circular(3),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: PT.primary.withValues(alpha: 0.6),
+                                          blurRadius: 6,
+                                          spreadRadius: 1,
                                         ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+
+                            // Claims markers (always shown on top)
+                            if (ctrl
+                                        .videoController
+                                        ?.video
+                                        .uiReport
+                                        ?.keyClaims
+                                        .isNotEmpty ==
+                                    true &&
+                                dur.inMilliseconds > 0)
+                              ...ctrl.videoController!.video.uiReport!.keyClaims
+                                  .where((c) => c.start != null)
+                                  .map((claim) {
+                                    final frac =
+                                        (claim.start! / (dur.inMilliseconds / 1000.0))
+                                            .clamp(0.0, 1.0);
+                                    final verdictColor = _getVerdictColor(
+                                      claim.verdict,
+                                    );
+                                    return Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: FractionallySizedBox(
+                                        widthFactor: frac,
+                                        child: Align(
+                                          alignment: Alignment.centerRight,
+                                          child: Container(
+                                            width: 6,
+                                            height: 6,
+                                            decoration: BoxDecoration(
+                                              color: verdictColor,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: Colors.black.withValues(
+                                                  alpha: 0.6,
+                                                ),
+                                                width: 1.0,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: verdictColor.withValues(
+                                                    alpha: 0.4,
+                                                  ),
+                                                  blurRadius: 2,
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  }),
+
+                            // Thumb — scales on drag/hover
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: FractionallySizedBox(
+                                widthFactor: played,
+                                child: Align(
+                                  alignment: Alignment.centerRight,
+                                  child: AnimatedScale(
+                                    scale: ctrl.isDragging.value
+                                        ? 1.5
+                                        : (hovered ? 1.2 : 1.0),
+                                    duration: const Duration(milliseconds: 120),
+                                    child: Container(
+                                      width: PT.kThumbRadius * 2,
+                                      height: PT.kThumbRadius * 2,
+                                      decoration: BoxDecoration(
+                                        color: PT.primary,
+                                        shape: BoxShape.circle,
                                         boxShadow: [
                                           BoxShadow(
-                                            color: verdictColor.withValues(
-                                              alpha: 0.4,
-                                            ),
-                                            blurRadius: 2,
+                                            color: PT.primary.withValues(alpha: 0.7),
+                                            blurRadius: 8,
+                                            spreadRadius: 2,
                                           ),
                                         ],
                                       ),
                                     ),
                                   ),
                                 ),
-                              );
-                            }),
-
-                      // Buffered
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: FractionallySizedBox(
-                          widthFactor: buffered,
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            height: hovered || ctrl.isDragging.value
-                                ? PT.kProgressBarHover
-                                : PT.kProgressBarH,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.3),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      // Played — NO animation on width for instant seek accuracy
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: FractionallySizedBox(
-                          widthFactor: played,
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 150),
-                            height: hovered || ctrl.isDragging.value
-                                ? PT.kProgressBarHover
-                                : PT.kProgressBarH,
-                            decoration: BoxDecoration(
-                              color: PT.primary,
-                              borderRadius: BorderRadius.circular(3),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: PT.primary.withValues(alpha: 0.6),
-                                  blurRadius: 6,
-                                  spreadRadius: 1,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      // Thumb — scales on drag/hover
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: FractionallySizedBox(
-                          widthFactor: played,
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: AnimatedScale(
-                              scale: ctrl.isDragging.value
-                                  ? 1.5
-                                  : (hovered ? 1.2 : 1.0),
-                              duration: const Duration(milliseconds: 120),
-                              child: Container(
-                                width: PT.kThumbRadius * 2,
-                                height: PT.kThumbRadius * 2,
-                                decoration: BoxDecoration(
-                                  color: PT.primary,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: PT.primary.withValues(alpha: 0.7),
-                                      blurRadius: 8,
-                                      spreadRadius: 2,
-                                    ),
-                                  ],
-                                ),
                               ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
                     ],
@@ -328,6 +330,164 @@ class ProgressBar extends StatelessWidget {
       default:
         return Colors.blueAccent;
     }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHAPTER TOOLTIP — shows current chapter name above the progress bar
+// ─────────────────────────────────────────────────────────────────────────────
+class _ChapterTooltip extends StatelessWidget {
+  final TowerPlayerController ctrl;
+  final double barWidth;
+  const _ChapterTooltip({required this.ctrl, required this.barWidth});
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final chapter = ctrl.currentChapter.value;
+      if (chapter == null) return const SizedBox(height: 16);
+      return SizedBox(
+        height: 16,
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            chapter.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'Roboto',
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      );
+    });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHAPTER SEGMENTED BAR — YouTube-style with gaps between chapters
+// ─────────────────────────────────────────────────────────────────────────────
+class _ChapterSegmentedBar extends StatelessWidget {
+  final TowerPlayerController ctrl;
+  final double barWidth;
+  final double played;
+  final double buffered;
+  final bool hovered;
+  const _ChapterSegmentedBar({
+    required this.ctrl,
+    required this.barWidth,
+    required this.played,
+    required this.buffered,
+    required this.hovered,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dur = ctrl.vv.duration;
+    final chapters = ctrl.chapters;
+    if (chapters.isEmpty || dur.inMilliseconds <= 0) {
+      return const SizedBox.shrink();
+    }
+
+    final isExpanded = hovered || ctrl.isDragging.value;
+    final barHeight = isExpanded ? PT.kProgressBarHover : PT.kProgressBarH;
+    // Gap between chapter segments (YouTube uses ~2px)
+    const double gapWidth = 2.0;
+    final totalGapWidth = gapWidth * (chapters.length - 1);
+    final availableWidth = barWidth - totalGapWidth;
+    if (availableWidth <= 0) return const SizedBox.shrink();
+
+    return SizedBox(
+      width: double.infinity,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        height: barHeight,
+        child: Row(
+          children: List.generate(chapters.length * 2 - 1, (i) {
+            // Odd indices are gaps
+            if (i.isOdd) {
+              return SizedBox(width: gapWidth);
+            }
+
+            final chapterIndex = i ~/ 2;
+            final chapterStart =
+                chapters[chapterIndex].startTime.inMilliseconds;
+            final chapterEnd = chapterIndex < chapters.length - 1
+                ? chapters[chapterIndex + 1].startTime.inMilliseconds
+                : dur.inMilliseconds;
+            final chapterDuration = chapterEnd - chapterStart;
+            if (chapterDuration <= 0) return const SizedBox.shrink();
+
+            // Width proportional to chapter duration
+            final segmentWidth =
+                (chapterDuration / dur.inMilliseconds) * availableWidth;
+
+            // Calculate played/buffered fraction within this chapter
+            final playedMs =
+                (played * dur.inMilliseconds).clamp(0.0, dur.inMilliseconds.toDouble());
+            final bufferedMs =
+                (buffered * dur.inMilliseconds).clamp(0.0, dur.inMilliseconds.toDouble());
+
+            final chapterPlayedFrac = chapterDuration > 0
+                ? ((playedMs - chapterStart) / chapterDuration).clamp(0.0, 1.0)
+                : 0.0;
+            final chapterBufferedFrac = chapterDuration > 0
+                ? ((bufferedMs - chapterStart) / chapterDuration)
+                    .clamp(0.0, 1.0)
+                : 0.0;
+
+            final isCurrent = ctrl.currentChapter.value == chapters[chapterIndex];
+
+            return SizedBox(
+              width: segmentWidth.clamp(1.0, double.infinity),
+              child: Stack(
+                children: [
+                  // Track background
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  // Buffered
+                  FractionallySizedBox(
+                    widthFactor: chapterBufferedFrac,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  // Played
+                  FractionallySizedBox(
+                    widthFactor: chapterPlayedFrac,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: PT.primary,
+                        borderRadius: BorderRadius.circular(2),
+                        boxShadow: isCurrent && isExpanded
+                            ? [
+                                BoxShadow(
+                                  color: PT.primary.withValues(alpha: 0.5),
+                                  blurRadius: 4,
+                                  spreadRadius: 0.5,
+                                ),
+                              ]
+                            : null,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ),
+      ),
+    );
   }
 }
 

@@ -1338,40 +1338,44 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     required bool isTablet,
     required bool isDesktop,
   }) {
-    return StreamBuilder<List<PlaylistModel>>(
-      stream: isPublic
-          ? _playlistController.getPublicPlaylists()
-          : _playlistController.getPrivatePlaylists(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildLoadingState(isMobile, isTablet, isDesktop);
-        }
+    return Obx(() {
+      final isLoaded = isPublic
+          ? (_playlistController.user.isEmpty || _playlistController.isPublicPlaylistsLoaded.value)
+          : (_playlistController.user.isEmpty || _playlistController.isPlaylistsLoaded.value);
 
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return _buildEmptyStateWidget(context, isPublic);
-        }
+      if (!isLoaded) {
+        return _buildLoadingState(isMobile, isTablet, isDesktop);
+      }
 
-        List<PlaylistModel> playlists = snapshot.data!;
+      final sourcePlaylists = isPublic
+          ? _playlistController.publicPlaylists
+          : _playlistController.playlists;
 
-        // Apply search filter
-        if (_playlistController.searchQuery.value.isNotEmpty) {
-          playlists = playlists.where((playlist) {
-            return playlist.playlistName.toLowerCase().contains(
-              _playlistController.searchQuery.value.toLowerCase(),
-            );
-          }).toList();
-        }
+      if (sourcePlaylists.isEmpty) {
+        return _buildEmptyStateWidget(context, isPublic);
+      }
 
-        // Apply sorting
-        playlists = _sortPlaylists(playlists);
+      // Copy list to avoid mutating the controller's reactive list on sort
+      List<PlaylistModel> playlists = List<PlaylistModel>.from(sourcePlaylists);
 
-        if (playlists.isEmpty) {
-          return _buildNoResultsWidget();
-        }
+      // Apply search filter
+      if (_playlistController.searchQuery.value.isNotEmpty) {
+        playlists = playlists.where((playlist) {
+          return playlist.playlistName.toLowerCase().contains(
+            _playlistController.searchQuery.value.toLowerCase(),
+          );
+        }).toList();
+      }
 
-        return _buildPlaylistGrid(playlists, isMobile, isTablet, isDesktop);
-      },
-    );
+      // Apply sorting
+      playlists = _sortPlaylists(playlists);
+
+      if (playlists.isEmpty) {
+        return _buildNoResultsWidget();
+      }
+
+      return _buildPlaylistGrid(playlists, isMobile, isTablet, isDesktop);
+    });
   }
 
   Widget _buildLoadingState(bool isMobile, bool isTablet, bool isDesktop) {
@@ -1879,17 +1883,76 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
     );
   }
 
+  Widget _buildModerationStatusBadge(String status) {
+    Color color;
+    IconData icon;
+    String label;
+
+    switch (status) {
+      case 'active':
+        return const SizedBox.shrink();
+      case 'verificationRejected':
+        color = Colors.redAccent;
+        icon = Icons.error_outline_rounded;
+        label = 'Rejected';
+        break;
+      case 'underReview':
+      default:
+        color = Colors.amber;
+        icon = Icons.hourglass_empty_rounded;
+        label = 'Under Review';
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 12),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: GoogleFonts.roboto(
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildGridContent(ColorScheme colorScheme) {
+    final status = widget.playlist.status;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Stacked Thumbnail Effect
         AspectRatio(
           aspectRatio: 16 / 9,
-          child: StackedThumbnail(
-            thumbnailUrl: widget.playlist.thumbnailUrl,
-            videoCount: widget.playlist.videoCount,
-            isPodcast: widget.playlist.playlistName.toLowerCase().contains('podcast'),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: StackedThumbnail(
+                  thumbnailUrl: widget.playlist.thumbnailUrl,
+                  videoCount: widget.playlist.videoCount,
+                  isPodcast: widget.playlist.playlistName.toLowerCase().contains('podcast'),
+                ),
+              ),
+              if (status != 'active')
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: _buildModerationStatusBadge(status),
+                ),
+            ],
           ),
         ),
         const SizedBox(height: 12),
@@ -1946,6 +2009,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
   }
 
   Widget _buildListContent(ColorScheme colorScheme) {
+    final status = widget.playlist.status;
     return Row(
       children: [
         // Playlist thumbnail
@@ -2039,13 +2103,21 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
-                "${widget.playlist.videoCount} videos",
-                style: GoogleFonts.roboto(
-                  fontSize: 14,
-                  color: Colors.white.withValues(alpha: 0.6),
-                  fontWeight: FontWeight.w500,
-                ),
+              Row(
+                children: [
+                  Text(
+                    "${widget.playlist.videoCount} videos",
+                    style: GoogleFonts.roboto(
+                      fontSize: 14,
+                      color: Colors.white.withValues(alpha: 0.6),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (status != 'active') ...[
+                    const SizedBox(width: 8),
+                    _buildModerationStatusBadge(status),
+                  ],
+                ],
               ),
               const SizedBox(height: 2),
               /*Text(
@@ -2112,6 +2184,68 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                       ),
                     ),
                     const SizedBox(height: 20),
+                    if (widget.playlist.status != 'active') ...[
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: (widget.playlist.status == 'verificationRejected'
+                                  ? Colors.redAccent
+                                  : Colors.amber)
+                              .withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: (widget.playlist.status == 'verificationRejected'
+                                    ? Colors.redAccent
+                                    : Colors.amber)
+                                .withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  widget.playlist.status == 'verificationRejected'
+                                      ? Icons.error_outline_rounded
+                                      : Icons.hourglass_empty_rounded,
+                                  color: widget.playlist.status == 'verificationRejected'
+                                      ? Colors.redAccent
+                                      : Colors.amber,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  widget.playlist.status == 'verificationRejected'
+                                      ? 'REJECTED'
+                                      : 'UNDER REVIEW',
+                                  style: GoogleFonts.roboto(
+                                    color: widget.playlist.status == 'verificationRejected'
+                                        ? Colors.redAccent
+                                        : Colors.amber,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (widget.playlist.moderationReason != null &&
+                                widget.playlist.moderationReason!.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                widget.playlist.moderationReason!,
+                                style: GoogleFonts.roboto(
+                                  color: Colors.white70,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
                     _buildOptionItem(
                       icon: Icons.edit_rounded,
                       title: "Edit Playlist",

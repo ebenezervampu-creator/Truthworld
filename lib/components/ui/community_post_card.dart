@@ -177,6 +177,24 @@ class CommunityPostCard extends StatelessWidget {
               ),
             ),
             SizedBox(width: AppTheme.spacing.sm),
+            Icon(Icons.thumb_down_outlined, size: 14, color: AppTheme.colors.textTertiary),
+            SizedBox(width: 4),
+            Text(
+              '${post.dislikeCount}',
+              style: AppTheme.typography.caption.copyWith(
+                color: AppTheme.colors.textTertiary,
+              ),
+            ),
+            SizedBox(width: AppTheme.spacing.sm),
+            Icon(Icons.comment_outlined, size: 14, color: AppTheme.colors.textTertiary),
+            SizedBox(width: 4),
+            Text(
+              '${post.commentCount}',
+              style: AppTheme.typography.caption.copyWith(
+                color: AppTheme.colors.textTertiary,
+              ),
+            ),
+            SizedBox(width: AppTheme.spacing.sm),
             Icon(Icons.visibility_outlined, size: 14, color: AppTheme.colors.textTertiary),
             SizedBox(width: 4),
             Text(

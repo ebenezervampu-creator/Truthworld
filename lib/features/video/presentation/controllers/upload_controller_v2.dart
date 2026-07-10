@@ -15,6 +15,7 @@ import 'package:video_player/video_player.dart';
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'package:universal_html/html.dart' as html;
 import 'package:http/http.dart' as http;
+import 'package:truthworld/core/utils/mentions_helper.dart';
 
 /// Upload Status Enum
 enum UploadStatus { idle, picking, uploading, processing, completed, failed }
@@ -832,6 +833,22 @@ class UploadControllerV2 extends GetxController {
       }
 
       await _firestore.collection('videos').doc(videoId).update(updateData);
+
+      // Scan for handle mentions and notify
+      final String fullMetadataText = '${title.trim()} ${description.trim()}';
+      try {
+        await MentionsHelper.processAndNotifyMentions(
+          text: fullMetadataText,
+          videoId: videoId,
+          videoTitle: title.trim(),
+          videoThumbnailUrl: thumbnailUrl.value.isNotEmpty
+              ? thumbnailUrl.value
+              : 'https://via.placeholder.com/1280x720.png?text=No+Thumbnail',
+          videoChannelId: channel.channelId,
+        );
+      } catch (e) {
+        debugPrint('⚠️ Error processing mentions for video publish V2: $e');
+      }
 
       uploadStatus.value = UploadStatus.completed;
       uploadProgress.value = 1.0;

@@ -98,7 +98,7 @@ class AudioOnlyOverlay extends StatelessWidget {
               ),
               child: const ClipOval(
                 child: Icon(
-                  Icons.audiotrack_rounded,
+                  Icons.music_note_rounded,
                   size: 60,
                   color: Colors.white70,
                 ),

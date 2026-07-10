@@ -174,12 +174,14 @@ class LanguageRequest {
   final String language;
   final String type; // 'subtitle' or 'audio'
   final Timestamp createdAt;
+  final int count;
 
   const LanguageRequest({
     required this.id,
     required this.language,
     required this.type,
     required this.createdAt,
+    this.count = 1,
   });
 
   factory LanguageRequest.fromMap(Map<String, dynamic> map, String id) {
@@ -188,6 +190,7 @@ class LanguageRequest {
       language: map['language'] ?? '',
       type: map['type'] ?? '',
       createdAt: map['createdAt'] as Timestamp? ?? Timestamp.now(),
+      count: map['count'] as int? ?? 1,
     );
   }
 }

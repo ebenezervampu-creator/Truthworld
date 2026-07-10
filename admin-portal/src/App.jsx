@@ -30,6 +30,7 @@ function App() {
   const [videos, setVideos] = useState([]);
   const [images, setImages] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
+  const [reports, setReports] = useState([]);
   const [systemStats, setSystemStats] = useState({
     pendingVideos: 0,
     pendingImages: 0,

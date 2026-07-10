@@ -53,15 +53,15 @@ export const getTrustBadge = onRequest(
           <path d="M0 8C0 3.58172 3.58172 0 8 0H140V40H8C3.58172 40 0 36.4183 0 32V8Z" fill="#0f172a"/>
           <rect x="140" width="80" height="40" rx="0 8 8 0" fill="${badgeColor}"/>
           
-          <text x="12" y="25" fill="#f1f5f9" font-family="Inter, sans-serif" font-size="14" font-weight="600">TRUTHWORLD</text>
-          <text x="148" y="25" fill="${textColor}" font-family="Inter, sans-serif" font-size="16" font-weight="700">${ti.toFixed(1)}</text>
+          <text x="12" y="24" fill="#f1f5f9" font-family="'TruthWorld Sans', Outfit, sans-serif" font-size="14" font-weight="700" letter-spacing="-0.5">TRUTHWORLD</text>
+          <text x="148" y="25" fill="${textColor}" font-family="Roboto, sans-serif" font-size="16" font-weight="700">${ti.toFixed(1)}</text>
           
           ${verified ? `
             <circle cx="108" cy="20" r="6" fill="#38bdf8"/>
             <path d="M105.5 20L107.5 22L110.5 18" stroke="#0f172a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           ` : ""}
           
-          <text x="12" y="32" fill="#94a3b8" font-family="Inter, sans-serif" font-size="7" font-weight="400">CREDIBILITY ENGINE</text>
+          <text x="12" y="32" fill="#94a3b8" font-family="Roboto, sans-serif" font-size="7" font-weight="500">CREDIBILITY ENGINE</text>
         </svg>
       `.trim();
 

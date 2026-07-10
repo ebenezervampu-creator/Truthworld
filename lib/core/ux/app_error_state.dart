@@ -72,6 +72,8 @@ class AppErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final twColors = context.colors;
+    final twSpacing = context.spacing;
     return GetBuilder<AppErrorStateController>(
       init: AppErrorStateController(),
       global: false,
@@ -80,7 +82,10 @@ class AppErrorState extends StatelessWidget {
           child: FadeTransition(
             opacity: controller.fadeAnimation,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+              padding: EdgeInsets.symmetric(
+                horizontal: twSpacing.xl,
+                vertical: twSpacing.xxl,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -99,8 +104,8 @@ class AppErrorState extends StatelessWidget {
                       decoration: BoxDecoration(
                         gradient: RadialGradient(
                           colors: [
-                            const Color(0xFFEF4444).withValues(alpha: 0.1),
-                            const Color(0xFFEF4444).withValues(alpha: 0.03),
+                            twColors.errorContainer,
+                            twColors.error.withValues(alpha: 0.03),
                             Colors.transparent,
                           ],
                           stops: const [0.0, 0.6, 1.0],
@@ -111,13 +116,13 @@ class AppErrorState extends StatelessWidget {
                         child: Icon(
                           icon,
                           size: 56,
-                          color: const Color(0xFFEF4444).withValues(alpha: 0.7),
+                          color: twColors.error.withValues(alpha: 0.7),
                         ),
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 24),
+                  SizedBox(height: twSpacing.lg),
 
                   // Title
                   Text(
@@ -127,14 +132,14 @@ class AppErrorState extends StatelessWidget {
                       fontFamily: 'Roboto',
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      color: twColors.textPrimary,
                       letterSpacing: -0.3,
                     ),
                   ),
 
                   // Subtitle
                   if (subtitle != null) ...[
-                    const SizedBox(height: 8),
+                    SizedBox(height: twSpacing.sm),
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 320),
                       child: Text(
@@ -143,7 +148,7 @@ class AppErrorState extends StatelessWidget {
                         style: TextStyle(
                           fontFamily: 'Roboto',
                           fontSize: 14,
-                          color: AppColors.textSecondary,
+                          color: twColors.textSecondary,
                           height: 1.5,
                         ),
                       ),
@@ -152,7 +157,7 @@ class AppErrorState extends StatelessWidget {
 
                   // Retry button
                   if (onRetry != null) ...[
-                    const SizedBox(height: 28),
+                    SizedBox(height: twSpacing.lg),
                     _RetryButton(label: retryLabel, onPressed: onRetry!),
                   ],
                 ],
@@ -173,6 +178,8 @@ class _RetryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final twColors = context.colors;
+    final twRadius = context.radius;
     return GetBuilder<RetryButtonController>(
       init: RetryButtonController(),
       global: false,
@@ -197,7 +204,7 @@ class _RetryButton extends StatelessWidget {
                 size: 18,
                 color: controller.isHovered
                     ? Colors.white
-                    : AppColors.textPrimary,
+                    : twColors.textPrimary,
               ),
               label: Text(
                 label,
@@ -207,7 +214,7 @@ class _RetryButton extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                   color: controller.isHovered
                       ? Colors.white
-                      : AppColors.textPrimary,
+                      : twColors.textPrimary,
                 ),
               ),
               style: OutlinedButton.styleFrom(
@@ -216,16 +223,16 @@ class _RetryButton extends StatelessWidget {
                   vertical: 14,
                 ),
                 backgroundColor: controller.isHovered
-                    ? AppColors.bgSurfaceHover
+                    ? twColors.surfaceContainer
                     : Colors.transparent,
                 side: BorderSide(
                   color: controller.isHovered
-                      ? AppColors.brand.withValues(alpha: 0.5)
-                      : AppColors.bgDivider,
+                      ? twColors.brand.withValues(alpha: 0.5)
+                      : twColors.divider,
                   width: 1.5,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: twRadius.circularLg,
                 ),
               ),
             ),

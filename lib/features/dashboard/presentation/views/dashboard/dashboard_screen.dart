@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -568,9 +569,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            icon: Icon(
-              Icons.arrow_back_ios_new_rounded,
-              size: 20,
+            icon: BackSymbol(size: 20,
               color: isDarkMode ? Colors.white70 : AppColors.textSecondary,
             ),
             onPressed: () => Get.offAllNamed("/home"),

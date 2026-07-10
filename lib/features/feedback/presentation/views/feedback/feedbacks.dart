@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
@@ -186,9 +187,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
           ),
         ),
         leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: AppColors.textPrimary,
+          icon: const BackSymbol(color: AppColors.textPrimary,
           ),
           onPressed: () => Get.back(),
         ),

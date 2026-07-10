@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -49,9 +50,7 @@ class SettingsScreen extends StatelessWidget {
       elevation: 0,
       centerTitle: context.isMobile,
       leading: IconButton(
-        icon: Icon(
-          Icons.arrow_back_ios_new_rounded,
-          color: colorScheme.onSurface,
+        icon: BackSymbol(color: colorScheme.onSurface,
           size: context.isMobileSmall ? 20 : 24,
         ),
         onPressed: () => Get.back(),
@@ -62,7 +61,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildBody(BuildContext context, ColorScheme colorScheme) {
     return ResponsiveContainer(
       child: ListView(
-        padding: EdgeInsets.symmetric(vertical: context.spacing),
+        padding: EdgeInsets.symmetric(vertical: context.layoutSpacing),
         children: [
           // Account Section
           _buildSection(
@@ -71,7 +70,7 @@ class SettingsScreen extends StatelessWidget {
             colorScheme: colorScheme,
             settings: [_buildUserInfoTile(context, colorScheme)],
           ),
-          SizedBox(height: context.spacing),
+          SizedBox(height: context.layoutSpacing),
           // Appearance Section
           _buildSection(
             context,
@@ -82,7 +81,7 @@ class SettingsScreen extends StatelessWidget {
               _buildLanguageTile(context, colorScheme),
             ],
           ),
-          SizedBox(height: context.spacing),
+          SizedBox(height: context.layoutSpacing),
           // Privacy Section
           _buildSection(
             context,
@@ -94,7 +93,7 @@ class SettingsScreen extends StatelessWidget {
               _buildDeleteAccountTile(context, colorScheme),
             ],
           ),
-          SizedBox(height: context.spacing),
+          SizedBox(height: context.layoutSpacing),
           // About Section
           _buildSection(
             context,
@@ -117,7 +116,7 @@ class SettingsScreen extends StatelessWidget {
     required List<Widget> settings,
   }) {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: context.spacing),
+      margin: EdgeInsets.symmetric(horizontal: context.layoutSpacing),
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(context.isMobileSmall ? 12 : 16),
@@ -133,7 +132,7 @@ class SettingsScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: EdgeInsets.all(context.spacing),
+            padding: EdgeInsets.all(context.layoutSpacing),
             child: Text(
               title,
               style: AppTextStyles.titleMedium.copyWith(

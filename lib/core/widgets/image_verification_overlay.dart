@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Extracts the unique image verification docId from a Firebase Storage URL.
 String? getVerificationDocId(String url) {
@@ -41,6 +42,7 @@ class ImageVerificationOverlay extends StatelessWidget {
     }
 
     final imageService = ImageVerificationService();
+    final twColors = context.colors;
 
     return Stack(
       children: [
@@ -54,7 +56,8 @@ class ImageVerificationOverlay extends StatelessWidget {
 
               if (result.status == VerificationStatus.pending) {
                 return _buildOverlay(
-                  color: const Color(0xFF3B82F6),
+                  context: context,
+                  color: twColors.info,
                   icon: Icons.hourglass_empty_rounded,
                   label: 'Verifying...',
                   isPending: true,
@@ -62,14 +65,16 @@ class ImageVerificationOverlay extends StatelessWidget {
               } else if (result.status == VerificationStatus.rejected ||
                   result.status == VerificationStatus.error) {
                 return _buildOverlay(
-                  color: const Color(0xFFEF4444),
+                  context: context,
+                  color: twColors.error,
                   icon: Icons.block_rounded,
                   label: 'Rejected: ${result.reason}',
                   isPending: false,
                 );
               } else if (result.status == VerificationStatus.flagged) {
                 return _buildOverlay(
-                  color: const Color(0xFFF59E0B),
+                  context: context,
+                  color: twColors.warning,
                   icon: Icons.warning_rounded,
                   label: 'Flagged: ${result.reason}',
                   isPending: false,
@@ -85,11 +90,13 @@ class ImageVerificationOverlay extends StatelessWidget {
   }
 
   Widget _buildOverlay({
+    required BuildContext context,
     required Color color,
     required IconData icon,
     required String label,
     required bool isPending,
   }) {
+    final twSpacing = context.spacing;
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: Container(
@@ -98,7 +105,7 @@ class ImageVerificationOverlay extends StatelessWidget {
             : Colors.black.withValues(alpha: 0.6),
         child: Center(
           child: Container(
-            margin: const EdgeInsets.all(8),
+            margin: EdgeInsets.all(twSpacing.sm),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.9),
@@ -129,7 +136,7 @@ class ImageVerificationOverlay extends StatelessWidget {
                 Flexible(
                   child: Text(
                     label,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontFamily: 'Roboto',
                       color: Colors.white,
                       fontSize: 11,

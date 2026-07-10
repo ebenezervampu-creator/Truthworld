@@ -1,10 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
+import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 
@@ -82,7 +84,7 @@ class ClipsPage extends StatelessWidget {
           style: GoogleFonts.roboto(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppColors.textPrimary),
+          icon: const BackSymbol(color: AppColors.textPrimary),
           onPressed: () => Get.back(),
         ),
       ),
@@ -99,7 +101,17 @@ class ClipsPage extends StatelessWidget {
         ),
         child: Obx(() {
           if (controller.isLoading.value) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.brand));
+            return GridView.builder(
+              padding: const EdgeInsets.all(24),
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 350,
+                mainAxisSpacing: 24,
+                crossAxisSpacing: 24,
+                childAspectRatio: 0.85,
+              ),
+              itemCount: 6,
+              itemBuilder: (context, index) => const ShimmerVideoGridCard(),
+            );
           }
 
           if (controller.clips.isEmpty) {

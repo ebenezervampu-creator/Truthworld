@@ -12,6 +12,26 @@ import 'package:truthworld/features/home/presentation/controllers/home_controlle
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
+
+class SearchSuggestion {
+  final String text;
+  final String? subtitle;
+  final String? imageUrl;
+  final bool isRoundImage;
+  final SearchResult? matchedResult;
+  final IconData icon;
+
+  SearchSuggestion({
+    required this.text,
+    this.subtitle,
+    this.imageUrl,
+    this.isRoundImage = false,
+    this.matchedResult,
+    this.icon = Icons.search,
+  });
+}
 
 /// SearchController: Business logic & debouncing layer
 ///
@@ -60,6 +80,12 @@ class SearchController extends GetxController {
   final RxList<String> suggestions = <String>[].obs;
   final RxList<SearchResult> recommendedResults =
       <SearchResult>[].obs; // 🎯 For empty state "You may like"
+
+  // Suggestions & filters
+  final RxList<SearchSuggestion> richSuggestions = <SearchSuggestion>[].obs;
+  final RxBool showSuggestions = false.obs;
+  final RxString selectedFilter = 'All'.obs;
+  final RxSet<String> watchedVideoIds = <String>{}.obs;
 
   /// Cache statistics (for debugging)
   final RxMap<String, dynamic> cacheStats = <String, dynamic>{}.obs;
@@ -134,6 +160,7 @@ class SearchController extends GetxController {
     _loadPersistentCache();
     _loadRecentSearches();
     fetchTrendingSuggestions();
+    _fetchWatchedVideoIds();
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -394,6 +421,11 @@ class SearchController extends GetxController {
   /// This method demonstrates the debouncing optimization:
   /// - Without debounce: 10-15 queries per typing
   /// - With debounce: 1 query per search
+  /// 🔑 MAIN ENTRY POINT: Called when user types
+  ///
+  /// This method demonstrates the debouncing optimization:
+  /// - Without debounce: 10-15 queries per typing
+  /// - With debounce: 1 query per search
   void onSearchChanged(String query) {
     // Validate input
     final (isValid, sanitized, errorMsg) = _validateQuery(query);
@@ -415,14 +447,12 @@ class SearchController extends GetxController {
     // If query is empty, clear results and stop
     if (query.isEmpty) {
       _clearResults();
+      richSuggestions.clear();
+      showSuggestions.value = false;
       return;
     }
 
-    // Start new debounce timer with adaptive delay
-    debugPrint(
-      '⏳ [Search] Debounce started for: "$sanitized" '
-      '(${debounceDelay.inMilliseconds}ms)',
-    );
+    showSuggestions.value = true;
     _shouldCancelRequest = false;
 
     _debounceTimer = Timer(debounceDelay, () {
@@ -432,11 +462,211 @@ class SearchController extends GetxController {
         return;
       }
 
-      _executeSearch(sanitized);
+      _fetchRichSuggestions(sanitized);
     });
   }
 
-  /// Execute the actual search query (called after debounce)
+  /// Fetch rich suggestions including matching videos, channels, playlists, topics and history
+  Future<void> _fetchRichSuggestions(String query) async {
+    final normalized = query.toLowerCase().trim();
+    if (normalized.isEmpty) return;
+
+    try {
+      final results = await Future.wait([
+        // 1. Fetch matching channels (Limit 2)
+        FirebaseFirestore.instance
+            .collection('channels')
+            .where('channelName', isGreaterThanOrEqualTo: normalized)
+            .where('channelName', isLessThanOrEqualTo: '$normalized\uf8ff')
+            .limit(2)
+            .get(),
+        // 2. Fetch matching videos (Limit 3)
+        FirebaseFirestore.instance
+            .collection('videos')
+            .where('title', isGreaterThanOrEqualTo: normalized)
+            .where('title', isLessThanOrEqualTo: '$normalized\uf8ff')
+            .where('status', isEqualTo: 'processed')
+            .limit(3)
+            .get(),
+        // 3. Fetch matching topics (Limit 2)
+        FirebaseFirestore.instance
+            .collection('topics')
+            .where('title', isGreaterThanOrEqualTo: normalized)
+            .where('title', isLessThanOrEqualTo: '$normalized\uf8ff')
+            .limit(2)
+            .get(),
+        // 4. Fetch matching playlists (Limit 2)
+        FirebaseFirestore.instance
+            .collection('playlists')
+            .where('title', isGreaterThanOrEqualTo: normalized)
+            .where('title', isLessThanOrEqualTo: '$normalized\uf8ff')
+            .where('visibility', isEqualTo: 'Public')
+            .limit(2)
+            .get(),
+      ]);
+
+      final List<SearchSuggestion> newSuggestions = [];
+
+      // Add matching recent searches first
+      final recentMatches = recentSearches
+          .where((q) => q.toLowerCase().contains(normalized))
+          .take(3)
+          .map((q) => SearchSuggestion(
+                text: q,
+                icon: Icons.history,
+              ));
+      newSuggestions.addAll(recentMatches);
+
+      // Channels
+      for (var doc in results[0].docs) {
+        final data = doc.data();
+        final title = data['channelName'] as String? ?? '';
+        final handle = data['handle'] as String? ?? '';
+        final avatar = data['avatarUrl'] as String? ?? '';
+        newSuggestions.add(SearchSuggestion(
+          text: title,
+          subtitle: handle.isNotEmpty ? handle : null,
+          imageUrl: avatar,
+          isRoundImage: true,
+          icon: Icons.search,
+          matchedResult: SearchResult.fromFirestore(doc, type: ResultType.channel),
+        ));
+      }
+
+      // Videos
+      for (var doc in results[1].docs) {
+        final data = doc.data();
+        final title = data['title'] as String? ?? '';
+        final thumbnail = data['thumbnailUrl'] as String? ?? '';
+        newSuggestions.add(SearchSuggestion(
+          text: title,
+          imageUrl: thumbnail,
+          icon: Icons.search,
+          matchedResult: SearchResult.fromFirestore(doc, type: ResultType.video),
+        ));
+      }
+
+      // Topics
+      for (var doc in results[2].docs) {
+        final data = doc.data();
+        final title = data['title'] as String? ?? '';
+        final slug = data['slug'] as String? ?? '';
+        final thumbnail = data['thumbnailUrl'] as String? ?? '';
+        newSuggestions.add(SearchSuggestion(
+          text: title,
+          subtitle: 'Topic • T/$slug',
+          imageUrl: thumbnail,
+          icon: Icons.search,
+          matchedResult: SearchResult.fromFirestore(doc, type: ResultType.topic),
+        ));
+      }
+
+      // Playlists
+      for (var doc in results[3].docs) {
+        final data = doc.data();
+        final title = data['title'] as String? ?? '';
+        final thumbnail = data['thumbnailUrl'] as String? ?? '';
+        newSuggestions.add(SearchSuggestion(
+          text: title,
+          subtitle: 'Playlist',
+          imageUrl: thumbnail,
+          icon: Icons.search,
+          matchedResult: SearchResult.fromFirestore(doc, type: ResultType.playlist),
+        ));
+      }
+
+      // Fallback: Add mock suggestions if list is sparse
+      if (newSuggestions.length < 5) {
+        final baseTerms = ['tutorial', 'music', 'news', 'vlog', 'live'];
+        for (final term in baseTerms) {
+          if (newSuggestions.length >= 10) break;
+          final customTerm = '$normalized $term';
+          if (!newSuggestions.any((s) => s.text.toLowerCase() == customTerm)) {
+            newSuggestions.add(SearchSuggestion(text: customTerm));
+          }
+        }
+      }
+
+      richSuggestions.value = newSuggestions.take(12).toList();
+    } catch (e) {
+      debugPrint('Error fetching rich suggestions: $e');
+    }
+  }
+
+  /// Execute search and close suggestions
+  Future<void> performSearch(String query) async {
+    showSuggestions.value = false;
+    _debounceTimer?.cancel();
+    searchQuery.value = query;
+    await _executeSearch(query);
+  }
+
+  /// Fetch user's watched video history to enable local filtering
+  Future<void> _fetchWatchedVideoIds() async {
+    try {
+      final userId = AuthService.to.uid;
+      if (userId.isEmpty) return;
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('watch_history')
+          .limit(150)
+          .get();
+
+      final ids = snapshot.docs.map((doc) => doc.id).toSet();
+      watchedVideoIds.assignAll(ids);
+      debugPrint('📺 [Search] Loaded ${ids.length} watched video IDs');
+    } catch (e) {
+      debugPrint('⚠️ [Search] Failed to fetch watch history: $e');
+    }
+  }
+
+  /// Get filtered search results based on selected chip filter
+  List<SearchResult> get filteredResults {
+    final filter = selectedFilter.value;
+    List<SearchResult> list = _allResults;
+
+    // 1. Filter by content type
+    if (filter == 'Videos') {
+      list = list.where((r) => r.type == ResultType.video).toList();
+    } else if (filter == 'Channels') {
+      list = list.where((r) => r.type == ResultType.channel).toList();
+    } else if (filter == 'Playlists') {
+      list = list.where((r) => r.type == ResultType.playlist).toList();
+    } else if (filter == 'Topics') {
+      list = list.where((r) => r.type == ResultType.topic).toList();
+    }
+
+    // 2. Filter by watched / unwatched
+    if (filter == 'Watched') {
+      list = list.where((r) => r.type != ResultType.video || watchedVideoIds.contains(r.id)).toList();
+    } else if (filter == 'Unwatched') {
+      list = list.where((r) => r.type != ResultType.video || !watchedVideoIds.contains(r.id)).toList();
+    }
+
+    // 3. Filter by recently uploaded (in the last 7 days)
+    if (filter == 'Recently uploaded') {
+      final sevenDaysAgo = DateTime.now().subtract(const Duration(days: 7));
+      list = list.where((r) => r.type != ResultType.video || r.uploadedAt.isAfter(sevenDaysAgo)).toList();
+    }
+
+    // 4. Live (contains 'live' in title)
+    if (filter == 'Live') {
+      list = list.where((r) => r.type != ResultType.video || r.title.toLowerCase().contains('live')).toList();
+    }
+
+    return list;
+  }
+
+  /// Change active filter chip and reload list
+  void setFilter(String filter) {
+    selectedFilter.value = filter;
+    currentPage.value = 0;
+    _loadPage(0);
+  }
+
+  /// Execute the actual search query (called after user submits/taps search)
   Future<void> _executeSearch(String query) async {
     if (query.isEmpty) return;
 
@@ -448,13 +678,15 @@ class SearchController extends GetxController {
       errorMessage.value =
           'Too many searches. Please slow down and try again in a moment.';
       Get.snackbar(
-        'Rate Limited',
-        'Please wait a moment before searching again',
-        snackPosition: SnackPosition.BOTTOM,
-        duration: Duration(seconds: 3),
+          'Rate Limited',
+          'Please wait a moment before searching again',
+          snackPosition: SnackPosition.BOTTOM,
+          duration: Duration(seconds: 3),
       );
       return;
     }
+
+    showSuggestions.value = false;
 
     // Show loading state only if not cached
     if (!_searchService.isCached(normalized)) {
@@ -564,21 +796,22 @@ class SearchController extends GetxController {
 
   /// Load specific page of results
   void _loadPage(int page) {
+    final items = filteredResults;
     final startIndex = page * resultsPerPage;
     final endIndex = (page + 1) * resultsPerPage;
 
-    if (startIndex >= _allResults.length) {
+    if (startIndex >= items.length) {
       searchResults.clear();
       hasMoreResults.value = false;
       return;
     }
 
-    final endIndexCapped = endIndex > _allResults.length
-        ? _allResults.length
+    final endIndexCapped = endIndex > items.length
+        ? items.length
         : endIndex;
 
-    searchResults.value = _allResults.sublist(startIndex, endIndexCapped);
-    hasMoreResults.value = endIndexCapped < _allResults.length;
+    searchResults.value = items.sublist(startIndex, endIndexCapped);
+    hasMoreResults.value = endIndexCapped < items.length;
 
     debugPrint(
       '📄 [Search] Loaded page $page '
@@ -588,7 +821,9 @@ class SearchController extends GetxController {
 
   /// Load next page (for infinite scroll)
   Future<void> loadNextPage() async {
-    if (!hasMoreResults.value || isLoadingMore.value) {
+    final items = filteredResults;
+    final startIndex = (currentPage.value + 1) * resultsPerPage;
+    if (startIndex >= items.length || isLoadingMore.value) {
       return;
     }
 
@@ -607,6 +842,8 @@ class SearchController extends GetxController {
     _debounceTimer?.cancel();
     _shouldCancelRequest = true;
     _clearResults();
+    richSuggestions.clear();
+    showSuggestions.value = false;
     debugPrint('🧹 [Search] Search cleared');
   }
 
@@ -695,7 +932,9 @@ class SearchController extends GetxController {
 
       final String collection = result.type == ResultType.video
           ? 'videos'
-          : (result.type == ResultType.channel ? 'channels' : 'playlists');
+          : (result.type == ResultType.channel
+              ? 'channels'
+              : (result.type == ResultType.playlist ? 'playlists' : 'topics'));
 
       final doc = await FirebaseFirestore.instance
           .collection(collection)
@@ -744,6 +983,10 @@ class SearchController extends GetxController {
             // Navigate to home first, then show playlist detail
             Get.toNamed('/', arguments: {'openPlaylist': playlist});
           }
+          break;
+        case ResultType.topic:
+          final topic = Topic.fromDocumentSnapshot(doc);
+          Get.toNamed(topic.topicRoute, arguments: {"topic": topic});
           break;
       }
     } catch (e) {

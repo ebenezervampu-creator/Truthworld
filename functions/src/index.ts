@@ -741,10 +741,19 @@ export const onVideoPublished = onDocumentUpdated(
       isAlreadyPublished &&
       JSON.stringify(getTranslationLangs(beforeData)) !== JSON.stringify(getTranslationLangs(afterData));
 
+    // ─── GATE 2.5: Detect if moderation status just became approved ──────────
+    const wasApproved = beforeData?.moderation?.status === "approved";
+    const isApproved = afterData.moderation?.status === "approved";
+    const becameApproved = !wasApproved && isApproved;
+    const isPublished = aiFeatures.pipelineStage === "published";
+    const notificationsNotSentYet = !afterData.notificationsSent;
+
+    const shouldSendNotifications = isPublished && isApproved && notificationsNotSentYet && (becamePublished || becameApproved);
+
     // v2.0: Gate 2.5 (moderation wait) REMOVED — pipeline starts immediately.
     // Moderation runs in parallel via Storage trigger and cancels job if rejected.
 
-    if (!becamePublished && !languagesChanged) {
+    if (!becamePublished && !languagesChanged && !shouldSendNotifications) {
       return; // No relevant change — exit silently
     }
 
@@ -762,6 +771,19 @@ export const onVideoPublished = onDocumentUpdated(
     }
 
     const db = admin.firestore();
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SCENARIO D: Trigger Subscriber Notifications once video is approved & published
+    // ═══════════════════════════════════════════════════════════════════════════
+    if (shouldSendNotifications) {
+      logger.info("[PublishGate] Video approved & published. Triggering subscriber notifications.", { videoId });
+      await db.collection("videos").doc(videoId).update({
+        notificationsSent: true,
+      });
+      _fanOutSubscriberNotifications(afterData, videoId).catch(err =>
+        logger.warn("[PublishGate] Subscriber notification fan-out failed (non-critical)", { videoId, err: String(err) })
+      );
+    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // SCENARIO A: First-time publish → Create video_job + trigger full pipeline
@@ -977,12 +999,6 @@ export const onVideoPublished = onDocumentUpdated(
         source: "publish-gate",
       });
 
-      // ── MERGED: Subscriber notification fan-out (was onNewVideoFromFollowed) ──
-      // Fire-and-forget: Don't await — pipeline is more important than notifications
-      _fanOutSubscriberNotifications(afterData, videoId).catch(err =>
-        logger.warn("[PublishGate] Subscriber notification fan-out failed (non-critical)", { videoId, err: String(err) })
-      );
-
       return;
     }
 
@@ -1104,7 +1120,7 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
     const notifications: Promise<any>[] = [];
 
     snap.docs.forEach(doc => {
-      const { userId } = doc.data();
+      const { userId, notificationsEnabled } = doc.data();
       if (!userId || userId === creatorId) return;
 
       batch.set(
@@ -1126,17 +1142,19 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
         { merge: true }
       );
 
-      notifications.push(
-        notifyUser({
-          userId,
-          type: "new_video_followed",
-          severity: "info",
-          title: `New Video from ${channelNameStr}`,
-          message: `${channelNameStr} just uploaded: ${title}`,
-          actionUrl: `/video/${videoId}`,
-          metadata: { channelId, videoId, thumbnailUrl: video.thumbnailUrl, avatarUrl: video.channelImage || "" }
-        })
-      );
+      if (notificationsEnabled !== false) {
+        notifications.push(
+          notifyUser({
+            userId,
+            type: "new_video_followed",
+            severity: "info",
+            title: `New Video from ${channelNameStr}`,
+            message: `${channelNameStr} just uploaded: ${title}`,
+            actionUrl: `/video/${videoId}`,
+            metadata: { channelId, videoId, thumbnailUrl: video.thumbnailUrl, avatarUrl: video.channelImage || "" }
+          })
+        );
+      }
     });
 
     await batch.commit();
@@ -1217,6 +1235,7 @@ export {
 export { createChannel, switchChannelType } from "./channels/channels";
 */
 export { onChannelWritten } from "./channels/moderation";
+export { onTopicWritten } from "./topics/moderation";
 
 /*
 export { 
@@ -1414,4 +1433,8 @@ export const makeMeAdmin = onRequest(
     }
   }
 );
+
+// ─── Playlist Moderation triggers ─────────────────────────────────────────────
+export { onPublicPlaylistWritten, onPrivatePlaylistWritten } from "./moderation/playlistModeration";
+
 

@@ -51,6 +51,11 @@ class PlaylistModel {
   final Timestamp updatedAt;
   final int sortIndex; // For manual ordering/indexing
 
+  // Moderation fields
+  final bool? geminiApproved;
+  final String status;
+  final String? moderationReason;
+
   // Compatibility Getters
   String get playlistName => name;
   bool get isPublic => visibility == PlaylistVisibility.public;
@@ -70,6 +75,9 @@ class PlaylistModel {
     dynamic createdAt, // Accept Timestamp or DateTime
     dynamic updatedAt, // Accept Timestamp or DateTime
     this.sortIndex = 0,
+    this.geminiApproved,
+    this.status = 'underReview',
+    this.moderationReason,
   }) : name = name ?? playlistName ?? '',
        visibility =
            visibility ??
@@ -94,6 +102,9 @@ class PlaylistModel {
       'createdAt': createdAt,
       'updatedAt': updatedAt,
       'sortIndex': sortIndex,
+      'geminiApproved': geminiApproved,
+      'status': status,
+      'moderationReason': moderationReason,
     };
   }
 
@@ -114,6 +125,9 @@ class PlaylistModel {
       createdAt: data['createdAt'] ?? Timestamp.now(),
       updatedAt: data['updatedAt'] ?? Timestamp.now(),
       sortIndex: data['sortIndex'] ?? 0,
+      geminiApproved: data['geminiApproved'],
+      status: data['status'] ?? 'underReview',
+      moderationReason: data['moderationReason'],
     );
   }
 

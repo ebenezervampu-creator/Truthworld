@@ -48,6 +48,7 @@ import 'video_controller.dart';
 import '../../data/models/video.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PLAYER CONTROLLER  (Industry-standard state machine)
@@ -1734,7 +1735,7 @@ class _MainControls extends StatelessWidget {
       child: Row(
         children: [
           _IconBtn(
-            icon: Icons.arrow_back_rounded,
+            icon: const BackSymbol(size: 26),
             onTap: ctrl.toggleFullscreen,
           ),
           const SizedBox(width: 12),
@@ -3040,7 +3041,7 @@ class _RatingPanel extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _IconBtn extends StatelessWidget {
-  final IconData icon;
+  final dynamic icon;
   final VoidCallback? onTap;
   final double size;
   const _IconBtn({required this.icon, this.onTap, this.size = 26});
@@ -3056,7 +3057,9 @@ class _IconBtn extends StatelessWidget {
         highlightColor: PT.primary.withValues(alpha: 0.1),
         child: Padding(
           padding: const EdgeInsets.all(8),
-          child: Icon(icon, color: Colors.white, size: size),
+          child: icon is Widget
+              ? icon as Widget
+              : Icon(icon as IconData, color: Colors.white, size: size),
         ),
       ),
     );
@@ -3159,9 +3162,8 @@ class _PanelHeader extends StatelessWidget {
         children: [
           if (onBack != null)
             _IconBtn(
-              icon: Icons.arrow_back_ios_new_rounded,
+              icon: const BackSymbol(size: 18),
               onTap: onBack!,
-              size: 18,
             )
           else
             const SizedBox(width: 8),

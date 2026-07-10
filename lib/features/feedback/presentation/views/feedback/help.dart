@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 import 'package:get/get.dart';
@@ -55,9 +56,7 @@ class HelpPage extends StatelessWidget {
         elevation: 0,
         centerTitle: false,
         leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: colorScheme.onSurface,
+          icon: BackSymbol(color: colorScheme.onSurface,
           ),
           onPressed: () => Get.back(),
         ),

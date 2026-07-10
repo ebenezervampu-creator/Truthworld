@@ -52,7 +52,7 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
         );
       },
       child: Container(
-        margin: EdgeInsets.only(bottom: context.spacing),
+        margin: EdgeInsets.only(bottom: context.layoutSpacing),
         decoration: ComponentStyles.getCardDecoration(),
         child: Padding(
           padding: context.cardPadding,
@@ -60,7 +60,7 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildThumbnail(context),
-              SizedBox(width: context.spacing),
+              SizedBox(width: context.layoutSpacing),
               Expanded(child: _buildVideoDetails(context)),
             ],
           ),
@@ -138,8 +138,8 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
                 right: context.isMobileSmall ? 4 : 6,
                 child: Container(
                   padding: EdgeInsets.symmetric(
-                    horizontal: context.spacing / 2,
-                    vertical: context.spacing / 8,
+                    horizontal: context.layoutSpacing / 2,
+                    vertical: context.layoutSpacing / 8,
                   ),
                   decoration: BoxDecoration(
                     color: AppColors.bgPage.withValues(alpha: 0.9),
@@ -183,7 +183,7 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
                       context.fontScale,
                 ),
         ),
-        SizedBox(height: context.spacing / 2),
+        SizedBox(height: context.layoutSpacing / 2),
         Row(
           children: [
             CircleAvatar(
@@ -232,7 +232,7 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
                     : _buildChannelPlaceholder(),
               ),
             ),
-            SizedBox(width: context.spacing / 2),
+            SizedBox(width: context.layoutSpacing / 2),
             Expanded(
               child: Text(
                 widget.video.channelName,
@@ -253,7 +253,7 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
             ),
           ],
         ),
-        SizedBox(height: context.spacing / 2),
+        SizedBox(height: context.layoutSpacing / 2),
         Row(
           children: [
             Flexible(
@@ -263,7 +263,7 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
                 context,
               ),
             ),
-            SizedBox(width: context.spacing),
+            SizedBox(width: context.layoutSpacing),
             Flexible(
               child: _buildStatChip(
                 Icons.favorite_rounded,
@@ -280,8 +280,8 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
   Widget _buildStatChip(IconData icon, String value, BuildContext context) {
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: context.spacing / 2,
-        vertical: context.spacing / 8,
+        horizontal: context.layoutSpacing / 2,
+        vertical: context.layoutSpacing / 8,
       ),
       decoration: BoxDecoration(
         color: widget.accentColor.withValues(alpha: 0.1),
@@ -300,7 +300,7 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
                 : 16,
             color: widget.accentColor,
           ),
-          SizedBox(width: context.spacing / 4),
+          SizedBox(width: context.layoutSpacing / 4),
           Text(
             value,
             style: Responsive.isMobile(context.screenWidth)
@@ -453,7 +453,7 @@ class _ModernVideoGridCardState extends State<ModernVideoGridCard> {
               ),
             ),
           ),
-          SizedBox(height: context.spacing / 4), // Reduced spacing
+          SizedBox(height: context.layoutSpacing / 4), // Reduced spacing
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -481,8 +481,8 @@ class _ModernVideoGridCardState extends State<ModernVideoGridCard> {
   Widget _buildStatChip(IconData icon, String value, BuildContext context) {
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: context.spacing / 2,
-        vertical: context.spacing / 8,
+        horizontal: context.layoutSpacing / 2,
+        vertical: context.layoutSpacing / 8,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -496,7 +496,7 @@ class _ModernVideoGridCardState extends State<ModernVideoGridCard> {
                 : 14,
             color: widget.accentColor,
           ),
-          SizedBox(width: context.spacing / 4),
+          SizedBox(width: context.layoutSpacing / 4),
           Text(
             value,
             style: AppTextStyles.videoMetadataSmall.copyWith(

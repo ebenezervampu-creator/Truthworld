@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -597,28 +598,7 @@ class _VideoFeedNotificationScreenState
     super.dispose();
   }
 
-  bool get isMobile => MediaQuery.of(context).size.width < 600;
-  bool get isTablet =>
-      MediaQuery.of(context).size.width >= 600 &&
-      MediaQuery.of(context).size.width < 1024;
-  bool get isDesktop => MediaQuery.of(context).size.width >= 1024;
-
-  int get gridCrossAxisCount {
-    if (isDesktop) {
-      return 3;
-    }
-    if (isTablet) {
-      return 2;
-    }
-    return 1;
-  }
-
-  double get maxContentWidth {
-    if (isDesktop) {
-      return 1400;
-    }
-    return double.infinity;
-  }
+  double get maxContentWidth => 720;
 
   @override
   Widget build(BuildContext context) {
@@ -631,23 +611,19 @@ class _VideoFeedNotificationScreenState
             controller: _scrollController,
             slivers: [
               _buildAppBar(),
-              SliverToBoxAdapter(child: _buildTabsHeader()),
-              Obx(() => SliverToBoxAdapter(
-                    child: _selectedTabIndex.value == 0
-                        ? _buildFilters()
-                        : (_selectedTabIndex.value == 1
-                            ? _buildCloudAlertsFilters()
-                            : const SizedBox.shrink()),
-                  )),
+              SliverToBoxAdapter(child: _buildPillTabs()),
               const SliverToBoxAdapter(child: SizedBox(height: 8)),
               Obx(() {
-                if (_selectedTabIndex.value == 0) {
-                  return _buildContent();
-                } else if (_selectedTabIndex.value == 1) {
-                  return _buildCloudAlertsContent();
-                } else {
-                  return _buildMentionsContent();
+                if (controller.isLoading.value || userNotificationController.isLoading.value) {
+                  return SliverFillRemaining(child: _buildLoadingState());
                 }
+
+                if (controller.errorMessage.isNotEmpty) {
+                  return SliverFillRemaining(child: _buildErrorState());
+                }
+
+                final items = _getUnifiedNotificationsForTab();
+                return _buildGroupedNotificationList(items);
               }),
             ],
           ),
@@ -659,65 +635,54 @@ class _VideoFeedNotificationScreenState
 
   Widget _buildAppBar() {
     return SliverAppBar(
-      expandedHeight: 120,
       floating: false,
       pinned: true,
-      backgroundColor: AppColors.bgInput,
+      backgroundColor: AppColors.bgPage,
       elevation: 0,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white),
+        icon: const BackSymbol(color: Colors.white),
         onPressed: () => Get.back(),
       ),
-      flexibleSpace: FlexibleSpaceBar(
-        title: Obx(
-          () => AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: controller.isSearching.value
-                ? _buildSearchBar()
-                : _buildTitle(),
-          ),
-        ),
-        centerTitle: false,
-        background: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                const Color(0xFF6366F1).withValues(alpha: 0.15),
-                const Color(0xFF8B5CF6).withValues(alpha: 0.1),
-              ],
-            ),
-          ),
-        ),
-      ),
+      title: Obx(() => controller.isSearching.value
+          ? _buildSearchBar()
+          : Text(
+              "Notifications",
+              style: GoogleFonts.roboto(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            )),
       actions: [
-        Obx(
-          () => IconButton(
-            icon: Icon(
-              controller.isSearching.value
-                  ? Icons.close_rounded
-                  : Icons.search_rounded,
-              color: Colors.white,
-            ),
-            onPressed: controller.toggleSearching,
-          ),
-        ),
+        Obx(() => IconButton(
+              icon: Icon(
+                controller.isSearching.value
+                    ? Icons.close_rounded
+                    : Icons.search_rounded,
+                color: Colors.white,
+              ),
+              onPressed: () {
+                controller.toggleSearching();
+                if (!controller.isSearching.value) {
+                  _searchController.clear();
+                }
+              },
+            )),
         PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
           onSelected: (value) {
-            if (value == 'mark_all_seen') {
-              controller.markAllAsSeen();
+            if (value == 'mark_all_read') {
+              _markAllActiveTabAsRead();
             }
           },
           itemBuilder: (context) => [
-            PopupMenuItem(
-              value: 'mark_all_seen',
+            const PopupMenuItem(
+              value: 'mark_all_read',
               child: Row(
                 children: [
-                  Icon(Icons.done_all_rounded, size: 20),
+                  Icon(Icons.done_all_rounded, size: 20, color: Colors.white),
                   SizedBox(width: 12),
-                  Text('Mark all as seen'),
+                  Text('Mark all as read'),
                 ],
               ),
             ),
@@ -728,688 +693,254 @@ class _VideoFeedNotificationScreenState
   }
 
   Widget _buildSearchBar() {
-    return Container(
-      key: const ValueKey('search'),
-      width: double.infinity,
-      height: 44,
-      margin: EdgeInsets.only(right: 60, left: 0),
-      child: TextField(
-        controller: _searchController,
-        autofocus: true,
-        style: GoogleFonts.roboto(color: Colors.white, fontSize: 14),
-        decoration: InputDecoration(
-          hintText: 'Search videos or channels...',
-          hintStyle: GoogleFonts.roboto(color: Colors.white60),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(25),
-            borderSide: BorderSide.none,
-          ),
-          filled: true,
-          fillColor: AppColors.bgSurface,
-          contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          prefixIcon: const Icon(
-            Icons.search_rounded,
-            color: Colors.white60,
-            size: 20,
-          ),
-        ),
-        onChanged: (value) => controller.searchQuery.value = value,
+    return TextField(
+      controller: _searchController,
+      autofocus: true,
+      style: GoogleFonts.roboto(color: Colors.white, fontSize: 16),
+      decoration: InputDecoration(
+        hintText: 'Search notifications...',
+        hintStyle: GoogleFonts.roboto(color: Colors.white60),
+        border: InputBorder.none,
+        enabledBorder: InputBorder.none,
+        focusedBorder: InputBorder.none,
+        contentPadding: EdgeInsets.zero,
       ),
+      onChanged: (value) => controller.searchQuery.value = value,
     );
   }
 
-  Widget _buildTitle() {
-    return Row(
-      key: const ValueKey('title'),
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          padding: EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [const Color(0xFF6366F1), const Color(0xFF8B5CF6)],
-            ),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(
-            Icons.video_library_rounded,
-            color: Colors.white,
-            size: 20,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "Video Feed",
-              style: GoogleFonts.roboto(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
-            ),
-            Obx(() {
-              final extraAlerts = userNotificationController.notifications.where((n) {
-                final typeLower = n.type.toLowerCase();
-                return typeLower == 'new_community_post' || typeLower == 'new_video_topic';
-              });
-              final extraUnseen = extraAlerts.where((n) => !n.read).length;
-              
-              final now = DateTime.now();
-              final extraToday = extraAlerts.where((n) {
-                return n.createdAt.year == now.year &&
-                    n.createdAt.month == now.month &&
-                    n.createdAt.day == now.day;
-              }).length;
-
-              final unseen = controller.unseenCount + extraUnseen;
-              final today = controller.todayCount + extraToday;
-              return Text(
-                '$unseen new • $today today',
-                style: GoogleFonts.roboto(fontSize: 11, color: Colors.white60),
-              );
-            }),
-          ],
-        ),
-      ],
-    );
-  }
-
-  // Helper for category display names
-  String _getCategoryDisplayName(String category) {
-    if (category == 'all') {
-      return 'All Categories';
-    }
-    return StringExtension(category).capitalize;
-  }
-
-  // Helper for category icons
-  IconData _getCategoryIcon(String category) {
-    switch (category.toLowerCase()) {
-      case 'gaming':
-        return Icons.videogame_asset;
-      case 'music':
-        return Icons.music_note;
-      case 'education':
-        return Icons.school;
-      default:
-        return Icons.category;
-    }
-  }
-
-  Widget _buildFilters() {
+  Widget _buildPillTabs() {
     return Container(
-      margin: EdgeInsets.symmetric(vertical: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      height: 48,
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
-          // Combined Time + Seen Filters: Single Wrap row for simplicity
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                // Time Filters
-                Obx(
-                  () => _buildFilterChip(
-                    value: 'all',
-                    label: 'All Time',
-                    icon: Icons.all_inclusive,
-                    isSelected: controller.selectedTimeFilter.value == 'all',
-                    onSelected: () => controller.setTimeFilter('all'),
-                    color: const Color(0xFF6366F1), // Purple accent
-                  ),
-                ),
-                Obx(
-                  () => _buildFilterChip(
-                    value: 'today',
-                    label: 'Today',
-                    icon: Icons.today_rounded,
-                    isSelected: controller.selectedTimeFilter.value == 'today',
-                    onSelected: () => controller.setTimeFilter('today'),
-                    color: const Color(0xFF6366F1),
-                  ),
-                ),
-                Obx(
-                  () => _buildFilterChip(
-                    value: 'this_week',
-                    label: 'Week',
-                    icon: Icons.date_range_rounded,
-                    isSelected:
-                        controller.selectedTimeFilter.value == 'this_week',
-                    onSelected: () => controller.setTimeFilter('this_week'),
-                    color: const Color(0xFF6366F1),
-                  ),
-                ),
-                Obx(
-                  () => _buildFilterChip(
-                    value: 'this_month',
-                    label: 'Month',
-                    icon: Icons.calendar_month_rounded,
-                    isSelected:
-                        controller.selectedTimeFilter.value == 'this_month',
-                    onSelected: () => controller.setTimeFilter('this_month'),
-                    color: const Color(0xFF6366F1),
-                  ),
-                ),
-                // Seen Filters (integrated for fewer rows)
-                const SizedBox(width: 16), // Visual separator
-                Obx(
-                  () => _buildFilterChip(
-                    value: 'all',
-                    label: 'All Videos',
-                    icon: Icons.video_library_rounded,
-                    isSelected: controller.selectedSeenFilter.value == 'all',
-                    onSelected: () => controller.setSeenFilter('all'),
-                    color: const Color(0xFF10B981), // Green accent
-                  ),
-                ),
-                Obx(
-                  () => _buildFilterChip(
-                    value: 'unseen',
-                    label: 'Unseen',
-                    icon: Icons.fiber_new_rounded,
-                    isSelected: controller.selectedSeenFilter.value == 'unseen',
-                    onSelected: () => controller.setSeenFilter('unseen'),
-                    color: const Color(0xFF10B981),
-                  ),
-                ),
-                Obx(
-                  () => _buildFilterChip(
-                    value: 'seen',
-                    label: 'Watched',
-                    icon: Icons.done_rounded,
-                    isSelected: controller.selectedSeenFilter.value == 'seen',
-                    onSelected: () => controller.setSeenFilter('seen'),
-                    color: const Color(0xFF10B981),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16), // Increased for breathing room
-          // Categories: Wrap if few, Dropdown if many
-          Obx(() {
-            final categories = controller.availableCategories;
-            if (categories.length <= 1) {
-              return const SizedBox.shrink();
-            }
-
-            if (categories.length <= 5) {
-              // Horizontal-ish Wrap for small sets
-              return Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: categories
-                      .map((category) => _buildCategoryChip(category))
-                      .toList(),
-                ),
-              );
-            } else {
-              // Dropdown for many categories (professional, space-saving)
-              return Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: DropdownMenu<String>(
-                  width: double.infinity,
-                  inputDecorationTheme: InputDecorationTheme(
-                    filled: true,
-                    fillColor: AppColors.bgDivider,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.bgDivider),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.bgDivider),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(
-                        color: const Color(0xFF6366F1),
-                        width: 2,
-                      ),
-                    ),
-                    contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                  ),
-                  textStyle: GoogleFonts.roboto(
-                    color: Colors.white,
-                    fontSize: 14,
-                  ),
-                  menuStyle: const MenuStyle(
-                    surfaceTintColor: WidgetStatePropertyAll(
-                      Colors.transparent,
-                    ),
-                    shadowColor: WidgetStatePropertyAll(Colors.black54),
-                  ),
-                  leadingIcon: const Icon(
-                    Icons.category_rounded,
-                    color: Colors.white60,
-                  ),
-                  hintText: 'Filter by Category',
-                  initialSelection: controller.selectedCategory.value,
-                  onSelected: (value) {
-                    if (value != null) {
-                      controller.setCategory(value);
-                      HapticFeedback.selectionClick();
-                    }
-                  },
-                  dropdownMenuEntries: categories.map((category) {
-                    return DropdownMenuEntry<String>(
-                      value: category,
-                      label: _getCategoryDisplayName(category),
-                      leadingIcon: Icon(
-                        _getCategoryIcon(category),
-                        color: const Color(0xFFF59E0B),
-                      ),
-                      style: MenuItemButton.styleFrom(
-                        foregroundColor:
-                            controller.selectedCategory.value == category
-                            ? Colors.white
-                            : Colors.white70,
-                        backgroundColor:
-                            controller.selectedCategory.value == category
-                            ? const Color(0xFFF59E0B).withValues(alpha: 0.1)
-                            : Colors.transparent,
-                      ),
-                    );
-                  }).toList(),
-                ),
-              );
-            }
-          }),
+          _buildPillButton(title: 'All', index: 0),
+          const SizedBox(width: 8),
+          _buildPillButton(title: 'Comments', index: 1),
+          const SizedBox(width: 8),
+          _buildPillButton(title: 'Mentions', index: 2),
         ],
       ),
     );
   }
 
-  // Unified FilterChip builder
-  Widget _buildFilterChip({
-    required String value,
-    required String label,
-    required IconData icon,
-    required bool isSelected,
-    required VoidCallback onSelected,
-    required Color color,
-  }) {
-    return FilterChip(
-      label: Text(
-        label,
-        style: GoogleFonts.roboto(
-          fontSize: 13,
-          fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
-          color: isSelected ? Colors.white : Colors.white70,
+  Widget _buildPillButton({required String title, required int index}) {
+    return Obx(() {
+      final isSelected = _selectedTabIndex.value == index;
+      return GestureDetector(
+        onTap: () {
+          _selectedTabIndex.value = index;
+          HapticFeedback.selectionClick();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : const Color(0xFF272727),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            title,
+            style: GoogleFonts.roboto(
+              fontSize: 14,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              color: isSelected ? Colors.black : Colors.white,
+            ),
+          ),
         ),
-      ),
-      avatar: CircleAvatar(
-        backgroundColor: color.withValues(alpha: isSelected ? 0.2 : 0.1),
-        foregroundColor: color,
-        child: Icon(icon, size: 16),
-      ),
-      selected: isSelected,
-      onSelected: (_) => onSelected(),
-      side: isSelected
-          ? BorderSide.none
-          : BorderSide(color: AppColors.bgDivider, width: 1),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      backgroundColor: isSelected
-          ? color.withValues(alpha: 0.15)
-          : AppColors.bgDivider,
-      selectedColor: color.withValues(alpha: 0.1),
-      elevation: isSelected ? 2 : 0,
-      shadowColor: isSelected
-          ? color.withValues(alpha: 0.2)
-          : Colors.transparent,
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      visualDensity: VisualDensity.compact, // Tighter on desktop
-    );
+      );
+    });
   }
 
-  // Simplified Category Chip (only for Wrap mode)
-  Widget _buildCategoryChip(String category) {
-    final isSelected = controller.selectedCategory.value == category;
-    final displayName = _getCategoryDisplayName(category);
-    final color = const Color(0xFFF59E0B); // Amber for categories
+  List<_UnifiedNotification> _getUnifiedNotificationsForTab() {
+    final List<_UnifiedNotification> items = [];
+    final int activeTab = _selectedTabIndex.value;
+    final String query = controller.searchQuery.value.trim().toLowerCase();
 
-    return FilterChip(
-      label: Text(
-        displayName.length > 12
-            ? '${displayName.substring(0, 9)}...'
-            : displayName,
-        style: GoogleFonts.roboto(
-          fontSize: 13,
-          fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
-          color: isSelected ? Colors.white : Colors.white70,
-        ),
-      ),
-      avatar: CircleAvatar(
-        backgroundColor: color.withValues(alpha: isSelected ? 0.2 : 0.1),
-        foregroundColor: color,
-        child: Icon(_getCategoryIcon(category), size: 16),
-      ),
-      selected: isSelected,
-      onSelected: (selected) {
-        if (selected) controller.setCategory(category);
-        HapticFeedback.selectionClick();
-      },
-      side: isSelected
-          ? BorderSide.none
-          : BorderSide(color: AppColors.bgDivider, width: 1),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      backgroundColor: isSelected
-          ? color.withValues(alpha: 0.15)
-          : AppColors.bgDivider,
-      selectedColor: color.withValues(alpha: 0.1),
-      elevation: isSelected ? 2 : 0,
-      shadowColor: isSelected
-          ? color.withValues(alpha: 0.2)
-          : Colors.transparent,
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      visualDensity: VisualDensity.compact,
-    );
-  }
-
-  Widget _buildContent() {
-    if (controller.isLoading.value || userNotificationController.isLoading.value) {
-      return SliverFillRemaining(child: _buildLoadingState());
+    // 1. Collect video upload notifications (only for "All" tab)
+    if (activeTab == 0) {
+      for (final v in controller.notifications) {
+        if (query.isNotEmpty) {
+          final titleMatch = v.title.toLowerCase().contains(query);
+          final channelMatch = v.channelName.toLowerCase().contains(query);
+          if (!titleMatch && !channelMatch) continue;
+        }
+        items.add(_UnifiedNotification(
+          video: v,
+          timestamp: v.uploadedAt.toDate(),
+          isSeen: v.isSeen,
+        ));
+      }
     }
 
-    if (controller.errorMessage.isNotEmpty) {
-      return SliverFillRemaining(child: _buildErrorState());
-    }
-
-    final filteredVideos = controller.filteredNotifications;
-
-    var filteredAlerts = userNotificationController.notifications.where((n) {
+    // 2. Collect user notifications based on tab
+    for (final n in userNotificationController.notifications) {
       final typeLower = n.type.toLowerCase();
-      return typeLower == 'new_community_post' || typeLower == 'new_video_topic';
-    }).toList();
+      final isMention = typeLower == 'mention';
 
-    // Apply Search filter
-    if (controller.searchQuery.isNotEmpty) {
-      final query = controller.searchQuery.value.toLowerCase();
-      filteredAlerts = filteredAlerts.where((n) {
-        return n.title.toLowerCase().contains(query) ||
-            n.message.toLowerCase().contains(query) ||
-            (n.metadata?['channelName'] as String? ?? '').toLowerCase().contains(query);
-      }).toList();
-    }
+      bool belongsToTab = false;
+      if (activeTab == 0) {
+        belongsToTab = true; // All tab includes everything
+      } else if (activeTab == 1) {
+        // Comments tab: social interactions like comments, replies, and comment/video likes, excluding mentions
+        belongsToTab = !isMention && (
+          typeLower.contains('comment') ||
+          typeLower.contains('reply') ||
+          typeLower.contains('like') ||
+          n.typeCategory == 'social'
+        );
+      } else if (activeTab == 2) {
+        // Mentions tab
+        belongsToTab = isMention;
+      }
 
-    // Apply Time filter
-    final now = DateTime.now();
-    switch (controller.selectedTimeFilter.value) {
-      case 'today':
-        filteredAlerts = filteredAlerts.where((n) {
-          return n.createdAt.year == now.year &&
-              n.createdAt.month == now.month &&
-              n.createdAt.day == now.day;
-        }).toList();
-        break;
-      case 'this_week':
-        final weekAgo = now.subtract(const Duration(days: 7));
-        filteredAlerts = filteredAlerts
-            .where((n) => n.createdAt.isAfter(weekAgo))
-            .toList();
-        break;
-      case 'this_month':
-        filteredAlerts = filteredAlerts.where((n) {
-          return n.createdAt.year == now.year &&
-              n.createdAt.month == now.month;
-        }).toList();
-        break;
-    }
+      if (!belongsToTab) continue;
 
-    // Apply Seen filter
-    switch (controller.selectedSeenFilter.value) {
-      case 'unseen':
-        filteredAlerts = filteredAlerts.where((n) => !n.read).toList();
-        break;
-      case 'seen':
-        filteredAlerts = filteredAlerts.where((n) => n.read).toList();
-        break;
-    }
+      if (query.isNotEmpty) {
+        final titleMatch = n.title.toLowerCase().contains(query);
+        final messageMatch = n.message.toLowerCase().contains(query);
+        if (!titleMatch && !messageMatch) continue;
+      }
 
-    // Apply Category filter: community posts/topic videos are filtered out if category != 'all'
-    if (controller.selectedCategory.value != 'all') {
-      filteredAlerts = [];
-    }
-
-    if (filteredVideos.isEmpty && filteredAlerts.isEmpty) {
-      return SliverFillRemaining(child: _buildEmptyState());
-    }
-
-    final List<_UnifiedNotification> unifiedItems = [];
-    for (final v in filteredVideos) {
-      unifiedItems.add(_UnifiedNotification(
-        video: v,
-        timestamp: v.uploadedAt.toDate(),
-        isSeen: v.isSeen,
-      ));
-    }
-    for (final a in filteredAlerts) {
-      unifiedItems.add(_UnifiedNotification(
-        alert: a,
-        timestamp: a.createdAt,
-        isSeen: a.read,
+      items.add(_UnifiedNotification(
+        alert: n,
+        timestamp: n.createdAt,
+        isSeen: n.read,
       ));
     }
 
     // Sort by timestamp descending
-    unifiedItems.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    items.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return items;
+  }
 
-    Widget buildItemTile(_UnifiedNotification item) {
-      if (item.video != null) {
-        return _buildVideoCard(item.video!);
+  Widget _buildGroupedNotificationList(List<_UnifiedNotification> items) {
+    if (items.isEmpty) {
+      if (_selectedTabIndex.value == 2) {
+        return _buildEmptyMentionsState();
+      }
+      return _buildEmptyState();
+    }
+
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final weekStart = todayStart.subtract(const Duration(days: 7));
+
+    final List<_UnifiedNotification> todayItems = [];
+    final List<_UnifiedNotification> weekItems = [];
+    final List<_UnifiedNotification> olderItems = [];
+
+    for (final item in items) {
+      if (item.timestamp.isAfter(todayStart) || item.timestamp.isAtSameMomentAs(todayStart)) {
+        todayItems.add(item);
+      } else if (item.timestamp.isAfter(weekStart) || item.timestamp.isAtSameMomentAs(weekStart)) {
+        weekItems.add(item);
       } else {
-        return _buildCloudAlertCard(item.alert!);
+        olderItems.add(item);
       }
     }
 
-    // Desktop/Tablet: Grid layout with corrected aspect ratios for minimal height
-    if (isDesktop || isTablet) {
-      return SliverPadding(
-        padding: EdgeInsets.symmetric(
-          horizontal: isDesktop ? 32 : 16,
-          vertical: 8,
-        ),
-        sliver: SliverGrid(
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: gridCrossAxisCount,
-            crossAxisSpacing: 20,
-            mainAxisSpacing: 20,
-            childAspectRatio: isDesktop
-                ? 1.1
-                : 1.05, // Matches ~content (w/h); reduces extra space
-          ),
-          delegate: SliverChildBuilderDelegate((context, index) {
-            final item = unifiedItems[index];
-            return TweenAnimationBuilder<double>(
-              duration: Duration(milliseconds: 300 + (index * 50)),
-              tween: Tween(begin: 0.0, end: 1.0),
-              builder: (context, value, child) {
-                return Transform.translate(
-                  offset: Offset(0, 30 * (1 - value)),
-                  child: Opacity(
-                    opacity: value,
-                    child: buildItemTile(item),
-                  ),
-                );
-              },
-            );
-          }, childCount: unifiedItems.length),
-        ),
-      );
+    final List<Widget> listWidgets = [];
+
+    if (todayItems.isNotEmpty) {
+      listWidgets.add(_buildSectionHeader('Today'));
+      for (final item in todayItems) {
+        listWidgets.add(_buildCompactNotificationTile(item));
+      }
     }
 
-    // Mobile: List layout (already minimal)
-    return SliverPadding(
-      padding: EdgeInsets.symmetric(horizontal: 16),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate((context, index) {
-          final item = unifiedItems[index];
-          return TweenAnimationBuilder<double>(
-            duration: Duration(milliseconds: 300 + (index * 50)),
-            tween: Tween(begin: 0.0, end: 1.0),
-            builder: (context, value, child) {
-              return Transform.translate(
-                offset: Offset(0, 30 * (1 - value)),
-                child: Opacity(
-                  opacity: value,
-                  child: buildItemTile(item),
-                ),
-              );
-            },
-          );
-        }, childCount: unifiedItems.length),
+    if (weekItems.isNotEmpty) {
+      listWidgets.add(_buildSectionHeader('This week'));
+      for (final item in weekItems) {
+        listWidgets.add(_buildCompactNotificationTile(item));
+      }
+    }
+
+    if (olderItems.isNotEmpty) {
+      listWidgets.add(_buildSectionHeader('Older'));
+      for (final item in olderItems) {
+        listWidgets.add(_buildCompactNotificationTile(item));
+      }
+    }
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) => listWidgets[index],
+        childCount: listWidgets.length,
       ),
     );
   }
 
-  Widget _buildVideoCard(Video notification) {
-    return Container(
-      margin: EdgeInsets.only(bottom: isMobile ? 16 : 0),
-      clipBehavior: Clip.hardEdge, // Trims any grid overflow
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.bgSurface, Color(0xFF1A1A1A)],
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+      child: Text(
+        title,
+        style: GoogleFonts.roboto(
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
         ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: notification.isSeen
-              ? AppColors.bgSurface.withValues(alpha: 0.3)
-              : const Color(0xFF6366F1).withValues(alpha: 0.5),
-          width: notification.isSeen ? 1 : 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: notification.isSeen
-                ? Colors.black26
-                : const Color(0xFF6366F1).withValues(alpha: 0.2),
-            blurRadius: notification.isSeen ? 10 : 20,
-            spreadRadius: notification.isSeen ? 1 : 2,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(20),
-          onTap: () {
-            if (!notification.isSeen) {
-              controller.markVideoAsSeen(notification.id);
+    );
+  }
+
+  Widget _buildCompactNotificationTile(_UnifiedNotification item) {
+    String thumbnailUrl = '';
+    if (item.video != null) {
+      thumbnailUrl = item.video!.thumbnailUrl;
+    } else if (item.alert != null) {
+      thumbnailUrl = item.alert!.metadata?['thumbnailUrl'] as String? ?? '';
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          if (item.video != null) {
+            if (!item.video!.isSeen) {
+              controller.markVideoAsSeen(item.video!.id);
             }
-            _navigateToVideo(notification);
-            HapticFeedback.mediumImpact();
-          },
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+            _navigateToVideo(item.video!);
+          } else if (item.alert != null) {
+            if (!item.alert!.read) {
+              userNotificationController.markAsRead(item.alert!.id);
+            }
+            _navigateToAlertVideo(item.alert!);
+          }
+          HapticFeedback.lightImpact();
+        },
+        child: Container(
+          color: item.isSeen ? Colors.transparent : Colors.white.withValues(alpha: 0.05),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildThumbnail(notification),
-              Padding(
-                padding: EdgeInsets.all(
-                  isMobile ? 12 : 16,
-                ), // Slightly more on desktop
+              // Left: Avatar / Status Icon
+              _buildAvatar(item),
+              const SizedBox(width: 12),
+              // Center: Content details
+              Expanded(
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        _buildChannelAvatar(notification),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                notification.channelName,
-                                style: GoogleFonts.roboto(
-                                  fontSize: isMobile ? 13 : 14,
-                                  fontWeight: FontWeight.w500,
-                                  color: const Color(0xFF6366F1),
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                notification.category,
-                                style: GoogleFonts.roboto(
-                                  fontSize: 11,
-                                  color: Colors.white60,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (!notification.isSeen)
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              'NEW',
-                              style: GoogleFonts.roboto(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      notification.title,
-                      style: GoogleFonts.roboto(
-                        fontSize: isMobile ? 15 : 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        height: 1.3,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        _buildMetaChip(
-                          Icons.remove_red_eye_outlined,
-                          _formatViews(notification.views),
-                          const Color(0xFF8B5CF6),
-                        ),
-                        _buildMetaChip(
-                          Icons.access_time_rounded,
-                          _formatTimestamp(notification.uploadedAt.toDate()),
-                          const Color(0xFF10B981),
-                        ),
-                      ],
-                    ),
+                    _buildTextContent(item),
+                    const SizedBox(height: 4),
+                    _buildTimeAgo(item),
                   ],
                 ),
               ),
+              const SizedBox(width: 12),
+              // Right: Thumbnail (if present) and popup menu
+              if (thumbnailUrl.isNotEmpty) ...[
+                _buildSmallThumbnail(thumbnailUrl),
+                const SizedBox(width: 8),
+              ],
+              _buildThreeDotsButton(item),
             ],
           ),
         ),
@@ -1417,205 +948,308 @@ class _VideoFeedNotificationScreenState
     );
   }
 
-  Widget _buildChannelAvatar(Video notification) {
+  Widget _buildAvatar(_UnifiedNotification item) {
+    String avatarUrl = '';
+    IconData? fallbackIcon;
+    Color fallbackBgColor = Colors.grey[800]!;
+
+    if (item.video != null) {
+      avatarUrl = item.video!.channelAvatarUrl.isNotEmpty
+          ? item.video!.channelAvatarUrl
+          : item.video!.channelImage;
+      fallbackIcon = Icons.video_library_rounded;
+    } else if (item.alert != null) {
+      final metadata = item.alert!.metadata;
+      avatarUrl = metadata?['avatarUrl'] as String? ??
+                  metadata?['userAvatar'] as String? ?? '';
+
+      final typeLower = item.alert!.type.toLowerCase();
+      if (typeLower.contains('like')) {
+        return Container(
+          width: 40,
+          height: 40,
+          decoration: const BoxDecoration(
+            color: Color(0xFFE50914), // Red play icon container
+            shape: BoxShape.circle,
+          ),
+          child: const Center(
+            child: Icon(
+              Icons.play_arrow_rounded,
+              color: Colors.white,
+              size: 24,
+            ),
+          ),
+        );
+      }
+
+      switch (item.alert!.severity) {
+        case NotificationSeverity.priority:
+          fallbackIcon = Icons.warning_rounded;
+          fallbackBgColor = const Color(0xFFEF4444);
+          break;
+        case NotificationSeverity.warning:
+          fallbackIcon = Icons.error_outline_rounded;
+          fallbackBgColor = const Color(0xFFF59E0B);
+          break;
+        case NotificationSeverity.success:
+          fallbackIcon = Icons.star_rounded;
+          fallbackBgColor = const Color(0xFF10B981);
+          break;
+        case NotificationSeverity.info:
+          fallbackIcon = Icons.info_outline_rounded;
+          fallbackBgColor = const Color(0xFF6366F1);
+          break;
+      }
+    }
+
+    if (avatarUrl.isNotEmpty) {
+      return Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.grey[900],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Image.network(
+          avatarUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => CircleAvatar(
+            backgroundColor: fallbackBgColor,
+            child: Icon(fallbackIcon ?? Icons.notifications, color: Colors.white, size: 20),
+          ),
+        ),
+      );
+    }
+
     return Container(
       width: 40,
       height: 40,
       decoration: BoxDecoration(
+        color: fallbackBgColor.withValues(alpha: 0.2),
         shape: BoxShape.circle,
-        gradient: LinearGradient(
-          colors: [const Color(0xFF6366F1), const Color(0xFF8B5CF6)],
-        ),
-        border: Border.all(
-          color: const Color(0xFF6366F1).withValues(alpha: 0.3),
-          width: 2,
-        ),
       ),
-      child: ClipOval(
-        child: notification.channelImage.isNotEmpty
-            ? Image.network(
-                notification.channelImage,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    const Icon(Icons.person, color: Colors.white, size: 20),
-              )
-            : const Icon(Icons.person, color: Colors.white, size: 20),
+      child: Center(
+        child: Icon(
+          fallbackIcon ?? Icons.notifications,
+          color: fallbackBgColor,
+          size: 20,
+        ),
       ),
     );
   }
 
-  Widget _buildMetaChip(IconData icon, String text, Color color) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+  Widget _buildTextContent(_UnifiedNotification item) {
+    if (item.video != null) {
+      final video = item.video!;
+      return RichText(
+        text: TextSpan(
+          style: GoogleFonts.roboto(
+            fontSize: 14,
+            height: 1.3,
+            color: Colors.white,
+          ),
+          children: [
+            TextSpan(
+              text: '${video.channelName} ',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const TextSpan(
+              text: 'uploaded: ',
+            ),
+            TextSpan(
+              text: video.title,
+              style: const TextStyle(color: Color(0xFFCCCCCC)),
+            ),
+          ],
+        ),
+      );
+    } else if (item.alert != null) {
+      final alert = item.alert!;
+      final isLike = alert.type.toLowerCase().contains('like');
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 14, color: color),
-          const SizedBox(width: 4),
           Text(
-            text,
+            alert.title,
             style: GoogleFonts.roboto(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: color,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
           ),
+          const SizedBox(height: 2),
+          Text(
+            alert.message,
+            style: GoogleFonts.roboto(
+              fontSize: 14,
+              color: isLike ? const Color(0xFF8E8E8E) : const Color(0xFFCCCCCC),
+              fontStyle: isLike ? FontStyle.italic : FontStyle.normal,
+            ),
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+          ),
         ],
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildTimeAgo(_UnifiedNotification item) {
+    return Text(
+      _formatTimestamp(item.timestamp),
+      style: GoogleFonts.roboto(
+        fontSize: 12,
+        color: const Color(0xFF8E8E8E),
       ),
     );
   }
 
-  Widget _buildThumbnail(Video notification) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Stack(
+  Widget _buildSmallThumbnail(String url) {
+    return Container(
+      width: 96,
+      height: 54,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.grey[900],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Image.network(
+        url,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+      ),
+    );
+  }
+
+  Widget _buildThreeDotsButton(_UnifiedNotification item) {
+    return PopupMenuButton<String>(
+      icon: const Icon(
+        Icons.more_vert_rounded,
+        color: Color(0xFF8E8E8E),
+        size: 20,
+      ),
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(),
+      style: const ButtonStyle(
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+      onSelected: (value) async {
+        final userId = FirebaseAuth.instance.currentUser?.uid ?? 'guest_user';
+        if (value == 'mark') {
+          if (item.video != null) {
+            await controller.markVideoAsSeen(item.video!.id);
+          } else if (item.alert != null) {
+            await userNotificationController.markAsRead(item.alert!.id);
+          }
+        } else if (value == 'delete') {
+          try {
+            if (item.video != null) {
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(userId)
+                  .collection('feed_inbox')
+                  .doc(item.video!.id)
+                  .delete();
+              controller.notifications.removeWhere((v) => v.id == item.video!.id);
+              controller.notifications.refresh();
+            } else if (item.alert != null) {
+              await FirebaseFirestore.instance
+                  .collection('user_notifications')
+                  .doc(item.alert!.id)
+                  .delete();
+              userNotificationController.notifications.removeWhere((a) => a.id == item.alert!.id);
+              userNotificationController.notifications.refresh();
+            }
+            Get.snackbar(
+              'Notification removed',
+              'The notification has been deleted',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: AppColors.bgSurface,
+              colorText: Colors.white,
+              duration: const Duration(seconds: 2),
+            );
+          } catch (e) {
+            Get.snackbar('Error', 'Failed to remove notification');
+          }
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: 'mark',
+          child: Text(item.isSeen ? 'Mark as unseen' : 'Mark as read'),
+        ),
+        const PopupMenuItem(
+          value: 'delete',
+          child: Text('Delete notification'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmptyMentionsState() {
+    return SliverFillRemaining(
+      hasScrollBody: false,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(20),
-              ),
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Container(
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [AppColors.bgSurface, Color(0xFF1A202C)],
-                    ),
-                  ),
-                  child: notification.thumbnailUrl.isNotEmpty
-                      ? Image.network(
-                          notification.thumbnailUrl,
-                          fit: BoxFit.cover,
-                          filterQuality: FilterQuality.high,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
-                              decoration: const BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: [
-                                    AppColors.bgSurface,
-                                    Color(0xFF1A202C),
-                                  ],
-                                ),
-                              ),
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  value:
-                                      loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded /
-                                            loadingProgress.expectedTotalBytes!
-                                      : null,
-                                  color: const Color(0xFF6366F1),
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            );
-                          },
-                          errorBuilder: (context, error, stackTrace) =>
-                              _buildThumbnailPlaceholder(),
-                        )
-                      : _buildThumbnailPlaceholder(),
-                ),
-              ),
+            const Icon(
+              Icons.alternate_email_rounded,
+              size: 140,
+              color: Color(0xFF333333),
             ),
-            // Gradient overlay for better text visibility
-            Positioned.fill(
-              child: Container(
-                decoration: const BoxDecoration(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.transparent,
-                      Colors
-                          .black54, // Slightly stronger for desktop visibility
-                    ],
-                    stops: [0.0, 0.5, 1.0],
-                  ),
-                ),
-              ),
-            ),
-            // Duration badge
-            Positioned(
-              bottom: 8,
-              right: 8,
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.black87,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  notification.duration,
-                  style: GoogleFonts.roboto(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ),
-            ),
-            // Play button overlay (larger on desktop)
-            Positioned.fill(
-              child: Center(
-                child: Container(
-                  width: isDesktop ? 72 : 60,
-                  height: isDesktop ? 72 : 60,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF6366F1).withValues(alpha: 0.4),
-                        blurRadius: 20,
-                        spreadRadius: isDesktop ? 4 : 3,
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.play_arrow_rounded,
-                    color: Colors.white,
-                    size: 36, // Base; scales implicitly
-                  ),
-                ),
+            const SizedBox(height: 16),
+            Text(
+              'No mentions yet',
+              style: GoogleFonts.roboto(
+                fontSize: 16,
+                fontWeight: FontWeight.w400,
+                color: Colors.white54,
               ),
             ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 
-  Widget _buildThumbnailPlaceholder() {
-    return SizedBox.expand(
-      // Ensures it fills the AspectRatio bounds
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppColors.bgSurface, Color(0xFF1A202C)],
-          ),
-        ),
-        child: const Center(
-          child: Icon(
-            Icons.video_library_rounded,
-            size: 60,
-            color: Color(0xFF6366F1),
-          ),
+  Widget _buildEmptyState() {
+    return SliverFillRemaining(
+      hasScrollBody: false,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.notifications_off_rounded,
+                size: 60,
+                color: Colors.white30,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'No notifications',
+              style: GoogleFonts.roboto(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'You have no notifications in this section.',
+              style: GoogleFonts.roboto(fontSize: 14, color: Colors.white60),
+            ),
+          ],
         ),
       ),
     );
@@ -1626,42 +1260,14 @@ class _VideoFeedNotificationScreenState
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [const Color(0xFF6366F1), const Color(0xFF8B5CF6)],
-              ),
-              borderRadius: BorderRadius.circular(50),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF6366F1).withValues(alpha: 0.5),
-                  blurRadius: 30,
-                  spreadRadius: 10,
-                ),
-              ],
-            ),
-            child: const Center(
-              child: CircularProgressIndicator(
-                color: Colors.white,
-                strokeWidth: 3,
-              ),
-            ),
+          CircularProgressIndicator(
+            color: Colors.white.withValues(alpha: 0.6),
+            strokeWidth: 3,
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 20),
           Text(
-            'Loading your video feed...',
-            style: GoogleFonts.roboto(
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Fetching the latest videos',
-            style: GoogleFonts.roboto(fontSize: 14, color: Colors.white60),
+            'Loading...',
+            style: GoogleFonts.roboto(color: Colors.white60, fontSize: 14),
           ),
         ],
       ),
@@ -1673,99 +1279,27 @@ class _VideoFeedNotificationScreenState
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              color: const Color(0xFFEF4444).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(60),
-            ),
-            child: const Icon(
-              Icons.error_outline_rounded,
-              size: 60,
-              color: Color(0xFFEF4444),
-            ),
+          const Icon(
+            Icons.error_outline_rounded,
+            size: 48,
+            color: Colors.white30,
           ),
-          const SizedBox(height: 32),
+          const SizedBox(height: 16),
           Text(
-            'Oops! Something went wrong',
+            'Something went wrong',
             style: GoogleFonts.roboto(
-              fontSize: 24,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'We couldn\'t load your video feed',
-            style: GoogleFonts.roboto(fontSize: 14, color: Colors.white60),
-          ),
-          const SizedBox(height: 32),
-          ElevatedButton.icon(
+          const SizedBox(height: 16),
+          ElevatedButton(
             onPressed: () {
               controller.refreshNotifications();
-              HapticFeedback.mediumImpact();
+              userNotificationController.refreshNotifications();
             },
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Try Again'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6366F1),
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 140,
-            height: 140,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  const Color(0xFF6366F1).withValues(alpha: 0.2),
-                  const Color(0xFF8B5CF6).withValues(alpha: 0.1),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(70),
-            ),
-            child: const Icon(
-              Icons.video_library_outlined,
-              size: 70,
-              color: Color(0xFF6366F1),
-            ),
-          ),
-          const SizedBox(height: 32),
-          Text(
-            'No videos found',
-            style: GoogleFonts.roboto(
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 48),
-            child: Text(
-              'Subscribe to channels or adjust your filters to see videos here',
-              style: GoogleFonts.roboto(
-                fontSize: 14,
-                color: Colors.white70,
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
+            child: const Text('Try Again'),
           ),
         ],
       ),
@@ -1774,16 +1308,8 @@ class _VideoFeedNotificationScreenState
 
   Widget _buildFloatingButtons() {
     return Obx(() {
-      final hasUnread = _selectedTabIndex.value == 0
-          ? (controller.unseenCount + 
-              userNotificationController.notifications.where((n) {
-                final typeLower = n.type.toLowerCase();
-                final isExtra = typeLower == 'new_community_post' || typeLower == 'new_video_topic';
-                return isExtra && !n.read;
-              }).length) > 0
-          : (_selectedTabIndex.value == 1
-              ? userNotificationController.notifications.where((n) => n.type.toLowerCase() != 'mention' && !n.read).isNotEmpty
-              : userNotificationController.notifications.where((n) => n.type.toLowerCase() == 'mention' && !n.read).isNotEmpty);
+      final items = _getUnifiedNotificationsForTab();
+      final hasUnread = items.any((item) => !item.isSeen);
 
       return Column(
         mainAxisSize: MainAxisSize.min,
@@ -1811,34 +1337,22 @@ class _VideoFeedNotificationScreenState
               ),
             ),
           const SizedBox(height: 12),
-          if (!hasUnread)
-            const SizedBox.shrink()
-          else
+          if (hasUnread)
             FloatingActionButton.extended(
               heroTag: 'mark_seen',
               onPressed: () {
-                if (_selectedTabIndex.value == 0) {
-                  controller.markAllAsSeen();
-                } else if (_selectedTabIndex.value == 1) {
-                  userNotificationController.markAllNonMentionsAsRead();
-                } else {
-                  userNotificationController.markAllMentionsAsRead();
-                }
+                _markAllActiveTabAsRead();
                 HapticFeedback.mediumImpact();
               },
-              icon: const Icon(Icons.done_all_rounded, color: Colors.white),
+              icon: const Icon(Icons.done_all_rounded, color: Colors.black),
               label: Text(
                 'Mark All Read',
                 style: GoogleFonts.roboto(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w500,
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-              backgroundColor: _selectedTabIndex.value == 0
-                  ? const Color(0xFF6366F1)
-                  : (_selectedTabIndex.value == 1
-                      ? const Color(0xFF10B981)
-                      : const Color(0xFFF59E0B)),
+              backgroundColor: Colors.white,
               elevation: 8,
             ),
         ],
@@ -1846,552 +1360,79 @@ class _VideoFeedNotificationScreenState
     });
   }
 
-  // ==========================================================================
-  // PREMIUM MULTI-TAB BUILDERS & CLOUD ALERTS RENDERING
-  // ==========================================================================
+  void _markAllActiveTabAsRead() {
+    final items = _getUnifiedNotificationsForTab();
+    final unreadItems = items.where((item) => !item.isSeen).toList();
 
-  Widget _buildTabsHeader() {
-    return Container(
-      margin: EdgeInsets.fromLTRB(16, 16, 16, 8),
-      padding: EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppColors.bgDivider.withValues(alpha: 0.4),
-        borderRadius: BorderRadius.circular(25),
-        border: Border.all(color: AppColors.bgDivider.withValues(alpha: 0.8)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Obx(() => _buildPremiumTabButton(
-                  title: 'Content Feed',
-                  icon: Icons.video_library_rounded,
-                  isSelected: _selectedTabIndex.value == 0,
-                  badgeCount: controller.unseenCount + 
-                      userNotificationController.notifications.where((n) {
-                        final typeLower = n.type.toLowerCase();
-                        final isExtra = typeLower == 'new_community_post' || typeLower == 'new_video_topic';
-                        return isExtra && !n.read;
-                      }).length,
-                  activeColor: const Color(0xFF6366F1),
-                  onTap: () {
-                    _selectedTabIndex.value = 0;
-                    HapticFeedback.selectionClick();
-                  },
-                )),
-          ),
-          Expanded(
-            child: Obx(() => _buildPremiumTabButton(
-                  title: 'Activity & Alerts',
-                  icon: Icons.notifications_active_rounded,
-                  isSelected: _selectedTabIndex.value == 1,
-                  badgeCount: userNotificationController.notifications.where((n) {
-                    return n.type.toLowerCase() != 'mention' && !n.read;
-                  }).length,
-                  activeColor: const Color(0xFF10B981),
-                  onTap: () {
-                    _selectedTabIndex.value = 1;
-                    HapticFeedback.selectionClick();
-                  },
-                )),
-          ),
-          Expanded(
-            child: Obx(() => _buildPremiumTabButton(
-                  title: 'Mentions',
-                  icon: Icons.alternate_email_rounded,
-                  isSelected: _selectedTabIndex.value == 2,
-                  badgeCount: userNotificationController.notifications.where((n) {
-                    return n.type.toLowerCase() == 'mention' && !n.read;
-                  }).length,
-                  activeColor: const Color(0xFFF59E0B),
-                  onTap: () {
-                    _selectedTabIndex.value = 2;
-                    HapticFeedback.selectionClick();
-                  },
-                )),
-          ),
-        ],
-      ),
+    if (unreadItems.isEmpty) return;
+
+    final List<String> videoIds = [];
+    final List<String> alertIds = [];
+
+    for (final item in unreadItems) {
+      if (item.video != null) {
+        videoIds.add(item.video!.id);
+      } else if (item.alert != null) {
+        alertIds.add(item.alert!.id);
+      }
+    }
+
+    if (videoIds.isNotEmpty) {
+      controller.markAllAsSeen();
+    }
+    if (alertIds.isNotEmpty) {
+      userNotificationController.markAllAsRead();
+    }
+
+    Get.snackbar(
+      'Notifications updated',
+      'Marked active notifications as read',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: AppColors.bgSurface,
+      colorText: Colors.white,
+      duration: const Duration(seconds: 2),
     );
   }
 
-  Widget _buildMentionsContent() {
-    if (userNotificationController.isLoading.value &&
-        userNotificationController.notifications.isEmpty) {
-      return const SliverFillRemaining(
-        child: Center(
-          child: CircularProgressIndicator(color: Color(0xFFF59E0B)),
-        ),
+  void _navigateToVideo(Video notification) {
+    Get.toNamed('/watch?v=${notification.id}', arguments: {'video': notification});
+  }
+
+  void _navigateToAlertVideo(UserNotification alert) {
+    final videoId = alert.metadata?['videoId'] as String?;
+    if (videoId != null && videoId.isNotEmpty) {
+      final mockVideo = Video(
+        id: videoId,
+        title: alert.title,
+        description: alert.message,
+        thumbnailUrl: alert.metadata?['thumbnailUrl'] as String? ?? '',
+        ownerId: '',
+        channelId: alert.metadata?['channelId'] as String? ?? '',
+        channelName: '',
+        category: 'Alerts',
+        tags: const [],
       );
+      Get.toNamed('/watch?v=${mockVideo.id}', arguments: {
+        'video': mockVideo,
+        'commentId': alert.metadata?['commentId'],
+        'replyId': alert.metadata?['replyId'],
+      });
+    } else if (alert.actionUrl != null && alert.actionUrl!.isNotEmpty) {
+      try {
+        if (alert.actionUrl!.startsWith('/')) {
+          Get.toNamed(alert.actionUrl!);
+        }
+      } catch (_) {}
     }
-
-    final mentions = userNotificationController.notifications
-        .where((n) => n.type.toLowerCase() == 'mention')
-        .toList();
-
-    if (mentions.isEmpty) {
-      return SliverFillRemaining(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.alternate_email_rounded,
-                  size: 64, color: Colors.white30),
-              const SizedBox(height: 16),
-              Text(
-                'No mentions found',
-                style: GoogleFonts.roboto(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white70),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return SliverPadding(
-      padding: EdgeInsets.symmetric(
-          horizontal: isDesktop ? 32 : 16, vertical: 8),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate((context, index) {
-          final alert = mentions[index];
-          return _buildCloudAlertCard(alert);
-        }, childCount: mentions.length),
-      ),
-    );
-  }
-
-  Widget _buildPremiumTabButton({
-    required String title,
-    required IconData icon,
-    required bool isSelected,
-    required int badgeCount,
-    required Color activeColor,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? activeColor.withValues(alpha: 0.2)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(21),
-          border: Border.all(
-            color: isSelected
-                ? activeColor.withValues(alpha: 0.5)
-                : Colors.transparent,
-            width: 1,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: isSelected ? activeColor : Colors.white60,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              title,
-              style: GoogleFonts.roboto(
-                fontSize: 14,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                color: isSelected ? Colors.white : Colors.white60,
-              ),
-            ),
-            if (badgeCount > 0) ...[
-              const SizedBox(width: 6),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isSelected ? activeColor : Colors.white24,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  badgeCount > 99 ? '99+' : '$badgeCount',
-                  style: GoogleFonts.roboto(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCloudAlertsFilters() {
-    return Container(
-      margin: EdgeInsets.symmetric(vertical: 8),
-      padding: EdgeInsets.symmetric(horizontal: 16),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          Obx(() => _buildFilterChip(
-                value: 'all',
-                label: 'All Alerts',
-                icon: Icons.all_inclusive_rounded,
-                isSelected: userNotificationController
-                        .selectedSeverityFilter.value ==
-                    'all',
-                onSelected: () =>
-                    userNotificationController.setSeverityFilter('all'),
-                color: const Color(0xFF10B981),
-              )),
-          Obx(() => _buildFilterChip(
-                value: 'priority',
-                label: 'Priority',
-                icon: Icons.warning_rounded,
-                isSelected: userNotificationController
-                        .selectedSeverityFilter.value ==
-                    'priority',
-                onSelected: () =>
-                    userNotificationController.setSeverityFilter('priority'),
-                color: const Color(0xFFEF4444),
-              )),
-          Obx(() => _buildFilterChip(
-                value: 'warning',
-                label: 'Warning',
-                icon: Icons.error_outline_rounded,
-                isSelected: userNotificationController
-                        .selectedSeverityFilter.value ==
-                    'warning',
-                onSelected: () =>
-                    userNotificationController.setSeverityFilter('warning'),
-                color: const Color(0xFFF59E0B),
-              )),
-          Obx(() => _buildFilterChip(
-                value: 'success',
-                label: 'Milestones',
-                icon: Icons.star_rounded,
-                isSelected: userNotificationController
-                        .selectedSeverityFilter.value ==
-                    'success',
-                onSelected: () =>
-                    userNotificationController.setSeverityFilter('success'),
-                color: const Color(0xFF10B981),
-              )),
-          Obx(() => _buildFilterChip(
-                value: 'info',
-                label: 'Updates',
-                icon: Icons.info_outline_rounded,
-                isSelected: userNotificationController
-                        .selectedSeverityFilter.value ==
-                    'info',
-                onSelected: () =>
-                    userNotificationController.setSeverityFilter('info'),
-                color: const Color(0xFF6366F1),
-              )),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCloudAlertsContent() {
-    if (userNotificationController.isLoading.value &&
-        userNotificationController.notifications.isEmpty) {
-      return SliverFillRemaining(
-        child: Center(
-          child: CircularProgressIndicator(color: const Color(0xFF10B981)),
-        ),
-      );
-    }
-
-    final alerts = userNotificationController.filteredNotifications;
-    if (alerts.isEmpty) {
-      return SliverFillRemaining(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.notifications_off_rounded,
-                  size: 64, color: Colors.white30),
-              const SizedBox(height: 16),
-              Text(
-                'No activity alerts found',
-                style: GoogleFonts.roboto(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white70),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return SliverPadding(
-      padding: EdgeInsets.symmetric(
-          horizontal: isDesktop ? 32 : 16, vertical: 8),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate((context, index) {
-          final alert = alerts[index];
-          return _buildCloudAlertCard(alert);
-        }, childCount: alerts.length),
-      ),
-    );
-  }
-
-  Widget _buildCloudAlertCard(UserNotification alert) {
-    Color severityColor;
-    IconData severityIcon;
-
-    switch (alert.severity) {
-      case NotificationSeverity.priority:
-        severityColor = const Color(0xFFEF4444);
-        severityIcon = Icons.warning_rounded;
-        break;
-      case NotificationSeverity.warning:
-        severityColor = const Color(0xFFF59E0B);
-        severityIcon = Icons.error_outline_rounded;
-        break;
-      case NotificationSeverity.success:
-        severityColor = const Color(0xFF10B981);
-        severityIcon = Icons.star_rounded;
-        break;
-      case NotificationSeverity.info:
-        severityColor = const Color(0xFF6366F1);
-        severityIcon = Icons.info_outline_rounded;
-        break;
-    }
-
-    return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            alert.read
-                ? AppColors.bgSurface
-                : severityColor.withValues(alpha: 0.1),
-            const Color(0xFF151515),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: alert.read
-              ? AppColors.bgDivider
-              : severityColor.withValues(alpha: 0.4),
-          width: alert.read ? 1 : 1.5,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            if (!alert.read) {
-              userNotificationController.markAsRead(alert.id);
-            }
-
-            final videoId = alert.metadata?['videoId'] as String?;
-            if (videoId != null && videoId.isNotEmpty) {
-              // Direct intelligent route matching to VideoScreen for comment/reply navigation
-              final mockVideo = Video(
-                id: videoId,
-                title: alert.title,
-                description: alert.message,
-                thumbnailUrl: alert.metadata?['thumbnailUrl'] as String? ?? '',
-                ownerId: '',
-                channelId: alert.metadata?['channelId'] as String? ?? '',
-                channelName: '',
-                category: 'Alerts',
-                tags: const [],
-              );
-              Get.toNamed('/watch?v=${mockVideo.id}', arguments: {
-                'video': mockVideo,
-                'commentId': alert.metadata?['commentId'],
-                'replyId': alert.metadata?['replyId'],
-              });
-            } else if (alert.actionUrl != null && alert.actionUrl!.isNotEmpty) {
-              try {
-                if (alert.actionUrl!.startsWith('/')) {
-                  Get.toNamed(alert.actionUrl!);
-                }
-              } catch (_) {}
-            }
-            HapticFeedback.lightImpact();
-          },
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Premium Left Side Avatar/Icon
-                Builder(builder: (context) {
-                  final avatarUrl = alert.metadata?['avatarUrl'] as String? ?? 
-                                    alert.metadata?['userAvatar'] as String? ?? '';
-                  if (avatarUrl.isNotEmpty) {
-                    return Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: severityColor.withValues(alpha: 0.3),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: ClipOval(
-                        child: Image.network(
-                          avatarUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              Icon(severityIcon, color: severityColor, size: 20),
-                        ),
-                      ),
-                    );
-                  }
-                  return Container(
-                    padding: EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: severityColor.withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                          color: severityColor.withValues(alpha: 0.3)),
-                    ),
-                    child: Icon(severityIcon, color: severityColor, size: 20),
-                  );
-                }),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              alert.title,
-                              style: GoogleFonts.roboto(
-                                fontSize: 15,
-                                fontWeight: alert.read
-                                    ? FontWeight.w500
-                                    : FontWeight.bold,
-                                color: alert.read
-                                    ? Colors.white70
-                                    : Colors.white,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            _formatTimestamp(alert.createdAt),
-                            style: GoogleFonts.roboto(
-                                fontSize: 12, color: Colors.white54),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        alert.message,
-                        style: GoogleFonts.roboto(
-                          fontSize: 13,
-                          color: alert.read
-                              ? Colors.white60
-                              : Colors.white.withValues(alpha: 0.9),
-                          height: 1.4,
-                        ),
-                      ),
-                      if (alert.actionUrl != null &&
-                          alert.actionUrl!.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Text(
-                              'View Details',
-                              style: GoogleFonts.roboto(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: severityColor,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Icon(Icons.arrow_forward_ios_rounded,
-                                size: 10, color: severityColor),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                // Premium Right Side Video/Post Thumbnail
-                Builder(builder: (context) {
-                  final thumbnailUrl = alert.metadata?['thumbnailUrl'] as String? ?? '';
-                  if (thumbnailUrl.isNotEmpty) {
-                    return Container(
-                      width: 60,
-                      height: 36,
-                      margin: const EdgeInsets.only(left: 12),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: Colors.white10,
-                          width: 1,
-                        ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: Image.network(
-                          thumbnailUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) =>
-                              const SizedBox.shrink(),
-                        ),
-                      ),
-                    );
-                  }
-                  return const SizedBox.shrink();
-                }),
-                if (!alert.read) ...[
-                  const SizedBox(width: 12),
-                  Container(
-                    width: 8,
-                    height: 8,
-                    margin: EdgeInsets.only(top: 14),
-                    decoration: BoxDecoration(
-                      color: severityColor,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                            color: severityColor.withValues(alpha: 0.5),
-                            blurRadius: 4,
-                            spreadRadius: 1),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _formatViews(int views) {
-    if (views >= 1000000) {
-      return '${(views / 1000000).toStringAsFixed(1)}M';
-    } else if (views >= 1000) {
-      return '${(views / 1000).toStringAsFixed(1)}K';
-    }
-    return '$views';
   }
 
   String _formatTimestamp(DateTime timestamp) {
     final now = DateTime.now();
     final difference = now.difference(timestamp);
 
-    if (difference.inMinutes < 60) {
+    if (difference.isNegative || difference.inSeconds < 60) {
+      return 'Just now';
+    } else if (difference.inMinutes < 60) {
       return '${difference.inMinutes}m ago';
     } else if (difference.inHours < 24) {
       return '${difference.inHours}h ago';
@@ -2402,10 +1443,6 @@ class _VideoFeedNotificationScreenState
     } else {
       return '${(difference.inDays / 30).floor()}mo ago';
     }
-  }
-
-  void _navigateToVideo(Video notification) {
-    Get.toNamed('/watch?v=${notification.id}', arguments: {'video': notification});
   }
 }
 

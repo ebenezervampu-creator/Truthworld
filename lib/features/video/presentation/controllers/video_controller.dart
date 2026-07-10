@@ -17,10 +17,11 @@ import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:video_player/video_player.dart';
+import 'package:flutter/services.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
-import 'package:truthworld/features/video/data/models/video_chapter.dart';
-import 'package:truthworld/features/video/presentation/controllers/custom_play.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
+import 'package:truthworld/features/video/data/models/video_chapter.dart';
+import 'package:truthworld/features/video/presentation/views/player/tower_custom_player.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
@@ -28,13 +29,14 @@ import 'package:http/http.dart' as http;
 import 'package:truthworld/features/analytics/data/services/viewer_identity_service.dart';
 import 'package:truthworld/features/video/presentation/widgets/fact_check_report_widget.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
-import 'dart:typed_data';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/features/video/domain/database_helpers.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
 
 
 class VideoController extends GetxController with GetTickerProviderStateMixin {
@@ -123,6 +125,12 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
   final RxBool isLoadingRecommendations = true.obs;
   final RxString selectedRecommendationFilter = 'All'.obs;
 
+  // Topics and Playlists recommendation tabs state
+  final RxList<Topic> videoTopicsList = <Topic>[].obs;
+  final RxList<PlaylistModel> videoPlaylistsList = <PlaylistModel>[].obs;
+  final RxMap<String, List<Video>> topicVideosCache = <String, List<Video>>{}.obs;
+  final RxMap<String, List<Video>> playlistVideosCache = <String, List<Video>>{}.obs;
+
   List<String> get recommendationFilters {
     final list = ['All'];
     if (video.channelName.isNotEmpty) {
@@ -133,6 +141,21 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
     } else if (video.category.isNotEmpty) {
       list.add(video.category);
     }
+
+    // Add topics
+    for (final topic in videoTopicsList) {
+      if (!list.contains(topic.title)) {
+        list.add(topic.title);
+      }
+    }
+
+    // Add playlists
+    for (final playlist in videoPlaylistsList) {
+      if (!list.contains(playlist.playlistName)) {
+        list.add(playlist.playlistName);
+      }
+    }
+
     return list;
   }
 
@@ -144,6 +167,19 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
     if (filter == 'From ${video.channelName}') {
       return moreFromChannel;
     }
+
+    // Check if filter is a topic title
+    final matchedTopic = videoTopicsList.firstWhereOrNull((t) => t.title == filter);
+    if (matchedTopic != null) {
+      return topicVideosCache[matchedTopic.id] ?? [];
+    }
+
+    // Check if filter is a playlist name
+    final matchedPlaylist = videoPlaylistsList.firstWhereOrNull((p) => p.playlistName == filter);
+    if (matchedPlaylist != null) {
+      return playlistVideosCache[matchedPlaylist.id] ?? [];
+    }
+
     final filterLower = filter.toLowerCase();
     return recommendedVideos.where((v) {
       final titleLower = v.title.toLowerCase();
@@ -636,7 +672,7 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
             final lang = supportedLanguages.firstWhereOrNull(
               (l) => l.code == langCode,
             );
-            final label = lang?.name ?? langCode.toUpperCase();
+            final label = lang?.name ?? (langCode.length <= 3 ? langCode.toUpperCase() : langCode);
 
             return SubtitleTrack(label: label, langCode: langCode, url: url);
           } catch (e) {
@@ -660,7 +696,8 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
 
   Future<void> fetchAvailableAudioTracks() async {
     try {
-      final tracks = video.audioTracks;
+      final audioTracksMap = video.audioTracks;
+      final dubbedVideosMap = video.dubbedVideos;
       final List<Future<AudioTrack?>> fetchTasks = [];
 
       // Add original track
@@ -676,7 +713,8 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
         ),
       );
 
-      for (var entry in tracks.entries) {
+      // Fetch audio tracks
+      for (var entry in audioTracksMap.entries) {
         final langCode = entry.key;
         final pathOrUrl = entry.value;
 
@@ -692,12 +730,12 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
             final lang = supportedLanguages.firstWhereOrNull(
               (l) => l.code == langCode,
             );
-            final label = lang?.name ?? langCode.toUpperCase();
+            final label = lang?.name != null ? '${lang!.name} (Audio)' : '${langCode.toUpperCase()} (Audio)';
 
             return AudioTrack(
               label: label,
               langCode: langCode,
-              type: 'Dubbed',
+              type: 'Audio',
               url: url,
             );
           } catch (e) {
@@ -709,11 +747,45 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
         }());
       }
 
+      // Fetch dubbed video tracks
+      for (var entry in dubbedVideosMap.entries) {
+        final langCode = entry.key;
+        final pathOrUrl = entry.value;
+
+        fetchTasks.add(() async {
+          try {
+            String url = pathOrUrl;
+            if (pathOrUrl.startsWith('gs://')) {
+              url = await FirebaseStorage.instance
+                  .refFromURL(pathOrUrl)
+                  .getDownloadURL();
+            }
+
+            final lang = supportedLanguages.firstWhereOrNull(
+              (l) => l.code == langCode,
+            );
+            final label = lang?.name != null ? '${lang!.name} (Video)' : '${langCode.toUpperCase()} (Video)';
+
+            return AudioTrack(
+              label: label,
+              langCode: langCode,
+              type: 'Video',
+              url: url,
+            );
+          } catch (e) {
+            debugPrint(
+              '[VideoController] ❌ Failed to get dubbed video URL for $langCode: $e',
+            );
+            return null;
+          }
+        }());
+      }
+
       final results = await Future.wait(fetchTasks);
       final found = results.whereType<AudioTrack>().toList();
       availableAudioTracks.assignAll(found);
 
-      debugPrint('[VideoController] ✅ Loaded ${found.length} audio tracks');
+      debugPrint('[VideoController] ✅ Loaded ${found.length} audio/video tracks');
     } catch (e) {
       debugPrint('[VideoController] 🔥 Error fetching audio tracks: $e');
     }
@@ -1192,11 +1264,33 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
           .collection('language_requests')
           .doc(docId);
           
+      final docSnap = await ref.get();
+      List<dynamic> requesters = [];
+      if (docSnap.exists) {
+        requesters = docSnap.data()?['requesters'] as List<dynamic>? ?? [];
+      }
+      
+      if (requesters.contains(userId)) {
+        Get.snackbar('Already Requested', 'You have already requested this language.');
+        return;
+      }
+      
+      requesters.add(userId);
+      
       await ref.set({
         'language': language,
         'type': type,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+        'count': requesters.length,
+        'requesters': requesters,
+        'createdAt': (docSnap.exists && docSnap.data() != null)
+            ? docSnap.data()!['createdAt']
+            : FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      
+      // Update local state reactively
+      _listenToLanguageRequests();
+      
       Get.snackbar('Success', 'Language request submitted!');
     } catch (e) {
       debugPrint('Error submitting language request: $e');
@@ -1220,6 +1314,33 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
   // Truth Index & Fact Checking
   final RxMap factCheckData = {}.obs;
   final RxBool isLoadingFactCheck = false.obs;
+
+  Future<void> loadFactCheckData() async {
+    if (video.factCheckUrl.isEmpty) {
+      factCheckData.clear();
+      return;
+    }
+
+    isLoadingFactCheck.value = true;
+    try {
+      String url = video.factCheckUrl;
+      if (url.startsWith('gs://')) {
+        url = await FirebaseStorage.instance.refFromURL(url).getDownloadURL();
+      }
+
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        factCheckData.value = jsonDecode(response.body);
+      } else {
+        throw Exception("Failed to load fact-check data");
+      }
+    } catch (e) {
+      debugPrint('[VideoController] ❌ Error loading fact check: $e');
+      factCheckData.clear();
+    } finally {
+      isLoadingFactCheck.value = false;
+    }
+  }
 
   Future<void> fetchFullDisclosure() async {
     if (video.factCheckUrl.isEmpty) {
@@ -1271,11 +1392,13 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
   }
 
   Future<void> fetchRecommendations() async {
+    selectedRecommendationFilter.value = 'All';
     isLoadingRecommendations.value = true;
     try {
       final String videoId = video.id;
 
       // 1. If we are in a playlist, fetch other videos from the playlist
+      bool hasPlaylistVideos = false;
       if (currentPlaylist.value != null) {
         final playlistVideoIds = currentPlaylist.value!.videoIds
             .where((id) => id != videoId)
@@ -1301,43 +1424,157 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
 
           recommendedVideos.value = playlistVideos;
           moreFromChannel.value = playlistVideos; // In playlist mode, they are the same
-          return;
+          hasPlaylistVideos = true;
         }
       }
 
-      // 2. Normal recommendations logic
-      final String channelId = video.channelId;
+      if (!hasPlaylistVideos) {
+        // 2. Normal recommendations logic
+        final String channelId = video.channelId;
 
-      // Single efficient fetch for channel videos
-      final channelVidsQuery = await FirebaseFirestore.instance
-          .collection('videos')
-          .where('channelId', isEqualTo: channelId)
-          .where(FieldPath.documentId, isNotEqualTo: videoId)
-          .limit(10)
-          .get();
+        // Single efficient fetch for channel videos
+        final channelVidsQuery = await FirebaseFirestore.instance
+            .collection('videos')
+            .where('channelId', isEqualTo: channelId)
+            .where(FieldPath.documentId, isNotEqualTo: videoId)
+            .limit(10)
+            .get();
 
-      final channelVideos = channelVidsQuery.docs
-          .map((d) => Video.fromDocumentSnapshot(d))
-          .toList();
+        final channelVideos = channelVidsQuery.docs
+            .map((d) => Video.fromDocumentSnapshot(d))
+            .toList();
 
-      // Fill the rest with general videos
-      final generalVidsQuery = await FirebaseFirestore.instance
-          .collection('videos')
-          .where(FieldPath.documentId, isNotEqualTo: videoId)
-          .limit(20)
-          .get();
+        // Fill the rest with general videos
+        final generalVidsQuery = await FirebaseFirestore.instance
+            .collection('videos')
+            .where(FieldPath.documentId, isNotEqualTo: videoId)
+            .limit(20)
+            .get();
 
-      final generalVideos = generalVidsQuery.docs
-          .map((d) => Video.fromDocumentSnapshot(d))
-          .where((v) => v.id != videoId && !channelVideos.any((cv) => cv.id == v.id))
-          .toList();
+        final generalVideos = generalVidsQuery.docs
+            .map((d) => Video.fromDocumentSnapshot(d))
+            .where((v) => v.id != videoId && !channelVideos.any((cv) => cv.id == v.id))
+            .toList();
 
-      moreFromChannel.value = channelVideos;
-      recommendedVideos.value = {...channelVideos, ...generalVideos}.toList();
+        moreFromChannel.value = channelVideos;
+        recommendedVideos.value = {...channelVideos, ...generalVideos}.toList();
+      }
+
+      // Fetch topics and playlists containing this video
+      await _fetchTopicsAndPlaylistsForRecommendations();
     } catch (e) {
       debugPrint("Error fetching recommendations: $e");
     } finally {
       isLoadingRecommendations.value = false;
+    }
+  }
+
+  Future<void> _fetchTopicsAndPlaylistsForRecommendations() async {
+    try {
+      final String videoId = video.id;
+
+      // Clear previous caches
+      videoTopicsList.clear();
+      videoPlaylistsList.clear();
+      topicVideosCache.clear();
+      playlistVideosCache.clear();
+
+      // --- 1. Topics ---
+      if (video.topics.isNotEmpty) {
+        final topicsSnapshot = await FirebaseFirestore.instance
+            .collection('topics')
+            .where('slug', whereIn: video.topics)
+            .get();
+
+        final List<Topic> foundTopics = topicsSnapshot.docs
+            .map((doc) => Topic.fromDocumentSnapshot(doc))
+            .toList();
+
+        videoTopicsList.assignAll(foundTopics);
+
+        // Fetch videos for each topic
+        for (final topic in foundTopics) {
+          final query = await FirebaseFirestore.instance
+              .collection('videos')
+              .where('topics', arrayContains: topic.slug)
+              .where('visibility', isEqualTo: 'Public')
+              .limit(10)
+              .get();
+
+          final List<Video> topicVids = query.docs
+              .map((doc) => Video.fromDocumentSnapshot(doc))
+              .toList();
+
+          topicVideosCache[topic.id] = topicVids;
+        }
+      }
+
+      // --- 2. Playlists ---
+      final List<PlaylistModel> foundPlaylists = [];
+
+      // Fetch public playlists containing this video
+      final publicPlaylistsQuery = await FirebaseFirestore.instance
+          .collection('public_playlists')
+          .where('videoIds', arrayContains: videoId)
+          .limit(5)
+          .get();
+
+      foundPlaylists.addAll(publicPlaylistsQuery.docs
+          .map((doc) => PlaylistModel.fromDocumentSnapshot(doc))
+          .toList());
+
+      // Fetch private playlists of the user containing this video
+      final currentUserId = AuthService.to.uid;
+      if (currentUserId.isNotEmpty) {
+        final privatePlaylistsQuery = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(currentUserId)
+            .collection('playlists')
+            .where('videoIds', arrayContains: videoId)
+            .limit(5)
+            .get();
+
+        foundPlaylists.addAll(privatePlaylistsQuery.docs
+            .map((doc) => PlaylistModel.fromDocumentSnapshot(doc))
+            .toList());
+      }
+
+      videoPlaylistsList.assignAll(foundPlaylists);
+
+      // Fetch videos for each playlist
+      for (final playlist in foundPlaylists) {
+        if (playlist.videoIds.isNotEmpty) {
+          final List<Video> playlistVids = await _fetchVideosByIds(playlist.videoIds);
+          playlistVideosCache[playlist.id] = playlistVids;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching topics and playlists for recommendations: $e');
+    }
+  }
+
+  Future<List<Video>> _fetchVideosByIds(List<String> ids) async {
+    if (ids.isEmpty) return [];
+    try {
+      final List<Video> result = [];
+      for (int i = 0; i < ids.length; i += 10) {
+        final chunk = ids.sublist(i, i + 10 > ids.length ? ids.length : i + 10);
+        final snapshot = await FirebaseFirestore.instance
+            .collection('videos')
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
+        result.addAll(snapshot.docs.map((doc) => Video.fromDocumentSnapshot(doc)));
+      }
+      // Sort to match original ids list order
+      result.sort((a, b) {
+        final indexA = ids.indexOf(a.id);
+        final indexB = ids.indexOf(b.id);
+        return indexA.compareTo(indexB);
+      });
+      return result;
+    } catch (e) {
+      debugPrint('Error fetching videos by ids: $e');
+      return [];
     }
   }
 
@@ -1561,7 +1798,10 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
           backgroundColor: Colors.grey.withValues(alpha: 0.5),
           bufferedColor: Colors.white.withValues(alpha: 0.3),
         ),
-        customControls: TowerCustomPlayer(tag: video.id),
+        customControls: TowerCustomPlayer(
+          videoPlayerController: _videoPlayerController!,
+          tag: video.id,
+        ),
         errorBuilder: (context, errorMessage) {
           return Center(
             child: Column(
@@ -1591,6 +1831,13 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
         // Add fullscreen listener
         fullScreenByDefault: false,
         allowFullScreen: true,
+        deviceOrientationsOnEnterFullScreen:
+            _videoPlayerController!.value.aspectRatio > 1.0
+            ? [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]
+            : [DeviceOrientation.portraitUp, DeviceOrientation.portraitDown],
+        deviceOrientationsAfterFullScreen: const [DeviceOrientation.portraitUp],
+        systemOverlaysOnEnterFullScreen: const [],
+        systemOverlaysAfterFullScreen: SystemUiOverlay.values,
       );
 
       // Listen for fullscreen changes from Chewie
@@ -1728,9 +1975,25 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
       final videoToPlay = video;
       final selectedResUrl = currentResolution.value?.url;
 
+      // ── CRITICAL: Pause immediately to prevent dual audio ──
+      // The VPC must stop producing audio NOW, before the async handoff.
+      try {
+        _videoPlayerController!.pause();
+      } catch (_) {}
+
       // Remove listeners so they don't fire when player is in miniplayer
       _videoPlayerController!.removeListener(_videoErrorListener);
       _videoPlayerController!.removeListener(videoListener);
+
+      // Detach the ChewieController from the VPC BEFORE disposing it.
+      // This prevents Chewie's internal dispose from touching the VPC.
+      _chewieController?.removeListener(_onChewieEvent);
+      _chewieController?.dispose();
+      _chewieController = null;
+
+      // Pause all other TowerPlayerController instances to kill any
+      // lingering audio from the overlay player.
+      TowerPlayerController.pauseAllActivePlayers();
 
       // Hand off the player controller to the miniplayer
       VideoPlaybackHandoff.registerActiveController(video.id, _videoPlayerController!);

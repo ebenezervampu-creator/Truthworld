@@ -11,6 +11,7 @@ import 'language_requests.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/player_controls.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
 import 'package:truthworld/features/video/presentation/widgets/language_preferences_dialog.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 
 class SettingsPanel extends StatelessWidget {
   final TowerPlayerController ctrl;
@@ -99,7 +100,7 @@ class MainSettingsMenu extends StatelessWidget {
           ),
           Obx(
             () => SettingsTile(
-              icon: Icons.speed_rounded,
+              icon: Icons.slow_motion_video_rounded,
               title: 'Playback Speed',
               value: ctrl.playbackSpeed.value == 1.0
                   ? 'Normal'
@@ -109,7 +110,7 @@ class MainSettingsMenu extends StatelessWidget {
           ),
           Obx(
             () => SettingsTile(
-              icon: Icons.high_quality_rounded,
+              icon: Icons.tune_rounded,
               title: 'Quality',
               value: ctrl.currentQualityLabel,
               badge: ctrl.abr.isAutoMode.value ? 'AUTO' : null,
@@ -118,7 +119,7 @@ class MainSettingsMenu extends StatelessWidget {
           ),
           Obx(
             () => SettingsTile(
-              icon: Icons.subtitles_rounded,
+              icon: Icons.closed_caption_rounded,
               title: 'Subtitles / CC',
               value: ctrl.subtitlesEnabled.value
                   ? ctrl.activeSubLang.value
@@ -128,7 +129,7 @@ class MainSettingsMenu extends StatelessWidget {
           ),
           Obx(
             () => SettingsTile(
-              icon: Icons.language_rounded,
+              icon: Icons.translate_rounded,
               title: 'Audio Language',
               value: ctrl.activeAudioLang.value,
               onTap: () => ctrl.activePanel.value = 'language',
@@ -137,7 +138,7 @@ class MainSettingsMenu extends StatelessWidget {
           Obx(
             () => ctrl.chapters.isNotEmpty
                 ? SettingsTile(
-                    icon: Icons.bookmarks_rounded,
+                    icon: Icons.list_alt_rounded,
                     title: 'Chapters',
                     value: ctrl.currentChapter.value?.title ?? 'None',
                     onTap: () => ctrl.activePanel.value = 'chapters',
@@ -153,7 +154,7 @@ class MainSettingsMenu extends StatelessWidget {
           const PlayerDivider(),
           Obx(
             () => ToggleTile(
-              icon: Icons.loop_rounded,
+              icon: Icons.repeat_rounded,
               title: 'Loop',
               value: ctrl.isLooping.value,
               onChanged: (_) => ctrl.toggleLoop(),
@@ -161,7 +162,7 @@ class MainSettingsMenu extends StatelessWidget {
           ),
           Obx(
             () => ToggleTile(
-              icon: Icons.play_circle_outline_rounded,
+              icon: Icons.playlist_play_rounded,
               title: 'Autoplay Next',
               value: ctrl.isAutoplay.value,
               onChanged: (_) => ctrl.toggleAutoplay(),
@@ -169,7 +170,7 @@ class MainSettingsMenu extends StatelessWidget {
           ),
           Obx(
             () => ToggleTile(
-              icon: Icons.audiotrack_rounded,
+              icon: Icons.music_note_rounded,
               title: 'Audio Only Mode',
               value: ctrl.isAudioOnly.value,
               onChanged: (_) => ctrl.toggleAudioOnly(),
@@ -793,7 +794,7 @@ class PanelHeader extends StatelessWidget {
       child: Row(
         children: [
           if (onBack != null)
-            IconBtn(icon: Icons.arrow_back_ios_new, onTap: onBack!, size: 18)
+            IconBtn(icon: const BackSymbol(size: 18), onTap: onBack!)
           else
             const SizedBox(width: 8),
           Expanded(child: Text(title, style: TS.title)),

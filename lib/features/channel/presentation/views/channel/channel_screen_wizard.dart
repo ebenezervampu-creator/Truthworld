@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -1071,9 +1072,7 @@ class ChannelScreen extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.arrow_back,
-                        color: isDarkMode
+                      BackSymbol(color: isDarkMode
                             ? Colors.white
                             : const Color(0xFF2D3748),
                       ),

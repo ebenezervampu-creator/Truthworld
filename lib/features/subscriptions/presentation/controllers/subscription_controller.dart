@@ -469,6 +469,7 @@ class SubscriptionController extends GetxController {
           'userId': currentUserId,
           'channelId': channelId,
           'subscribedAt': FieldValue.serverTimestamp(),
+          'notificationsEnabled': true,
         });
         tx.update(channelRef, {
           'subscriberCount': FieldValue.increment(1),
@@ -479,6 +480,7 @@ class SubscriptionController extends GetxController {
       subscriptions.add(Subscription(
         userId: currentUserId!,
         channelId: channelId,
+        notificationsEnabled: true,
       ));
       await loadSubscribedChannels();
       await loadAllContent();

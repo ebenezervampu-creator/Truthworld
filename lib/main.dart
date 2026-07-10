@@ -18,6 +18,7 @@ import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/push_notification_service.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/miniplayer_overlay_manager.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 
 /// Global error handler for production
 void _handleFlutterError(FlutterErrorDetails details) {
@@ -229,6 +230,7 @@ class Truthworld extends StatelessWidget {
       initialRoute: _getInitialRoute(),
       initialBinding: InitialBinding(),
       getPages: AppPages.routes,
+      navigatorObservers: [RouteStackObserver()],
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(1.0)),

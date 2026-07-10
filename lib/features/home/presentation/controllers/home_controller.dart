@@ -14,6 +14,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
 
 
 // ========================================================================
@@ -177,6 +178,25 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   final trendingVideos = <Video>[].obs;
   final isCarouselLoading = true.obs;
 
+  // USER LIBRARY SECTIONS STATE (REACTIVELY HIDDEN IF EMPTY)
+  final hasWatchHistory = false.obs;
+  final hasPlaylists = false.obs;
+  final hasFollowedTopics = false.obs;
+  final hasWatchLater = false.obs;
+  final hasLikedVideos = false.obs;
+  final hasUploadedVideos = false.obs;
+  final hasClips = false.obs;
+  final hasDownloads = false.obs;
+
+  StreamSubscription? _historySub;
+  StreamSubscription? _playlistsSub;
+  StreamSubscription? _topicsSub;
+  StreamSubscription? _watchLaterSub;
+  StreamSubscription? _likedSub;
+  StreamSubscription? _myVideosSub;
+  StreamSubscription? _clipsSub;
+  StreamSubscription? _downloadsListSub;
+
   // ========================================================================
   // SUBSCRIPTIONS STATE
   // ========================================================================
@@ -198,6 +218,130 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     fetchSubscribedChannels();
     _setupConnectivityListener();
     _setupBottomNavSync();
+
+    // Listen to authentication state changes
+    ever(_authService.currentUser, (User? u) {
+      if (u != null) {
+        _listenToUserLibraryData(u.uid);
+        fetchSubscribedChannels();
+      } else {
+        _cancelLibrarySubscriptions();
+        subscribedChannelList.clear();
+      }
+    });
+
+    // Initial fetch if user is already authenticated
+    final currentUid = _authService.user?.uid;
+    if (currentUid != null && currentUid.isNotEmpty) {
+      _listenToUserLibraryData(currentUid);
+    }
+  }
+
+  void _listenToUserLibraryData(String userId) {
+    _cancelLibrarySubscriptions();
+
+    _historySub = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('watch_history')
+        .limit(1)
+        .snapshots()
+        .listen((snap) {
+      hasWatchHistory.value = snap.docs.isNotEmpty;
+    });
+
+    _playlistsSub = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('playlists')
+        .limit(1)
+        .snapshots()
+        .listen((snap) {
+      hasPlaylists.value = snap.docs.isNotEmpty;
+    });
+
+    _topicsSub = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('savedTopics')
+        .limit(1)
+        .snapshots()
+        .listen((snap) {
+      hasFollowedTopics.value = snap.docs.isNotEmpty;
+    });
+
+    _watchLaterSub = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('watch_later')
+        .limit(1)
+        .snapshots()
+        .listen((snap) {
+      hasWatchLater.value = snap.docs.isNotEmpty;
+    });
+
+    _likedSub = _firestore
+        .collection('videos')
+        .where('likedBy', arrayContains: userId)
+        .limit(1)
+        .snapshots()
+        .listen((snap) {
+      hasLikedVideos.value = snap.docs.isNotEmpty;
+    });
+
+    _myVideosSub = _firestore
+        .collection('videos')
+        .where('ownerId', isEqualTo: userId)
+        .limit(1)
+        .snapshots()
+        .listen((snap) {
+      hasUploadedVideos.value = snap.docs.isNotEmpty;
+    });
+
+    _clipsSub = _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('clips')
+        .limit(1)
+        .snapshots()
+        .listen((snap) {
+      hasClips.value = snap.docs.isNotEmpty;
+    });
+
+    _setupDownloadsListener();
+  }
+
+  void _setupDownloadsListener() {
+    if (!Get.isRegistered<DownloadsController>()) {
+      Get.put(DownloadsController());
+    }
+    final downloadsCtrl = Get.find<DownloadsController>();
+    hasDownloads.value = downloadsCtrl.videos.isNotEmpty;
+    
+    _downloadsListSub?.cancel();
+    _downloadsListSub = downloadsCtrl.videos.listen((videosList) {
+      hasDownloads.value = videosList.isNotEmpty;
+    });
+  }
+
+  void _cancelLibrarySubscriptions() {
+    _historySub?.cancel();
+    _playlistsSub?.cancel();
+    _topicsSub?.cancel();
+    _watchLaterSub?.cancel();
+    _likedSub?.cancel();
+    _myVideosSub?.cancel();
+    _clipsSub?.cancel();
+    _downloadsListSub?.cancel();
+
+    hasWatchHistory.value = false;
+    hasPlaylists.value = false;
+    hasFollowedTopics.value = false;
+    hasWatchLater.value = false;
+    hasLikedVideos.value = false;
+    hasUploadedVideos.value = false;
+    hasClips.value = false;
+    hasDownloads.value = false;
   }
 
   void _setupBottomNavSync() {
@@ -236,6 +380,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
   @override
   void onClose() {
+    _cancelLibrarySubscriptions();
     _disposeAnimations();
     tabController.dispose();
     scrollController.removeListener(_scrollListener);

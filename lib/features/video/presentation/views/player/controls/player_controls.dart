@@ -180,36 +180,141 @@ class PlayerTopBar extends StatelessWidget {
               ],
             ),
             const SizedBox(width: 12),
-            // Subscribe Button
+            // Subscribe Button & Bell Icon
             Obx(() {
               final isSubbed = channelCtrl!.isSubscribed.value;
-              return InkWell(
-                onTap: () =>
-                    channelCtrl!.toggleSubscription(vc!.video.channelId),
-                borderRadius: BorderRadius.circular(16),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isSubbed
-                        ? Colors.white.withValues(alpha: 0.1)
-                        : Colors.white,
+              final notificationsEnabled = channelCtrl.notificationsEnabled.value;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  InkWell(
+                    onTap: () =>
+                        channelCtrl!.toggleSubscription(vc!.video.channelId),
                     borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    isSubbed ? 'Subscribed' : 'Subscribe',
-                    style: TS.bold.copyWith(
-                      color: isSubbed ? Colors.white : Colors.black,
-                      fontSize: 13,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isSubbed
+                            ? Colors.white.withValues(alpha: 0.1)
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Text(
+                        isSubbed ? 'Subscribed' : 'Subscribe',
+                        style: TS.bold.copyWith(
+                          color: isSubbed ? Colors.white : Colors.black,
+                          fontSize: 13,
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                  if (isSubbed) ...[
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: () => _showPlayerNotificationsDialog(context, channelCtrl!, vc!.video.channelId),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          notificationsEnabled ? Icons.notifications_active : Icons.notifications_off,
+                          color: Colors.white,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               );
             }),
           ],
         ],
+      ),
+    );
+  }
+
+  void _showPlayerNotificationsDialog(
+      BuildContext context, ChannelController channelCtrl, String channelId) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1C1C1C),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Notification settings',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Obx(() {
+              final isAll = channelCtrl.notificationsEnabled.value;
+              return Column(
+                children: [
+                  ListTile(
+                    leading: Icon(
+                      Icons.notifications_active,
+                      color: isAll ? PT.primary : Colors.white,
+                    ),
+                    title: Text(
+                      'All notifications',
+                      style: TextStyle(
+                        color: isAll ? PT.primary : Colors.white,
+                        fontWeight: isAll ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    trailing: isAll ? Icon(Icons.check, color: PT.primary) : null,
+                    onTap: () {
+                      Navigator.pop(context);
+                      channelCtrl.updateNotificationPreference(channelId, true);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(
+                      Icons.notifications_off,
+                      color: !isAll ? PT.primary : Colors.white,
+                    ),
+                    title: Text(
+                      'None',
+                      style: TextStyle(
+                        color: !isAll ? PT.primary : Colors.white,
+                        fontWeight: !isAll ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    trailing: !isAll ? Icon(Icons.check, color: PT.primary) : null,
+                    onTap: () {
+                      Navigator.pop(context);
+                      channelCtrl.updateNotificationPreference(channelId, false);
+                    },
+                  ),
+                ],
+              );
+            }),
+          ],
+        ),
       ),
     );
   }
@@ -362,79 +467,97 @@ class ControlRow extends StatelessWidget {
         // Right cluster
         if (!isNarrow) AbrBadge(ctrl: ctrl),
         if (!isNarrow)
-          IconBtn(
-            icon: Icons.picture_in_picture_alt_rounded,
-            onTap: ctrl.togglePiP,
+          Tooltip(
+            message: 'Miniplayer',
+            child: IconBtn(
+              icon: Icons.branding_watermark_outlined,
+              onTap: ctrl.togglePiP,
+            ),
           ),
 
         // Autoplay
         if (!isNarrow)
           Obx(
-            () => IconBtn(
-              icon: ctrl.isAutoplay.value
-                  ? Icons.play_circle_filled
-                  : Icons.play_circle_outline,
-              onTap: ctrl.toggleAutoplay,
+            () => Tooltip(
+              message: ctrl.isAutoplay.value ? 'Autoplay is on' : 'Autoplay is off',
+              child: IconBtn(
+                icon: ctrl.isAutoplay.value
+                    ? Icons.playlist_play_rounded
+                    : Icons.playlist_remove_rounded,
+                onTap: ctrl.toggleAutoplay,
+              ),
             ),
           ),
 
         // CC / Subtitles
         Obx(() {
           if (ctrl.subtitleTracks.isEmpty) return const SizedBox.shrink();
-          return IconBtn(
-            icon: ctrl.subtitlesEnabled.value
-                ? Icons.closed_caption
-                : Icons.closed_caption_outlined,
-            onTap: () {
-              if (ctrl.subtitleTracks.isEmpty) return;
-              if (ctrl.subtitlesEnabled.value) {
-                ctrl.setSubtitles(enabled: false);
-              } else {
-                ctrl.setSubtitles(
-                  enabled: true,
-                  track: ctrl.subtitleTracks.first,
-                );
-              }
-            },
+          return Tooltip(
+            message: ctrl.subtitlesEnabled.value ? 'Subtitles (on)' : 'Subtitles (off)',
+            child: IconBtn(
+              icon: ctrl.subtitlesEnabled.value
+                  ? Icons.closed_caption_rounded
+                  : Icons.closed_caption_disabled_outlined,
+              onTap: () {
+                if (ctrl.subtitleTracks.isEmpty) return;
+                if (ctrl.subtitlesEnabled.value) {
+                  ctrl.setSubtitles(enabled: false);
+                } else {
+                  ctrl.setSubtitles(
+                    enabled: true,
+                    track: ctrl.subtitleTracks.first,
+                  );
+                }
+              },
+            ),
           );
         }),
 
         // Audio Only
         Obx(
-          () => IconBtn(
-            icon: ctrl.isAudioOnly.value
-                ? Icons.headset
-                : Icons.headset_outlined,
-            onTap: () {
-              String? url, title, art;
-              try {
-                if (ctrl.tag != null &&
-                    Get.isRegistered<VideoController>(tag: ctrl.tag)) {
-                  final vc = Get.find<VideoController>(tag: ctrl.tag);
-                  url = vc.currentResolution.value?.url;
-                  title = vc.video.title;
-                  art = vc.video.thumbnailUrl;
-                }
-              } catch (_) {}
-              ctrl.toggleAudioOnly(
-                videoUrl: url,
-                title: title,
-                artworkUrl: art,
-              );
-            },
+          () => Tooltip(
+            message: ctrl.isAudioOnly.value ? 'Audio only (on)' : 'Audio only',
+            child: IconBtn(
+              icon: ctrl.isAudioOnly.value
+                  ? Icons.music_note_rounded
+                  : Icons.music_note_outlined,
+              onTap: () {
+                String? url, title, art;
+                try {
+                  if (ctrl.tag != null &&
+                      Get.isRegistered<VideoController>(tag: ctrl.tag)) {
+                    final vc = Get.find<VideoController>(tag: ctrl.tag);
+                    url = vc.currentResolution.value?.url;
+                    title = vc.video.title;
+                    art = vc.video.thumbnailUrl;
+                  }
+                } catch (_) {}
+                ctrl.toggleAudioOnly(
+                  videoUrl: url,
+                  title: title,
+                  artworkUrl: art,
+                );
+              },
+            ),
           ),
         ),
 
         // Settings
-        IconBtn(icon: Icons.settings_rounded, onTap: ctrl.openSettings),
+        Tooltip(
+          message: 'Settings',
+          child: IconBtn(icon: Icons.settings_outlined, onTap: ctrl.openSettings),
+        ),
 
         // Fullscreen
         Obx(
-          () => IconBtn(
-            icon: ctrl.isFullScreen.value
-                ? Icons.fullscreen_exit_rounded
-                : Icons.fullscreen_rounded,
-            onTap: ctrl.toggleFullscreen,
+          () => Tooltip(
+            message: ctrl.isFullScreen.value ? 'Exit full screen (f)' : 'Full screen (f)',
+            child: IconBtn(
+              icon: ctrl.isFullScreen.value
+                  ? Icons.fullscreen_exit_rounded
+                  : Icons.fullscreen_rounded,
+              onTap: ctrl.toggleFullscreen,
+            ),
           ),
         ),
       ],
@@ -637,7 +760,7 @@ class TimeDisplay extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class IconBtn extends StatelessWidget {
-  final IconData icon;
+  final dynamic icon;
   final VoidCallback? onTap;
   final double size;
   const IconBtn({super.key, required this.icon, this.onTap, this.size = 26});
@@ -653,7 +776,9 @@ class IconBtn extends StatelessWidget {
         highlightColor: PT.primary.withValues(alpha: 0.1),
         child: Padding(
           padding: const EdgeInsets.all(8),
-          child: Icon(icon, color: Colors.white, size: size),
+          child: icon is Widget
+              ? icon as Widget
+              : Icon(icon as IconData, color: Colors.white, size: size),
         ),
       ),
     );

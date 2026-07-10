@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -186,9 +187,7 @@ class _PrivacyPolicyScreenState extends State<PrivacyPolicyScreen> {
             // Use the hamburger icon ONLY on mobile
             leading: isDesktop
                 ? IconButton(
-                    icon: Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      color: Theme.of(context).iconTheme.color,
+                    icon: BackSymbol(color: Theme.of(context).iconTheme.color,
                     ),
                     onPressed: () => Get.back(),
                   )

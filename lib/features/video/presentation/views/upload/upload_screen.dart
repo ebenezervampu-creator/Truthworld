@@ -1,4 +1,5 @@
 import 'package:truthworld/theme/app_theme.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'dart:ui';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -1821,7 +1822,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
                 ),
                 child: OutlinedButton.icon(
                   onPressed: _goToPreviousStep,
-                  icon: const Icon(Icons.arrow_back_rounded, size: 20),
+                  icon: const BackSymbol(size: 20),
                   label: Text(
                     'Back',
                     style: GoogleFonts.roboto(
@@ -1991,7 +1992,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
 
   Widget _buildCommunityImageUpload(bool isDark) {
     return Obx(() {
-      final hasImage = _uploadController.pickedImage.value != null;
+      final hasImage = _uploadController.pickedCommunityImage.value != null;
       final isUploading = _uploadController.isUploading.value;
 
       return InkWell(
@@ -2025,8 +2026,8 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
 
   Widget _buildCommunityImagePreview(bool isDark) {
     return Obx(() {
-      final file = _uploadController.pickedImage.value!;
-      final isUploaded = _uploadController.thumbnailUrl.value.isNotEmpty;
+      final file = _uploadController.pickedCommunityImage.value!;
+      final isUploaded = _uploadController.communityImageUrl.value.isNotEmpty;
 
       return Stack(
         children: [
@@ -2399,12 +2400,13 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
   }
 
   bool _canPublishCommunity() {
-    return (_uploadController.pickedImage.value != null ||
-            _uploadController.thumbnailUrl.value.isNotEmpty) &&
+    return (_uploadController.pickedCommunityImage.value != null ||
+            _uploadController.communityImageUrl.value.isNotEmpty) &&
         _uploadController.selectedChannel.value != null &&
         _communityTitleController.text.trim().isNotEmpty &&
         _communityDescriptionController.text.trim().isNotEmpty &&
-        !_uploadController.isUploading.value;
+        !_uploadController.isUploading.value &&
+        !_uploadController.isCommunityPostUploading.value;
   }
 
   void _goToNextStep() {
@@ -2688,7 +2690,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
   void _handleCommunityUpload() async {
     if (!_canPublishCommunity()) {
       String errorMessage = '';
-      if (_uploadController.thumbnailUrl.value.isEmpty) {
+      if (_uploadController.communityImageUrl.value.isEmpty) {
         errorMessage += 'Image not added.\n';
       }
       if (_communityTitleController.text.trim().isEmpty) {
@@ -2852,9 +2854,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
               width: 1,
             ),
           ),
-          child: Icon(
-            Icons.arrow_back_rounded,
-            size: 20,
+          child: BackSymbol(size: 20,
             color: isDark ? Colors.white : const Color(0xFF0F172A),
           ),
         ),

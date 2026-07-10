@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 
 // A simple class to hold our parsed guidelines sections
@@ -279,9 +280,7 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
                   shadowColor: Colors.black.withValues(alpha: 0.1),
                   leading: isDesktop
                       ? IconButton(
-                          icon: Icon(
-                            Icons.arrow_back_ios_new,
-                            color: Theme.of(context).iconTheme.color,
+                          icon: BackSymbol(color: Theme.of(context).iconTheme.color,
                           ),
                           onPressed: () => Get.back(),
                         )

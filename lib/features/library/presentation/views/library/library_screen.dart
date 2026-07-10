@@ -403,34 +403,74 @@ class LibraryScreenState extends State<LibraryScreen>
             child: _buildProfileHeader(userId),
           ),
 
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                // 2. History Section
-                _buildHistorySection(userId),
-                const SizedBox(height: 24),
-                // 3. Playlists Section
-                _buildPlaylistsSection(userId),
-                const SizedBox(height: 24),
+          Obx(() {
+            final homeController = Get.isRegistered<HomeController>()
+                ? Get.find<HomeController>()
+                : Get.put(HomeController());
 
-                // Following Topics Section
-                _buildFollowingTopicsSection(userId),
-                const SizedBox(height: 24),
-                // 4. Liked Videos Section
-                _buildLikedVideosSection(userId),
-                const SizedBox(height: 24),
+            final items = <Widget>[];
 
-                // 5. Clips Section
-                _buildClipsSection(userId),
-                const SizedBox(height: 24),
+            // 2. History Section
+            if (homeController.hasWatchHistory.value) {
+              items.add(_buildHistorySection(userId));
+              items.add(const SizedBox(height: 24));
+            }
 
-                // 6. Your Videos Section
-                _buildYourVideosSection(userId),
-                const SizedBox(height: 40),
-              ]),
-            ),
-          ),
+            // 3. Playlists Section
+            if (homeController.hasPlaylists.value) {
+              items.add(_buildPlaylistsSection(userId));
+              items.add(const SizedBox(height: 24));
+            }
+
+            // Following Topics Section
+            if (homeController.hasFollowedTopics.value) {
+              items.add(_buildFollowingTopicsSection(userId));
+              items.add(const SizedBox(height: 24));
+            }
+
+            // 4. Liked Videos Section
+            if (homeController.hasLikedVideos.value) {
+              items.add(_buildLikedVideosSection(userId));
+              items.add(const SizedBox(height: 24));
+            }
+
+            // 5. Clips Section
+            if (homeController.hasClips.value) {
+              items.add(_buildClipsSection(userId));
+              items.add(const SizedBox(height: 24));
+            }
+
+            // 6. Your Videos Section
+            if (homeController.hasUploadedVideos.value) {
+              items.add(_buildYourVideosSection(userId));
+              items.add(const SizedBox(height: 40));
+            }
+
+            if (items.isEmpty) {
+              return SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 24),
+                    child: Text(
+                      "Your library is empty",
+                      style: GoogleFonts.roboto(
+                        fontSize: 16,
+                        color: secondaryText,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            return SliverPadding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate(items),
+              ),
+            );
+          }),
         ],
       ),
     );

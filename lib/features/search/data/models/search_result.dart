@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum ResultType { video, channel, playlist }
+enum ResultType { video, channel, playlist, topic }
 
 /// Lightweight search result model (only essential fields)
 /// Purpose: Minimize payload size for fast network transfers
@@ -30,7 +30,7 @@ class SearchResult {
   DateTime get uploadedAt => createdAt.toDate();
   int? get duration => null; // SearchResult is lightweight, duration might not be present
   String? get quality => null; // SearchResult is lightweight, quality might not be present
-  int? get videoCount => type == ResultType.playlist ? views : null;
+  int? get videoCount => type == ResultType.playlist || type == ResultType.topic ? views : null;
 
   /// Convert Firestore document to SearchResult
   factory SearchResult.fromFirestore(
@@ -64,6 +64,17 @@ class SearchResult {
           channelImage: '',
           createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
           type: ResultType.playlist,
+        );
+      case ResultType.topic:
+        return SearchResult(
+          id: doc.id,
+          title: data['title'] as String? ?? 'Untitled Topic',
+          thumbnail: data['thumbnailUrl'] as String? ?? '',
+          views: (data['videoCount'] as num?)?.toInt() ?? 0, // Using videoCount as views/popularity
+          channelName: data['handle'] as String? ?? 'T/${data['slug'] ?? ""}',
+          channelImage: '',
+          createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
+          type: ResultType.topic,
         );
       case ResultType.video:
         return SearchResult(

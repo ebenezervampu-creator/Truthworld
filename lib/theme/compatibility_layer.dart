@@ -1,17 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 
 class AppTheme {
+  @deprecated
   static CompatColors get colors => const CompatColors();
+  @deprecated
   static CompatSpacing get spacing => const CompatSpacing();
+  @deprecated
   static CompatTypography get typography => const CompatTypography();
+  @deprecated
   static CompatSizes get sizes => const CompatSizes();
+  @deprecated
   static CompatRadius get radius => const CompatRadius();
+  @deprecated
   static CompatInteraction get interaction => const CompatInteraction();
+  @deprecated
   static CompatInteraction get animations => const CompatInteraction(); // Alias
+  @deprecated
   static CompatShadows get shadows => const CompatShadows();
+  @deprecated
   static CompatComponents get components => const CompatComponents();
   
   static const Color primaryColor = AppColors.brand;
@@ -72,31 +80,31 @@ class AppTokens {
 }
 
 class AppTextStyles {
-  static TextStyle get labelSmall => GoogleFonts.roboto(fontSize: 10, fontWeight: FontWeight.w400, color: AppColors.textSecondary);
-  static TextStyle get videoTitleSmall => GoogleFonts.roboto(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary);
-  static TextStyle get videoTitleMedium => GoogleFonts.roboto(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textPrimary);
-  static TextStyle get videoTitleLarge => GoogleFonts.roboto(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
-  static TextStyle get titleMedium => GoogleFonts.roboto(fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textPrimary);
-  static TextStyle get channelNameSmall => GoogleFonts.roboto(fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.textSecondary);
-  static TextStyle get channelName => GoogleFonts.roboto(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.textSecondary);
-  static TextStyle get videoMetadataSmall => GoogleFonts.roboto(fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.textTertiary);
-  static TextStyle get videoMetadata => GoogleFonts.roboto(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.textTertiary);
-  static TextStyle get headlineSmall => GoogleFonts.roboto(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
-  static TextStyle get bodyMedium => GoogleFonts.roboto(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.textPrimary);
-  static TextStyle get bodyLarge => GoogleFonts.roboto(fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.textPrimary);
-  static TextStyle get bodySmall => GoogleFonts.roboto(fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.textSecondary);
-  static TextStyle get titleLarge => GoogleFonts.roboto(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
-  static TextStyle get displaySmall => GoogleFonts.roboto(fontSize: 36, fontWeight: FontWeight.w400, color: AppColors.textPrimary);
-  static TextStyle get inputText => GoogleFonts.roboto(fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.textPrimary);
-  static TextStyle get inputHint => GoogleFonts.roboto(fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.textTertiary);
-  static TextStyle get buttonText => GoogleFonts.roboto(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary);
-  static TextStyle get labelLarge => GoogleFonts.roboto(fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary);
-  static TextStyle get labelMedium => GoogleFonts.roboto(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textSecondary);
-  static TextStyle get badge => GoogleFonts.roboto(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
-  static TextStyle get pageTitle => GoogleFonts.roboto(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
-  static TextStyle get sectionHeader => GoogleFonts.roboto(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
-  static TextStyle get caption => GoogleFonts.roboto(fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.textTertiary);
-  static TextStyle get captionBold => GoogleFonts.roboto(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textTertiary);
+  static TextStyle get labelSmall => const TextStyle(fontFamily: 'Roboto', fontSize: 10, fontWeight: FontWeight.w400, color: AppColors.textSecondary);
+  static TextStyle get videoTitleSmall => const TextStyle(fontFamily: 'Roboto', fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary);
+  static TextStyle get videoTitleMedium => const TextStyle(fontFamily: 'Roboto', fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textPrimary);
+  static TextStyle get videoTitleLarge => const TextStyle(fontFamily: 'Roboto', fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
+  static TextStyle get titleMedium => const TextStyle(fontFamily: 'Roboto', fontSize: 16, fontWeight: FontWeight.w500, color: AppColors.textPrimary);
+  static TextStyle get channelNameSmall => const TextStyle(fontFamily: 'Roboto', fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.textSecondary);
+  static TextStyle get channelName => const TextStyle(fontFamily: 'Roboto', fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.textSecondary);
+  static TextStyle get videoMetadataSmall => const TextStyle(fontFamily: 'Roboto', fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.textTertiary);
+  static TextStyle get videoMetadata => const TextStyle(fontFamily: 'Roboto', fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.textTertiary);
+  static TextStyle get headlineSmall => const TextStyle(fontFamily: 'Roboto', fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
+  static TextStyle get bodyMedium => const TextStyle(fontFamily: 'Roboto', fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.textPrimary);
+  static TextStyle get bodyLarge => const TextStyle(fontFamily: 'Roboto', fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.textPrimary);
+  static TextStyle get bodySmall => const TextStyle(fontFamily: 'Roboto', fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.textSecondary);
+  static TextStyle get titleLarge => const TextStyle(fontFamily: 'Roboto', fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
+  static TextStyle get displaySmall => const TextStyle(fontFamily: 'Roboto', fontSize: 36, fontWeight: FontWeight.w400, color: AppColors.textPrimary);
+  static TextStyle get inputText => const TextStyle(fontFamily: 'Roboto', fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.textPrimary);
+  static TextStyle get inputHint => const TextStyle(fontFamily: 'Roboto', fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.textTertiary);
+  static TextStyle get buttonText => const TextStyle(fontFamily: 'Roboto', fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary);
+  static TextStyle get labelLarge => const TextStyle(fontFamily: 'Roboto', fontSize: 14, fontWeight: FontWeight.w500, color: AppColors.textPrimary);
+  static TextStyle get labelMedium => const TextStyle(fontFamily: 'Roboto', fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textSecondary);
+  static TextStyle get badge => const TextStyle(fontFamily: 'Roboto', fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
+  static TextStyle get pageTitle => const TextStyle(fontFamily: 'Roboto', fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
+  static TextStyle get sectionHeader => const TextStyle(fontFamily: 'Roboto', fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
+  static TextStyle get caption => const TextStyle(fontFamily: 'Roboto', fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.textTertiary);
+  static TextStyle get captionBold => const TextStyle(fontFamily: 'Roboto', fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textTertiary);
 }
 
 class InteractionStyles {
@@ -116,6 +124,7 @@ class ComponentStyles {
   );
 }
 
+@deprecated
 class CompatColors {
   const CompatColors();
   Color get primary => AppColors.brand;
@@ -155,6 +164,7 @@ class CompatColors {
   Color get surfaceContainerHighest => AppColors.bgSurfaceHover;
 }
 
+@deprecated
 class CompatSpacing {
   const CompatSpacing();
   double get xxs => 2.0;
@@ -173,19 +183,21 @@ class CompatSpacing {
   double get space32 => 32.0;
 }
 
+@deprecated
 class CompatTypography {
   const CompatTypography();
-  TextStyle get h1 => GoogleFonts.roboto(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
-  TextStyle get h2 => GoogleFonts.roboto(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
-  TextStyle get h3 => GoogleFonts.roboto(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
-  TextStyle get label => GoogleFonts.roboto(fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textSecondary, letterSpacing: 1.2);
-  TextStyle get body => GoogleFonts.roboto(fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.textPrimary);
-  TextStyle get bodyLarge => GoogleFonts.roboto(fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.textPrimary);
-  TextStyle get bodyMedium => GoogleFonts.roboto(fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.textPrimary);
-  TextStyle get bodySmall => GoogleFonts.roboto(fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.textSecondary);
-  TextStyle get caption => GoogleFonts.roboto(fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.textTertiary);
+  TextStyle get h1 => const TextStyle(fontFamily: 'Roboto', fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
+  TextStyle get h2 => const TextStyle(fontFamily: 'Roboto', fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
+  TextStyle get h3 => const TextStyle(fontFamily: 'Roboto', fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary);
+  TextStyle get label => const TextStyle(fontFamily: 'Roboto', fontSize: 12, fontWeight: FontWeight.w500, color: AppColors.textSecondary, letterSpacing: 1.2);
+  TextStyle get body => const TextStyle(fontFamily: 'Roboto', fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.textPrimary);
+  TextStyle get bodyLarge => const TextStyle(fontFamily: 'Roboto', fontSize: 16, fontWeight: FontWeight.w400, color: AppColors.textPrimary);
+  TextStyle get bodyMedium => const TextStyle(fontFamily: 'Roboto', fontSize: 14, fontWeight: FontWeight.w400, color: AppColors.textPrimary);
+  TextStyle get bodySmall => const TextStyle(fontFamily: 'Roboto', fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.textSecondary);
+  TextStyle get caption => const TextStyle(fontFamily: 'Roboto', fontSize: 12, fontWeight: FontWeight.w400, color: AppColors.textTertiary);
 }
 
+@deprecated
 class CompatSizes {
   const CompatSizes();
   double get sidebarWidth => 240.0;
@@ -204,6 +216,7 @@ class CompatSizes {
   int get imageCacheSmallHeight => 90;
 }
 
+@deprecated
 class CompatRadius {
   const CompatRadius();
   double get sm => 4.0;
@@ -216,6 +229,7 @@ class CompatRadius {
   BorderRadius get circularXl => BorderRadius.circular(24);
 }
 
+@deprecated
 class CompatInteraction {
   const CompatInteraction();
   Duration get fast => const Duration(milliseconds: 150);
@@ -224,6 +238,7 @@ class CompatInteraction {
   Curve get easeOutCubic => Curves.easeOutCubic;
 }
 
+@deprecated
 class CompatShadows {
   const CompatShadows();
   List<BoxShadow> get elevationSm => [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4, offset: const Offset(0, 2))];
@@ -231,6 +246,7 @@ class CompatShadows {
   List<BoxShadow> get elevationLg => [BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 6))];
 }
 
+@deprecated
 class CompatComponents {
   const CompatComponents();
   double get dividerThickness => 0.5;
@@ -248,6 +264,4 @@ class CompatComponents {
     border: Border.all(color: AppColors.bgDivider),
   );
 }
-
-
 

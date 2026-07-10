@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/commnuity/data/models/poll_model.dart';
@@ -522,7 +523,7 @@ class PollUploadScreen extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
+            icon: const BackSymbol(),
             onPressed: () => Get.back(),
           ),
           const SizedBox(width: 8),
@@ -560,7 +561,7 @@ class PollUploadScreen extends StatelessWidget {
         width: double.infinity,
         child: OutlinedButton.icon(
           onPressed: () => Get.back(),
-          icon: const Icon(Icons.arrow_back_rounded, size: 18),
+          icon: const BackSymbol(size: 18),
           label: Text(
             'Back',
             style: GoogleFonts.roboto(fontSize: 13, fontWeight: FontWeight.w500),

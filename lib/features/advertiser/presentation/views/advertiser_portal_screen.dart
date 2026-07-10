@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -76,7 +77,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
       backgroundColor: const Color(0xFF161616),
       child: Column(
         children: [
-          _buildSidebarHeader(),
+          _buildSidebarHeader(context),
           const Divider(color: Colors.white10),
           Expanded(
             child: _buildSidebarItems(context, controller, isDrawer: true),
@@ -96,7 +97,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
       color: const Color(0xFF161616),
       child: Column(
         children: [
-          _buildSidebarHeader(),
+          _buildSidebarHeader(context),
           const Divider(color: Colors.white10),
           Expanded(
             child: _buildSidebarItems(context, controller, isDrawer: false),
@@ -106,7 +107,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSidebarHeader() {
+  Widget _buildSidebarHeader(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(24.0),
       child: Row(
@@ -129,10 +130,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
             children: [
               Text(
                 'Truthworld',
-                style: AppTextStyles.sectionHeader.copyWith(
+                style: context.typography.logo.copyWith(
                   fontSize: 16,
                   color: Colors.white,
-                  fontWeight: FontWeight.bold,
                 ),
               ),
               Text(
@@ -694,9 +694,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         child: Row(
                           children: [
                             IconButton(
-                              icon: const Icon(
-                                Icons.arrow_back,
-                                color: Colors.white,
+                              icon: const BackSymbol(color: Colors.white,
                               ),
                               onPressed: () {
                                 controller.selectedAdForSubtitles.value = null;
@@ -1346,9 +1344,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         child: Row(
                           children: [
                             IconButton(
-                              icon: const Icon(
-                                Icons.arrow_back,
-                                color: Colors.white,
+                              icon: const BackSymbol(color: Colors.white,
                               ),
                               onPressed: () {
                                 controller.selectedAdForAudio.value = null;
@@ -2460,7 +2456,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF0F0F0F),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+          icon: const BackSymbol(color: Colors.white),
           onPressed: () => Get.back(),
         ),
         actions: [
@@ -2539,10 +2535,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   SizedBox(height: 24),
                   Text(
                     'Truthworld Ads',
-                    style: AppTextStyles.displaySmall.copyWith(
-                      color: Colors.white,
+                    style: context.typography.hero.copyWith(
                       fontSize: 28,
-                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
                   ),
                   SizedBox(height: 8),

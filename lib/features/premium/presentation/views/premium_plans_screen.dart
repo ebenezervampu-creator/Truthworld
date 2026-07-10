@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/premium/presentation/controllers/premium_controller.dart';
 
@@ -47,7 +49,7 @@ class PremiumPlansScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF0F0F0F),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const BackSymbol(color: Colors.white),
           onPressed: () => Get.back(),
         ),
       ),
@@ -226,12 +228,9 @@ class PremiumPlansScreen extends StatelessWidget {
               const SizedBox(width: 12),
               Text(
                 'Premium',
-                style: TextStyle(
-                  fontFamily: 'Roboto',
+                style: context.typography.logo.copyWith(
                   fontSize: 36,
-                  fontWeight: FontWeight.w600,
                   color: Colors.white,
-                  letterSpacing: -1,
                 ),
               ),
             ],

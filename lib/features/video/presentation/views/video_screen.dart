@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 import 'package:chewie/chewie.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -20,12 +22,13 @@ import 'package:truthworld/features/playlist/presentation/controllers/playlist_c
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import '../controllers/video_controller.dart';
-import '../controllers/custom_play.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import '../../../channel/presentation/controllers/channel_controller_unified.dart';
 import '../widgets/truth_index_badge.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/video/presentation/controllers/clip_controller.dart';
 import 'package:truthworld/components/ui/video_card.dart';
+import 'package:truthworld/features/video/presentation/widgets/video_analysis_bottom_sheet.dart';
 
 class VideoScreen extends GetView<VideoController> {
   final String? videoTag;
@@ -64,36 +67,28 @@ class VideoScreen extends GetView<VideoController> {
       },
       child: Obx(() {
         if (ctrl.video.id.isEmpty) {
-          return const Scaffold(
-            backgroundColor: background,
-            body: Center(
-              child: CircularProgressIndicator(
-                color: AppColors.brand,
-                strokeWidth: 3,
-              ),
-            ),
-          );
+          return const ShimmerVideoScreen();
         }
 
         return Scaffold(
           backgroundColor: background,
           extendBodyBehindAppBar: true,
-          // Hide appbar in fullscreen mode
-          appBar: !ctrl.isFullScreen.value ? _buildAppBar(context) : null,
+          // Hide appbar in fullscreen mode cleanly with local rebuild only
+          appBar: _ResponsiveAppBar(
+            controller: ctrl,
+            appBarBuilder: () => _buildAppBar(context),
+          ),
           body: SafeArea(
             top: false,
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final bool isDesktop = constraints.maxWidth > 1050;
-                return Obx(() {
-                  return isDesktop
-                      ? _buildDesktopLayout(context)
-                      : _buildMobileLayout(context);
-                });
+                return isDesktop
+                    ? _buildDesktopLayout(context)
+                    : _buildMobileLayout(context);
               },
             ),
           ),
-          bottomNavigationBar: null,
         );
       }),
     );
@@ -215,7 +210,7 @@ class VideoScreen extends GetView<VideoController> {
             color: AppColors.bgSurface.withValues(alpha: 0.7),
             shape: BoxShape.circle,
           ),
-          child: Icon(Icons.arrow_back_ios_new, size: 18, color: textPrimary),
+          child: BackSymbol(size: 18, color: textPrimary),
         ),
         onPressed: () => Get.back(),
         tooltip: 'Back',
@@ -277,7 +272,7 @@ class VideoScreen extends GetView<VideoController> {
                   borderRadius: BorderRadius.circular(22),
                   color: Colors.white.withValues(alpha: 0.05),
                   child: InkWell(
-                    onTap: () => Get.toNamed('/search'),
+                    onTap: () => Get.offAndToNamed('/search'),
                     borderRadius: BorderRadius.circular(22),
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: 20.0),
@@ -400,18 +395,8 @@ class VideoScreen extends GetView<VideoController> {
   }
 
   Widget _buildVideoPlayerSection() {
-    // When fullscreen, show ONLY a black placeholder in the background.
-    // This is CRITICAL for Web/Desktop to avoid rendering the video player twice,
-    // which causes the "audio-only" or "black screen" bug in the fullscreen route.
-    if (controller.isFullScreen.value) {
-      return SliverToBoxAdapter(
-        child: AspectRatio(
-          aspectRatio: 16 / 9,
-          child: Container(color: Colors.black),
-        ),
-      );
-    }
-    // Normal mode - show video with aspect ratio
+    // Normal mode - show video with aspect ratio. Always keep the video player
+    // mounted in the widget tree so Chewie can transition to and from fullscreen smoothly.
     return SliverToBoxAdapter(
       child: AspectRatio(
         aspectRatio: 16 / 9,
@@ -909,8 +894,8 @@ class VideoScreen extends GetView<VideoController> {
       },
     ];
 
-    String? selectedReason;
-    int currentStep = 1; // Step 1: select reason, Step 2: comment & timestamp
+    final RxnString selectedReason = RxnString();
+    final RxInt currentStep = 1.obs; // Step 1: select reason, Step 2: comment & timestamp
     final commentController = TextEditingController();
     
     // Get current playback time to suggest as timestamp
@@ -918,281 +903,267 @@ class VideoScreen extends GetView<VideoController> {
     final minutes = currentSeconds ~/ 60;
     final seconds = currentSeconds % 60;
     final defaultTimestamp = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-    bool includeTimestamp = false;
+    final RxBool includeTimestamp = false.obs;
 
     Get.bottomSheet(
-      StatefulBuilder(
-        builder: (context, setState) {
-          return Container(
-            padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-            decoration: const BoxDecoration(
-              color: AppColors.bgSurface,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: textSecondary.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(2),
+      Obx(() {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+          decoration: const BoxDecoration(
+            color: AppColors.bgSurface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: textSecondary.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              
+              // Header
+              Row(
+                children: [
+                  if (currentStep.value == 2)
+                    IconButton(
+                      icon: const BackSymbol(color: AppColors.textPrimary),
+                      onPressed: () {
+                        currentStep.value = 1;
+                      },
+                    ),
+                  Icon(Icons.flag_rounded, color: primary, size: 28),
+                  const SizedBox(width: 12),
+                  Text(
+                    currentStep.value == 1 ? 'Report video' : 'Provide details',
+                    style: GoogleFonts.roboto(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              if (currentStep.value == 1) ...[
+                // Info note
+                Text(
+                  'Flagged videos are reviewed by staff 24/7 to determine whether they violate Community Guidelines. Severe violations may result in immediate video removal or account termination.',
+                  style: GoogleFonts.roboto(
+                    color: textSecondary,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Reasons List
+                Flexible(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 350),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: reasons.length,
+                      itemBuilder: (context, index) {
+                        final r = reasons[index];
+                        final label = r['label']!;
+                        final desc = r['description']!;
+                        final isSelected = selectedReason.value == label;
+
+                        return InkWell(
+                          onTap: () {
+                            selectedReason.value = label;
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Radio<String>(
+                                  value: label,
+                                  groupValue: selectedReason.value,
+                                  activeColor: primary,
+                                  onChanged: (val) {
+                                    selectedReason.value = val;
+                                  },
+                                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        label,
+                                        style: GoogleFonts.roboto(
+                                          fontSize: 14,
+                                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                          color: textPrimary,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        desc,
+                                        style: GoogleFonts.roboto(
+                                          fontSize: 11,
+                                          color: textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 
-                // Header
+                // Next / Cancel
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    if (currentStep == 2)
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
-                        onPressed: () {
-                          setState(() {
-                            currentStep = 1;
-                          });
-                        },
+                    TextButton(
+                      onPressed: () => Get.back(),
+                      child: Text(
+                        'Cancel',
+                        style: GoogleFonts.roboto(color: textSecondary),
                       ),
-                    Icon(Icons.flag_rounded, color: primary, size: 28),
-                    const SizedBox(width: 12),
-                    Text(
-                      currentStep == 1 ? 'Report video' : 'Provide details',
-                      style: GoogleFonts.roboto(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: textPrimary,
+                    ),
+                    const SizedBox(width: 16),
+                    ElevatedButton(
+                      onPressed: selectedReason.value == null
+                          ? null
+                          : () {
+                              currentStep.value = 2;
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primary,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: primary.withValues(alpha: 0.3),
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                      child: Text(
+                        'Next',
+                        style: GoogleFonts.roboto(fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
                 ),
+              ] else ...[
+                // Step 2: Timestamp & comments
+                Text(
+                  'Selected Reason: ${selectedReason.value}',
+                  style: GoogleFonts.roboto(
+                    color: textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Timestamp checkbox
+                CheckboxListTile(
+                  value: includeTimestamp.value,
+                  activeColor: primary,
+                  title: Text(
+                    'Include timestamp at $defaultTimestamp',
+                    style: GoogleFonts.roboto(color: textPrimary, fontSize: 13),
+                  ),
+                  subtitle: Text(
+                    'Helps reviewers locate the issue quickly',
+                    style: GoogleFonts.roboto(color: textSecondary, fontSize: 11),
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                  onChanged: (val) {
+                    includeTimestamp.value = val ?? false;
+                  },
+                ),
                 const SizedBox(height: 16),
 
-                if (currentStep == 1) ...[
-                  // Info note
-                  Text(
-                    'Flagged videos are reviewed by staff 24/7 to determine whether they violate Community Guidelines. Severe violations may result in immediate video removal or account termination.',
-                    style: GoogleFonts.roboto(
-                      color: textSecondary,
-                      fontSize: 12,
-                      height: 1.4,
+                TextField(
+                  controller: commentController,
+                  maxLines: 4,
+                  maxLength: 500,
+                  style: TextStyle(color: textPrimary, fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Provide additional details (e.g. description, background info)...',
+                    hintStyle: TextStyle(color: textSecondary, fontSize: 13),
+                    filled: true,
+                    fillColor: AppColors.bgInput,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
                     ),
+                    counterStyle: TextStyle(color: textSecondary, fontSize: 11),
                   ),
-                  const SizedBox(height: 16),
-                  
-                  // Reasons List
-                  Flexible(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 350),
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: reasons.length,
-                        itemBuilder: (context, index) {
-                          final r = reasons[index];
-                          final label = r['label']!;
-                          final desc = r['description']!;
-                          final isSelected = selectedReason == label;
+                ),
+                const SizedBox(height: 24),
+                
+                // Submit / Back
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () {
+                        currentStep.value = 1;
+                      },
+                      child: Text(
+                        'Back',
+                        style: GoogleFonts.roboto(color: textSecondary),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        Get.back();
+                        
+                        // Build detailed comment including timestamp
+                        final timestampPrefix = includeTimestamp.value ? '[Timestamp: $defaultTimestamp] ' : '';
+                        final finalComment = '$timestampPrefix${commentController.text.trim()}';
 
-                          return InkWell(
-                            onTap: () {
-                              setState(() {
-                                selectedReason = label;
-                              });
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Radio<String>(
-                                    value: label,
-                                    groupValue: selectedReason,
-                                    activeColor: primary,
-                                    onChanged: (val) {
-                                      setState(() {
-                                        selectedReason = val;
-                                      });
-                                    },
-                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          label,
-                                          style: GoogleFonts.roboto(
-                                            fontSize: 14,
-                                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                            color: textPrimary,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          desc,
-                                          style: GoogleFonts.roboto(
-                                            fontSize: 11,
-                                            color: textSecondary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
+                        _mainController.reportVideo(
+                          context: context,
+                          videoId: controller.video.id,
+                          channelId: controller.video.channelId,
+                          reason: selectedReason.value!,
+                          comment: finalComment,
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                      child: Text(
+                        'Submit',
+                        style: GoogleFonts.roboto(fontWeight: FontWeight.bold),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  // Next / Cancel
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () => Get.back(),
-                        child: Text(
-                          'Cancel',
-                          style: GoogleFonts.roboto(color: textSecondary),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      ElevatedButton(
-                        onPressed: selectedReason == null
-                            ? null
-                            : () {
-                                setState(() {
-                                  currentStep = 2;
-                                });
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primary,
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor: primary.withValues(alpha: 0.3),
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                        ),
-                        child: Text(
-                          'Next',
-                          style: GoogleFonts.roboto(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                ] else ...[
-                  // Step 2: Timestamp & comments
-                  Text(
-                    'Selected Reason: $selectedReason',
-                    style: GoogleFonts.roboto(
-                      color: textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Timestamp checkbox
-                  CheckboxListTile(
-                    value: includeTimestamp,
-                    activeColor: primary,
-                    title: Text(
-                      'Include timestamp at $defaultTimestamp',
-                      style: GoogleFonts.roboto(color: textPrimary, fontSize: 13),
-                    ),
-                    subtitle: Text(
-                      'Helps reviewers locate the issue quickly',
-                      style: GoogleFonts.roboto(color: textSecondary, fontSize: 11),
-                    ),
-                    contentPadding: EdgeInsets.zero,
-                    onChanged: (val) {
-                      setState(() {
-                        includeTimestamp = val ?? false;
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-
-                  TextField(
-                    controller: commentController,
-                    maxLines: 4,
-                    maxLength: 500,
-                    style: TextStyle(color: textPrimary, fontSize: 13),
-                    decoration: InputDecoration(
-                      hintText: 'Provide additional details (e.g. description, background info)...',
-                      hintStyle: TextStyle(color: textSecondary, fontSize: 13),
-                      filled: true,
-                      fillColor: AppColors.bgInput,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      counterStyle: TextStyle(color: textSecondary, fontSize: 11),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  // Submit / Back
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      TextButton(
-                        onPressed: () {
-                          setState(() {
-                            currentStep = 1;
-                          });
-                        },
-                        child: Text(
-                          'Back',
-                          style: GoogleFonts.roboto(color: textSecondary),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          Get.back();
-                          
-                          // Build detailed comment including timestamp
-                          final timestampPrefix = includeTimestamp ? '[Timestamp: $defaultTimestamp] ' : '';
-                          final finalComment = '$timestampPrefix${commentController.text.trim()}';
-
-                          _mainController.reportVideo(
-                            context: context,
-                            videoId: controller.video.id,
-                            channelId: controller.video.channelId,
-                            reason: selectedReason!,
-                            comment: finalComment,
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                        ),
-                        child: Text(
-                          'Submit',
-                          style: GoogleFonts.roboto(fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               ],
-            ),
-          );
-        },
-      ),
+            ],
+          ),
+        );
+      }),
       isScrollControlled: true,
     );
   }
@@ -1603,7 +1574,7 @@ class VideoScreen extends GetView<VideoController> {
                     return _buildModernCapsuleButton(
                       icon: Icons.auto_awesome_rounded,
                       label: '${rating.toInt()} Rating',
-                      onTap: () => controller.fetchFullDisclosure(),
+                      onTap: () => _showAnalysisBottomSheet(context, initialTabIndex: 0),
                     );
                   } else {
                     // Ensure reactivity to watch later playlist changes
@@ -1625,6 +1596,14 @@ class VideoScreen extends GetView<VideoController> {
                     );
                   }
                 }),
+                const SizedBox(width: 8),
+
+                // Insights & Media details button (Always available)
+                _buildModernCapsuleButton(
+                  icon: Icons.verified_user_outlined,
+                  label: 'Insights & Media',
+                  onTap: () => _showAnalysisBottomSheet(context, initialTabIndex: 0),
+                ),
                 const SizedBox(width: 8),
 
                 // Save
@@ -1717,7 +1696,7 @@ class VideoScreen extends GetView<VideoController> {
             children: [
               // Channel Avatar + Info - Tappable to navigate to channel
               InkWell(
-                onTap: () => Get.toNamed(
+                onTap: () => Get.offAndToNamed(
                   channel.channelRoute,
                   arguments: {'channel': channel},
                 ),
@@ -1823,42 +1802,143 @@ class VideoScreen extends GetView<VideoController> {
               // Subscribe Button - White pill
               Obx(() {
                 final isSubscribed = _channelController.isSubscribed.value;
-                return ElevatedButton(
-                  onPressed: () {
-                    if (!isUserSignedIn) return _showSignInPrompt();
-                    _channelController.toggleSubscription(
-                      controller.video.channelId,
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isSubscribed
-                        ? Colors.grey.shade800
-                        : Colors.white,
-                    foregroundColor: isSubscribed ? Colors.white : Colors.black,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
+                final notificationsEnabled = _channelController.notificationsEnabled.value;
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ElevatedButton(
+                      onPressed: () {
+                        if (!isUserSignedIn) return _showSignInPrompt();
+                        _channelController.toggleSubscription(
+                          controller.video.channelId,
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isSubscribed
+                            ? Colors.grey.shade800
+                            : Colors.white,
+                        foregroundColor: isSubscribed ? Colors.white : Colors.black,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 10,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        isSubscribed ? 'Subscribed' : 'Subscribe',
+                        style: GoogleFonts.roboto(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                        ),
+                      ),
                     ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 10,
-                    ),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    isSubscribed ? 'Subscribed' : 'Subscribe',
-                    style: GoogleFonts.roboto(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 14,
-                    ),
-                  ),
+                    if (isSubscribed) ...[
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: () => _showVideoPageNotificationsDialog(context, controller.video.channelId),
+                        icon: Icon(
+                          notificationsEnabled ? Icons.notifications_active : Icons.notifications_off,
+                          color: Colors.white,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.grey.shade800,
+                          padding: const EdgeInsets.all(8),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ],
+                  ],
                 );
               }),
             ],
           ),
         );
       },
+    );
+  }
+
+  void _showVideoPageNotificationsDialog(BuildContext context, String channelId) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: textSecondary,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Notification settings',
+              style: GoogleFonts.roboto(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: textPrimary,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Obx(() {
+              final isAll = _channelController.notificationsEnabled.value;
+              return Column(
+                children: [
+                  ListTile(
+                    leading: Icon(
+                      Icons.notifications_active,
+                      color: isAll ? primary : textPrimary,
+                    ),
+                    title: Text(
+                      'All notifications',
+                      style: GoogleFonts.roboto(
+                        color: isAll ? primary : textPrimary,
+                        fontWeight: isAll ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    trailing: isAll ? const Icon(Icons.check, color: primary) : null,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _channelController.updateNotificationPreference(channelId, true);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(
+                      Icons.notifications_off,
+                      color: !isAll ? primary : textPrimary,
+                    ),
+                    title: Text(
+                      'None',
+                      style: GoogleFonts.roboto(
+                        color: !isAll ? primary : textPrimary,
+                        fontWeight: !isAll ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    trailing: !isAll ? const Icon(Icons.check, color: primary) : null,
+                    onTap: () {
+                      Navigator.pop(context);
+                      _channelController.updateNotificationPreference(channelId, false);
+                    },
+                  ),
+                ],
+              );
+            }),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1984,6 +2064,17 @@ class VideoScreen extends GetView<VideoController> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showAnalysisBottomSheet(BuildContext context, {int initialTabIndex = 0}) {
+    Get.bottomSheet(
+      VideoAnalysisBottomSheet(
+        video: controller.video,
+        initialTabIndex: initialTabIndex,
+      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
     );
   }
 
@@ -2407,9 +2498,8 @@ class VideoScreen extends GetView<VideoController> {
           );
         } else if (commentsController.isLoadingComments.value &&
             commentsController.comments.isEmpty) {
-          return const SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(child: CircularProgressIndicator()),
+          return SliverToBoxAdapter(
+            child: buildShimmerCommentList(count: 3),
           );
         } else if (commentsController.comments.isEmpty) {
           return SliverFillRemaining(
@@ -2605,6 +2695,7 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
         commentId: commentId,
         text: text,
         userProfilePicUrl: user.photoURL ?? '',
+        commentAuthorId: widget.comment.userId,
       );
 
       replyController.clear();
@@ -2657,6 +2748,76 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
     );
   }
 
+  void _navigateToChannel(String? channelId) async {
+    if (channelId == null || channelId.isEmpty) return;
+    try {
+      Get.dialog(
+        const Center(
+          child: CircularProgressIndicator(color: AppColors.brand),
+        ),
+        barrierDismissible: false,
+      );
+      final doc = await FirebaseFirestore.instance
+          .collection('channels')
+          .doc(channelId)
+          .get();
+      if (Get.isDialogOpen ?? false) {
+        Get.back();
+      }
+      if (doc.exists) {
+        final channel = Channel.fromDocumentSnapshot(doc);
+        Get.offAndToNamed(channel.channelRoute, arguments: {'channel': channel});
+      } else {
+        Get.snackbar('Error', 'Channel not found');
+      }
+    } catch (e) {
+      if (Get.isDialogOpen ?? false) {
+        Get.back();
+      }
+      debugPrint('Error navigating to channel: $e');
+    }
+  }
+
+  void _showReplyOptions(BuildContext context, Reply reply, String commentId, CommentsController commentsController) {
+    final user = FirebaseAuth.instance.currentUser;
+    final isOwner = user != null && user.uid == reply.userId;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey.shade900,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isOwner)
+                ListTile(
+                  leading: const Icon(Icons.delete, color: Colors.red),
+                  title: const Text('Delete', style: TextStyle(color: Colors.red)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    commentsController.deleteReply(commentId, reply.id);
+                  },
+                )
+              else
+                ListTile(
+                  leading: const Icon(Icons.flag_outlined, color: Colors.white),
+                  title: const Text('Report', style: TextStyle(color: Colors.white)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Get.snackbar('Reported', 'Thank you for your report.');
+                  },
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final comment = widget.comment;
@@ -2675,7 +2836,34 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
       final isLiked = commentsController.isCommentLikedByUser(comment);
       final isDisliked = commentsController.isCommentDislikedByUser(comment);
 
+      final isTarget = commentsController.targetCommentId.value == comment.id && commentsController.targetReplyId.value == null;
+
+      // Automatically trigger scroll exactly once if it's the target comment
+      if (isTarget && !commentsController.hasScrolledToTarget) {
+        commentsController.hasScrolledToTarget = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            Scrollable.ensureVisible(
+              context,
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeInOut,
+            );
+          }
+        });
+      }
+
       return Container(
+        decoration: isTarget
+            ? BoxDecoration(
+                color: AppColors.brand.withValues(alpha: 0.08),
+                border: const Border(
+                  left: BorderSide(
+                    color: AppColors.brand,
+                    width: 3.0,
+                  ),
+                ),
+              )
+            : null,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2683,12 +2871,18 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                UserAvatar(
-                  radius: 20,
-                  photoUrl: userProfilePicUrl,
-                  displayName: userName,
-                  backgroundColor: Colors.blue,
-                  textColor: Colors.white,
+                GestureDetector(
+                  onTap: () => _navigateToChannel(comment.channelId),
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: UserAvatar(
+                      radius: 20,
+                      photoUrl: userProfilePicUrl,
+                      displayName: userName,
+                      backgroundColor: Colors.blue,
+                      textColor: Colors.white,
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -2697,12 +2891,45 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                     children: [
                       Row(
                         children: [
-                          Text(
-                            formattedUserName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                              color: Colors.white,
+                          GestureDetector(
+                            onTap: () => _navigateToChannel(comment.channelId),
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: comment.channelId.isNotEmpty && comment.channelId == commentsController.video?.channelId
+                                  ? Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            formattedUserName,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          const Icon(
+                                            Icons.check,
+                                            size: 12,
+                                            color: Colors.white70,
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  : Text(
+                                      formattedUserName,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: Colors.white,
+                                      ),
+                                    ),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -2763,30 +2990,39 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                               color: isDisliked ? Colors.white : Colors.grey.shade400,
                             ),
                           ),
-                          const SizedBox(width: 16),
                           if (comment.isHeartedByCreator) ...[
-                            Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                UserAvatar(
-                                  radius: 8,
-                                  photoUrl: widget.channelAvatarUrl,
-                                  displayName: 'Creator',
-                                  fontSize: 8,
-                                ),
-                                const Positioned(
-                                  bottom: -4,
-                                  right: -4,
-                                  child: Icon(
-                                    Icons.favorite,
-                                    color: Colors.red,
-                                    size: 10,
+                            const SizedBox(width: 8),
+                            Tooltip(
+                              message: 'Hearted by ${comment.creatorHeartName ?? 'Creator'}',
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      UserAvatar(
+                                        radius: 8,
+                                        photoUrl: widget.channelAvatarUrl,
+                                        displayName: 'Creator',
+                                        fontSize: 8,
+                                      ),
+                                      const Positioned(
+                                        bottom: -3,
+                                        right: -3,
+                                        child: Icon(
+                                          Icons.favorite,
+                                          color: Colors.red,
+                                          size: 10,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                            const SizedBox(width: 16),
+                            const SizedBox(width: 8),
                           ],
+                          const SizedBox(width: 16),
                           InkWell(
                             onTap: () {
                               isReplying.value = !isReplying.value;
@@ -2918,6 +3154,17 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
           return const SizedBox.shrink();
         }
 
+        // Auto-expand replies if this comment contains the target reply
+        final targetReplyId = commentsController.targetReplyId.value;
+        if (targetReplyId != null && targetReplyId.isNotEmpty) {
+          final hasTargetReply = replies.any((r) => r.id == targetReplyId);
+          if (hasTargetReply && !_isRepliesExpanded.value) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _isRepliesExpanded.value = true;
+            });
+          }
+        }
+
         return Obx(() {
           final isExpanded = _isRepliesExpanded.value;
 
@@ -2969,6 +3216,22 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                 final isReplyLiked = commentsController.isReplyLikedByUser(reply.id);
                 final isReplyDisliked = commentsController.isReplyDislikedByUser(reply.id);
 
+                final isReplyTarget = commentsController.targetReplyId.value == reply.id;
+
+                // Automatically trigger scroll exactly once if it's the target reply
+                if (isReplyTarget && !commentsController.hasScrolledToTarget) {
+                  commentsController.hasScrolledToTarget = true;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      Scrollable.ensureVisible(
+                        context,
+                        duration: const Duration(milliseconds: 500),
+                        curve: Curves.easeInOut,
+                      );
+                    }
+                  });
+                }
+
                 return IntrinsicHeight(
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2982,15 +3245,32 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                         ),
                       ),
                       Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 8, bottom: 8, right: 16),
+                        child: Container(
+                          decoration: isReplyTarget
+                              ? BoxDecoration(
+                                  color: AppColors.brand.withValues(alpha: 0.08),
+                                  border: const Border(
+                                    left: BorderSide(
+                                      color: AppColors.brand,
+                                      width: 3.0,
+                                    ),
+                                  ),
+                                )
+                              : null,
+                          padding: const EdgeInsets.only(top: 8, bottom: 8, right: 16, left: 8),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              UserAvatar(
-                                radius: 12,
-                                photoUrl: reply.userProfilePicUrl,
-                                displayName: reply.userName,
+                              GestureDetector(
+                                onTap: () => _navigateToChannel(reply.channelId),
+                                child: MouseRegion(
+                                  cursor: SystemMouseCursors.click,
+                                  child: UserAvatar(
+                                    radius: 12,
+                                    photoUrl: reply.userProfilePicUrl,
+                                    displayName: reply.userName,
+                                  ),
+                                ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
@@ -2999,12 +3279,45 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                                   children: [
                                     Row(
                                       children: [
-                                        Text(
-                                          reply.userName.startsWith('@') ? reply.userName : '@${reply.userName}',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 12,
-                                            color: Colors.white,
+                                        GestureDetector(
+                                          onTap: () => _navigateToChannel(reply.channelId),
+                                          child: MouseRegion(
+                                            cursor: SystemMouseCursors.click,
+                                            child: reply.channelId.isNotEmpty && reply.channelId == commentsController.video?.channelId
+                                                ? Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.white.withValues(alpha: 0.15),
+                                                      borderRadius: BorderRadius.circular(10),
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        Text(
+                                                          reply.userName.startsWith('@') ? reply.userName : '@${reply.userName}',
+                                                          style: const TextStyle(
+                                                            fontWeight: FontWeight.bold,
+                                                            fontSize: 11,
+                                                            color: Colors.white,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(width: 3),
+                                                        const Icon(
+                                                          Icons.check,
+                                                          size: 11,
+                                                          color: Colors.white70,
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  )
+                                                : Text(
+                                                    reply.userName.startsWith('@') ? reply.userName : '@${reply.userName}',
+                                                    style: const TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 12,
+                                                      color: Colors.white,
+                                                    ),
+                                                  ),
                                           ),
                                         ),
                                         const SizedBox(width: 6),
@@ -3034,6 +3347,8 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                                             commentId: commentId,
                                             replyId: reply.id,
                                             likeAsChannel: false,
+                                            replyAuthorId: reply.userId,
+                                            replyText: reply.text,
                                           ),
                                           child: Icon(
                                             isReplyLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
@@ -3067,6 +3382,12 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                                     ),
                                   ],
                                 ),
+                              ),
+                              IconButton(
+                                icon: Icon(Icons.more_vert, color: Colors.grey.shade400, size: 16),
+                                onPressed: () => _showReplyOptions(context, reply, commentId, commentsController),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
                               ),
                             ],
                           ),
@@ -3182,7 +3503,9 @@ class RecommendationFeed extends StatelessWidget {
 
     return Obx(() {
       if (controller.isLoadingRecommendations.value) {
-        return const Center(child: CircularProgressIndicator());
+        return isGrid
+            ? buildShimmerVideoGrid(crossAxisCount: 2, count: 4)
+            : buildShimmerVideoList(count: 4);
       }
 
       final displayVideos = videos ?? controller.filteredRecommendedVideos;
@@ -3304,4 +3627,26 @@ class RecommendationFeed extends StatelessWidget {
       );
     });
   }
+}
+
+class _ResponsiveAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final VideoController controller;
+  final PreferredSizeWidget Function() appBarBuilder;
+
+  const _ResponsiveAppBar({
+    required this.controller,
+    required this.appBarBuilder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      return !controller.isFullScreen.value
+          ? appBarBuilder()
+          : const SizedBox.shrink();
+    });
+  }
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
 }

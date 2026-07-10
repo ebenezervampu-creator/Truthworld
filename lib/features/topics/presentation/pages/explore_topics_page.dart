@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -146,7 +147,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
       leading: widget.isDashboard
           ? null
           : IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+              icon: const BackSymbol(color: Colors.white),
               onPressed: () => Get.back(),
             ),
       title: null,
@@ -225,7 +226,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   }
 
   Widget _buildCategoriesScroller(bool isTablet) {
-    final spacing = ResponsiveContext(context).spacing;
+    final spacing = context.layoutSpacing;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

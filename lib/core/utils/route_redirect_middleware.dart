@@ -136,3 +136,43 @@ class TopicRedirectMiddleware extends GetMiddleware {
     return null;
   }
 }
+
+/// Observer that keeps track of the active route stack to prevent pushing duplicate routes
+/// and ensure clean stack transitions.
+class RouteStackObserver extends NavigatorObserver {
+  static final List<Route<dynamic>> routeStack = [];
+
+  @override
+  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    routeStack.add(route);
+    debugPrint('[RouteStackObserver] Pushed: ${route.settings.name}. Stack: ${routeStack.map((r) => r.settings.name).toList()}');
+    super.didPush(route, previousRoute);
+  }
+
+  @override
+  void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    routeStack.remove(route);
+    debugPrint('[RouteStackObserver] Popped: ${route.settings.name}. Stack: ${routeStack.map((r) => r.settings.name).toList()}');
+    super.didPop(route, previousRoute);
+  }
+
+  @override
+  void didRemove(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    routeStack.remove(route);
+    debugPrint('[RouteStackObserver] Removed: ${route.settings.name}. Stack: ${routeStack.map((r) => r.settings.name).toList()}');
+    super.didRemove(route, previousRoute);
+  }
+
+  @override
+  void didReplace({Route<dynamic>? newRoute, Route<dynamic>? oldRoute}) {
+    if (oldRoute != null) routeStack.remove(oldRoute);
+    if (newRoute != null) routeStack.add(newRoute);
+    debugPrint('[RouteStackObserver] Replaced: ${oldRoute?.settings.name} with ${newRoute?.settings.name}. Stack: ${routeStack.map((r) => r.settings.name).toList()}');
+    super.didReplace(newRoute: newRoute, oldRoute: oldRoute);
+  }
+
+  static bool hasRoute(String namePattern) {
+    return routeStack.any((route) => route.settings.name?.contains(namePattern) == true);
+  }
+}
+

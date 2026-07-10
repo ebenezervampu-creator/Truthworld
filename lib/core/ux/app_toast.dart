@@ -91,6 +91,9 @@ class AppToast {
     VoidCallback? onAction,
     String? actionLabel,
   }) {
+    final context = Get.context;
+    final colors = context?.colors;
+    final radius = context?.radius;
     final config = _toastConfig(type);
 
     // Dismiss any active snackbars to prevent overlap/stacking
@@ -111,8 +114,8 @@ class AppToast {
     final inlineText = isTitleRedundant
         ? TextSpan(
             text: message,
-            style: const TextStyle(
-              color: AppColors.textPrimary,
+            style: TextStyle(
+              color: colors?.textPrimary ?? AppColors.textPrimary,
               fontWeight: FontWeight.w500,
             ),
           )
@@ -120,15 +123,15 @@ class AppToast {
             children: [
               TextSpan(
                 text: '$title: ',
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
+                style: TextStyle(
+                  color: colors?.textPrimary ?? AppColors.textPrimary,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               TextSpan(
                 text: message,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: colors?.textSecondary ?? AppColors.textSecondary,
                   fontWeight: FontWeight.w400,
                 ),
               ),
@@ -173,7 +176,7 @@ class AppToast {
                   vertical: 6,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: radius?.circularMd ?? BorderRadius.circular(8),
                   side: BorderSide(
                     color: config.color.withValues(alpha: 0.3),
                   ),
@@ -198,8 +201,8 @@ class AppToast {
       duration: config.duration,
       margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      borderRadius: 12,
-      backgroundColor: const Color(0xFF1E1E1E),
+      borderRadius: radius?.lg ?? 12,
+      backgroundColor: colors?.surfaceContainer ?? AppColors.bgSurfaceHover,
       borderColor: Colors.white.withValues(alpha: 0.08),
       borderWidth: 1,
       isDismissible: true,
@@ -213,28 +216,30 @@ class AppToast {
   }
 
   static _ToastConfig _toastConfig(_ToastType type) {
+    final context = Get.context;
+    final colors = context?.colors;
     switch (type) {
       case _ToastType.success:
         return _ToastConfig(
-          color: const Color(0xFF2BA640),
+          color: colors?.success ?? AppColors.success,
           icon: Icons.check_circle_rounded,
           duration: const Duration(milliseconds: 2500),
         );
       case _ToastType.error:
         return _ToastConfig(
-          color: const Color(0xFFEF4444),
+          color: colors?.error ?? AppColors.error,
           icon: Icons.error_rounded,
           duration: const Duration(milliseconds: 4000),
         );
       case _ToastType.info:
         return _ToastConfig(
-          color: AppColors.brand,
+          color: colors?.brand ?? AppColors.brand,
           icon: Icons.info_rounded,
           duration: const Duration(milliseconds: 3000),
         );
       case _ToastType.warning:
         return _ToastConfig(
-          color: const Color(0xFFF59E0B),
+          color: colors?.warning ?? AppColors.warning,
           icon: Icons.warning_rounded,
           duration: const Duration(milliseconds: 3500),
         );

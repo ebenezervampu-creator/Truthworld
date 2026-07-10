@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -149,7 +150,7 @@ class _TopicPageState extends State<TopicPage> {
             // Back button
             IconButton(
               onPressed: () => Get.back(),
-              icon: const Icon(Icons.arrow_back_rounded),
+              icon: const BackSymbol(),
               color: AppColors.textPrimary,
               splashRadius: 20,
             ),
@@ -342,6 +343,7 @@ class _TopicPageState extends State<TopicPage> {
 
   Widget _buildLoadingState(bool isDesktop, bool isTablet) {
     return CustomScrollView(
+      physics: const NeverScrollableScrollPhysics(),
       slivers: [
         SliverAppBar(
           floating: true,
@@ -355,10 +357,22 @@ class _TopicPageState extends State<TopicPage> {
             ),
           ),
         ),
-        SliverFillRemaining(
-          child: Center(
-            child: CircularProgressIndicator(
-              color: AppColors.brand,
+        SliverToBoxAdapter(
+          child: TopicHeroWidget(
+            topic: null,
+            isDesktop: isDesktop,
+            isTablet: isTablet,
+          ),
+        ),
+        SliverPadding(
+          padding: EdgeInsets.symmetric(
+            horizontal: isDesktop ? 48 : (isTablet ? 32 : 16),
+            vertical: 24,
+          ),
+          sliver: SliverToBoxAdapter(
+            child: TopicVideoGridSkeleton(
+              isDesktop: isDesktop,
+              isTablet: isTablet,
             ),
           ),
         ),

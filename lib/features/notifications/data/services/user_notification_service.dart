@@ -83,6 +83,37 @@ class UserNotificationService {
       logger.error('Failed batch mark all read: $e', tag: 'NOTIFICATIONS');
     }
   }
+
+  /// Create a new notification alert in Firestore for the target user
+  Future<void> createNotification({
+    required String userId,
+    required String type,
+    required NotificationSeverity severity,
+    required String title,
+    required String message,
+    String? actionUrl,
+    Map<String, dynamic>? metadata,
+  }) async {
+    if (userId.isEmpty || userId == 'guest_user') return;
+    try {
+      final docRef = _firestore.collection(_collectionPath).doc();
+      final notification = UserNotification(
+        id: docRef.id,
+        userId: userId,
+        type: type,
+        severity: severity,
+        title: title,
+        message: message,
+        actionUrl: actionUrl,
+        metadata: metadata,
+        read: false,
+        createdAt: DateTime.now(),
+      );
+      await docRef.set(notification.toJson());
+    } catch (e) {
+      logger.error('Failed to create notification: $e', tag: 'NOTIFICATIONS');
+    }
+  }
 }
 
 

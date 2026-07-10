@@ -9,6 +9,12 @@ import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
+import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 
 /// Internal Audio Track layout representation for the studio preview editor
 class AudioTrackItem {
@@ -30,11 +36,16 @@ class AudioTrackItem {
 }
 
 /// Industry-Standard Multi-Language Audio Tracks & Dubs Management Controller
-class AudioTracksController extends BaseController {
+class AudioTracksController extends BaseController with ContentValidationMixin {
   static const String _tag = 'AudioTracksController';
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  // Upload state
+  final isUploading = false.obs;
+  final uploadProgress = 0.0.obs;
+  final uploadStatus = ''.obs;
 
   // Active Context
   final channelId = ''.obs;
@@ -54,6 +65,13 @@ class AudioTracksController extends BaseController {
   final isLoadingTracks = false.obs;
   final hasUnsavedChanges = false.obs;
 
+  // Language requests states
+  final languageRequests = <LanguageRequest>[].obs;
+  final clientLanguageRequests = <LanguageRequest>[].obs; // backing field
+  final isLoadingRequests = false.obs;
+  final showRequestsPanel = false.obs;
+  StreamSubscription<QuerySnapshot>? _requestsSubscription;
+
   // Pre-configured multi-language code dictionary mapping
   final supportedLanguages = const [
     (code: 'en', name: 'English (Base)'),
@@ -66,12 +84,14 @@ class AudioTracksController extends BaseController {
   @override
   void onInit() {
     super.onInit();
+    initializeContentFilters();
     _initializeContext();
   }
 
   @override
   void onClose() {
     _videosSubscription?.cancel();
+    _requestsSubscription?.cancel();
     super.onClose();
   }
 
@@ -186,10 +206,12 @@ class AudioTracksController extends BaseController {
   void selectVideo(Video? video) async {
     selectedVideo.value = video;
     hasUnsavedChanges.value = false;
+    _requestsSubscription?.cancel();
     if (video == null) {
       availableLanguages.clear();
       selectedLanguage.value = '';
       currentTracks.clear();
+      languageRequests.clear();
       return;
     }
 
@@ -197,6 +219,8 @@ class AudioTracksController extends BaseController {
       'Selected video for audio tracks editing session: ${video.title}',
       tag: _tag,
     );
+
+    _listenToLanguageRequests(video.id);
 
     // Lazy-load localization from subcollection first
     await VideoMediaService().getLocalization(video.id);
@@ -214,6 +238,33 @@ class AudioTracksController extends BaseController {
     selectedLanguage.value = langs.first;
     _parseAudioTracksForLanguage(langs.first, audioMap);
     selectedVideo.refresh();
+  }
+
+  void _listenToLanguageRequests(String videoId) {
+    _requestsSubscription?.cancel();
+    isLoadingRequests.value = true;
+    _requestsSubscription = _firestore
+        .collection('videos')
+        .doc(videoId)
+        .collection('language_requests')
+        .snapshots()
+        .listen((snapshot) {
+      final reqs = snapshot.docs.map((doc) => LanguageRequest.fromMap(doc.data(), doc.id)).toList();
+      reqs.sort((a, b) {
+        final countCompare = b.count.compareTo(a.count);
+        if (countCompare != 0) return countCompare;
+        return a.language.compareTo(b.language);
+      });
+      languageRequests.value = reqs;
+      isLoadingRequests.value = false;
+    }, onError: (e) {
+      logger.error('Error listening to language requests', error: e, tag: _tag);
+      isLoadingRequests.value = false;
+    });
+  }
+
+  void toggleRequestsPanel() {
+    showRequestsPanel.value = !showRequestsPanel.value;
   }
 
   void switchLanguageTrack(String langCode) {
@@ -360,6 +411,136 @@ class AudioTracksController extends BaseController {
       handleError('Failed persisting localized secondary audio streams.');
     } finally {
       isSaving.value = false;
+    }
+  }
+
+  Future<bool> uploadTrackFile({
+    required PlatformFile file,
+    required String title,
+    required String langCode,
+    required String type, // 'Audio' or 'Video'
+  }) async {
+    final video = selectedVideo.value;
+    if (video == null) {
+      showError('No video selected.');
+      return false;
+    }
+
+    // 1. Profanity check / validation
+    final validationResult = await validateContent(title, fieldName: 'Track Title');
+    if (!validationResult.isValid) {
+      showError(validationResult.message);
+      return false;
+    }
+
+    isUploading.value = true;
+    uploadProgress.value = 0.0;
+    uploadStatus.value = 'Preparing upload...';
+
+    try {
+      final Uint8List? fileBytes = file.bytes ?? (file.path != null ? await file.xFile.readAsBytes() : null);
+      if (fileBytes == null) {
+        showError('Could not read file bytes.');
+        return false;
+      }
+
+      final extension = file.extension ?? (type == 'Audio' ? 'mp3' : 'mp4');
+      final fileName = '${langCode}_${DateTime.now().millisecondsSinceEpoch}.$extension';
+      
+      // Upload to Firebase Storage
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('videos/${video.id}/tracks/$fileName');
+
+      final metadata = SettableMetadata(
+        contentType: type == 'Audio' ? 'audio/$extension' : 'video/$extension',
+        customMetadata: {
+          'title': title,
+          'langCode': langCode,
+          'type': type,
+        },
+      );
+
+      final uploadTask = storageRef.putData(fileBytes, metadata);
+
+      // Track progress
+      uploadTask.snapshotEvents.listen((TaskSnapshot snapshot) {
+        if (snapshot.totalBytes > 0) {
+          uploadProgress.value = snapshot.bytesTransferred / snapshot.totalBytes;
+          uploadStatus.value = 'Uploading... ${(uploadProgress.value * 100).toStringAsFixed(0)}%';
+        }
+      });
+
+      final snapshot = await uploadTask;
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+
+      uploadStatus.value = 'Saving track reference...';
+
+      // 2. Save reference to Firestore and local model cache
+      if (type == 'Audio') {
+        // Save to audioTracks
+        final updatedAudioMap = Map<String, String>.from(video.audioTracks);
+        updatedAudioMap[langCode] = downloadUrl;
+
+        await _firestore
+            .collection('videos')
+            .doc(video.id)
+            .collection('media')
+            .doc('localization')
+            .set({
+              'subtitles': video.mediaSubtitles,
+              'dubbedVideos': video.dubbedVideos,
+              'audioTracks': updatedAudioMap,
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+
+        VideoMediaService.localizationCache[video.id] = VideoMediaLocalization(
+          subtitles: video.mediaSubtitles,
+          dubbedVideos: video.dubbedVideos,
+          audioTracks: updatedAudioMap,
+        );
+      } else {
+        // Save to dubbedVideos
+        final updatedDubbedMap = Map<String, String>.from(video.dubbedVideos);
+        updatedDubbedMap[langCode] = downloadUrl;
+
+        await _firestore
+            .collection('videos')
+            .doc(video.id)
+            .collection('media')
+            .doc('localization')
+            .set({
+              'subtitles': video.mediaSubtitles,
+              'dubbedVideos': updatedDubbedMap,
+              'audioTracks': video.audioTracks,
+              'updatedAt': FieldValue.serverTimestamp(),
+            }, SetOptions(merge: true));
+
+        VideoMediaService.localizationCache[video.id] = VideoMediaLocalization(
+          subtitles: video.mediaSubtitles,
+          dubbedVideos: updatedDubbedMap,
+          audioTracks: video.audioTracks,
+        );
+      }
+
+      // Sync active language selection and track view
+      if (!availableLanguages.contains(langCode)) {
+        availableLanguages.add(langCode);
+      }
+      selectedLanguage.value = langCode;
+      _parseAudioTracksForLanguage(langCode, VideoMediaService.localizationCache[video.id]!.audioTracks);
+
+      selectedVideo.refresh();
+      showSuccess('$type track "$title" uploaded successfully!');
+      return true;
+    } catch (e, stack) {
+      logger.error('Failed to upload track file', error: e, stackTrace: stack, tag: _tag);
+      showError('Failed to upload file: $e');
+      return false;
+    } finally {
+      isUploading.value = false;
+      uploadProgress.value = 0.0;
+      uploadStatus.value = '';
     }
   }
 

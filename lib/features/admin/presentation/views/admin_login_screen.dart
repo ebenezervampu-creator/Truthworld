@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 
 class AdminLoginScreen extends StatelessWidget {
@@ -103,7 +102,8 @@ class AdminLoginScreen extends StatelessWidget {
           const SizedBox(height: 24),
           Text(
             'Verifying console credentials...',
-            style: GoogleFonts.roboto(
+            style: const TextStyle(
+              fontFamily: 'Roboto',
               color: AppColors.textSecondary,
               fontSize: 15,
               fontWeight: FontWeight.w400,
@@ -144,11 +144,9 @@ class AdminLoginScreen extends StatelessWidget {
               ).createShader(bounds),
               child: Text(
                 'TruthWorld',
-                style: GoogleFonts.outfit(
-                  color: Colors.white,
+                style: context.typography.logo.copyWith(
                   fontSize: 38,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: -0.5,
+                  color: Colors.white,
                 ),
               ),
             ),
@@ -157,7 +155,8 @@ class AdminLoginScreen extends StatelessWidget {
           Center(
             child: Text(
               'Moderator & Audit Center',
-              style: GoogleFonts.roboto(
+              style: const TextStyle(
+                fontFamily: 'Roboto',
                 color: AppColors.textSecondary,
                 fontSize: 15,
                 fontWeight: FontWeight.w400,
@@ -170,7 +169,8 @@ class AdminLoginScreen extends StatelessWidget {
           // Welcome message
           Text(
             'Admin authentication is required to access data layers, manual queues, and quarantine overrides.',
-            style: GoogleFonts.roboto(
+            style: const TextStyle(
+              fontFamily: 'Roboto',
               color: AppColors.textTertiary,
               fontSize: 13,
               height: 1.5,
@@ -213,7 +213,8 @@ class AdminLoginScreen extends StatelessWidget {
                       const SizedBox(width: 12),
                       Text(
                         'Continue with Google',
-                        style: GoogleFonts.roboto(
+                        style: const TextStyle(
+                          fontFamily: 'Roboto',
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 0.2,
@@ -232,7 +233,8 @@ class AdminLoginScreen extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 'Secured with Firebase Auth',
-                style: GoogleFonts.roboto(
+                style: const TextStyle(
+                  fontFamily: 'Roboto',
                   color: AppColors.textTertiary,
                   fontSize: 12,
                 ),

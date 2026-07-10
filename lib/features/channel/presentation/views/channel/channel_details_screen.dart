@@ -1,4 +1,5 @@
 import 'package:truthworld/theme/app_theme.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -167,66 +168,80 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     bool isDesktop = false,
     bool isTablet = false,
   }) {
-    return DefaultTabController(
-      length: 8,
-      child: NestedScrollView(
-        controller: controller.scrollController,
-        headerSliverBuilder: (context, innerBoxIsScrolled) {
-          return [
-            SliverToBoxAdapter(
-              child: _buildBanner(
-                channel,
-                isDesktop: isDesktop,
-                isTablet: isTablet,
+    return Obx(() {
+      final activeTabs = controller.activeTabs;
+      final int tabCount = activeTabs.length;
+
+      return DefaultTabController(
+        key: ValueKey('tab-controller-${channel.channelId}-${activeTabs.join(",")}'),
+        length: tabCount,
+        child: NestedScrollView(
+          controller: controller.scrollController,
+          headerSliverBuilder: (context, innerBoxIsScrolled) {
+            return [
+              SliverToBoxAdapter(
+                child: _buildBanner(
+                  channel,
+                  isDesktop: isDesktop,
+                  isTablet: isTablet,
+                ),
               ),
-            ),
-            SliverToBoxAdapter(
-              child: _buildChannelHeader(
-                context,
-                channel,
-                isDesktop: isDesktop,
-                isTablet: isTablet,
+              SliverToBoxAdapter(
+                child: _buildChannelHeader(
+                  context,
+                  channel,
+                  isDesktop: isDesktop,
+                  isTablet: isTablet,
+                ),
               ),
-            ),
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _SliverTabBarDelegate(
-                _buildYouTubeTabBar(),
-                maxHeight: 48.0,
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _SliverTabBarDelegate(
+                  _buildYouTubeTabBar(activeTabs),
+                  maxHeight: 48.0,
+                ),
               ),
-            ),
-          ];
-        },
-        body: TabBarView(
-          children: [
-            _buildHomeTab(
-              context,
-              channel,
-              isDesktop: isDesktop,
-              isTablet: isTablet,
-            ),
-            _buildVideosTab(
-              context,
-              channel,
-              isDesktop: isDesktop,
-              isTablet: isTablet,
-            ),
-            _buildPlaylistsTab(
-              context,
-              channel,
-              isDesktop: isDesktop,
-              isTablet: isTablet,
-            ),
-            _buildPostsTab(
-              context,
-              channel,
-              isDesktop: isDesktop,
-              isTablet: isTablet,
-            ),
-          ],
+            ];
+          },
+          body: TabBarView(
+            children: activeTabs.map((tabName) {
+              switch (tabName) {
+                case 'Home':
+                  return _buildHomeTab(
+                    context,
+                    channel,
+                    isDesktop: isDesktop,
+                    isTablet: isTablet,
+                  );
+                case 'Videos':
+                  return _buildVideosTab(
+                    context,
+                    channel,
+                    isDesktop: isDesktop,
+                    isTablet: isTablet,
+                  );
+                case 'Playlists':
+                  return _buildPlaylistsTab(
+                    context,
+                    channel,
+                    isDesktop: isDesktop,
+                    isTablet: isTablet,
+                  );
+                case 'Posts':
+                  return _buildPostsTab(
+                    context,
+                    channel,
+                    isDesktop: isDesktop,
+                    isTablet: isTablet,
+                  );
+                default:
+                  return const SizedBox.shrink();
+              }
+            }).toList(),
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 
   // ==========================================================================
@@ -283,7 +298,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                         shape: BoxShape.circle,
                       ),
                       child: IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        icon: const BackSymbol(color: Colors.white),
                         tooltip: 'Back',
                         onPressed: () {
                           if (isDashboard && Get.isRegistered<HomeController>()) {
@@ -524,7 +539,9 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                         children: [
                           Icon(
                             isSubscribed
-                                ? Icons.notifications_active
+                                ? (controller.notificationsEnabled.value
+                                    ? Icons.notifications_active
+                                    : Icons.notifications_off)
                                 : Icons.notifications,
                             color: isSubscribed
                                 ? ytTextPrimary
@@ -613,9 +630,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
   // ==========================================================================
   // YOUTUBE TAB BAR
   // ==========================================================================
-  Widget _buildYouTubeTabBar() {
-    final tabs = ['Home', 'Videos', 'Playlists', 'Posts'];
-
+  Widget _buildYouTubeTabBar(List<String> activeTabs) {
     return Container(
       color: ytBackground,
       child: TabBar(
@@ -633,7 +648,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
           fontSize: 14,
           fontWeight: FontWeight.w400,
         ),
-        tabs: tabs.map((tab) => Tab(text: tab)).toList(),
+        tabs: activeTabs.map((tab) => Tab(text: tab)).toList(),
       ),
     );
   }
@@ -1489,22 +1504,49 @@ class ChannelDetailsPage extends GetView<ChannelController> {
               ),
             ),
             SizedBox(height: 16),
-            ListTile(
-              leading: Icon(Icons.notifications_active, color: ytTextPrimary),
-              title: Text(
-                'All notifications',
-                style: GoogleFonts.roboto(color: ytTextPrimary),
-              ),
-              onTap: () => Navigator.pop(context),
-            ),
-            ListTile(
-              leading: Icon(Icons.notifications_none, color: ytTextPrimary),
-              title: Text(
-                'None',
-                style: GoogleFonts.roboto(color: ytTextPrimary),
-              ),
-              onTap: () => Navigator.pop(context),
-            ),
+            Obx(() {
+              final isAll = controller.notificationsEnabled.value;
+              return Column(
+                children: [
+                  ListTile(
+                    leading: Icon(
+                      Icons.notifications_active,
+                      color: isAll ? AppColors.brand : ytTextPrimary,
+                    ),
+                    title: Text(
+                      'All notifications',
+                      style: GoogleFonts.roboto(
+                        color: isAll ? AppColors.brand : ytTextPrimary,
+                        fontWeight: isAll ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    trailing: isAll ? Icon(Icons.check, color: AppColors.brand) : null,
+                    onTap: () {
+                      Navigator.pop(context);
+                      controller.updateNotificationPreference(channel!.channelId, true);
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(
+                      Icons.notifications_off,
+                      color: !isAll ? AppColors.brand : ytTextPrimary,
+                    ),
+                    title: Text(
+                      'None',
+                      style: GoogleFonts.roboto(
+                        color: !isAll ? AppColors.brand : ytTextPrimary,
+                        fontWeight: !isAll ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    trailing: !isAll ? Icon(Icons.check, color: AppColors.brand) : null,
+                    onTap: () {
+                      Navigator.pop(context);
+                      controller.updateNotificationPreference(channel!.channelId, false);
+                    },
+                  ),
+                ],
+              );
+            }),
           ],
         ),
       ),

@@ -6,6 +6,9 @@ import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/comment_service.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/features/notifications/data/models/user_notification.dart';
+import 'package:truthworld/features/notifications/data/services/user_notification_service.dart';
+import 'package:truthworld/core/utils/mentions_helper.dart';
 
 /// Premium Comments Controller with GetX - handles all comment-related logic
 /// 100% GetX reactive with optimized Firestore queries for low latency
@@ -23,6 +26,11 @@ class CommentsController extends BaseController {
   final hasMoreComments = true.obs;
   final commentsError = Rx<String?>(null);
   final isSortNewest = false.obs;
+
+  // Reactive targets for comment/reply deep linking
+  final targetCommentId = Rx<String?>(null);
+  final targetReplyId = Rx<String?>(null);
+  bool hasScrolledToTarget = false;
 
   // For creating comments
   final isSubmittingComment = false.obs;
@@ -45,6 +53,14 @@ class CommentsController extends BaseController {
   @override
   void onInit() {
     super.onInit();
+    if (Get.arguments != null) {
+      if (Get.arguments["commentId"] != null) {
+        targetCommentId.value = Get.arguments["commentId"] as String?;
+      }
+      if (Get.arguments["replyId"] != null) {
+        targetReplyId.value = Get.arguments["replyId"] as String?;
+      }
+    }
     if (video != null && !isOffline) {
       _initializeComments();
     }
@@ -125,7 +141,22 @@ class CommentsController extends BaseController {
       limit: _commentsPerPage,
     )
         .listen(
-      (loadedComments) {
+      (loadedComments) async {
+        final targetId = targetCommentId.value;
+        if (targetId != null && targetId.isNotEmpty) {
+          final containsTarget = loadedComments.any((c) => c.id == targetId);
+          if (!containsTarget) {
+            try {
+              final targetComment = await _commentService.getComment(video!.id, targetId);
+              if (targetComment != null) {
+                loadedComments.insert(0, targetComment);
+              }
+            } catch (e) {
+              debugPrint('⚠️ Error fetching deep-linked comment: $e');
+            }
+          }
+        }
+
         comments.value = loadedComments;
         sortComments(isSortNewest.value);
         isLoadingComments.value = false;
@@ -167,7 +198,7 @@ class CommentsController extends BaseController {
       isSubmittingComment.value = true;
       commentError.value = null;
 
-      await _commentService.addComment(
+      final commentId = await _commentService.addComment(
         videoId: video!.id,
         userId: currentUserId,
         userName: currentUserName,
@@ -177,6 +208,19 @@ class CommentsController extends BaseController {
         channelProfilePicUrl: channelProfilePicUrl,
         text: text.trim(),
       );
+
+      try {
+        await MentionsHelper.processAndNotifyMentions(
+          text: text.trim(),
+          videoId: video!.id,
+          videoTitle: video!.title,
+          videoThumbnailUrl: video!.thumbnailUrl,
+          videoChannelId: video!.channelId,
+          commentId: commentId,
+        );
+      } catch (e) {
+        debugPrint('⚠️ Error processing mentions in comment: $e');
+      }
 
       commentError.value = null;
     } catch (e) {
@@ -244,6 +288,7 @@ class CommentsController extends BaseController {
           userId: userId,
         );
       } else {
+        _triggerLikeNotification(comment);
         await _commentService.likeComment(
           videoId: video!.id,
           commentId: commentId,
@@ -389,6 +434,7 @@ class CommentsController extends BaseController {
     String? channelName,
     String? channelProfilePicUrl,
     required String userProfilePicUrl,
+    String? commentAuthorId,
   }) async {
     if (text.trim().isEmpty || video == null) return;
 
@@ -396,7 +442,7 @@ class CommentsController extends BaseController {
       isSubmittingComment.value = true;
       commentError.value = null;
 
-      await _commentService.addReply(
+      final replyId = await _commentService.addReply(
         videoId: video!.id,
         commentId: commentId,
         userId: currentUserId,
@@ -407,6 +453,40 @@ class CommentsController extends BaseController {
         channelProfilePicUrl: channelProfilePicUrl,
         text: text.trim(),
       );
+
+      if (commentAuthorId != null && commentAuthorId.isNotEmpty && commentAuthorId != currentUserId) {
+        final notificationService = UserNotificationService();
+        notificationService.createNotification(
+          userId: commentAuthorId,
+          type: 'comment_reply',
+          severity: NotificationSeverity.info,
+          title: 'New Reply',
+          message: '@$currentUserName replied to your comment: "${text.trim()}"',
+          actionUrl: '/watch?v=${video!.id}',
+          metadata: {
+            'videoId': video!.id,
+            'commentId': commentId,
+            'replyId': replyId,
+            'thumbnailUrl': video!.thumbnailUrl,
+            'channelId': video!.channelId,
+            'userAvatar': _auth.currentUser?.photoURL ?? '',
+          },
+        );
+      }
+
+      try {
+        await MentionsHelper.processAndNotifyMentions(
+          text: text.trim(),
+          videoId: video!.id,
+          videoTitle: video!.title,
+          videoThumbnailUrl: video!.thumbnailUrl,
+          videoChannelId: video!.channelId,
+          commentId: commentId,
+          replyId: replyId,
+        );
+      } catch (e) {
+        debugPrint('⚠️ Error processing mentions in reply: $e');
+      }
 
       commentError.value = null;
     } catch (e) {
@@ -421,6 +501,8 @@ class CommentsController extends BaseController {
     required String commentId,
     required String replyId,
     required bool likeAsChannel,
+    String? replyAuthorId,
+    String? replyText,
   }) async {
     if (video == null) return;
 
@@ -452,6 +534,9 @@ class CommentsController extends BaseController {
           userId: userId,
         );
       } else {
+        if (replyAuthorId != null && replyAuthorId.isNotEmpty && replyAuthorId != userId) {
+          _triggerReplyLikeNotification(commentId, replyId, replyAuthorId, replyText);
+        }
         await _commentService.likeReply(
           videoId: video!.id,
           commentId: commentId,
@@ -551,6 +636,49 @@ class CommentsController extends BaseController {
     if (count == 0) return '';
     if (count == 1) return 'Liked by 1 user';
     return 'Liked by $count users';
+  }
+
+  void _triggerLikeNotification(Comment comment) {
+    if (video == null || currentUserId.isEmpty || currentUserId == comment.userId) return;
+    
+    final notificationService = UserNotificationService();
+    notificationService.createNotification(
+      userId: comment.userId,
+      type: 'comment_like',
+      severity: NotificationSeverity.info,
+      title: 'Comment Liked',
+      message: '@$currentUserName liked your comment: "${comment.text}"',
+      actionUrl: '/watch?v=${video!.id}',
+      metadata: {
+        'videoId': video!.id,
+        'commentId': comment.id,
+        'thumbnailUrl': video!.thumbnailUrl,
+        'channelId': video!.channelId,
+        'userAvatar': _auth.currentUser?.photoURL ?? '',
+      },
+    );
+  }
+
+  void _triggerReplyLikeNotification(String commentId, String replyId, String? replyAuthorId, String? replyText) {
+    if (video == null || currentUserId.isEmpty || replyAuthorId == null || replyAuthorId.isEmpty || currentUserId == replyAuthorId) return;
+    
+    final notificationService = UserNotificationService();
+    notificationService.createNotification(
+      userId: replyAuthorId,
+      type: 'reply_like',
+      severity: NotificationSeverity.info,
+      title: 'Reply Liked',
+      message: '@$currentUserName liked your reply: "${replyText ?? ''}"',
+      actionUrl: '/watch?v=${video!.id}',
+      metadata: {
+        'videoId': video!.id,
+        'commentId': commentId,
+        'replyId': replyId,
+        'thumbnailUrl': video!.thumbnailUrl,
+        'channelId': video!.channelId,
+        'userAvatar': _auth.currentUser?.photoURL ?? '',
+      },
+    );
   }
 
   @override

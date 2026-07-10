@@ -1,5 +1,6 @@
 import 'dart:io' as io;
 import 'package:flutter/foundation.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:get/get.dart';
@@ -1179,7 +1180,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_rounded),
+            icon: const BackSymbol(),
             onPressed: () => Get.back(),
           ),
           const SizedBox(width: 8),
@@ -1216,7 +1217,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
         width: double.infinity,
         child: OutlinedButton.icon(
           onPressed: () => Get.back(),
-          icon: const Icon(Icons.arrow_back_rounded, size: 18),
+          icon: const BackSymbol(size: 18),
           label: Text(
             'Back to Home',
             style: TextStyle(

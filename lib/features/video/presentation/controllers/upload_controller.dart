@@ -19,6 +19,7 @@ import 'package:uuid/uuid.dart';
 import 'package:video_player/video_player.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/core/utils/mentions_helper.dart';
 
 // ignore: avoid_web_libraries_in_flutter
 import 'package:universal_html/html.dart' as html;
@@ -31,6 +32,7 @@ class UploadController extends GetxController with ContentValidationMixin {
   final _cacheService = VerificationCacheService();
   final _performanceMonitor = VerificationPerformanceMonitor();
   StreamSubscription? _thumbnailModerationSubscription;
+  StreamSubscription? _communityImageModerationSubscription;
   /// Returns the upload progress as a formatted percentage string (e.g., '42%')
   String get uploadProgressPercent =>
       '${(uploadProgress.value * 100).toStringAsFixed(0)}%';
@@ -182,13 +184,18 @@ class UploadController extends GetxController with ContentValidationMixin {
   var channels = <Channel>[].obs;
 
   var pickedImage = Rx<PlatformFile?>(null);
+  var pickedCommunityImage = Rx<PlatformFile?>(null);
   var pickedVideo = Rx<PlatformFile?>(null);
 
   // Storage for upload tasks and URLs
   UploadTask? _videoUploadTask;
   RxString videoUrl = ''.obs;
   RxString thumbnailUrl = ''.obs;
+  RxString communityImageUrl = ''.obs;
+  RxString communityImageStatus = ''.obs;
+  RxString communityImageStatusReason = ''.obs;
   RxBool isUploading = false.obs;
+  RxBool isCommunityPostUploading = false.obs;
   String?
   _currentVideoId; // Store the current video ID for linking storage and firestore
 
@@ -244,6 +251,7 @@ class UploadController extends GetxController with ContentValidationMixin {
   void onClose() {
     videoPlayerController?.dispose();
     _thumbnailModerationSubscription?.cancel();
+    _communityImageModerationSubscription?.cancel();
     super.onClose();
   }
 
@@ -447,8 +455,12 @@ class UploadController extends GetxController with ContentValidationMixin {
         withData: true,
       );
       if (result != null && result.files.isNotEmpty) {
-        pickedImage.value = result.files.first;
-        await _startImageUpload(pickedImage.value!, forCommunity: forCommunity);
+        if (forCommunity) {
+          pickedCommunityImage.value = result.files.first;
+        } else {
+          pickedImage.value = result.files.first;
+        }
+        await _startImageUpload(result.files.first, forCommunity: forCommunity);
       } else {
         Get.snackbar("Info", "No image selected.");
       }
@@ -1050,49 +1062,45 @@ class UploadController extends GetxController with ContentValidationMixin {
       final snapshot = await uploadTask.whenComplete(() {});
       final downloadUrl = await snapshot.ref.getDownloadURL();
 
-      // Update UI with the latest image URL (shared thumbnailUrl used by UI)
-      thumbnailUrl.value = downloadUrl;
+      // Update UI with the latest image URL for the correct flow
+      if (forCommunity) {
+        communityImageUrl.value = downloadUrl;
+      } else {
+        thumbnailUrl.value = downloadUrl;
+      }
       debugPrint("Image uploaded successfully: $downloadUrl");
 
-      // 6️⃣ Track moderation for this image (use separate collection for community)
+      // 6️⃣ Track moderation for this image
       final docId = uniqueFileName;
       uploadedDocIds.add(docId);
 
-      _startThumbnailVerification(docId);
+      _startImageVerification(docId, forCommunity: forCommunity);
     } catch (e) {
       uploadProgress.value = 0.0;
       Get.snackbar("Error", "Failed to upload image: $e");
     }
   }
 
-  void _startThumbnailVerification(String docId) {
-    _thumbnailModerationSubscription?.cancel();
-    finalstatus.value = "PENDING";
-    finalstatusReason.value = "Starting verification...";
-
-    // Start performance monitoring
-    final stopwatch = Stopwatch()..start();
-
-    // Use optimized stream with caching for instant response
-    _thumbnailModerationSubscription = _imageVerificationService
+  void _startImageVerification(String docId, {required bool forCommunity}) {
+    final subscription = _imageVerificationService
         .streamVerificationStatus(docId)
         .listen((result) {
       final status = result.status.name.toUpperCase();
       final reason = result.reason;
 
-      finalstatus.value = status;
-      finalstatusReason.value = reason;
+      if (forCommunity) {
+        communityImageStatus.value = status;
+        communityImageStatusReason.value = reason;
+      } else {
+        finalstatus.value = status;
+        finalstatusReason.value = reason;
+      }
 
       // Cache the result for future reference
       _cacheService.setVerification(docId, result);
 
-      // Record performance metrics
-      stopwatch.stop();
-      _performanceMonitor.recordFetchTime(docId, stopwatch.elapsed);
-
-      debugPrint("🔍 [MODERATION UPDATE] $docId: $status");
+      debugPrint("🔍 [VERIFICATION UPDATE] $docId: $status (community=$forCommunity)");
       debugPrint("   Reason: $reason");
-      debugPrint("   ⏱️ Response time: ${stopwatch.elapsedMilliseconds}ms");
 
       if (status == "REJECTED") {
         Get.snackbar(
@@ -1115,38 +1123,44 @@ class UploadController extends GetxController with ContentValidationMixin {
           backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.1),
           duration: const Duration(seconds: 3),
         );
-        
-        // Performance metrics
-        debugPrint(
-          '📊 [VERIFICATION PERFORMANCE] Average metrics:',
-        );
-        final metrics = _performanceMonitor.getAverageMetrics();
-        metrics.forEach((key, value) {
-          debugPrint('   $key: $value');
-        });
       }
 
-      // Auto-cleanup old snap subscriptions
       if (status != "PENDING") {
-        // Cancel when status is final (approved, rejected, or error)
         Future.delayed(const Duration(seconds: 2), () {
-          _thumbnailModerationSubscription?.cancel();
+          if (forCommunity) {
+            _communityImageModerationSubscription?.cancel();
+          } else {
+            _thumbnailModerationSubscription?.cancel();
+          }
         });
       }
     }, onError: (error) {
-      debugPrint('❌ [MODERATION ERROR] $error');
-      finalstatus.value = "ERROR";
-      finalstatusReason.value = "Verification service error: $error";
-      
+      debugPrint('❌ [VERIFICATION ERROR] $error');
+      if (forCommunity) {
+        communityImageStatus.value = "ERROR";
+        communityImageStatusReason.value = "Verification service error: $error";
+      } else {
+        finalstatus.value = "ERROR";
+        finalstatusReason.value = "Verification service error: $error";
+      }
       Get.snackbar(
         "Verification Error",
         "Failed to verify image: $error",
         backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.1),
         duration: const Duration(seconds: 4),
       );
-
-      _thumbnailModerationSubscription?.cancel();
+      if (forCommunity) {
+        _communityImageModerationSubscription?.cancel();
+      } else {
+        _thumbnailModerationSubscription?.cancel();
+      }
     });
+
+    if (forCommunity) {
+      _communityImageModerationSubscription = subscription;
+    } else {
+      _thumbnailModerationSubscription = subscription;
+    }
   }
 
   // ==========================================================================
@@ -1397,6 +1411,7 @@ class UploadController extends GetxController with ContentValidationMixin {
           videoCount: 1, // Enforces the rule that it has 1 video now
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
+          status: 'underReview',
         );
         
         await newTopicRef.set(newTopic.toMap());
@@ -1422,6 +1437,20 @@ class UploadController extends GetxController with ContentValidationMixin {
 
       // IMPORTANT: Use update() not set() to preserve Cloud Function data
       await docRef.update(updateData);
+
+      // Scan for handle mentions and notify
+      final String fullMetadataText = '${title.trim()} ${description.trim()}';
+      try {
+        await MentionsHelper.processAndNotifyMentions(
+          text: fullMetadataText,
+          videoId: videoId,
+          videoTitle: title.trim(),
+          videoThumbnailUrl: thumbnailUrl.value,
+          videoChannelId: channelId.trim(),
+        );
+      } catch (e) {
+        debugPrint('⚠️ Error processing mentions for video upload: $e');
+      }
 
       debugPrint('✅ Document updated successfully!');
 
@@ -1510,6 +1539,14 @@ class UploadController extends GetxController with ContentValidationMixin {
     String channelImage,
     List<String> tags,
   ) async {
+    if (isCommunityPostUploading.value) {
+      Get.snackbar(
+        "Please wait",
+        "A community post is already being published.",
+      );
+      return;
+    }
+
     // Check Moderation Status
     /* Images are now approved by default for smoother creation
     if (finalstatus.value == "REJECTED" || finalstatus.value == "FLAGGED") {
@@ -1524,12 +1561,12 @@ class UploadController extends GetxController with ContentValidationMixin {
       return;
     }
     */
-    if (pickedImage.value == null) {
+    if (pickedCommunityImage.value == null) {
       Get.snackbar("Error", "Please select an image.");
       return;
     }
 
-    if (thumbnailUrl.value.isEmpty) {
+    if (communityImageUrl.value.isEmpty) {
       Get.snackbar("Error", "Image upload not complete.");
       return;
     }
@@ -1596,6 +1633,7 @@ class UploadController extends GetxController with ContentValidationMixin {
       }
 
       isUploading.value = true;
+      isCommunityPostUploading.value = true;
       DocumentReference docRef = _firestore.collection('Community').doc();
       debugPrint("Attempting to publish community post with ID: ${docRef.id}");
 
@@ -1603,9 +1641,14 @@ class UploadController extends GetxController with ContentValidationMixin {
         'id': docRef.id,
         'title': title.trim(),
         'description': description.trim(),
-        'image': thumbnailUrl.value,
+        'images': [communityImageUrl.value],
+        'image': communityImageUrl.value,
         'likes': 0,
         'likedby': [],
+        'dislikes': 0,
+        'dislikedby': [],
+        'dislikeCount': 0,
+        'commentCount': 0,
         'views': 0,
         'shares': [],
         'downloads': 0,
@@ -1651,20 +1694,30 @@ class UploadController extends GetxController with ContentValidationMixin {
       );
     } finally {
       isUploading.value = false;
+      isCommunityPostUploading.value = false;
     }
   }
 
   void _resetUploads() {
     videoUrl.value = '';
     thumbnailUrl.value = '';
+    communityImageUrl.value = '';
+    communityImageStatus.value = '';
+    communityImageStatusReason.value = '';
     videoUploadProgress.value = 0.0;
     imageUploadProgress.value = 0.0;
     uploadProgress.value = 0.0;
+    isCommunityPostUploading.value = false;
     _videoUploadTask = null;
     _currentUploadTaskVideo = null;
     _currentUploadTaskCommunity = null;
+    _communityImageModerationSubscription?.cancel();
+    _communityImageModerationSubscription = null;
+    _thumbnailModerationSubscription?.cancel();
+    _thumbnailModerationSubscription = null;
     pickedVideo.value = null;
     pickedImage.value = null;
+    pickedCommunityImage.value = null;
     videoPlayerController?.dispose();
     videoPlayerController = null;
     selectedPlaylist.value = '';

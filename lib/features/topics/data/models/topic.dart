@@ -37,6 +37,9 @@ class Topic {
   final TopicVisibilityType visibilityType;
   final String? accessCode;
   final int followerCount;
+  final String status;
+  final bool? geminiApproved;
+  final String? moderationReason;
 
   const Topic({
     required this.id,
@@ -62,6 +65,9 @@ class Topic {
     this.visibilityType = TopicVisibilityType.public,
     this.accessCode,
     this.followerCount = 0,
+    this.status = 'active',
+    this.geminiApproved,
+    this.moderationReason,
   });
 
   /// Create from Firestore document
@@ -92,6 +98,9 @@ class Topic {
       visibilityType: TopicVisibilityType.fromJson(data['visibilityType'] ?? 'public'),
       accessCode: data['accessCode'],
       followerCount: data['followerCount'] ?? 0,
+      status: data['status'] ?? 'active',
+      geminiApproved: data['geminiApproved'] as bool?,
+      moderationReason: data['moderationReason'] as String?,
     );
   }
 
@@ -120,6 +129,9 @@ class Topic {
       'visibilityType': visibilityType.toJson(),
       'accessCode': accessCode,
       'followerCount': followerCount,
+      'status': status,
+      'geminiApproved': geminiApproved,
+      'moderationReason': moderationReason,
     };
   }
 
@@ -148,6 +160,9 @@ class Topic {
     TopicVisibilityType? visibilityType,
     String? accessCode,
     int? followerCount,
+    String? status,
+    bool? geminiApproved,
+    String? moderationReason,
   }) {
     return Topic(
       id: id ?? this.id,
@@ -173,6 +188,9 @@ class Topic {
       visibilityType: visibilityType ?? this.visibilityType,
       accessCode: accessCode ?? this.accessCode,
       followerCount: followerCount ?? this.followerCount,
+      status: status ?? this.status,
+      geminiApproved: geminiApproved ?? this.geminiApproved,
+      moderationReason: moderationReason ?? this.moderationReason,
     );
   }
 

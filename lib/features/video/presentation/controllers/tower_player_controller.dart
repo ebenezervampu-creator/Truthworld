@@ -16,7 +16,6 @@ import 'video_controller.dart';
 import '../../data/models/video.dart';
 import '../../data/models/video_chapter.dart';
 import '../widgets/language_request_dialog.dart';
-import '../widgets/full_screen_helper.dart';
 import '../views/player/models/player_models.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/features/video/presentation/views/player/dialogs/keyboard_shortcuts_dialog.dart';
@@ -117,6 +116,7 @@ class TowerPlayerController extends GetxController {
       systemOverlaysOnEnterFullScreen: const [],
       systemOverlaysAfterFullScreen: SystemUiOverlay.values,
     );
+    _setupChewieListeners();
   }
 
   TowerPlayerController({required this.videoPlayerController, this.tag}) {
@@ -159,6 +159,7 @@ class TowerPlayerController extends GetxController {
   final RxInt skipCountdown = 0.obs;
   final RxBool adCanSkip = false.obs;
   VideoPlayerController? adPlayerController;
+  VideoPlayerController? _audioTrackController;
   bool _preRollPlayed = false;
   bool _midRollPlayed = false;
   bool _sponsorMidRollPlayed = false;
@@ -458,6 +459,39 @@ class TowerPlayerController extends GetxController {
       playbackSpeed.value = val.playbackSpeed;
       if (isLooping.value != val.isLooping) isLooping.value = val.isLooping;
 
+      // Sync alternate audio player
+      final audioCtrl = _audioTrackController;
+      if (audioCtrl != null && audioCtrl.value.isInitialized) {
+        // Keep main player muted if alternate audio is active
+        if (videoPlayerController.value.volume > 0.0) {
+          videoPlayerController.setVolume(0.0);
+        }
+        
+        // Sync volume
+        final targetVol = isMuted.value ? 0.0 : volume.value;
+        if (audioCtrl.value.volume != targetVol) {
+          audioCtrl.setVolume(targetVol);
+        }
+
+        // Sync Play/Pause
+        if (val.isPlaying && !audioCtrl.value.isPlaying) {
+          audioCtrl.play();
+        } else if (!val.isPlaying && audioCtrl.value.isPlaying) {
+          audioCtrl.pause();
+        }
+
+        // Sync Speed
+        if (val.playbackSpeed != audioCtrl.value.playbackSpeed) {
+          audioCtrl.setPlaybackSpeed(val.playbackSpeed);
+        }
+
+        // Sync Position if drift > 300ms
+        final drift = (val.position - audioCtrl.value.position).inMilliseconds.abs();
+        if (drift > 300) {
+          audioCtrl.seekTo(val.position);
+        }
+      }
+
       // Ad Interceptor (Pre-roll and Mid-roll)
       final hasRealVideoAds =
           Get.isRegistered<AdService>() &&
@@ -564,11 +598,23 @@ class TowerPlayerController extends GetxController {
 
   @override
   void onClose() {
+    try {
+      chewieController?.removeListener(_onInternalChewieChanged);
+    } catch (_) {}
+    try {
+      videoController?.chewieController?.removeListener(_onOuterChewieChanged);
+    } catch (_) {}
     if (adPlayerController != null) {
       try {
         adPlayerController!.removeListener(_onAdVpcUpdate);
         adPlayerController!.dispose();
       } catch (_) {}
+    }
+    if (_audioTrackController != null) {
+      try {
+        _audioTrackController!.dispose();
+      } catch (_) {}
+      _audioTrackController = null;
     }
     try {
       chewieController?.dispose();
@@ -803,6 +849,7 @@ class TowerPlayerController extends GetxController {
     try {
       if (vv.isPlaying) {
         await videoPlayerController.pause();
+        await _audioTrackController?.pause();
         _stopWatchTimer();
         _trackAnalytics(
           PlayerEvent('pause', data: {'position': vv.position.inSeconds}),
@@ -810,9 +857,11 @@ class TowerPlayerController extends GetxController {
       } else {
         if (vv.position >= vv.duration) {
           await videoPlayerController.seekTo(Duration.zero);
+          await _audioTrackController?.seekTo(Duration.zero);
         }
         pauseAllActivePlayers(except: this);
         await videoPlayerController.play();
+        await _audioTrackController?.play();
         _startWatchTimer();
         _trackAnalytics(
           PlayerEvent('play', data: {'position': vv.position.inSeconds}),
@@ -828,6 +877,7 @@ class TowerPlayerController extends GetxController {
     try {
       _hasEnded = false; // Reset ended guard on seek
       await videoPlayerController.seekTo(pos);
+      await _audioTrackController?.seekTo(pos);
       if (isAudioOnly.value) _audioService?.syncPosition(pos);
       onInteraction();
     } catch (e) {
@@ -930,7 +980,12 @@ class TowerPlayerController extends GetxController {
   void setVolume(double vol) {
     volume.value = vol.clamp(0.0, 1.0);
     isMuted.value = vol == 0;
-    videoPlayerController.setVolume(volume.value);
+    if (_audioTrackController != null) {
+      videoPlayerController.setVolume(0.0);
+      _audioTrackController!.setVolume(isMuted.value ? 0.0 : volume.value);
+    } else {
+      videoPlayerController.setVolume(isMuted.value ? 0.0 : volume.value);
+    }
     if (isAudioOnly.value) _audioService?.setVolume(volume.value);
     onInteraction();
   }
@@ -954,6 +1009,7 @@ class TowerPlayerController extends GetxController {
 
   void setSpeed(double speed) {
     videoPlayerController.setPlaybackSpeed(speed);
+    _audioTrackController?.setPlaybackSpeed(speed);
     playbackSpeed.value = speed;
     TowerPlayerController.globalPlaybackSpeed = speed; // Persist speed
     activePanel.value = '';
@@ -1120,7 +1176,43 @@ class TowerPlayerController extends GetxController {
     try {
       if (Get.isRegistered<VideoController>(tag: tag)) {
         final vc = Get.find<VideoController>(tag: tag);
-        if (track.url != null && track.url!.isNotEmpty) {
+
+        // 1. Dispose old audio track controller if exists
+        if (_audioTrackController != null) {
+          try {
+            _audioTrackController!.dispose();
+          } catch (_) {}
+          _audioTrackController = null;
+        }
+
+        // 2. Handle type-specific switching
+        if (track.type == 'Audio' && track.url != null && track.url!.isNotEmpty) {
+          // Switch main player back to original video resolution if it's currently on a dubbed video
+          if (vc.currentResolution.value?.url != vc.availableResolutions.first.url) {
+            vc.setResolution(vc.availableResolutions.first, isManual: true);
+          }
+          
+          // Mute main video player
+          videoPlayerController.setVolume(0.0);
+
+          // Initialize secondary audio player
+          _audioTrackController = VideoPlayerController.networkUrl(Uri.parse(track.url!));
+          _audioTrackController!.initialize().then((_) {
+            if (_audioTrackController == null) return;
+            
+            // Sync initial settings
+            _audioTrackController!.setVolume(isMuted.value ? 0.0 : volume.value);
+            _audioTrackController!.setPlaybackSpeed(videoPlayerController.value.playbackSpeed);
+            _audioTrackController!.seekTo(videoPlayerController.value.position);
+            
+            if (videoPlayerController.value.isPlaying) {
+              _audioTrackController!.play();
+            }
+          });
+        } else if (track.type == 'Video' && track.url != null && track.url!.isNotEmpty) {
+          // Unmute main video player
+          videoPlayerController.setVolume(isMuted.value ? 0.0 : volume.value);
+
           final curr = vc.currentResolution.value;
           vc.setResolution(
             VideoResolutionV2(
@@ -1132,8 +1224,13 @@ class TowerPlayerController extends GetxController {
             ),
             isManual: true,
           );
-        } else if (vc.availableResolutions.isNotEmpty) {
-          vc.setResolution(vc.availableResolutions.first, isManual: true);
+        } else {
+          // 'Original' or fallback
+          // Unmute main video player
+          videoPlayerController.setVolume(isMuted.value ? 0.0 : volume.value);
+          if (vc.availableResolutions.isNotEmpty) {
+            vc.setResolution(vc.availableResolutions.first, isManual: true);
+          }
         }
       }
     } catch (e) {
@@ -1195,55 +1292,68 @@ class TowerPlayerController extends GetxController {
 
   void toggleFullscreen() async {
     focusNode.requestFocus();
-    VideoController? vc;
     try {
-      vc = tag != null && Get.isRegistered<VideoController>(tag: tag)
-          ? Get.find<VideoController>(tag: tag)
-          : Get.find<VideoController>();
+      final vc = videoController;
+      final outerChewie = vc?.chewieController;
+      if (outerChewie != null) {
+        outerChewie.toggleFullScreen();
+      } else {
+        chewieController?.toggleFullScreen();
+      }
+    } catch (e) {
+      debugPrint('[TowerPlayer] Fullscreen toggle error: $e');
+    }
+  }
+
+  void _setupChewieListeners() {
+    // 1. Setup internal ChewieController listener
+    try {
+      chewieController?.removeListener(_onInternalChewieChanged);
+      chewieController?.addListener(_onInternalChewieChanged);
     } catch (_) {}
 
-    if (isFullScreen.value) {
-      isFullScreen.value = false;
-      vc?.isFullScreen.value = false;
-      if (kIsWeb) {
-        try {
-          if (html.document.fullscreenElement != null) {
-            html.document.exitFullscreen();
-          }
-        } catch (_) {}
+    // 2. Setup outer ChewieController listener
+    try {
+      final vc = videoController;
+      if (vc != null && vc.chewieController != null) {
+        vc.chewieController!.removeListener(_onOuterChewieChanged);
+        vc.chewieController!.addListener(_onOuterChewieChanged);
+        isFullScreen.value = vc.chewieController!.isFullScreen;
+        vc.isFullScreen.value = vc.chewieController!.isFullScreen;
       } else {
-        SystemChrome.setPreferredOrientations(DeviceOrientation.values);
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-        await FullScreenHelper.exitFullScreen();
+        if (chewieController != null) {
+          isFullScreen.value = chewieController!.isFullScreen;
+        }
       }
+    } catch (_) {}
+  }
+
+  void _onInternalChewieChanged() {
+    if (chewieController == null) return;
+    final isFs = chewieController!.isFullScreen;
+    if (isFullScreen.value != isFs) {
+      isFullScreen.value = isFs;
+      try {
+        final vc = videoController;
+        if (vc != null) {
+          vc.isFullScreen.value = isFs;
+        }
+      } catch (_) {}
       onInteraction();
-      _trackAnalytics(PlayerEvent('fullscreen_exit'));
-    } else {
-      userExitedFullscreen.value = false;
-      isFullScreen.value = true;
-      vc?.isFullScreen.value = true;
-      if (kIsWeb) {
-        try {
-          html.document.documentElement?.requestFullscreen();
-        } catch (_) {}
-        _webFullscreenSub?.cancel();
-        _webFullscreenSub = html.document.onFullscreenChange.listen((_) {
-          if (html.document.fullscreenElement == null && isFullScreen.value) {
-            isFullScreen.value = false;
-            vc?.isFullScreen.value = false;
-            onInteraction();
-          }
-        });
-      } else {
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-        SystemChrome.setPreferredOrientations([
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight,
-        ]);
-        await FullScreenHelper.enterFullScreen();
+      _trackAnalytics(PlayerEvent(isFs ? 'fullscreen_enter' : 'fullscreen_exit'));
+    }
+  }
+
+  void _onOuterChewieChanged() {
+    final vc = videoController;
+    if (vc != null && vc.chewieController != null) {
+      final isFs = vc.chewieController!.isFullScreen;
+      if (isFullScreen.value != isFs) {
+        isFullScreen.value = isFs;
+        vc.isFullScreen.value = isFs;
+        onInteraction();
+        _trackAnalytics(PlayerEvent(isFs ? 'fullscreen_enter' : 'fullscreen_exit'));
       }
-      onInteraction();
-      _trackAnalytics(PlayerEvent('fullscreen_enter'));
     }
   }
 

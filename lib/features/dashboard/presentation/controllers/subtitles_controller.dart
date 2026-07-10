@@ -1,17 +1,22 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
+import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 
 /// Internal Cue Representation for visual preview and editing
 class SubtitleCue {
@@ -43,7 +48,7 @@ class SubtitleCue {
 }
 
 /// Professional Subtitles Management Controller
-class SubtitlesController extends BaseController {
+class SubtitlesController extends BaseController with ContentValidationMixin {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   static const String _tag = 'SubtitlesController';
@@ -64,16 +69,25 @@ class SubtitlesController extends BaseController {
   final currentCues = <SubtitleCue>[].obs;
   final isSaving = false.obs;
   final hasUnsavedChanges = false.obs;
+  final isUploadingFile = false.obs;
+
+  // Language requests states
+  final languageRequests = <LanguageRequest>[].obs;
+  final isLoadingRequests = false.obs;
+  final showRequestsPanel = false.obs;
+  StreamSubscription<QuerySnapshot>? _requestsSubscription;
 
   @override
   void onInit() {
     super.onInit();
+    initializeContentFilters();
     _initializeContext();
   }
 
   @override
   void onClose() {
     _videosSubscription?.cancel();
+    _requestsSubscription?.cancel();
     super.onClose();
   }
 
@@ -178,14 +192,18 @@ class SubtitlesController extends BaseController {
   void selectVideo(Video? video) async {
     selectedVideo.value = video;
     hasUnsavedChanges.value = false;
+    _requestsSubscription?.cancel();
     if (video == null) {
       availableLanguages.clear();
       selectedLanguage.value = '';
       currentCues.clear();
+      languageRequests.clear();
       return;
     }
 
     logger.info('Selected video for subtitles: ${video.title}', tag: _tag);
+
+    _listenToLanguageRequests(video.id);
 
     // Lazy-load localization from subcollection first
     await VideoMediaService().getLocalization(video.id);
@@ -204,6 +222,33 @@ class SubtitlesController extends BaseController {
       _parseCuesForLanguage(langs.first, subs[langs.first]);
     }
     selectedVideo.refresh();
+  }
+
+  void _listenToLanguageRequests(String videoId) {
+    _requestsSubscription?.cancel();
+    isLoadingRequests.value = true;
+    _requestsSubscription = _firestore
+        .collection('videos')
+        .doc(videoId)
+        .collection('language_requests')
+        .snapshots()
+        .listen((snapshot) {
+      final reqs = snapshot.docs.map((doc) => LanguageRequest.fromMap(doc.data(), doc.id)).toList();
+      reqs.sort((a, b) {
+        final countCompare = b.count.compareTo(a.count);
+        if (countCompare != 0) return countCompare;
+        return a.language.compareTo(b.language);
+      });
+      languageRequests.value = reqs;
+      isLoadingRequests.value = false;
+    }, onError: (e) {
+      logger.error('Error listening to language requests', error: e, tag: _tag);
+      isLoadingRequests.value = false;
+    });
+  }
+
+  void toggleRequestsPanel() {
+    showRequestsPanel.value = !showRequestsPanel.value;
   }
 
   void switchLanguage(String langCode) {
@@ -464,9 +509,106 @@ class SubtitlesController extends BaseController {
     }
   }
 
+  Future<void> uploadSubtitleTrack({
+    required String languageCode,
+    required String title,
+    required PlatformFile file,
+  }) async {
+    final video = selectedVideo.value;
+    if (video == null) {
+      showError('No video selected.');
+      return;
+    }
+
+    isUploadingFile.value = true;
+    try {
+      // Validate title with profanity filter
+      final valResult = await validateContent(title, fieldName: 'Track Title');
+      if (!valResult.isValid) {
+        showError(valResult.message);
+        return;
+      }
+
+      // Ensure file bytes or path is present
+      final Uint8List fileBytes;
+      if (kIsWeb) {
+        if (file.bytes == null) {
+          showError('Invalid file: no bytes read.');
+          return;
+        }
+        fileBytes = file.bytes!;
+      } else {
+        if (file.path == null) {
+          showError('Invalid file: path is null.');
+          return;
+        }
+        final localFile = File(file.path!);
+        if (!localFile.existsSync()) {
+          showError('File does not exist locally.');
+          return;
+        }
+        fileBytes = await localFile.readAsBytes();
+      }
+
+      // Upload to Firebase Storage
+      final String sanitizedTitle = title.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+      final String extension = file.extension ?? 'vtt';
+      final String storagePath = 'videos/${video.id}/subtitles/${sanitizedTitle}_${DateTime.now().millisecondsSinceEpoch}.$extension';
+      final storageRef = FirebaseStorage.instance.ref().child(storagePath);
+      
+      final metadata = SettableMetadata(contentType: 'text/vtt');
+      
+      // Use putData for both platforms using read bytes
+      final uploadTask = storageRef.putData(fileBytes, metadata);
+      await uploadTask;
+      
+      // Construct gs:// URL
+      final bucket = FirebaseStorage.instance.ref().bucket;
+      final gsUrl = 'gs://$bucket/$storagePath';
+
+      // Update Firestore map
+      final updatedSubs = Map<String, String>.from(video.mediaSubtitles);
+      updatedSubs[title] = gsUrl; // Use the custom Title as the key, gsUrl as value
+
+      await _firestore
+          .collection('videos')
+          .doc(video.id)
+          .collection('media')
+          .doc('localization')
+          .set({
+            'subtitles': updatedSubs,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+
+      // Update cache
+      VideoMediaService.localizationCache[video.id] = VideoMediaLocalization(
+        subtitles: updatedSubs,
+        dubbedVideos: video.dubbedVideos,
+        audioTracks: video.audioTracks,
+      );
+
+      // Refresh active video
+      selectedVideo.refresh();
+      
+      // Refresh list of available languages & switch to it
+      if (!availableLanguages.contains(title)) {
+        availableLanguages.add(title);
+      }
+      switchLanguage(title);
+
+      showSuccess('Subtitle track "$title" uploaded successfully!');
+    } catch (e, stack) {
+      logger.error('Failed to upload subtitle track', error: e, stackTrace: stack, tag: _tag);
+      showError('Failed to upload subtitle track: $e');
+    } finally {
+      isUploadingFile.value = false;
+    }
+  }
+
   String getLanguageName(String code) {
     final found = supportedLanguages.firstWhereOrNull((l) => l.code == code);
-    return found?.name ?? code.toUpperCase();
+    if (found != null) return found.name;
+    return code.length <= 3 ? code.toUpperCase() : code;
   }
 }
 

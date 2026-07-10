@@ -91,6 +91,7 @@ class Video {
   // Content Info
   final String category;
   final List<String> tags;
+  final List<String> topics;
   final String language;
   final bool isShort;
   final bool isKidFriendly;
@@ -204,6 +205,7 @@ class Video {
     dynamic visibility,
     required this.category,
     required this.tags,
+    this.topics = const [],
     this.language = 'en',
     this.isShort = false,
     this.isKidFriendly = false,
@@ -359,6 +361,7 @@ class Video {
       'visibility': visibility,
       'category': category,
       'tags': tags,
+      'topics': topics,
       'language': language,
       'isShort': isShort,
       'isKidFriendly': isKidFriendly,
@@ -410,6 +413,7 @@ class Video {
       visibility: data['visibility'] ?? 'public',
       category: data['category'] ?? '',
       tags: List<String>.from(data['tags'] ?? []),
+      topics: List<String>.from(data['topics'] ?? []),
       language: data['language'] ?? 'en',
       isShort: data['isShort'] ?? false,
       isKidFriendly: data['isKidFriendly'] ?? false,
@@ -512,6 +516,7 @@ class Video {
       channelAvatarUrl: offline.channelImage,
       category: 'Downloads',
       tags: [],
+      topics: const [],
       viewCount: int.tryParse(offline.views) ?? 0,
     );
   }
@@ -527,6 +532,7 @@ class Video {
       channelName: '',
       category: '',
       tags: [],
+      topics: const [],
     );
   }
 }

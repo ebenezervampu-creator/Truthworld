@@ -1,20 +1,65 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
+import 'tw_colors.dart';
+import 'tw_typography.dart';
+import 'tw_spacing.dart';
+import 'tw_radius.dart';
+import 'tw_motion.dart';
+import 'tw_shadows.dart';
 
 export 'app_colors.dart';
 export 'responsive_helpers.dart';
 export 'compatibility_layer.dart';
+export 'tw_colors.dart';
+export 'tw_typography.dart';
+export 'tw_spacing.dart';
+export 'tw_radius.dart';
+export 'tw_motion.dart';
+export 'tw_shadows.dart';
 
 ThemeData buildAppTheme() {
   return ThemeData(
     useMaterial3: true,
-    fontFamily: GoogleFonts.roboto().fontFamily,
+    fontFamily: 'Roboto',
     brightness: Brightness.dark,
     primaryColor: AppColors.brand,
     scaffoldBackgroundColor: AppColors.bgPage,
     cardColor: AppColors.bgSurface,
     dividerColor: AppColors.bgDivider,
+    
+    extensions: [
+      const TWColors(
+        brand: AppColors.brand,
+        brandMuted: AppColors.brandMuted,
+        brandContainer: AppColors.brandContainer,
+        textPrimary: AppColors.textPrimary,
+        textSecondary: AppColors.textSecondary,
+        textTertiary: AppColors.textTertiary,
+        textDisabled: AppColors.textDisabled,
+        background: AppColors.bgPage,
+        surface: AppColors.bgSurface,
+        surfaceElevated: AppColors.bgElevated,
+        surfaceContainer: AppColors.bgSurfaceHover,
+        divider: AppColors.bgDivider,
+        success: AppColors.success,
+        warning: AppColors.warning,
+        error: AppColors.error,
+        info: AppColors.info,
+        successContainer: AppColors.successContainer,
+        warningContainer: AppColors.warningContainer,
+        errorContainer: AppColors.errorContainer,
+        infoContainer: AppColors.infoContainer,
+        selectedOverlay: AppColors.selectedOverlay,
+        hoverOverlay: AppColors.hoverOverlay,
+        pressedOverlay: AppColors.pressedOverlay,
+        focusRing: AppColors.focusRing,
+      ),
+      TWTypography.defaults(AppColors.textPrimary),
+      TWSpacing.defaults(),
+      TWRadius.defaults(),
+      TWMotion.defaults(),
+      TWShadows.defaults(),
+    ],
     
     colorScheme: const ColorScheme.dark(
       primary: AppColors.brand,
@@ -24,25 +69,28 @@ ThemeData buildAppTheme() {
       onPrimary: Colors.white,
       onSurface: AppColors.textPrimary,
       onError: Colors.white,
-      surfaceContainerHighest: AppColors.bgSurfaceHover,
+      surfaceContainer: AppColors.bgSurfaceHover,
+      surfaceContainerHigh: AppColors.bgSurfaceHigh,
+      surfaceContainerHighest: AppColors.bgElevated,
+      outline: AppColors.bgDivider,
     ),
 
-    textTheme: TextTheme(
-      displayLarge: GoogleFonts.roboto(color: AppColors.textPrimary),
-      displayMedium: GoogleFonts.roboto(color: AppColors.textPrimary),
-      displaySmall: GoogleFonts.roboto(color: AppColors.textPrimary),
-      headlineLarge: GoogleFonts.roboto(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-      headlineMedium: GoogleFonts.roboto(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-      headlineSmall: GoogleFonts.roboto(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-      titleLarge: GoogleFonts.roboto(color: AppColors.textPrimary, fontWeight: FontWeight.w500),
-      titleMedium: GoogleFonts.roboto(color: AppColors.textPrimary, fontWeight: FontWeight.w500),
-      titleSmall: GoogleFonts.roboto(color: AppColors.textPrimary, fontWeight: FontWeight.w500),
-      bodyLarge: GoogleFonts.roboto(color: AppColors.textPrimary),
-      bodyMedium: GoogleFonts.roboto(color: AppColors.textPrimary),
-      bodySmall: GoogleFonts.roboto(color: AppColors.textSecondary),
-      labelLarge: GoogleFonts.roboto(color: AppColors.textPrimary),
-      labelMedium: GoogleFonts.roboto(color: AppColors.textSecondary),
-      labelSmall: GoogleFonts.roboto(color: AppColors.textTertiary),
+    textTheme: const TextTheme(
+      displayLarge: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary),
+      displayMedium: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary),
+      displaySmall: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary),
+      headlineLarge: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+      headlineMedium: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+      headlineSmall: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+      titleLarge: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+      titleMedium: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+      titleSmall: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+      bodyLarge: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary),
+      bodyMedium: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary),
+      bodySmall: TextStyle(fontFamily: 'Roboto', color: AppColors.textSecondary),
+      labelLarge: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary),
+      labelMedium: TextStyle(fontFamily: 'Roboto', color: AppColors.textSecondary),
+      labelSmall: TextStyle(fontFamily: 'Roboto', color: AppColors.textTertiary),
     ),
 
     iconTheme: const IconThemeData(color: AppColors.iconDefault),

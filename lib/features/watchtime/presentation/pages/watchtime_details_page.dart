@@ -2,6 +2,7 @@ import 'package:truthworld/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 
 class WatchtimeDetailsPage extends StatelessWidget {
   final String channelId;
@@ -33,7 +34,7 @@ class WatchtimeDetailsPage extends StatelessWidget {
             .get(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
+            return buildShimmerVideoList(count: 6);
           }
           if (snapshot.hasError) {
             return Center(child: Text('Error: \\${snapshot.error}'));

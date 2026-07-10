@@ -46,6 +46,7 @@ class SearchService {
         _searchVideos(normalized),
         _searchChannels(normalized),
         _searchPlaylists(normalized),
+        _searchTopics(normalized),
       ]);
 
       // Merge and sort
@@ -236,6 +237,74 @@ class SearchService {
           );
     } catch (e) {
       debugPrint('⚠️ [Search] Playlist query failed: $e');
+      return [];
+    }
+  }
+
+  /// 🏷️ TOPIC SEARCH (PUBLIC API - for enhanced search)
+  Future<List<SearchResult>> searchTopics(String query) async {
+    if (query.isEmpty) {
+      return [];
+    }
+    
+    final normalized = query.toLowerCase().trim();
+    final cacheKey = 'topics:$normalized';
+    
+    // Check cache
+    final cached = _cache.get(cacheKey);
+    if (cached != null) {
+      _cacheHits++;
+      debugPrint('💾 [Search] Cache hit for topics: "$query"');
+      return cached;
+    }
+
+    try {
+      final results = await _searchTopics(normalized);
+      _cache.put(cacheKey, results);
+      return results;
+    } catch (e) {
+      debugPrint('❌ [Search] Topic search failed: $e');
+      return [];
+    }
+  }
+
+  /// 🏷️ TOPIC SEARCH (INTERNAL - cost-effective)
+  Future<List<SearchResult>> _searchTopics(String query) async {
+    try {
+      // 1. Try title prefix
+      var results = await _firestore
+          .collection('topics')
+          .where('title', isGreaterThanOrEqualTo: query)
+          .where('title', isLessThanOrEqualTo: '$query\uf8ff')
+          .limit(10)
+          .get()
+          .then(
+            (s) => s.docs
+                .map(
+                  (d) => SearchResult.fromFirestore(d, type: ResultType.topic),
+                )
+                .toList(),
+          );
+
+      // 2. Try handle prefix if no results
+      if (results.isEmpty) {
+        results = await _firestore
+            .collection('topics')
+            .where('handle', isGreaterThanOrEqualTo: query)
+            .where('handle', isLessThanOrEqualTo: '$query\uf8ff')
+            .limit(10)
+            .get()
+            .then(
+              (s) => s.docs
+                  .map(
+                    (d) => SearchResult.fromFirestore(d, type: ResultType.topic),
+                  )
+                  .toList(),
+            );
+      }
+      return results;
+    } catch (e) {
+      debugPrint('⚠️ [Search] Topic query failed: $e');
       return [];
     }
   }

@@ -1,21 +1,12 @@
 import 'package:flutter/material.dart' hide SearchController, SearchBar;
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart';
 import 'package:truthworld/features/search/presentation/widgets/search_widgets.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
 
-/// SearchPage: Main search UI (Optimized for 9 Problems)
-///
-/// Problems Solved:
-/// 1. Request cancellation ✅
-/// 2. Rate limiting ✅
-/// 3. Persistent cache ✅
-/// 4. Pagination ✅
-/// 5. Input validation ✅
-/// 6. Error recovery ✅
-/// 7. Mobile-adaptive debounce ✅
-/// 8. Analytics ✅
-/// 9. Memory optimization ✅
+/// SearchPage: Main search UI (Optimized for 9 Problems & YouTube Exact Look)
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
 
@@ -34,11 +25,10 @@ class _SearchPageState extends State<SearchPage> {
     // Warmup cache on page load
     _searchCtrl.fetchTrendingSuggestions();
 
-    // Setup infinite scroll pagination (Problem 4)
+    // Setup infinite scroll pagination
     _scrollController.addListener(() {
       final position = _scrollController.position;
       if (position.pixels > position.maxScrollExtent * 0.8) {
-        // User scrolled to 80% bottom → load next page
         _searchCtrl.loadNextPage();
       }
     });
@@ -48,193 +38,197 @@ class _SearchPageState extends State<SearchPage> {
   void dispose() {
     _searchController.dispose();
     _scrollController.dispose();
-    // Note: SearchController disposal happens in onClose()
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Search'), elevation: 0),
-      body: Column(
-        children: [
-          // ══════════════════════════════════════════════════════════════
-          // SEARCH INPUT FIELD (Problem 5: Input validation)
-          // ══════════════════════════════════════════════════════════════
-          SearchBar(
-            controller: _searchController,
-            onChanged: _searchCtrl.onSearchChanged,
-            onClear: _searchCtrl.clearSearch,
-          ),
-
-          // ══════════════════════════════════════════════════════════════
-          // COST & RATE LIMIT WARNING (Problem 2 & Cost optimization)
-          // ══════════════════════════════════════════════════════════════
-          Obx(() {
-            if (_searchCtrl.estimatedMonthlyCost.value > 5.0) {
-              return Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.orange[50],
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange[200]!),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.warning_amber, color: Colors.orange),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'High search usage detected',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
-                            Text(
-                              'Est. \$${_searchCtrl.estimatedMonthlyCost.value.toStringAsFixed(2)}/month',
-                              style: TextStyle(fontSize: 11),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
+      backgroundColor: Colors.black, // Dark background like YouTube
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        elevation: 0,
+        leading: IconButton(
+          icon: const BackSymbol(color: Colors.white),
+          onPressed: () {
+            if (_searchCtrl.showSuggestions.value) {
+              _searchCtrl.showSuggestions.value = false;
+            } else {
+              Get.back();
             }
-            return SizedBox.shrink();
-          }),
-
-          // ══════════════════════════════════════════════════════════════
-          // MAIN CONTENT AREA (Problems 4, 6, 8, 9)
-          // ══════════════════════════════════════════════════════════════
-          Expanded(
-            child: Obx(() {
-              final query = _searchCtrl.searchQuery.value;
-              final results = _searchCtrl.searchResults;
-              final isLoading = _searchCtrl.isLoading.value;
-              final isLoadingMore = _searchCtrl.isLoadingMore.value;
-              final errorMsg = _searchCtrl.errorMessage.value;
-
-              // CASE 1: Empty search (show recent & suggestions)
-              if (query.isEmpty) {
-                return _buildEmptyState();
-              }
-
-              // CASE 2: Loading state
-              if (isLoading) {
-                return SearchResultSkeleton(count: 5);
-              }
-
-              // CASE 3: Rate limit error
-              if (errorMsg.contains('Too many searches')) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.hourglass_bottom,
-                        size: 48,
-                        color: Colors.orange[300],
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        'Slow down!',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Too many searches in a short time',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                      SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _searchCtrl.clearSearch,
-                        child: Text('Clear Search'),
-                      ),
-                    ],
+          },
+        ),
+        titleSpacing: 0,
+        title: SearchBar(
+          controller: _searchController,
+          onChanged: _searchCtrl.onSearchChanged,
+          onClear: _searchCtrl.clearSearch,
+          onSearchSubmitted: () {
+            if (_searchController.text.isNotEmpty) {
+              _searchCtrl.performSearch(_searchController.text);
+            }
+          },
+        ),
+      ),
+      body: Stack(
+        children: [
+          // Bottom Layer: Results and chips
+          Column(
+            children: [
+              // Scrollable Filter Chips row
+              Obx(() {
+                final query = _searchCtrl.searchQuery.value;
+                final hasResults = _searchCtrl.searchResults.isNotEmpty;
+                if (query.isEmpty || !hasResults) {
+                  return const SizedBox.shrink();
+                }
+                
+                final filters = ['All', 'Watched', 'Unwatched', 'Videos', 'Channels', 'Playlists', 'Topics', 'Recently uploaded', 'Live'];
+                return Container(
+                  height: 48,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: filters.length,
+                    itemBuilder: (context, index) {
+                      final filter = filters[index];
+                      final isSelected = _searchCtrl.selectedFilter.value == filter;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: FilterChip(
+                          label: Text(
+                            filter,
+                            style: TextStyle(
+                              color: isSelected ? Colors.black : Colors.white,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              fontSize: 13,
+                            ),
+                          ),
+                          selected: isSelected,
+                          selectedColor: Colors.white,
+                          backgroundColor: const Color(0xFF212121),
+                          checkmarkColor: Colors.black,
+                          showCheckmark: false,
+                          onSelected: (selected) {
+                            if (selected) {
+                              _searchCtrl.setFilter(filter);
+                            }
+                          },
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            side: BorderSide(
+                              color: isSelected ? Colors.white : const Color(0xFF3F3F3F),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 );
-              }
+              }),
 
-              // CASE 4: Validation error (Problem 5)
-              if (errorMsg.contains('Invalid characters')) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 48,
-                        color: Colors.red[300],
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        'Invalid search',
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Use simple text only (no special characters)',
-                        style: TextStyle(color: Colors.grey),
-                      ),
-                      SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _searchCtrl.clearSearch,
-                        child: Text('Clear'),
-                      ),
-                    ],
-                  ),
-                );
-              }
+              // Main content area
+              Expanded(
+                child: Obx(() {
+                  final query = _searchCtrl.searchQuery.value;
+                  final results = _searchCtrl.searchResults;
+                  final isLoading = _searchCtrl.isLoading.value;
+                  final isLoadingMore = _searchCtrl.isLoadingMore.value;
+                  final errorMsg = _searchCtrl.errorMessage.value;
 
-              // CASE 5: Generic error
-              if (errorMsg.isNotEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 48,
-                        color: Colors.red[300],
-                      ),
-                      SizedBox(height: 16),
-                      Text(errorMsg),
-                      SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: _searchCtrl.clearSearch,
-                        child: Text('Clear'),
-                      ),
-                    ],
-                  ),
-                );
-              }
+                  // CASE 1: Empty search state
+                  if (query.isEmpty) {
+                    return _buildEmptyState();
+                  }
 
-              // CASE 6: No results
-              if (results.isEmpty) {
-                return EmptySearchState(
-                  query: query,
-                  onClearSearch: _searchCtrl.clearSearch,
-                );
-              }
+                  // CASE 2: Loading state
+                  if (isLoading) {
+                    return const SearchResultSkeleton(count: 5);
+                  }
 
-              // CASE 7: Results found
-              return _buildResultsList(results, isLoadingMore);
-            }),
+                  // CASE 3: Error state
+                  if (errorMsg.isNotEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
+                          const SizedBox(height: 16),
+                          Text(errorMsg, style: const TextStyle(color: Colors.white70)),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: _searchCtrl.clearSearch,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white10,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('Clear'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  // CASE 4: No results
+                  if (results.isEmpty) {
+                    return EmptySearchState(
+                      query: query,
+                      onClearSearch: _searchCtrl.clearSearch,
+                    );
+                  }
+
+                  // CASE 5: Results List
+                  return _buildResultsList(results, isLoadingMore);
+                }),
+              ),
+            ],
           ),
+
+          // Top Layer: Suggestions overlay (active while typing)
+          Obx(() {
+            final showSug = _searchCtrl.showSuggestions.value;
+            final suggestionsList = _searchCtrl.richSuggestions;
+            if (!showSug || suggestionsList.isEmpty) {
+              return const SizedBox.shrink();
+            }
+
+            return Container(
+              color: Colors.black,
+              width: double.infinity,
+              height: double.infinity,
+              child: ListView.builder(
+                itemCount: suggestionsList.length,
+                itemBuilder: (context, index) {
+                  final sug = suggestionsList[index];
+                  return SearchSuggestionTile(
+                    suggestion: sug,
+                    onTap: () {
+                      _searchController.text = sug.text;
+                      if (sug.matchedResult != null) {
+                        _searchCtrl.onResultTapped(sug.matchedResult!);
+                      } else {
+                        _searchCtrl.performSearch(sug.text);
+                      }
+                    },
+                    onCopy: () {
+                      _searchController.text = sug.text;
+                      _searchController.selection = TextSelection.fromPosition(
+                        TextPosition(offset: sug.text.length),
+                      );
+                      _searchCtrl.onSearchChanged(sug.text);
+                    },
+                  );
+                },
+              ),
+            );
+          }),
         ],
       ),
     );
   }
 
-  /// Build empty search state (show recent searches and suggestions)
+  /// Build empty search state
   Widget _buildEmptyState() {
     return SingleChildScrollView(
       child: Column(
@@ -244,50 +238,50 @@ class _SearchPageState extends State<SearchPage> {
           Obx(
             () => _searchCtrl.recentSearches.isNotEmpty
                 ? Padding(
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     child: RecentSearchesList(
                       recentSearches: _searchCtrl.recentSearches,
                       onSearchSelected: (query) {
                         _searchController.text = query;
-                        _searchCtrl.searchFromRecent(query);
+                        _searchCtrl.performSearch(query);
                       },
                       onClearAll: _searchCtrl.clearRecentSearches,
                     ),
                   )
-                : SizedBox.shrink(),
+                : const SizedBox.shrink(),
           ),
 
-          // 📈 [NEW] "You May Like" Section (Recommended Videos)
+          // "You May Like" Section (Recommended Videos)
           Obx(
             () => _searchCtrl.recommendedResults.isNotEmpty
                 ? Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Padding(
+                        const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 16),
                           child: Text(
                             'You may like',
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.2,
-                                ),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              letterSpacing: 0.2,
+                            ),
                           ),
                         ),
-                        SizedBox(height: 16),
+                        const SizedBox(height: 12),
                         SizedBox(
-                          height: 180, // Horizontal slider height
+                          height: 190,
                           child: ListView.builder(
                             scrollDirection: Axis.horizontal,
-                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
                             itemCount: _searchCtrl.recommendedResults.length,
                             itemBuilder: (context, index) {
-                              final video =
-                                  _searchCtrl.recommendedResults[index];
+                              final video = _searchCtrl.recommendedResults[index];
                               return Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 4),
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
                                 child: _buildRecommendedCard(video),
                               );
                             },
@@ -296,33 +290,42 @@ class _SearchPageState extends State<SearchPage> {
                       ],
                     ),
                   )
-                : SizedBox.shrink(),
+                : const SizedBox.shrink(),
           ),
 
           // Trending searches section
           Obx(
             () => _searchCtrl.suggestions.isNotEmpty
                 ? Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        const Text(
                           'Trending Today',
-                          style: Theme.of(context).textTheme.titleMedium,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                        SizedBox(height: 12),
+                        const SizedBox(height: 12),
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: _searchCtrl.suggestions
                               .map(
                                 (suggestion) => ActionChip(
-                                  label: Text(suggestion),
+                                  label: Text(suggestion, style: const TextStyle(color: Colors.white)),
+                                  backgroundColor: Colors.white10,
                                   onPressed: () {
                                     _searchController.text = suggestion;
-                                    _searchCtrl.searchFromRecent(suggestion);
+                                    _searchCtrl.performSearch(suggestion);
                                   },
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    side: const BorderSide(color: Colors.transparent),
+                                  ),
                                 ),
                               )
                               .toList(),
@@ -330,31 +333,33 @@ class _SearchPageState extends State<SearchPage> {
                       ],
                     ),
                   )
-                : SizedBox.shrink(),
+                : const SizedBox.shrink(),
           ),
 
           // Tips section
           Padding(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             child: Container(
-              padding: EdgeInsets.all(12),
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.blue[50],
-                borderRadius: BorderRadius.circular(8),
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white12),
               ),
-              child: Column(
+              child: const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     '💡 Search Tips',
-                    style: TextStyle(fontWeight: FontWeight.bold),
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                   SizedBox(height: 8),
                   Text(
                     '• Use specific keywords for better results\n'
                     '• Try different search terms if no results\n'
-                    '• Recent searches save your history',
-                    style: TextStyle(fontSize: 12),
+                    '• Filter by channels, playlists, or topics',
+                    style: TextStyle(fontSize: 12, color: Colors.white54, height: 1.5),
                   ),
                 ],
               ),
@@ -365,80 +370,43 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  /// Build results list with pagination support (Problem 4)
+  /// Build results list with pagination support
   Widget _buildResultsList(List results, bool isLoadingMore) {
-    return Column(
-      children: [
-        // Results summary with cost tracking
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '${results.length} results',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                  ),
-                  Obx(() {
-                    final cost = _searchCtrl.estimatedMonthlyCost.value;
-                    return Text(
-                      'Est. \$${cost.toStringAsFixed(4)}/month',
-                      style: TextStyle(fontSize: 10, color: Colors.green),
-                    );
-                  }),
-                ],
+    return ListView.builder(
+      controller: _scrollController,
+      itemCount: results.length + (isLoadingMore ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index == results.length) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24.0),
+            child: Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFF9B30FF),
+                strokeWidth: 2,
               ),
-              Obx(() {
-                final stats = _searchCtrl.cacheStats;
-                if (stats.isEmpty) return SizedBox.shrink();
-                return Text(
-                  'Cache: ${stats['size']}/${stats['maxSize']}',
-                  style: TextStyle(fontSize: 11, color: Colors.grey[400]),
-                );
-              }),
-            ],
-          ),
-        ),
-        // Results list with infinite scroll
-        Expanded(
-          child: ListView.builder(
-            controller: _scrollController,
-            itemCount: results.length + (isLoadingMore ? 1 : 0),
-            itemBuilder: (context, index) {
-              // Loading indicator at the end (Problem 4: Pagination)
-              if (index == results.length) {
-                return Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Center(
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                );
-              }
+            ),
+          );
+        }
 
-              final result = results[index];
-              return SearchResultCard(
-                result: result,
-                onTap: () => _searchCtrl.onResultTapped(result),
-              );
-            },
-          ),
-        ),
-      ],
+        final result = results[index];
+        return SearchResultCard(
+          result: result,
+          onTap: () => _searchCtrl.onResultTapped(result),
+        );
+      },
     );
   }
 
   /// Build recommended video card for horizontal slider
   Widget _buildRecommendedCard(SearchResult video) {
+    final mockDuration = '${(video.id.hashCode % 12) + 2}:${(video.id.hashCode % 50 + 10).toString().padLeft(2, '0')}';
     return InkWell(
       onTap: () {
         _searchCtrl.onResultTapped(video);
       },
       child: Container(
-        width: 220,
-        margin: EdgeInsets.only(bottom: 8),
+        width: 180,
+        margin: const EdgeInsets.only(bottom: 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -448,35 +416,38 @@ class _SearchPageState extends State<SearchPage> {
                   borderRadius: BorderRadius.circular(12),
                   child: AspectRatio(
                     aspectRatio: 16 / 9,
-                    child: Image.network(
-                      video.thumbnail,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: Colors.grey[200],
-                        child: Icon(Icons.video_library, color: Colors.grey),
-                      ),
-                    ),
+                    child: video.thumbnail.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: video.thumbnail,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(color: Colors.white10),
+                            errorWidget: (context, url, error) => const Icon(Icons.play_circle_outline, color: Colors.white38),
+                          )
+                        : Container(
+                            color: Colors.white10,
+                            child: const Icon(Icons.video_library, color: Colors.white38),
+                          ),
                   ),
                 ),
                 Positioned(
-                  bottom: 8,
-                  right: 8,
+                  bottom: 6,
+                  right: 6,
                   child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.7),
+                      color: Colors.black.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
-                      '4:20', // Static for now
-                      style: TextStyle(color: Colors.white, fontSize: 10),
+                      mockDuration,
+                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
               ],
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(4, 10, 4, 0),
+              padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -484,16 +455,17 @@ class _SearchPageState extends State<SearchPage> {
                     video.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w500,
                       fontSize: 13,
-                      height: 1.3,
+                      color: Colors.white,
+                      height: 1.2,
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
                     '${video.views} views • ${video.channelName}',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 11),
+                    style: const TextStyle(color: Colors.white54, fontSize: 11),
                   ),
                 ],
               ),
@@ -504,8 +476,3 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 }
-
-
-
-
-

@@ -49,7 +49,7 @@ class ResponsiveVideoGrid extends StatelessWidget {
     return ListView.separated(
       padding: padding ?? context.contentPadding,
       itemCount: videos.length,
-      separatorBuilder: (context, index) => SizedBox(height: context.spacing),
+      separatorBuilder: (context, index) => SizedBox(height: context.layoutSpacing),
       itemBuilder: (context, index) {
         final video = videos[index];
         return ModernVideoListCard(
@@ -75,8 +75,8 @@ class ResponsiveVideoGrid extends StatelessWidget {
       child: GridView.builder(
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: columns,
-          crossAxisSpacing: context.spacing,
-          mainAxisSpacing: context.spacing,
+          crossAxisSpacing: context.layoutSpacing,
+          mainAxisSpacing: context.layoutSpacing,
           childAspectRatio: childAspectRatio ?? _getAspectRatio(context),
         ),
         itemCount: videos.length,
@@ -138,7 +138,7 @@ class ResponsiveVideoListWithHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildHeader(context),
-        SizedBox(height: context.spacing),
+        SizedBox(height: context.layoutSpacing),
         ResponsiveVideoGrid(
           videos: videos,
           heroPrefix: heroPrefix,
@@ -152,7 +152,7 @@ class ResponsiveVideoListWithHeader extends StatelessWidget {
 
   Widget _buildHeader(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: context.spacing),
+      padding: EdgeInsets.symmetric(horizontal: context.layoutSpacing),
       child: Row(
         children: [
           Expanded(
@@ -220,7 +220,7 @@ class ResponsiveVideoSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionHeader(context),
-          SizedBox(height: context.spacing),
+          SizedBox(height: context.layoutSpacing),
           ResponsiveVideoGrid(
             videos: videos,
             heroPrefix: heroPrefix,
@@ -273,9 +273,9 @@ class ResponsiveVideoCarousel extends StatelessWidget {
       height: cardHeight,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: context.spacing),
+        padding: EdgeInsets.symmetric(horizontal: context.layoutSpacing),
         itemCount: videos.length,
-        separatorBuilder: (context, index) => SizedBox(width: context.spacing),
+        separatorBuilder: (context, index) => SizedBox(width: context.layoutSpacing),
         itemBuilder: (context, index) {
           final video = videos[index];
           final cardWidth = _getCarouselCardWidth(context);

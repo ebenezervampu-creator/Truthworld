@@ -106,8 +106,8 @@ extension ResponsiveContext on BuildContext {
 
   DeviceType get deviceType => Responsive.getDeviceType(screenWidth);
 
-  double get spacing => isMobile ? 12.0 : 16.0;
-  EdgeInsets get contentPadding => EdgeInsets.all(spacing);
+  double get layoutSpacing => isMobile ? 12.0 : 16.0;
+  EdgeInsets get contentPadding => EdgeInsets.all(layoutSpacing);
   EdgeInsets get cardPadding => EdgeInsets.all(isMobile ? 12.0 : 16.0);
   double get fontScale => (screenWidth / 1440.0).clamp(0.8, 1.2);
   

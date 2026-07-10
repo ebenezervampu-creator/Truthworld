@@ -65,7 +65,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
 
           // Share
           _buildVerticalIconBtn(
-            icon: Icons.share_rounded,
+            icon: Icons.reply_rounded,
             onTap: () => mainController.shareVideo(
               vc.video.id,
               vc.video.title,
@@ -74,6 +74,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
               durationMs: vc.video.durationValue.inMilliseconds,
               currentPosition: vc.videoPlayerController?.value.position,
             ),
+            flipHorizontal: true,
           ),
           const SizedBox(height: 12),
 
@@ -84,8 +85,8 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
             );
             return _buildVerticalIconBtn(
               icon: isInWatchLater
-                  ? Icons.watch_later_rounded
-                  : Icons.watch_later_outlined,
+                  ? Icons.schedule_rounded
+                  : Icons.schedule_outlined,
               onTap: () => playlistController.toggleWatchLater(vc.video.id),
               isActive: isInWatchLater,
             );
@@ -94,7 +95,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
 
           // Save
           _buildVerticalIconBtn(
-            icon: Icons.bookmark_add_outlined,
+            icon: Icons.bookmark_border_rounded,
             onTap: () {
               AppSnackbar.show(
                 'Saved',
@@ -110,7 +111,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
           // Comments
           Obx(
             () => _buildVerticalIconBtn(
-              icon: Icons.comment_outlined,
+              icon: Icons.chat_bubble_outline_rounded,
               onTap: () {
                 ctrl.showTranscriptPopup.value = false;
                 ctrl.showCommentsPopup.toggle();
@@ -124,7 +125,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
           // Transcript
           Obx(
             () => _buildVerticalIconBtn(
-              icon: Icons.receipt_long_outlined,
+              icon: Icons.description_outlined,
               onTap: () {
                 ctrl.showCommentsPopup.value = false;
                 ctrl.showTranscriptPopup.toggle();
@@ -137,7 +138,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
 
           // More
           _buildVerticalIconBtn(
-            icon: Icons.more_horiz_rounded,
+            icon: Icons.more_vert_rounded,
             onTap: () {
               ctrl.settingsOpen.value = true;
             },
@@ -152,6 +153,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
     required VoidCallback onTap,
     bool isActive = false,
     int? badgeCount,
+    bool flipHorizontal = false,
   }) {
     return Stack(
       alignment: Alignment.center,
@@ -173,6 +175,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
               icon,
               size: 20,
               color: isActive ? PT.primary : Colors.white,
+              textDirection: flipHorizontal ? TextDirection.rtl : null,
             ),
           ),
         ),

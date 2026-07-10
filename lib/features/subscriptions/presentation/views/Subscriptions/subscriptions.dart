@@ -8,6 +8,8 @@ import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/components/ui/playlist_card.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
+
 
 class SubscriptionsPage extends StatelessWidget {
   final bool isDashboard;
@@ -19,7 +21,7 @@ class SubscriptionsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return ResponsiveBuilder(
       builder: (context, deviceType) {
-        final spacing = context.spacing;
+        final spacing = context.layoutSpacing;
         final isMobile = context.isMobile;
 
         return Scaffold(
@@ -62,7 +64,7 @@ class SubscriptionsPage extends StatelessWidget {
                 // ── Content Grid / List ──
                 Obx(() {
                   if (controller.isLoading.value && controller.allContent.isEmpty) {
-                    return _buildLoadingState();
+                    return _buildLoadingState(context);
                   }
 
                   if (controller.hasError.value && controller.allContent.isEmpty) {
@@ -107,13 +109,13 @@ class SubscriptionsPage extends StatelessWidget {
 
       return Container(
         height: 110,
-        padding: EdgeInsets.symmetric(vertical: context.spacing / 2),
+        padding: EdgeInsets.symmetric(vertical: context.layoutSpacing / 2),
         decoration: BoxDecoration(
           border: Border(bottom: BorderSide(color: AppColors.bgDivider, width: 0.5)),
         ),
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
-          padding: EdgeInsets.symmetric(horizontal: context.spacing),
+          padding: EdgeInsets.symmetric(horizontal: context.layoutSpacing),
           itemCount: controller.subscribedChannels.length,
           itemBuilder: (context, index) {
             final channel = controller.subscribedChannels[index];
@@ -157,7 +159,7 @@ class SubscriptionsPage extends StatelessWidget {
   Widget _buildFilterBar(BuildContext context) {
     return Container(
       color: AppColors.bgPage,
-      padding: EdgeInsets.symmetric(horizontal: context.spacing, vertical: 12),
+      padding: EdgeInsets.symmetric(horizontal: context.layoutSpacing, vertical: 12),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -279,9 +281,21 @@ class SubscriptionsPage extends StatelessWidget {
   }
 
   // ── States: Loading, Error, Empty ──
-  Widget _buildLoadingState() {
-    return const SliverFillRemaining(
-      child: Center(child: CircularProgressIndicator(color: AppColors.brand)),
+  Widget _buildLoadingState(BuildContext context) {
+    return SliverPadding(
+      padding: EdgeInsets.all(context.layoutSpacing),
+      sliver: SliverGrid(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: _getCrossAxisCount(context),
+          childAspectRatio: _getChildAspectRatio(context),
+          crossAxisSpacing: context.layoutSpacing,
+          mainAxisSpacing: context.layoutSpacing,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (context, index) => const ShimmerVideoGridCard(),
+          childCount: 6,
+        ),
+      ),
     );
   }
 

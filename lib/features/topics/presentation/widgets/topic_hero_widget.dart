@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:shimmer/shimmer.dart';
 
 /// Topic Hero Widget
 ///
@@ -190,14 +191,13 @@ class TopicHeroWidget extends StatelessWidget {
   Widget _buildSkeleton() {
     final height = isDesktop ? 500.0 : (isTablet ? 400.0 : 320.0);
 
-    return Container(
-      height: height,
-      width: double.infinity,
-      color: AppColors.bgSurfaceContainerHighest,
-      child: Center(
-        child: CircularProgressIndicator(
-          color: AppColors.brand,
-        ),
+    return Shimmer.fromColors(
+      baseColor: AppColors.bgSurfaceHover,
+      highlightColor: Colors.white12,
+      child: Container(
+        height: height,
+        width: double.infinity,
+        color: Colors.white,
       ),
     );
   }

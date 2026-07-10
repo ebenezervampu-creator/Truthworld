@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -275,7 +276,7 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
                     children: [
                       if (!widget.isDashboard) ...[
                         IconButton(
-                          icon: const Icon(Icons.arrow_back, color: Colors.white),
+                          icon: const BackSymbol(color: Colors.white),
                           onPressed: () => Get.back(),
                         ),
                         const SizedBox(width: 8),

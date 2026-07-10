@@ -1,55 +1,70 @@
 import 'package:flutter/material.dart';
 
+/// Raw hex color palette for TruthWorld.
+///
+/// NOTE: This class is public but internal to the theme package by convention.
+/// Application widgets should not import or use this class directly.
+/// Instead, access colors via `context.colors` or `Theme.of(context).colorScheme`.
 class AppColors {
-  // ── Backgrounds
+  AppColors._();
+
+  // ── Brand
+  static const brand            = Color(0xFF9B30FF);
+  static const brandMuted       = Color(0xFF5C1B9F);
+  static const brandContainer   = Color(0xFF2D1060);
+  static const brandOverlay     = Color(0x299B30FF);
+  static const brandHover       = Color(0xFF8B5CF6);
+
+  // ── Backgrounds & Surfaces
   static const bgPage           = Color(0xFF0F0F0F);
+  static const bgPage54         = Color(0x8A0F0F0F);
   static const bgSurface        = Color(0xFF212121);
-  static const bgSurfaceHover   = Color(0xFF272727);
-  static const bgElevated       = Color(0xFF3F3F3F);
+  static const bgSurfaceHover   = Color(0xFF272727); // surfaceContainer
+  static const bgSurfaceHigh    = Color(0xFF2E2E2E); // surfaceContainerHigh
+  static const bgElevated       = Color(0xFF3F3F3F); // surfaceContainerHighest
+  static const bgSurfaceContainerHighest = bgElevated;
   static const bgInput          = Color(0xFF121212);
   static const bgDivider        = Color(0xFF3F3F3F);
   
-  // ── Aliases for Material 3 naming consistency
-  static const bgSurfaceContainerHighest = bgSurfaceHover;
-
   // ── Text
   static const textPrimary      = Color(0xFFF1F1F1);
+  static const textPrimary70    = Color(0xB3F1F1F1);
+  static const textPrimary60    = Color(0x99F1F1F1);
+  static const textPrimary54    = Color(0x89F1F1F1);
+  static const textPrimary38    = Color(0x61F1F1F1);
+  static const textPrimary30    = Color(0x4DF1F1F1);
   static const textSecondary    = Color(0xFFAAAAAA);
   static const textTertiary     = Color(0xFF717171);
+  static const textDisabled     = Color(0xFF545454);
   static const textLink         = Color(0xFF3EA6FF);
   
-  // ── Opacity Aliases (Legacy Support)
-  static final textPrimary38 = textPrimary.withValues(alpha: 0.38);
-  static final textPrimary54 = textPrimary.withValues(alpha: 0.54);
-  static final textPrimary60 = textPrimary.withValues(alpha: 0.60);
-  static final textPrimary70 = textPrimary.withValues(alpha: 0.70);
-  static final textPrimary30 = textPrimary.withValues(alpha: 0.30);
-  
-  static final bgPage54 = bgPage.withValues(alpha: 0.54);
+  // ── Status
+  static const success          = Color(0xFF10B981);
+  static const warning          = Color(0xFFF59E0B);
+  static const error            = Color(0xFFEF4444);
+  static const info             = Color(0xFF3B82F6);
 
-  // ── 🟣 Brand (Electric Purple)
-  static const brand            = Color(0xFF9B30FF);
-  static const brandHover       = Color(0xFF7B20DF);
-  static const brandNotif       = Color(0xFFBF00FF);
-  static const brandOverlay     = Color(0x299B30FF);
-  static const brandContainer   = Color(0xFF2D1060);
+  static const successContainer = Color(0x1A10B981);
+  static const warningContainer = Color(0x1AF59E0B);
+  static const errorContainer   = Color(0x1AEF4444);
+  static const infoContainer    = Color(0x1A3B82F6);
 
-  // ── Icons
+  // ── Interaction Overlays
+  static const selectedOverlay   = Color(0x299B30FF);
+  static const hoverOverlay      = Color(0x1F9B30FF);
+  static const pressedOverlay    = Color(0x3D9B30FF);
+  static const focusRing         = Color(0xFF9B30FF);
+
+  // ── Icons (Internal/legacy refs)
   static const iconDefault      = Color(0xFFAAAAAA);
   static const iconActive       = Color(0xFFF1F1F1);
 
-  // ── Progress
+  // ── Progress & Scroll
   static const progressActive   = Color(0xFF9B30FF);
   static const progressBuffered = Color(0xFF717171);
   static const progressTrack    = Color(0xFF404040);
-
-  // ── Misc
   static const searchBorder     = Color(0xFF303030);
   static const scrollbarThumb   = Color(0xFFAAAAAA);
   static const tooltipBg        = Color(0xFF606060);
-
-  // ── Status
-  static const success          = Color(0xFF2BA640);
-  static const warning          = Color(0xFFF9BF05);
-  static const error            = Color(0xFFCF6679);
 }
+

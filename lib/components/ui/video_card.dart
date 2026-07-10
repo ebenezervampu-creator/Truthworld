@@ -164,6 +164,53 @@ class VideoCard extends StatelessWidget {
                 ),
               ),
             ),
+            // Fact Checked badge
+            if (video.videoRating > 0 || video.factCheckUrl.isNotEmpty)
+              Positioned(
+                top: AppTheme.spacing.xs,
+                left: AppTheme.spacing.xs,
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppTheme.spacing.xs * 1.5,
+                    vertical: AppTheme.spacing.xs / 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981).withValues(alpha: 0.95), // Emerald green
+                    borderRadius: AppTheme.radius.circularMd,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      width: 0.5,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black26,
+                        blurRadius: 4,
+                        offset: Offset(0, 2),
+                      )
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.verified_rounded,
+                        color: Colors.white,
+                        size: 11,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Fact Checked',
+                        style: GoogleFonts.roboto(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 9,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             // Duration badge
             Positioned(
               bottom: AppTheme.spacing.xs,

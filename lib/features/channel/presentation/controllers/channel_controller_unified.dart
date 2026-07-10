@@ -182,6 +182,7 @@ class ChannelController extends GetxController
   Rx<Channel?> selectedChannel = Rx<Channel?>(null);
   RxBool isSubscribed = false.obs;
   var isSubscriptionLoading = true.obs;
+  final RxBool notificationsEnabled = true.obs;
   final RxMap<String, RxBool> _subscribedMap = <String, RxBool>{}.obs;
   var subscriberCount = 0.obs;
   var isLoading = false.obs;
@@ -198,6 +199,19 @@ class ChannelController extends GetxController
   final lastVideoDocument = Rx<DocumentSnapshot?>(null);
   final isLoadingMore = false.obs;
   final videoSortFilter = 'Latest'.obs;
+
+  // Reactive flags for channel content tabs availability
+  final hasVideos = false.obs;
+  final hasPlaylists = false.obs;
+  final hasPosts = false.obs;
+
+  List<String> get activeTabs {
+    final list = <String>['Home'];
+    if (hasVideos.value) list.add('Videos');
+    if (hasPlaylists.value) list.add('Playlists');
+    if (hasPosts.value) list.add('Posts');
+    return list;
+  }
 
   // Reactive State - Image Upload
   final bannerImageData = Rx<ImageData?>(null);
@@ -1267,6 +1281,7 @@ class ChannelController extends GetxController
           'userId': user.uid,
           'channelId': channelId,
           'subscribedAt': FieldValue.serverTimestamp(),
+          'notificationsEnabled': true,
         });
 
         // Increment counter - FieldValue.increment is atomic and safe
@@ -1372,6 +1387,10 @@ class ChannelController extends GetxController
         .listen(
           (snapshot) {
             isSubscribed.value = snapshot.exists;
+            if (snapshot.exists) {
+              final data = snapshot.data();
+              notificationsEnabled.value = data?['notificationsEnabled'] ?? true;
+            }
             isSubscriptionLoading.value = false;
           },
           onError: (error) {
@@ -1379,6 +1398,27 @@ class ChannelController extends GetxController
             isSubscriptionLoading.value = false;
           },
         );
+  }
+
+  Future<void> updateNotificationPreference(String channelId, bool enabled) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      _showErrorSnackbar('You must be logged in to update preferences.');
+      return;
+    }
+
+    final subDocId = '${channelId}_${user.uid}';
+    final subRef = _firestore.collection(_subsCol).doc(subDocId);
+
+    try {
+      await subRef.update({
+        'notificationsEnabled': enabled,
+      });
+      notificationsEnabled.value = enabled;
+      _showSuccessSnackbar(enabled ? 'All notifications turned on' : 'Notifications muted');
+    } catch (e) {
+      _showErrorSnackbar('Failed to update notification preferences');
+    }
   }
 
   /// Check if current user is subscribed to a specific channel (reactive)
@@ -1801,6 +1841,7 @@ class ChannelController extends GetxController
     listenSubscription(channel.channelId);
     _attachScrollListener();
     loadInitialVideos();
+    checkChannelContent(channel.channelId);
   }
 
   void _attachScrollListener() {
@@ -1863,6 +1904,7 @@ class ChannelController extends GetxController
             .map((doc) => Video.fromDocumentSnapshot(doc))
             .toList();
         lastVideoDocument.value = snapshot.docs.last;
+        hasVideos.value = true;
       } else {
         videos.clear();
         lastVideoDocument.value = null;
@@ -1941,5 +1983,38 @@ class ChannelController extends GetxController
     selectedChannel.value = null;
     videoSortFilter.value = 'Latest';
     _subscriptionListener?.cancel();
+    hasVideos.value = false;
+    hasPlaylists.value = false;
+    hasPosts.value = false;
+  }
+
+  Future<void> checkChannelContent(String channelId) async {
+    try {
+      // Check if channel has videos
+      final videoSnap = await _firestore
+          .collection('videos')
+          .where('channelId', isEqualTo: channelId)
+          .limit(1)
+          .get();
+      hasVideos.value = videoSnap.docs.isNotEmpty;
+
+      // Check if channel has playlists
+      final playlistSnap = await _firestore
+          .collection('public_playlists')
+          .where('channelId', isEqualTo: channelId)
+          .limit(1)
+          .get();
+      hasPlaylists.value = playlistSnap.docs.isNotEmpty;
+
+      // Check if channel has posts (Community)
+      final postSnap = await _firestore
+          .collection('Community')
+          .where('channelId', isEqualTo: channelId)
+          .limit(1)
+          .get();
+      hasPosts.value = postSnap.docs.isNotEmpty;
+    } catch (e) {
+      debugPrint('Error checking channel content: $e');
+    }
   }
 }

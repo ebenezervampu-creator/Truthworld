@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/features/trending/presentation/controllers/trending_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/core/widgets/responsive_video_grid.dart';
+import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 
 class TrendingVideosPage extends GetView<TrendingController> {
   final bool isDashboard;
@@ -78,7 +79,7 @@ class TrendingVideosPage extends GetView<TrendingController> {
       child: Column(
         children: [
           _buildTrendingHeader(context, deviceType),
-          SizedBox(height: context.spacing),
+          SizedBox(height: context.layoutSpacing),
           Expanded(child: _buildVideoGrid(context, deviceType)),
         ],
       ),
@@ -86,25 +87,15 @@ class TrendingVideosPage extends GetView<TrendingController> {
   }
 
   Widget _buildLoadingState(BuildContext context, DeviceType deviceType) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(
-            strokeWidth: deviceType == DeviceType.mobile ? 3 : 4,
-            valueColor: AlwaysStoppedAnimation<Color>(
-              Theme.of(context).colorScheme.primary,
-            ),
-          ),
-          SizedBox(height: context.spacing),
-          Text(
-            "Loading trending videos...",
-            style: AppTextStyles.bodyMedium.copyWith(
-              fontSize:
-                  (AppTextStyles.bodyMedium.fontSize ?? 14) * context.fontScale,
-            ),
-          ),
-        ],
+    return SingleChildScrollView(
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: context.layoutSpacing, vertical: 16),
+        child: deviceType == DeviceType.mobile
+            ? buildShimmerVideoList(count: 6)
+            : buildShimmerVideoGrid(
+                crossAxisCount: deviceType == DeviceType.tablet ? 3 : 4,
+                count: 8,
+              ),
       ),
     );
   }
@@ -122,7 +113,7 @@ class TrendingVideosPage extends GetView<TrendingController> {
                 context,
               ).colorScheme.onSurface.withValues(alpha: 0.3),
             ),
-            SizedBox(height: context.spacing),
+            SizedBox(height: context.layoutSpacing),
             Text(
               "No trending videos available",
               style: AppTextStyles.headlineSmall.copyWith(
@@ -134,7 +125,7 @@ class TrendingVideosPage extends GetView<TrendingController> {
                 ).colorScheme.onSurface.withValues(alpha: 0.5),
               ),
             ),
-            SizedBox(height: context.spacing / 2),
+            SizedBox(height: context.layoutSpacing / 2),
             Text(
               "Check back later for the latest trending content",
               style: AppTextStyles.bodyMedium.copyWith(
@@ -160,7 +151,7 @@ class TrendingVideosPage extends GetView<TrendingController> {
 
   Widget _buildTrendingHeader(BuildContext context, DeviceType deviceType) {
     return ResponsiveContainer(
-      padding: EdgeInsets.symmetric(horizontal: context.spacing),
+      padding: EdgeInsets.symmetric(horizontal: context.layoutSpacing),
       child: Row(
         children: [
           const Icon(

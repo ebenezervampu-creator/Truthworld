@@ -300,14 +300,29 @@ class _VideoFrame extends StatelessWidget {
                     child: _ExpandButton(controller: controller),
                   ),
 
-                  // Top-right: Close button.
+                  // Top-right: Close and CC buttons.
                   Positioned(
                     top: 6,
                     right: 6,
-                    child: _OverlayIconButton(
-                      icon: Icons.close_rounded,
-                      tooltip: 'Close (Esc)',
-                      onTap: controller.dismiss,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Obx(() {
+                          final enabled = controller.subtitlesEnabled.value;
+                          return _OverlayIconButton(
+                            icon: enabled ? Icons.subtitles_rounded : Icons.subtitles_outlined,
+                            tooltip: 'Subtitles (CC)',
+                            onTap: controller.toggleSubtitles,
+                            iconColor: enabled ? MiniplayerWidget._brand : Colors.white,
+                          );
+                        }),
+                        const SizedBox(width: 6),
+                        _OverlayIconButton(
+                          icon: Icons.close_rounded,
+                          tooltip: 'Close (Esc)',
+                          onTap: controller.dismiss,
+                        ),
+                      ],
                     ),
                   ),
 
@@ -316,6 +331,38 @@ class _VideoFrame extends StatelessWidget {
                     child: _CenterPlayButton(controller: controller),
                   ),
                 ],
+              ),
+            ),
+          );
+        }),
+
+        // Subtitles Overlay in Miniplayer
+        Obx(() {
+          if (!controller.subtitlesEnabled.value) return const SizedBox.shrink();
+          final text = controller.currentSubtitle.value;
+          if (text.isEmpty) return const SizedBox.shrink();
+          return Positioned(
+            bottom: 12,
+            left: 8,
+            right: 8,
+            child: IgnorePointer(
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.7),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    text,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.roboto(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
               ),
             ),
           );
@@ -392,11 +439,13 @@ class _OverlayIconButton extends StatelessWidget {
   final String tooltip;
   final VoidCallback onTap;
   final double size;
+  final Color iconColor;
   const _OverlayIconButton({
     required this.icon,
     required this.tooltip,
     required this.onTap,
     this.size = 18,
+    this.iconColor = Colors.white,
   });
 
   @override
@@ -411,7 +460,7 @@ class _OverlayIconButton extends StatelessWidget {
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.all(7),
-            child: Icon(icon, size: size, color: Colors.white),
+            child: Icon(icon, size: size, color: iconColor),
           ),
         ),
       ),
@@ -644,6 +693,20 @@ class _ExpandedTopBar extends StatelessWidget {
             ),
           ),
           const Spacer(),
+          Obx(() {
+            final enabled = controller.subtitlesEnabled.value;
+            return Tooltip(
+              message: 'Subtitles (CC)',
+              child: IconButton(
+                icon: Icon(
+                  enabled ? Icons.subtitles_rounded : Icons.subtitles_outlined,
+                  color: enabled ? MiniplayerWidget._brand : MiniplayerWidget._textPrimary,
+                  size: 20,
+                ),
+                onPressed: controller.toggleSubtitles,
+              ),
+            );
+          }),
           Tooltip(
             message: 'Open full screen',
             child: IconButton(
@@ -715,6 +778,36 @@ class _ExpandedVideo extends StatelessWidget {
               return const Center(
                 child: Icon(Icons.play_circle_rounded,
                     color: Colors.white70, size: 72),
+              );
+            }),
+            Obx(() {
+              if (!controller.subtitlesEnabled.value) return const SizedBox.shrink();
+              final text = controller.currentSubtitle.value;
+              if (text.isEmpty) return const SizedBox.shrink();
+              return Positioned(
+                bottom: 24,
+                left: 16,
+                right: 16,
+                child: IgnorePointer(
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.7),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        text,
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.roboto(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               );
             }),
           ],

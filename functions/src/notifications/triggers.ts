@@ -53,8 +53,11 @@ export const onCommunityPostCreated = onDocumentCreated(
       const notifications: Promise<any>[] = [];
 
       subscribersSnap.docs.forEach(doc => {
-        const { userId } = doc.data();
+        const { userId, notificationsEnabled } = doc.data();
         if (!userId) return;
+
+        // Mute if notifications are disabled
+        if (notificationsEnabled === false) return;
 
         // Don't notify the creator of their own post
         if (userId === ownerId) return;

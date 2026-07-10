@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:shimmer/shimmer.dart';
 
 /// Topic Video Grid Widget
 ///
@@ -190,16 +191,19 @@ class TopicVideoGridSkeleton extends StatelessWidget {
       childAspectRatio = 0.9;
     }
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: childAspectRatio,
-      ),
-      itemCount: 8,
+    return Shimmer.fromColors(
+      baseColor: AppColors.bgSurfaceHover,
+      highlightColor: Colors.white12,
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: childAspectRatio,
+        ),
+        itemCount: 8,
       itemBuilder: (context, index) {
         return Container(
           decoration: BoxDecoration(
@@ -254,8 +258,9 @@ class TopicVideoGridSkeleton extends StatelessWidget {
           ),
         );
       },
-    );
-  }
+    ),
+  );
+}
 }
 
 

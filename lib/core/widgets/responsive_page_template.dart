@@ -141,7 +141,7 @@ class ResponsiveContentArea extends StatelessWidget {
   List<Widget> _addSpacing(BuildContext context, List<Widget> children) {
     if (children.isEmpty) return children;
 
-    final effectiveSpacing = spacing ?? context.spacing;
+    final effectiveSpacing = spacing ?? context.layoutSpacing;
     final spacedChildren = <Widget>[];
 
     for (int i = 0; i < children.length; i++) {
@@ -185,10 +185,10 @@ class ResponsiveSection extends StatelessWidget {
         children: [
           if (title != null) ...[
             _buildHeader(context),
-            SizedBox(height: context.spacing),
+            SizedBox(height: context.layoutSpacing),
           ],
           child,
-          if (showDivider) ...[SizedBox(height: context.spacing), Divider()],
+          if (showDivider) ...[SizedBox(height: context.layoutSpacing), Divider()],
         ],
       ),
     );
@@ -212,13 +212,13 @@ class ResponsiveSection extends StatelessWidget {
                 ),
               ),
               if (subtitle != null) ...[
-                SizedBox(height: context.spacing / 4),
+                SizedBox(height: context.layoutSpacing / 4),
                 subtitle!,
               ],
             ],
           ),
         ),
-        if (action != null) ...[SizedBox(width: context.spacing), action!],
+        if (action != null) ...[SizedBox(width: context.layoutSpacing), action!],
       ],
     );
   }
@@ -256,8 +256,8 @@ class ResponsiveGridLayout extends StatelessWidget {
       padding: padding,
       child: GridView.count(
         crossAxisCount: columns,
-        crossAxisSpacing: crossAxisSpacing ?? context.spacing,
-        mainAxisSpacing: mainAxisSpacing ?? context.spacing,
+        crossAxisSpacing: crossAxisSpacing ?? context.layoutSpacing,
+        mainAxisSpacing: mainAxisSpacing ?? context.layoutSpacing,
         childAspectRatio: childAspectRatio ?? 1.0,
         children: children,
       ),
@@ -294,7 +294,7 @@ class ResponsiveListLayout extends StatelessWidget {
         physics: physics,
         itemCount: children.length,
         separatorBuilder: (context, index) =>
-            SizedBox(height: spacing ?? context.spacing),
+            SizedBox(height: spacing ?? context.layoutSpacing),
         itemBuilder: (context, index) => children[index],
       ),
     );

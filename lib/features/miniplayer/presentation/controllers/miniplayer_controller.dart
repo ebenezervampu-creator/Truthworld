@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
@@ -10,6 +12,10 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
+import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
+import '../../../../../core/utils/route_redirect_middleware.dart';
 
 /// Production-grade miniplayer controller.
 ///
@@ -74,6 +80,15 @@ class MiniplayerController extends GetxController
 
   /// Error message (empty = no error).
   final RxString error = ''.obs;
+
+  /// Whether subtitles are enabled in the miniplayer
+  final RxBool subtitlesEnabled = false.obs;
+
+  /// Parsed subtitle segments
+  final RxList<SubtitleSegment> subtitleSegments = <SubtitleSegment>[].obs;
+
+  /// Current active subtitle text
+  final RxString currentSubtitle = ''.obs;
 
   /// Whether the player is currently buffering.
   final RxBool isBuffering = false.obs;
@@ -178,6 +193,15 @@ class MiniplayerController extends GetxController
     currentPosition.value = Duration.zero;
     totalDuration.value = video.durationValue;
 
+    // Sync and load subtitles if global subtitles are enabled
+    subtitlesEnabled.value = TowerPlayerController.globalSubtitlesEnabled;
+    if (subtitlesEnabled.value) {
+      _loadBestSubtitleTrack();
+    } else {
+      subtitleSegments.clear();
+      currentSubtitle.value = '';
+    }
+
     try {
       VideoPlayerController? handoffVpc = VideoPlaybackHandoff.retrieveController(video.id);
       final VideoPlayerController vpc;
@@ -227,6 +251,9 @@ class MiniplayerController extends GetxController
         await vpc.seekTo(resumeFromPosition);
       }
 
+      // Explicitly start playback so the miniplayer plays when appearing
+      await vpc.play();
+
       _startPositionTimer();
     } catch (e) {
       if (_isClosed) return;
@@ -257,6 +284,108 @@ class MiniplayerController extends GetxController
     dragProgress.value = 0.0;
     dragOffset.value = null;
     isHovering.value = false;
+  }
+
+  void toggleSubtitles() {
+    final enabled = !subtitlesEnabled.value;
+    subtitlesEnabled.value = enabled;
+    TowerPlayerController.globalSubtitlesEnabled = enabled;
+
+    if (enabled) {
+      _loadBestSubtitleTrack();
+    } else {
+      subtitleSegments.clear();
+      currentSubtitle.value = '';
+    }
+  }
+
+  void _loadBestSubtitleTrack() async {
+    final video = currentVideo.value;
+    if (video == null) return;
+
+    final subs = video.mediaSubtitles;
+    if (subs.isEmpty) return;
+
+    // Find the primary/first available subtitle track
+    String? selectedUrl = subs['en'] ?? subs.values.firstOrNull;
+    if (selectedUrl == null) return;
+
+    await fetchAndParseSubtitles(selectedUrl);
+  }
+
+  Future<void> fetchAndParseSubtitles(String url) async {
+    if (url.isEmpty) return;
+    try {
+      final resolvedUrl = StorageUtils.getFastDownloadUrl(url);
+      final response = await http.get(Uri.parse(resolvedUrl));
+      if (response.statusCode == 200) {
+        String content = utf8.decode(response.bodyBytes, allowMalformed: true);
+        if (content.startsWith('\uFEFF')) content = content.substring(1);
+        subtitleSegments.assignAll(_parseSRT(content));
+      }
+    } catch (e) {
+      debugPrint('[MiniplayerController] Subtitle error: $e');
+      subtitleSegments.clear();
+    }
+  }
+
+  List<SubtitleSegment> _parseSRT(String content) {
+    final List<SubtitleSegment> segs = [];
+    String normalized = content.replaceAll('\r\n', '\n').trim();
+    if (normalized.startsWith('WEBVTT')) {
+      normalized = normalized
+          .replaceFirst(RegExp(r'^WEBVTT[^\n]*\n*'), '')
+          .trim();
+    }
+    for (final block in normalized.split('\n\n')) {
+      final lines = block.trim().split('\n');
+      if (lines.length < 2) continue;
+      String timeLine = '';
+      int textStart = 0;
+      if (lines[0].contains('-->')) {
+        timeLine = lines[0];
+        textStart = 1;
+      } else if (lines.length >= 2 && lines[1].contains('-->')) {
+        timeLine = lines[1];
+        textStart = 2;
+      } else {
+        continue;
+      }
+      final times = timeLine.split(' --> ');
+      if (times.length != 2) continue;
+      if (lines.length <= textStart) continue;
+      final text = lines.sublist(textStart).join('\n').trim();
+      if (text.isNotEmpty) {
+        segs.add(
+          SubtitleSegment(
+            start: _parseSRTTime(times[0]),
+            end: _parseSRTTime(times[1]),
+            text: text,
+          ),
+        );
+      }
+    }
+    return segs;
+  }
+
+  Duration _parseSRTTime(String t) {
+    final parts = t.trim().replaceAll(',', '.').split(':');
+    if (parts.length != 3) return Duration.zero;
+    final sParts = parts[2].split('.');
+    return Duration(
+      hours: int.parse(parts[0]),
+      minutes: int.parse(parts[1]),
+      seconds: int.parse(sParts[0]),
+      milliseconds: sParts.length > 1 ? int.parse(sParts[1]) : 0,
+    );
+  }
+
+  SubtitleSegment? _findSubtitle(Duration pos) {
+    for (final s in subtitleSegments) {
+      if (pos >= s.start && pos <= s.end) return s;
+      if (s.start > pos) break; // segments are sorted
+    }
+    return null;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -394,11 +523,15 @@ class MiniplayerController extends GetxController
       _vpc = null;
     }
 
-    // Navigate first, then dismiss so the miniplayer doesn't flash
-    Get.toNamed('/watch?v=${video.id}', arguments: {
-      'video': video,
-      'resumePosition': pos.inMilliseconds,
-    });
+    if (RouteStackObserver.hasRoute('/watch')) {
+      Get.until((route) => route.settings.name?.contains('/watch') == true);
+    } else {
+      // Navigate first, then dismiss so the miniplayer doesn't flash
+      Get.toNamed('/watch?v=${video.id}', arguments: {
+        'video': video,
+        'resumePosition': pos.inMilliseconds,
+      });
+    }
 
     // Short delay to let the navigation start before disposing
     Future.delayed(const Duration(milliseconds: 100), dismiss);
@@ -437,6 +570,15 @@ class MiniplayerController extends GetxController
       isPlaying.value = val.isPlaying;
       currentPosition.value = val.position;
       isBuffering.value = val.isBuffering;
+
+      // Subtitle lookup
+      if (subtitlesEnabled.value && subtitleSegments.isNotEmpty) {
+        final pos = val.position;
+        final seg = _findSubtitle(pos);
+        currentSubtitle.value = seg?.text ?? '';
+      } else {
+        currentSubtitle.value = '';
+      }
 
       // Auto-collapse when complete
       if (val.position >= val.duration &&

@@ -1,4 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -277,9 +279,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: Icon(
-                        Icons.arrow_back_rounded,
-                        color: AppColors.brand,
+                      icon: BackSymbol(color: AppColors.brand,
                       ),
                       onPressed: () => controller.selectVideo(null),
                     ),
@@ -675,6 +675,40 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                 ),
               ),
 
+              // Requests Toggle Button
+              Obx(() {
+                final hasReqs = controller.languageRequests.where((r) => r.type == 'subtitle').isNotEmpty;
+                final showRequests = controller.showRequestsPanel.value;
+                return Badge(
+                  isLabelVisible: hasReqs && !showRequests,
+                  label: Text('${controller.languageRequests.where((r) => r.type == 'subtitle').length}'),
+                  backgroundColor: AppColors.brand,
+                  child: OutlinedButton.icon(
+                    onPressed: () => controller.toggleRequestsPanel(),
+                    icon: Icon(
+                      showRequests ? Icons.close_rounded : Icons.mark_chat_unread_rounded,
+                      size: 16,
+                      color: showRequests ? AppColors.error : AppColors.brand,
+                    ),
+                    label: Text(
+                      showRequests ? 'Close Requests' : 'Viewer Requests',
+                      style: TextStyle(
+                        color: showRequests ? AppColors.error : AppColors.brand,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: showRequests ? AppColors.error : AppColors.brand,
+                      side: BorderSide(
+                        color: showRequests
+                            ? AppColors.error.withValues(alpha: 0.5)
+                            : AppColors.brand.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+              const SizedBox(width: 8),
+
               // Export CTA Button
               OutlinedButton.icon(
                 onPressed: () => controller.exportCurrentTrack(),
@@ -793,261 +827,481 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
 
         // Main Editor Timeline & Rows
         Expanded(
-          child: Obx(() {
-            if (controller.currentCues.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.format_quote_rounded,
-                      size: 48,
-                      color: textSecondaryColor.withValues(alpha: 0.5),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'No Subtitle Cues Defined',
-                      style: GoogleFonts.roboto(
-                        fontSize: 16,
-                        color: textSecondaryColor,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    OutlinedButton.icon(
-                      onPressed: () => controller.addNewCue(),
-                      icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('Add First Cue'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.brand,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }
-
-            return Column(
-              children: [
-                // Header Table column row
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  color: surfaceColor.withValues(alpha: 0.4),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 180,
-                        child: Text(
-                          'Timing Interval',
-                          style: GoogleFonts.roboto(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: textSecondaryColor,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: Obx(() {
+                  if (controller.currentCues.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.format_quote_rounded,
+                            size: 48,
+                            color: textSecondaryColor.withValues(alpha: 0.5),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          'Subtitle Text Cue',
-                          style: GoogleFonts.roboto(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: textSecondaryColor,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 48), // Spacing for delete action
-                    ],
-                  ),
-                ),
-                Divider(height: 1, color: borderColor),
-
-                // Cues List
-                Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: controller.currentCues.length,
-                    separatorBuilder:
-                        (context, index) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final cue = controller.currentCues[index];
-
-                      return Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: surfaceColor,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: borderColor),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
+                          const SizedBox(height: 12),
+                          Text(
+                            'No Subtitle Cues Defined',
+                            style: GoogleFonts.roboto(
+                              fontSize: 16,
+                              color: textSecondaryColor,
                             ),
-                          ],
+                          ),
+                          const SizedBox(height: 16),
+                          OutlinedButton.icon(
+                            onPressed: () => controller.addNewCue(),
+                            icon: const Icon(Icons.add_rounded, size: 18),
+                            label: const Text('Add First Cue'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.brand,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return Column(
+                    children: [
+                      // Header Table column row
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
                         ),
+                        color: surfaceColor.withValues(alpha: 0.4),
                         child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Timing display badge with industry-standard adjustment steppers
-                            Container(
-                              width: 200,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: widget.isDarkMode
-                                    ? const Color(0xFF242424)
-                                    : const Color(0xFFF1F5F9),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Column(
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      InkWell(
-                                        onTap: () => controller.shiftCueTiming(index, isStart: true, shiftMilliseconds: -500),
-                                        child: Icon(Icons.remove_circle_outline, size: 14, color: textSecondaryColor),
-                                      ),
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.timer_outlined,
-                                            size: 12,
-                                            color: AppColors.brand,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            cue.startTime.split('.').first,
-                                            style: GoogleFonts.robotoMono(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                              color: textColor,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      InkWell(
-                                        onTap: () => controller.shiftCueTiming(index, isStart: true, shiftMilliseconds: 500),
-                                        child: Icon(Icons.add_circle_outline, size: 14, color: textSecondaryColor),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Icon(
-                                    Icons.arrow_downward_rounded,
-                                    size: 12,
-                                    color: textSecondaryColor,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      InkWell(
-                                        onTap: () => controller.shiftCueTiming(index, isStart: false, shiftMilliseconds: -500),
-                                        child: Icon(Icons.remove_circle_outline, size: 14, color: textSecondaryColor),
-                                      ),
-                                      Text(
-                                        cue.endTime.split('.').first,
-                                        style: GoogleFonts.robotoMono(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.bold,
-                                          color: textSecondaryColor,
-                                        ),
-                                      ),
-                                      InkWell(
-                                        onTap: () => controller.shiftCueTiming(index, isStart: false, shiftMilliseconds: 500),
-                                        child: Icon(Icons.add_circle_outline, size: 14, color: textSecondaryColor),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                            SizedBox(
+                              width: 180,
+                              child: Text(
+                                'Timing Interval',
+                                style: GoogleFonts.roboto(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: textSecondaryColor,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 16),
-
-                            // Editable Text Cue input
                             Expanded(
-                              child: TextFormField(
-                                key: ValueKey('${controller.selectedLanguage.value}_${cue.id}_$index'),
-                                initialValue: cue.text,
-                                maxLines: null,
+                              child: Text(
+                                'Subtitle Text Cue',
                                 style: GoogleFonts.roboto(
-                                  fontSize: 14,
-                                  color: textColor,
-                                  height: 1.3,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: textSecondaryColor,
                                 ),
-                                decoration: InputDecoration(
-                                  hintText: 'Enter subtitle text...',
-                                  border: InputBorder.none,
-                                  enabledBorder: InputBorder.none,
-                                  focusedBorder: InputBorder.none,
-                                  contentPadding: EdgeInsets.zero,
-                                  fillColor: Colors.transparent,
-                                ),
-                                onChanged:
-                                    (val) => controller.updateCueText(
-                                      index,
-                                      val,
-                                    ),
                               ),
                             ),
+                            const SizedBox(width: 48), // Spacing for delete action
+                          ],
+                        ),
+                      ),
+                      Divider(height: 1, color: borderColor),
 
-                            // Delete Cue Action
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline_rounded),
-                              color: textSecondaryColor.withValues(alpha: 0.6),
-                              hoverColor: AppColors.error.withValues(
-                                alpha: 0.1,
+                      // Cues List
+                      Expanded(
+                        child: ListView.separated(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: controller.currentCues.length,
+                          separatorBuilder:
+                              (context, index) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final cue = controller.currentCues[index];
+
+                            return Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: surfaceColor,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: borderColor),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.03),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
                               ),
-                              onPressed: () => controller.deleteCue(index),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Timing display badge with industry-standard adjustment steppers
+                                  Container(
+                                    width: 200,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: widget.isDarkMode
+                                          ? const Color(0xFF242424)
+                                          : const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            InkWell(
+                                              onTap: () => controller.shiftCueTiming(index, isStart: true, shiftMilliseconds: -500),
+                                              child: Icon(Icons.remove_circle_outline, size: 14, color: textSecondaryColor),
+                                            ),
+                                            Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.timer_outlined,
+                                                  size: 12,
+                                                  color: AppColors.brand,
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  cue.startTime.split('.').first,
+                                                  style: GoogleFonts.robotoMono(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: textColor,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            InkWell(
+                                              onTap: () => controller.shiftCueTiming(index, isStart: true, shiftMilliseconds: 500),
+                                              child: Icon(Icons.add_circle_outline, size: 14, color: textSecondaryColor),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Icon(
+                                          Icons.arrow_downward_rounded,
+                                          size: 12,
+                                          color: textSecondaryColor,
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                          children: [
+                                            InkWell(
+                                              onTap: () => controller.shiftCueTiming(index, isStart: false, shiftMilliseconds: -500),
+                                              child: Icon(Icons.remove_circle_outline, size: 14, color: textSecondaryColor),
+                                            ),
+                                            Text(
+                                              cue.endTime.split('.').first,
+                                              style: GoogleFonts.robotoMono(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                                color: textSecondaryColor,
+                                              ),
+                                            ),
+                                            InkWell(
+                                              onTap: () => controller.shiftCueTiming(index, isStart: false, shiftMilliseconds: 500),
+                                              child: Icon(Icons.add_circle_outline, size: 14, color: textSecondaryColor),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+
+                                  // Editable Text Cue input
+                                  Expanded(
+                                    child: TextFormField(
+                                      key: ValueKey('${controller.selectedLanguage.value}_${cue.id}_$index'),
+                                      initialValue: cue.text,
+                                      maxLines: null,
+                                      style: GoogleFonts.roboto(
+                                        fontSize: 14,
+                                        color: textColor,
+                                        height: 1.3,
+                                      ),
+                                      decoration: const InputDecoration(
+                                        hintText: 'Enter subtitle text...',
+                                        border: InputBorder.none,
+                                        enabledBorder: InputBorder.none,
+                                        focusedBorder: InputBorder.none,
+                                        contentPadding: EdgeInsets.zero,
+                                        fillColor: Colors.transparent,
+                                      ),
+                                      onChanged:
+                                          (val) => controller.updateCueText(
+                                            index,
+                                            val,
+                                          ),
+                                    ),
+                                  ),
+
+                                  // Delete Cue Action
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline_rounded),
+                                    color: textSecondaryColor.withValues(alpha: 0.6),
+                                    hoverColor: AppColors.error.withValues(
+                                      alpha: 0.1,
+                                    ),
+                                    onPressed: () => controller.deleteCue(index),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+
+                      // Workspace Bottom Actions
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        decoration: BoxDecoration(
+                          color: surfaceColor,
+                          border: Border(top: BorderSide(color: borderColor)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            OutlinedButton.icon(
+                              onPressed: () => controller.addNewCue(),
+                              icon: const Icon(Icons.add_rounded, size: 18),
+                              label: const Text('Add Subtitle Segment'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.brand,
+                                side: BorderSide(color: AppColors.brand),
+                              ),
                             ),
                           ],
                         ),
-                      );
-                    },
-                  ),
-                ),
-
-                // Workspace Bottom Actions
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: surfaceColor,
-                    border: Border(top: BorderSide(color: borderColor)),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: () => controller.addNewCue(),
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: const Text('Add Subtitle Segment'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.brand,
-                          side: BorderSide(color: AppColors.brand),
-                        ),
                       ),
                     ],
-                  ),
-                ),
-              ],
-            );
-          }),
+                  );
+                }),
+              ),
+              Obx(() {
+                if (!controller.showRequestsPanel.value) return const SizedBox.shrink();
+                return _buildRequestsPanel(surfaceColor, textColor, textSecondaryColor, borderColor);
+              }),
+            ],
+          ),
         ),
       ],
     );
   }
 
+  Widget _buildRequestsPanel(
+    Color surfaceColor,
+    Color textColor,
+    Color textSecondaryColor,
+    Color borderColor,
+  ) {
+    return Container(
+      width: 320,
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        border: Border(left: BorderSide(color: borderColor)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.mark_chat_unread_rounded,
+                  color: AppColors.brand,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Viewer Requests',
+                  style: GoogleFonts.roboto(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+                ),
+                const Spacer(),
+                Obx(() {
+                  final reqs = controller.languageRequests.where((r) => r.type == 'subtitle').toList();
+                  if (reqs.isEmpty) return const SizedBox.shrink();
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.brand.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${reqs.length}',
+                      style: GoogleFonts.roboto(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.brand,
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: borderColor),
+          // Requests list
+          Expanded(
+            child: Obx(() {
+              final reqs = controller.languageRequests.where((r) => r.type == 'subtitle').toList();
+              if (controller.isLoadingRequests.value) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (reqs.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.translate_rounded,
+                        size: 48,
+                        color: textSecondaryColor.withValues(alpha: 0.4),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No requests yet',
+                        style: GoogleFonts.roboto(
+                          fontSize: 14,
+                          color: textSecondaryColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return ListView.separated(
+                padding: const EdgeInsets.all(16),
+                itemCount: reqs.length,
+                separatorBuilder: (context, index) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final r = reqs[index];
+                  final matchingLanguage = supportedLanguages.firstWhereOrNull(
+                    (l) => l.name.toLowerCase() == r.language.toLowerCase()
+                  );
+                  final langCode = matchingLanguage?.code ?? r.language;
+                  final isAlreadyAdded = controller.availableLanguages.contains(langCode);
+
+                  return Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: widget.isDarkMode
+                          ? const Color(0xFF1E1E1E)
+                          : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    matchingLanguage?.name ?? r.language,
+                                    style: GoogleFonts.roboto(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                      color: textColor,
+                                    ),
+                                  ),
+                                  if (matchingLanguage != null) ...[
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      matchingLanguage.nativeName,
+                                      style: GoogleFonts.roboto(
+                                        fontSize: 12,
+                                        color: textSecondaryColor,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppColors.brand.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.people_alt_rounded,
+                                    size: 12,
+                                    color: AppColors.brand,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${r.count}',
+                                    style: GoogleFonts.robotoMono(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.brand,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: isAlreadyAdded
+                              ? OutlinedButton.icon(
+                                  onPressed: null,
+                                  icon: const Icon(Icons.check_circle_rounded, size: 14, color: Colors.green),
+                                  label: const Text('Provisioned'),
+                                  style: OutlinedButton.styleFrom(
+                                    disabledForegroundColor: Colors.green,
+                                    side: const BorderSide(color: Colors.green),
+                                  ),
+                                )
+                              : ElevatedButton.icon(
+                                  onPressed: () {
+                                    controller.addLanguageTrack(langCode);
+                                  },
+                                  icon: const Icon(Icons.add_rounded, size: 14),
+                                  label: const Text('Add Track'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.brand,
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                  ),
+                                ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            }),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showAddLanguageDialog() {
+    final RxInt dialogActiveTab = 0.obs;
+    final Rxn<TranslationLanguage> dialogSelectedLang = Rxn<TranslationLanguage>();
+    final dialogTitleController = TextEditingController();
+    final RxnString dialogTitleError = RxnString();
+    final Rxn<PlatformFile> dialogPickedFile = Rxn<PlatformFile>();
+
     final availableToAdd =
         supportedLanguages
             .where(
@@ -1059,55 +1313,338 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
     Get.dialog(
       Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          width: 400,
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Add Subtitle Track',
-                style: GoogleFonts.roboto(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+        child: Obx(() {
+          return Container(
+            width: 450,
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Add Subtitle Track',
+                  style: GoogleFonts.roboto(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Select a target language to prepare multi-language subtitles or voiceover mapping.',
-                style: GoogleFonts.roboto(fontSize: 13, color: Colors.grey),
-              ),
-              const SizedBox(height: 16),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: availableToAdd.length,
-                  itemBuilder: (context, index) {
-                    final lang = availableToAdd[index];
-                    return ListTile(
-                      title: Text(lang.name),
-                      subtitle: Text(lang.nativeName),
-                      trailing: const Icon(Icons.add_circle_outline_rounded),
-                      onTap: () {
-                        Get.back();
-                        controller.addLanguageTrack(lang.code);
-                      },
-                    );
-                  },
+                const SizedBox(height: 16),
+                
+                // Tab selector
+                Container(
+                  decoration: BoxDecoration(
+                    color: widget.isDarkMode
+                        ? const Color(0xFF1E1E1E)
+                        : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.all(4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => dialogActiveTab.value = 0,
+                          borderRadius: BorderRadius.circular(6),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            decoration: BoxDecoration(
+                              color: dialogActiveTab.value == 0
+                                  ? (widget.isDarkMode ? Colors.black45 : Colors.white)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(6),
+                              boxShadow: dialogActiveTab.value == 0
+                                  ? [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.05),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      )
+                                    ]
+                                  : null,
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              'Create Manually',
+                              style: GoogleFonts.roboto(
+                                fontWeight: dialogActiveTab.value == 0 ? FontWeight.bold : FontWeight.normal,
+                                fontSize: 13,
+                                color: dialogActiveTab.value == 0
+                                    ? AppColors.brand
+                                    : (widget.isDarkMode ? Colors.white70 : Colors.black87),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => dialogActiveTab.value = 1,
+                          borderRadius: BorderRadius.circular(6),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            decoration: BoxDecoration(
+                              color: dialogActiveTab.value == 1
+                                  ? (widget.isDarkMode ? Colors.black45 : Colors.white)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(6),
+                              boxShadow: dialogActiveTab.value == 1
+                                  ? [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.05),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      )
+                                    ]
+                                  : null,
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              'Upload File',
+                              style: GoogleFonts.roboto(
+                                fontWeight: dialogActiveTab.value == 1 ? FontWeight.bold : FontWeight.normal,
+                                fontSize: 13,
+                                color: dialogActiveTab.value == 1
+                                    ? AppColors.brand
+                                    : (widget.isDarkMode ? Colors.white70 : Colors.black87),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => Get.back(),
-                  child: const Text('Cancel'),
-                ),
-              ),
-            ],
-          ),
-        ),
+                const SizedBox(height: 20),
+
+                if (dialogActiveTab.value == 0) ...[
+                  Text(
+                    'Select a target language to prepare empty localized cue timings.',
+                    style: GoogleFonts.roboto(fontSize: 13, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: Container(
+                      constraints: const BoxConstraints(maxHeight: 250),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: widget.isDarkMode ? Colors.white12 : Colors.black12,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: availableToAdd.length,
+                        separatorBuilder: (context, index) => const Divider(height: 1),
+                        itemBuilder: (context, index) {
+                          final lang = availableToAdd[index];
+                          return ListTile(
+                            title: Text(
+                              lang.name,
+                              style: GoogleFonts.roboto(fontSize: 14),
+                            ),
+                            subtitle: Text(
+                              lang.nativeName,
+                              style: GoogleFonts.roboto(fontSize: 12, color: Colors.grey),
+                            ),
+                            trailing: const Icon(Icons.add_circle_outline_rounded, size: 20),
+                            onTap: () {
+                              Get.back();
+                              controller.addLanguageTrack(lang.code);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Get.back(),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                ] else ...[
+                  // Language Selection
+                  DropdownButtonFormField<TranslationLanguage>(
+                    value: dialogSelectedLang.value,
+                    hint: Text(
+                      'Select target language',
+                      style: GoogleFonts.roboto(fontSize: 13),
+                    ),
+                    dropdownColor: widget.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+                    items: supportedLanguages.map((lang) {
+                      return DropdownMenuItem<TranslationLanguage>(
+                        value: lang,
+                        child: Text(
+                          '${lang.name} (${lang.nativeName})',
+                          style: GoogleFonts.roboto(fontSize: 13),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      dialogSelectedLang.value = val;
+                      if (val != null && dialogTitleController.text.trim().isEmpty) {
+                        dialogTitleController.text = val.name;
+                      }
+                    },
+                    decoration: InputDecoration(
+                      labelText: 'Language',
+                      labelStyle: GoogleFonts.roboto(fontSize: 13),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Custom Title
+                  TextFormField(
+                    controller: dialogTitleController,
+                    style: GoogleFonts.roboto(fontSize: 13),
+                    decoration: InputDecoration(
+                      labelText: 'Subtitle Track Title',
+                      hintText: 'e.g., Spanish (Latin America)',
+                      errorText: dialogTitleError.value,
+                      labelStyle: GoogleFonts.roboto(fontSize: 13),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      border: const OutlineInputBorder(),
+                    ),
+                    onChanged: (val) {
+                      if (val.trim().isNotEmpty) {
+                        if (controller.profanityFilter.hasProfanity(val)) {
+                          dialogTitleError.value = 'Title contains inappropriate language.';
+                        } else {
+                          dialogTitleError.value = null;
+                        }
+                      } else {
+                        dialogTitleError.value = null;
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // File picker field
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: widget.isDarkMode ? Colors.white24 : Colors.grey.shade300,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            dialogPickedFile.value != null
+                                ? '${dialogPickedFile.value!.name} (${(dialogPickedFile.value!.size / 1024).toStringAsFixed(1)} KB)'
+                                : 'No subtitle file selected (.vtt, .srt)',
+                            style: GoogleFonts.roboto(
+                              color: dialogPickedFile.value != null
+                                  ? (widget.isDarkMode ? Colors.white : Colors.black87)
+                                  : Colors.grey,
+                              fontSize: 13,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            try {
+                              final result = await FilePicker.pickFiles(
+                                type: FileType.custom,
+                                allowedExtensions: ['vtt', 'srt', 'txt'],
+                                withData: true,
+                              );
+                              if (result != null && result.files.isNotEmpty) {
+                                dialogPickedFile.value = result.files.first;
+                              }
+                            } catch (e) {
+                              controller.showError('Failed to pick file: $e');
+                            }
+                          },
+                          icon: const Icon(Icons.file_open_rounded, size: 14),
+                          label: const Text('Choose'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.brand,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            textStyle: GoogleFonts.roboto(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Bottom action buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Get.back(),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton(
+                        onPressed: controller.isUploadingFile.value
+                            ? null
+                            : () async {
+                                if (dialogSelectedLang.value == null) {
+                                  controller.showError('Please select a language.');
+                                  return;
+                                }
+                                final title = dialogTitleController.text.trim();
+                                if (title.isEmpty) {
+                                  controller.showError('Please enter a track title.');
+                                  return;
+                                }
+                                if (dialogPickedFile.value == null) {
+                                  controller.showError('Please select a subtitle file.');
+                                  return;
+                                }
+
+                                final check = await controller.validateContent(title, fieldName: 'Track Title');
+                                if (!check.isValid) {
+                                  dialogTitleError.value = check.message;
+                                  controller.showError(check.message);
+                                  return;
+                                }
+
+                                // Close the dialog, then upload
+                                final langCode = dialogSelectedLang.value!.code;
+                                final file = dialogPickedFile.value!;
+                                Get.back();
+                                
+                                await controller.uploadSubtitleTrack(
+                                  languageCode: langCode,
+                                  title: title,
+                                  file: file,
+                                );
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.brand,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: controller.isUploadingFile.value
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Text('Upload & Save'),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          );
+        }),
       ),
     );
   }

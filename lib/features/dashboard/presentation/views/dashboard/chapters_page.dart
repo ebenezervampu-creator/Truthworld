@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -282,9 +283,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: Icon(
-                        Icons.arrow_back_ios_new,
-                        color: AppColors.brand,
+                      icon: BackSymbol(color: AppColors.brand,
                       ),
                       onPressed: () => controller.selectVideo(null),
                     ),

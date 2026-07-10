@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -426,7 +427,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           child: Row(
             children: [
               IconButton(
-                icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
+                icon: const BackSymbol(color: AppColors.textPrimary),
                 onPressed: () => _showEmbedPanel.value = false,
               ),
               const SizedBox(width: 8),

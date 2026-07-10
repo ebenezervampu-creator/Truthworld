@@ -5,7 +5,7 @@ import 'package:chewie/chewie.dart';
 import 'package:video_player/video_player.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:intl/intl.dart';
 
@@ -117,10 +117,9 @@ class AdminDashboardScreen extends StatelessWidget {
                   ).createShader(bounds),
                   child: Text(
                     'TruthWorld',
-                    style: GoogleFonts.outfit(
-                      color: Colors.white,
+                    style: context.typography.logo.copyWith(
                       fontSize: 22,
-                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
                   ),
                 ),
@@ -653,7 +652,7 @@ class AdminDashboardScreen extends StatelessWidget {
             final displayValue = value.value.toString();
             return Text(
               displayValue,
-              style: GoogleFonts.outfit(
+              style: GoogleFonts.roboto(
                 color: AppColors.textPrimary,
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
@@ -676,6 +675,9 @@ class AdminDashboardScreen extends StatelessWidget {
   Widget _buildVideoQueueTab(BuildContext context, AdminController controller) {
     return Obx(() {
       final list = controller.videos.where((v) {
+        final topStatus = v['status'] as String?;
+        if (topStatus == 'rejected') return true;
+
         final mod = v['moderation'] as Map<String, dynamic>?;
         if (mod == null) return false;
         final status = mod['status'] as String?;
@@ -711,7 +713,7 @@ class AdminDashboardScreen extends StatelessWidget {
                   final isSelected = controller.selectedVideo.value?['id'] == video['id'];
                   final title = video['title'] ?? 'Untitled Video';
                   final mod = video['moderation'] as Map<String, dynamic>?;
-                  final status = mod?['status'] ?? 'pending';
+                  final status = mod?['status'] ?? video['status'] ?? 'pending';
                   final isTimeout = mod?['violationCategories']?.contains('timeout_passthrough') == true;
 
                   return Material(
@@ -818,6 +820,7 @@ class AdminDashboardScreen extends StatelessWidget {
 
               final videoUrl = selected['videoUrl'];
               final mod = selected['moderation'] as Map<String, dynamic>?;
+              final status = mod?['status'] ?? selected['status'] ?? 'pending';
 
               return SingleChildScrollView(
                 padding: const EdgeInsets.all(24.0),
@@ -839,26 +842,26 @@ class AdminDashboardScreen extends StatelessWidget {
                       margin: const EdgeInsets.only(bottom: 20),
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: (mod?['status'] == 'approved'
+                        color: (status == 'approved'
                             ? AppColors.success
-                            : (mod?['status'] == 'rejected' ? AppColors.error : AppColors.warning)).withValues(alpha: 0.1),
+                            : (status == 'rejected' ? AppColors.error : AppColors.warning)).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: (mod?['status'] == 'approved'
+                          color: (status == 'approved'
                               ? AppColors.success
-                              : (mod?['status'] == 'rejected' ? AppColors.error : AppColors.warning)).withValues(alpha: 0.25),
+                              : (status == 'rejected' ? AppColors.error : AppColors.warning)).withValues(alpha: 0.25),
                           width: 1.5,
                         ),
                       ),
                       child: Row(
                         children: [
                           Icon(
-                            mod?['status'] == 'approved'
+                            status == 'approved'
                                 ? Icons.check_circle_outline
-                                : (mod?['status'] == 'rejected' ? Icons.block_flipped : Icons.sync_rounded),
-                            color: mod?['status'] == 'approved'
+                                : (status == 'rejected' ? Icons.block_flipped : Icons.sync_rounded),
+                            color: status == 'approved'
                                 ? AppColors.success
-                                : (mod?['status'] == 'rejected' ? AppColors.error : AppColors.warning),
+                                : (status == 'rejected' ? AppColors.error : AppColors.warning),
                             size: 24,
                           ),
                           const SizedBox(width: 12),
@@ -867,11 +870,11 @@ class AdminDashboardScreen extends StatelessWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Current Status: ${(mod?['status'] ?? 'pending').toUpperCase()}',
+                                  'Current Status: ${status.toUpperCase()}',
                                   style: GoogleFonts.roboto(
-                                    color: mod?['status'] == 'approved'
+                                    color: status == 'approved'
                                         ? AppColors.success
-                                        : (mod?['status'] == 'rejected' ? AppColors.error : AppColors.warning),
+                                        : (status == 'rejected' ? AppColors.error : AppColors.warning),
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -936,8 +939,8 @@ class AdminDashboardScreen extends StatelessWidget {
                     _buildMetadataTable([
                       _MetadataRow('Video ID', selected['id']),
                       _MetadataRow('Description', selected['description'] ?? 'None'),
-                      _MetadataRow('Pipeline Status', mod?['status'] ?? 'N/A'),
-                      _MetadataRow('Flagged Reason', mod?['reason'] ?? 'System automatic moderation trigger.'),
+                      _MetadataRow('Pipeline Status', status),
+                      _MetadataRow('Flagged Reason', mod?['reason'] ?? selected['rejectionReason'] ?? 'System automatic moderation trigger.'),
                       _MetadataRow('Confidence Score', (mod?['confidenceScore'] ?? 'N/A').toString()),
                       _MetadataRow('GCS Storage Path', selected['storage']?['videoPath'] ?? 'N/A'),
                       _MetadataRow('Uploaded At', _formatTimestamp(selected['createdAt'])),
@@ -2171,33 +2174,28 @@ class _MetadataRow {
 }
 
 // Stateful Video Player wrapper
-class AdminVideoPlayer extends StatefulWidget {
+class AdminVideoPlayerController extends GetxController {
   final String url;
-  const AdminVideoPlayer({required this.url, super.key});
+  AdminVideoPlayerController(this.url);
+
+  late VideoPlayerController videoCtrl;
+  ChewieController? chewieCtrl;
+  final RxBool isPlayerInitialized = false.obs;
+  final RxnString error = RxnString();
 
   @override
-  State<AdminVideoPlayer> createState() => _AdminVideoPlayerState();
-}
-
-class _AdminVideoPlayerState extends State<AdminVideoPlayer> {
-  late VideoPlayerController _videoCtrl;
-  ChewieController? _chewieCtrl;
-  bool _initialized = false;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
+  void onInit() {
+    super.onInit();
     _initPlayer();
   }
 
   Future<void> _initPlayer() async {
     try {
-      _videoCtrl = VideoPlayerController.networkUrl(Uri.parse(widget.url));
-      await _videoCtrl.initialize();
-      _chewieCtrl = ChewieController(
-        videoPlayerController: _videoCtrl,
-        aspectRatio: _videoCtrl.value.aspectRatio,
+      videoCtrl = VideoPlayerController.networkUrl(Uri.parse(url));
+      await videoCtrl.initialize();
+      chewieCtrl = ChewieController(
+        videoPlayerController: videoCtrl,
+        aspectRatio: videoCtrl.value.aspectRatio,
         autoPlay: false,
         looping: false,
         materialProgressColors: ChewieProgressColors(
@@ -2207,53 +2205,56 @@ class _AdminVideoPlayerState extends State<AdminVideoPlayer> {
           backgroundColor: AppColors.progressTrack,
         ),
       );
-      if (mounted) {
-        setState(() {
-          _initialized = true;
-        });
-      }
+      isPlayerInitialized.value = true;
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = 'Error loading video player: $e';
-        });
-      }
+      error.value = 'Error loading video player: $e';
     }
   }
 
   @override
-  void dispose() {
-    _videoCtrl.dispose();
-    _chewieCtrl?.dispose();
-    super.dispose();
+  void onClose() {
+    videoCtrl.dispose();
+    chewieCtrl?.dispose();
+    super.onClose();
   }
+}
+
+// GetX Video Player wrapper
+class AdminVideoPlayer extends StatelessWidget {
+  final String url;
+  const AdminVideoPlayer({required this.url, super.key});
 
   @override
   Widget build(BuildContext context) {
-    if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Text(
-            _error!,
-            style: GoogleFonts.roboto(color: AppColors.error, fontSize: 12),
-            textAlign: TextAlign.center,
+    // Unique tag per url to support multiple video player instances
+    final controller = Get.put(AdminVideoPlayerController(url), tag: url);
+
+    return Obx(() {
+      if (controller.error.value != null) {
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              controller.error.value!,
+              style: GoogleFonts.roboto(color: AppColors.error, fontSize: 12),
+              textAlign: TextAlign.center,
+            ),
           ),
-        ),
-      );
-    }
-    if (!_initialized) {
-      return const Center(
-        child: SizedBox(
-          width: 32,
-          height: 32,
-          child: CircularProgressIndicator(
-            strokeWidth: 2.5,
-            valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
+        );
+      }
+      if (!controller.isPlayerInitialized.value) {
+        return const Center(
+          child: SizedBox(
+            width: 32,
+            height: 32,
+            child: CircularProgressIndicator(
+              strokeWidth: 2.5,
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
+            ),
           ),
-        ),
-      );
-    }
-    return Chewie(controller: _chewieCtrl!);
+        );
+      }
+      return Chewie(controller: controller.chewieCtrl!);
+    });
   }
 }

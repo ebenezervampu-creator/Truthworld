@@ -18,9 +18,13 @@ class CommunityPostModel {
   final DateTime uploadedAt;
   final DateTime? scheduledTime;
   final int likes;
+  final int dislikes;
+  final int dislikeCount;
+  final int commentCount;
   final int views;
   final int downloads;
   final List<String> likedBy;
+  final List<String> dislikedBy;
   final List<String> shares;
   final bool isKidFriendly;
   final bool processed;
@@ -41,9 +45,13 @@ class CommunityPostModel {
     required this.uploadedAt,
     this.scheduledTime,
     this.likes = 0,
+    this.dislikes = 0,
+    this.dislikeCount = 0,
+    this.commentCount = 0,
     this.views = 0,
     this.downloads = 0,
     this.likedBy = const [],
+    this.dislikedBy = const [],
     this.shares = const [],
     this.isKidFriendly = false,
     this.processed = false,
@@ -68,9 +76,13 @@ class CommunityPostModel {
     if (scheduledTime != null)
       'scheduledTime': Timestamp.fromDate(scheduledTime!),
     'likes': likes,
+    'dislikes': dislikes,
+    'dislikeCount': dislikeCount,
+    'commentCount': commentCount,
     'views': views,
     'downloads': downloads,
     'likedby': likedBy,
+    'dislikedby': dislikedBy,
     'shares': shares,
     'isKidFriendly': isKidFriendly,
     'processed': processed,
@@ -107,9 +119,13 @@ class CommunityPostModel {
           ? (map['scheduledTime'] as Timestamp).toDate()
           : null,
       likes: map['likes'] ?? 0,
+      dislikes: map['dislikes'] ?? 0,
+      dislikeCount: map['dislikeCount'] ?? 0,
+      commentCount: map['commentCount'] ?? 0,
       views: map['views'] ?? 0,
       downloads: map['downloads'] ?? 0,
       likedBy: List<String>.from(map['likedby'] ?? []),
+      dislikedBy: List<String>.from(map['dislikedby'] ?? []),
       shares: List<String>.from(map['shares'] ?? []),
       isKidFriendly: map['isKidFriendly'] ?? false,
       processed: map['processed'] ?? false,

@@ -246,6 +246,7 @@ class TopicManagementController extends GetxController {
         videoCount: selectedVideoIds.length,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
+        status: 'underReview',
       );
 
       await newTopicRef.set(topic.toMap());

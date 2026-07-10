@@ -28,20 +28,21 @@ class OptimizedVerificationStatusWidget extends StatelessWidget {
     this.autoScroll = true,
   });
 
-  Color _getStatusColor() {
+  Color _getStatusColor(BuildContext context) {
+    final twColors = context.colors;
     switch (result.status) {
       case VerificationStatus.approved:
-        return const Color(0xFF10B981); // Green
+        return twColors.success;
       case VerificationStatus.rejected:
-        return const Color(0xFFEF4444); // Red
+        return twColors.error;
       case VerificationStatus.flagged:
-        return const Color(0xFFF59E0B); // Amber
+        return twColors.warning;
       case VerificationStatus.pending:
-        return const Color(0xFF3B82F6); // Blue
+        return twColors.info;
       case VerificationStatus.error:
-        return const Color(0xFFEF4444); // Red
+        return twColors.error;
       case VerificationStatus.timeout:
-        return const Color(0xFF9CA3AF); // Gray
+        return twColors.textTertiary;
     }
   }
 
@@ -87,6 +88,10 @@ class OptimizedVerificationStatusWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final statusColor = _getStatusColor(context);
+    final twSpacing = context.spacing;
+    final twRadius = context.radius;
+
     // Trigger auto-scroll and callback on status change
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_isApproved() && onApproved != null) {
@@ -99,12 +104,12 @@ class OptimizedVerificationStatusWidget extends StatelessWidget {
 
     return RepaintBoundary(
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 12),
+        margin: EdgeInsets.symmetric(vertical: twSpacing.sm),
         decoration: BoxDecoration(
-          color: _getStatusColor().withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(14),
+          color: statusColor.withValues(alpha: 0.08),
+          borderRadius: twRadius.circularLg,
           border: Border.all(
-            color: _getStatusColor().withValues(alpha: 0.3),
+            color: statusColor.withValues(alpha: 0.3),
             width: 1.5,
           ),
         ),
@@ -115,12 +120,12 @@ class OptimizedVerificationStatusWidget extends StatelessWidget {
             children: [
               // Status Row
               Padding(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(twSpacing.md),
                 child: Row(
                   children: [
                     // Icon with animation
-                    _buildStatusIcon(),
-                    const SizedBox(width: 14),
+                    _buildStatusIcon(context),
+                    SizedBox(width: twSpacing.sm + 4),
                     // Status Text
                     Expanded(
                       child: Column(
@@ -131,7 +136,7 @@ class OptimizedVerificationStatusWidget extends StatelessWidget {
                             style: GoogleFonts.roboto(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
-                              color: _getStatusColor(),
+                              color: statusColor,
                             ),
                           ),
                           if (result.reason.isNotEmpty) ...[
@@ -142,7 +147,7 @@ class OptimizedVerificationStatusWidget extends StatelessWidget {
                                 fontSize: 13,
                                 color: isDark
                                     ? Colors.white60
-                                    : AppColors.textSecondary,
+                                    : context.colors.textSecondary,
                                 height: 1.4,
                               ),
                               maxLines: 2,
@@ -158,20 +163,20 @@ class OptimizedVerificationStatusWidget extends StatelessWidget {
                         message: 'Try another image',
                         child: Container(
                           decoration: BoxDecoration(
-                            color: _getStatusColor().withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(8),
+                            color: statusColor.withValues(alpha: 0.12),
+                            borderRadius: twRadius.circularSm,
                           ),
                           child: Material(
                             color: Colors.transparent,
                             child: InkWell(
                               onTap: onRetry,
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: twRadius.circularSm,
                               child: Padding(
-                                padding: const EdgeInsets.all(8),
+                                padding: EdgeInsets.all(twSpacing.sm),
                                 child: Icon(
                                   Icons.refresh_rounded,
                                   size: 18,
-                                  color: _getStatusColor(),
+                                  color: statusColor,
                                 ),
                               ),
                             ),
@@ -185,11 +190,11 @@ class OptimizedVerificationStatusWidget extends StatelessWidget {
               if (_isApproved() && result.score != null) ...[
                 Container(
                   height: 1,
-                  color: _getStatusColor().withValues(alpha: 0.15),
+                  color: statusColor.withValues(alpha: 0.15),
                 ),
                 Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: _buildScoreIndicator(),
+                  padding: EdgeInsets.all(twSpacing.sm + 4),
+                  child: _buildScoreIndicator(context),
                 ),
               ],
             ],
@@ -199,14 +204,15 @@ class OptimizedVerificationStatusWidget extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusIcon() {
+  Widget _buildStatusIcon(BuildContext context) {
+    final statusColor = _getStatusColor(context);
     if (_isLoading()) {
       return Container(
         width: 40,
         height: 40,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: _getStatusColor().withValues(alpha: 0.12),
+          color: statusColor.withValues(alpha: 0.12),
         ),
         child: Stack(
           alignment: Alignment.center,
@@ -216,7 +222,7 @@ class OptimizedVerificationStatusWidget extends StatelessWidget {
               height: 24,
               child: CircularProgressIndicator(
                 strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(_getStatusColor()),
+                valueColor: AlwaysStoppedAnimation<Color>(statusColor),
               ),
             ),
           ],
@@ -229,34 +235,36 @@ class OptimizedVerificationStatusWidget extends StatelessWidget {
       height: 40,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: _getStatusColor().withValues(alpha: 0.15),
+        color: statusColor.withValues(alpha: 0.15),
       ),
       child: Icon(
         _getStatusIcon(),
-        color: _getStatusColor(),
+        color: statusColor,
         size: 20,
       ),
     );
   }
 
-  Widget _buildScoreIndicator() {
+  Widget _buildScoreIndicator(BuildContext context) {
     final score = result.score ?? 0.0;
     final scoreLabel = '${(score * 100).toStringAsFixed(0)}% confidence';
+    final statusColor = _getStatusColor(context);
+    final twSpacing = context.spacing;
 
     return Row(
       children: [
         Icon(
           Icons.trending_up_rounded,
           size: 14,
-          color: _getStatusColor(),
+          color: statusColor,
         ),
-        const SizedBox(width: 8),
+        SizedBox(width: twSpacing.sm),
         Expanded(
           child: Text(
             scoreLabel,
             style: GoogleFonts.roboto(
               fontSize: 12,
-              color: _getStatusColor(),
+              color: statusColor,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -265,7 +273,7 @@ class OptimizedVerificationStatusWidget extends StatelessWidget {
           width: 60,
           height: 4,
           decoration: BoxDecoration(
-            color: _getStatusColor().withValues(alpha: 0.2),
+            color: statusColor.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(2),
           ),
           child: Stack(
@@ -277,7 +285,7 @@ class OptimizedVerificationStatusWidget extends StatelessWidget {
                 width: 60 * score,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: _getStatusColor(),
+                    color: statusColor,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -326,6 +334,9 @@ class VerificationStatusListenerWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final imageService = ImageVerificationService();
+    final twColors = context.colors;
+    final twSpacing = context.spacing;
+    final twRadius = context.radius;
 
     return RepaintBoundary(
       child: StreamBuilder<VerificationResult>(
@@ -338,13 +349,13 @@ class VerificationStatusListenerWidget extends StatelessWidget {
           // Handle errors instantly
           if (snapshot.hasError) {
             return Container(
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              padding: const EdgeInsets.all(16),
+              margin: EdgeInsets.symmetric(vertical: twSpacing.sm),
+              padding: EdgeInsets.all(twSpacing.md),
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(14),
+                color: twColors.errorContainer,
+                borderRadius: twRadius.circularLg,
                 border: Border.all(
-                  color: const Color(0xFFEF4444).withValues(alpha: 0.3),
+                  color: twColors.error.withValues(alpha: 0.3),
                   width: 1.5,
                 ),
               ),
@@ -355,15 +366,15 @@ class VerificationStatusListenerWidget extends StatelessWidget {
                     height: 40,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                      color: twColors.error.withValues(alpha: 0.15),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.error_outline_rounded,
-                      color: Color(0xFFEF4444),
+                      color: twColors.error,
                       size: 20,
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  SizedBox(width: twSpacing.sm + 6),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -373,7 +384,7 @@ class VerificationStatusListenerWidget extends StatelessWidget {
                           style: GoogleFonts.roboto(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
-                            color: const Color(0xFFEF4444),
+                            color: twColors.error,
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -383,7 +394,7 @@ class VerificationStatusListenerWidget extends StatelessWidget {
                             fontSize: 13,
                             color: isDark
                                 ? Colors.white60
-                                : AppColors.textSecondary,
+                                : twColors.textSecondary,
                           ),
                         ),
                       ],
@@ -427,20 +438,21 @@ class VerificationBadge extends StatelessWidget {
     this.compact = false,
   });
 
-  Color _getStatusColor() {
+  Color _getStatusColor(BuildContext context) {
+    final twColors = context.colors;
     switch (status) {
       case VerificationStatus.approved:
-        return const Color(0xFF10B981);
+        return twColors.success;
       case VerificationStatus.rejected:
-        return const Color(0xFFEF4444);
+        return twColors.error;
       case VerificationStatus.flagged:
-        return const Color(0xFFF59E0B);
+        return twColors.warning;
       case VerificationStatus.pending:
-        return const Color(0xFF3B82F6);
+        return twColors.info;
       case VerificationStatus.error:
-        return const Color(0xFFEF4444);
+        return twColors.error;
       case VerificationStatus.timeout:
-        return const Color(0xFF9CA3AF);
+        return twColors.textTertiary;
     }
   }
 
@@ -480,12 +492,16 @@ class VerificationBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final statusColor = _getStatusColor(context);
+    final twSpacing = context.spacing;
+    final twRadius = context.radius;
+
     if (compact) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: EdgeInsets.symmetric(horizontal: twSpacing.sm, vertical: twSpacing.xs),
         decoration: BoxDecoration(
-          color: _getStatusColor().withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(6),
+          color: statusColor.withValues(alpha: 0.15),
+          borderRadius: twRadius.circularSm,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -493,7 +509,7 @@ class VerificationBadge extends StatelessWidget {
             Icon(
               _getStatusIcon(),
               size: 12,
-              color: _getStatusColor(),
+              color: statusColor,
             ),
             const SizedBox(width: 4),
             Text(
@@ -501,7 +517,7 @@ class VerificationBadge extends StatelessWidget {
               style: GoogleFonts.roboto(
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
-                color: _getStatusColor(),
+                color: statusColor,
               ),
             ),
           ],
@@ -510,12 +526,12 @@ class VerificationBadge extends StatelessWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.symmetric(horizontal: twSpacing.sm + 4, vertical: twSpacing.xs + 2),
       decoration: BoxDecoration(
-        color: _getStatusColor().withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
+        color: statusColor.withValues(alpha: 0.12),
+        borderRadius: twRadius.circularMd,
         border: Border.all(
-          color: _getStatusColor().withValues(alpha: 0.3),
+          color: statusColor.withValues(alpha: 0.3),
           width: 1,
         ),
       ),
@@ -525,15 +541,15 @@ class VerificationBadge extends StatelessWidget {
           Icon(
             _getStatusIcon(),
             size: 14,
-            color: _getStatusColor(),
+            color: statusColor,
           ),
-          const SizedBox(width: 6),
+          SizedBox(width: twSpacing.xs + 2),
           Text(
             _getStatusLabel(),
             style: GoogleFonts.roboto(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: _getStatusColor(),
+              color: statusColor,
             ),
           ),
         ],

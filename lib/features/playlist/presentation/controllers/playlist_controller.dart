@@ -23,6 +23,8 @@ class PlaylistController extends GetxController {
   var publicPlaylists = <PlaylistModel>[].obs; // For upload screen
   Rx<Channel?> selectedChannel = Rx<Channel?>(null);
   RxBool isLoading = false.obs;
+  final RxBool isPlaylistsLoaded = false.obs;
+  final RxBool isPublicPlaylistsLoaded = false.obs;
 
   // UI State for PlaylistScreen
   final RxBool isSearching = false.obs;
@@ -174,11 +176,16 @@ class PlaylistController extends GetxController {
     ever(AuthService.to.currentUser, (User? u) {
       if (u != null) {
         fetchPlaylists();
+        fetchPublicPlaylists();
         listenToWatchLater();
       } else {
         // If user logs out, cancel the subscription and clear the list
         _playlistsSubscription?.cancel();
         playlists.clear();
+        isPlaylistsLoaded.value = false;
+        _publicPlaylistsSubscription?.cancel();
+        publicPlaylists.clear();
+        isPublicPlaylistsLoaded.value = false;
         _watchLaterSub?.cancel();
         watchLaterVideoIds.clear();
       }
@@ -187,6 +194,7 @@ class PlaylistController extends GetxController {
     // Initial fetch if user is already authenticated
     if (user.isNotEmpty) {
       fetchPlaylists();
+      fetchPublicPlaylists();
       listenToWatchLater();
     }
   }
@@ -256,6 +264,9 @@ class PlaylistController extends GetxController {
         updatedAt: DateTime.now(),
         thumbnailUrl: thumbnailUrl ?? '',
         sortIndex: currentCount,
+        status: 'underReview',
+        geminiApproved: null,
+        moderationReason: null,
       );
 
       await playlistRef.set(playlist.toMap());
@@ -769,6 +780,9 @@ class PlaylistController extends GetxController {
       await ref.update({
         'name': newName,
         'playlistName': newName,
+        'status': 'underReview',
+        'geminiApproved': null,
+        'moderationReason': null,
         'updatedAt': Timestamp.now(),
       });
 
@@ -840,7 +854,11 @@ class PlaylistController extends GetxController {
             .doc(user)
             .collection('playlists')
             .doc(playlistId)
-            .set(playlist.toMap()..['isPublic'] = false);
+            .set(playlist.toMap()
+              ..['isPublic'] = false
+              ..['status'] = 'underReview'
+              ..['geminiApproved'] = null
+              ..['moderationReason'] = null);
         await _firestore
             .collection('public_playlists')
             .doc(playlistId)
@@ -856,7 +874,11 @@ class PlaylistController extends GetxController {
         await _firestore
             .collection('public_playlists')
             .doc(playlistId)
-            .set(playlist.toMap()..['isPublic'] = true);
+            .set(playlist.toMap()
+              ..['isPublic'] = true
+              ..['status'] = 'underReview'
+              ..['geminiApproved'] = null
+              ..['moderationReason'] = null);
         await _firestore
             .collection('users')
             .doc(user)
@@ -922,6 +944,7 @@ class PlaylistController extends GetxController {
 
     if (user.isEmpty) {
       logger.debug('📋 Cannot fetch playlists: no user logged in');
+      isPlaylistsLoaded.value = false;
       return;
     }
 
@@ -946,9 +969,11 @@ class PlaylistController extends GetxController {
                 .toList();
 
             playlists.value = loadedPlaylists;
+            isPlaylistsLoaded.value = true;
             logger.debug('📋 Loaded ${playlists.length} playlists');
           },
           onError: (error) {
+            isPlaylistsLoaded.value = true;
             if (error.toString().contains('permission-denied')) {
               logger.debug(
                 '📋 PlaylistController: Permission denied listening to playlists for user $user.',
@@ -992,6 +1017,7 @@ class PlaylistController extends GetxController {
           .toList();
 
       playlists.value = loadedPlaylists;
+      isPlaylistsLoaded.value = true;
       logger.debug('📋 Force refreshed ${playlists.length} playlists');
     } catch (e) {
       logger.debug('❌ Error force refreshing playlists: $e');
@@ -1012,6 +1038,7 @@ class PlaylistController extends GetxController {
       logger.debug(
         '⚠️ fetchPublicPlaylists: No user logged in, skipping listener',
       );
+      isPublicPlaylistsLoaded.value = false;
       return;
     }
 
@@ -1038,11 +1065,13 @@ class PlaylistController extends GetxController {
                 .toList();
 
             publicPlaylists.value = loadedPlaylists;
+            isPublicPlaylistsLoaded.value = true;
             logger.debug(
               '📋 Loaded ${publicPlaylists.length} public playlists',
             );
           },
           onError: (error) {
+            isPublicPlaylistsLoaded.value = true;
             if (error.toString().contains('permission-denied')) {
               logger.debug(
                 '❌ Error listening to public playlists: Access denied.',

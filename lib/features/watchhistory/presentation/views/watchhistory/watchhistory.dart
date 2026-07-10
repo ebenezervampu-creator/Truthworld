@@ -7,6 +7,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/watchhistory/presentation/controllers/watch_history_controller.dart';
+import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
+
 
 // ==========================================================================
 // YOUTUBE-STYLE THEME COLORS (Standardized)
@@ -101,11 +103,10 @@ class _WatchHistoryState extends State<WatchHistory>
               .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SliverFillRemaining(
-                child: Center(
-                  child: CircularProgressIndicator(
-                    color: Colors.white,
-                  ),
+              return SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => const ShimmerVideoListCard(),
+                  childCount: 6,
                 ),
               );
             }
