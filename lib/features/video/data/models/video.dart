@@ -199,7 +199,7 @@ class Video {
     Duration? vDurationValue,
     dynamic createdAt,
     dynamic uploadedAt,
-    Timestamp? updatedAt,
+    dynamic updatedAt,
     dynamic status,
     dynamic visibility,
     required this.category,
@@ -265,7 +265,7 @@ class Video {
        durationValue =
            vDurationValue ?? (duration is Duration ? duration : Duration.zero),
        createdAt = TimestampUtils.parse(createdAt ?? uploadedAt),
-       updatedAt = updatedAt ?? TimestampUtils.parse(createdAt ?? uploadedAt),
+       updatedAt = TimestampUtils.parse(updatedAt ?? createdAt ?? uploadedAt),
        status = status is VideoStatus ? status : VideoStatus.processing,
        visibility = visibility?.toString() ?? 'public',
        likedBy = likedBy ?? [] {

@@ -22,7 +22,7 @@ export const onCommunityPostCreated = onDocumentCreated(
     document: "Community/{postId}",
     region: "asia-south1",
     memory: "256MiB",
-    maxInstances: 10,
+    maxInstances: 2,
   },
   async (event) => {
   const post = event.data?.data();
@@ -99,7 +99,7 @@ export const onCommentCreated = onDocumentCreated(
     document: "videos/{videoId}/comments/{commentId}",
     region: "asia-south1",
     memory: "256MiB",
-    maxInstances: 10,
+    maxInstances: 2,
   },
   async (event) => {
   const comment = event.data?.data();
@@ -162,7 +162,7 @@ export const onNewSubscription = onDocumentCreated(
     document: "subscriptions/{subscriptionId}",
     region: "asia-south1",
     memory: "256MiB",
-    maxInstances: 10,
+    maxInstances: 2,
   },
   async (event) => {
   const subscription = event.data?.data();

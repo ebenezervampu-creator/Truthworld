@@ -44,6 +44,8 @@ import 'package:truthworld/features/topics/presentation/pages/following_topics_p
 // import 'package:truthworld/features/watchlater/presentation/views/watchlater/watchlater_screen.dart';
 
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
+import 'package:truthworld/features/admin/presentation/views/admin_login_screen.dart';
+import 'package:truthworld/features/admin/presentation/views/admin_dashboard_screen.dart';
 
 class AppPages {
   static final routes = [
@@ -302,6 +304,14 @@ class AppPages {
       binding: BindingsBuilder(() {
         Get.lazyPut<ChannelController>(() => ChannelController());
       }),
+    ),
+    GetPage(
+      name: "/admin/login",
+      page: () => const AdminLoginScreen(),
+    ),
+    GetPage(
+      name: "/admin/dashboard",
+      page: () => const AdminDashboardScreen(),
     ),
   ];
 }

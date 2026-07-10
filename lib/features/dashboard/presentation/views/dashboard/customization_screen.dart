@@ -152,9 +152,8 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
       bannerColor = const Color(0xFFEF4444); // Red
       icon = Icons.error_outline_rounded;
       title = 'Branding Verification Rejected by Gemini AI';
-      subtitle = reason.isNotEmpty
-          ? reason
-          : 'Your channel details were rejected. Please update your name, description, or tags to comply with our guidelines.';
+      subtitle = 'We created channel according to community guidelines, then channel selected for manual verification. ' +
+          (reason.isNotEmpty ? '\n\nGemini Response: $reason' : '');
     } else {
       return const SizedBox.shrink();
     }

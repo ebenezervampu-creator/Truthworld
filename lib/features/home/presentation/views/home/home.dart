@@ -1617,6 +1617,17 @@ class _ModernSideNavigationRail extends StatelessWidget {
                 HomeController.indexCommunityGuidelines,
                 route: '/community-guidelines',
               ),
+              _buildNavItem(
+                context,
+                Icons.admin_panel_settings_rounded,
+                Icons.admin_panel_settings_outlined,
+                'Admin Portal',
+                999,
+                route: '/admin/login',
+                onTap: () {
+                  Get.toNamed('/admin/login');
+                },
+              ),
             ],
           ),
         ),

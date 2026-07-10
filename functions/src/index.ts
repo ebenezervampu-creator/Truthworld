@@ -21,11 +21,13 @@ import * as admin from "firebase-admin";
 if (!admin.apps.length) {
   admin.initializeApp();
 }
+admin.firestore().settings({ ignoreUndefinedProperties: true });
 
 import { setGlobalOptions } from "firebase-functions/v2";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onRequest } from "firebase-functions/v2/https";
 import { onDocumentUpdated, onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { v4 as uuidv4 } from "uuid";
 import { requireAuth, requireAdmin } from "./utils/auth";
 import { strictLimiter } from "./utils/rate-limiter";
@@ -52,6 +54,7 @@ import { logger } from "./pipeline/utils/logger";
 // ─── Global options ──────────────────────────────────────────────────────────
 setGlobalOptions({
   region: "asia-south1",
+  invoker: "public",
 });
 
 /**
@@ -83,7 +86,7 @@ export const submitVideo = onRequest(
     cors: true,
     region: "asia-south1",
     minInstances: 0,
-    maxInstances: 10,
+    maxInstances: 2,
     concurrency: 100,
     timeoutSeconds: 30,
     memory: "256MiB",
@@ -129,7 +132,7 @@ export const getProgressiveStatus = onRequest(
     cors: true,
     region: "asia-south1",
     minInstances: 0,
-    maxInstances: 10,
+    maxInstances: 2,
     timeoutSeconds: 30,
     memory: "256MiB",
 
@@ -170,7 +173,7 @@ export const getFinalOutput = onRequest(
     cors: true,
     region: "asia-south1",
     minInstances: 0,
-    maxInstances: 10,
+    maxInstances: 2,
     timeoutSeconds: 30,
     memory: "256MiB",
 
@@ -210,7 +213,7 @@ export const onVideoUpload = onObjectFinalized(
   {
     bucket: "truthworld-1.firebasestorage.app",
     minInstances: 0,
-    maxInstances: 10,
+    maxInstances: 2,
     memory: "256MiB",
   },
   async (event) => {
@@ -239,36 +242,33 @@ export const onVideoUpload = onObjectFinalized(
  * CONFIG: minInstances=0, maxInstances=10, 512MiB, 60s timeout
  * (Note: Now returns immediately after submitting to AssemblyAI)
  */
-export const handleTranscription = onRequest(
+export const handleTranscription = onMessagePublished(
   {
-    cors: false,
+    topic: "video.uploaded",
     region: "asia-south1",
     timeoutSeconds: 120,
     memory: "256MiB",   // Reduced from 512MiB — only submits to AssemblyAI API (I/O bound)
     minInstances: 0,
-    maxInstances: 10,
+    maxInstances: 2,    // Reduced from 10 — cost cap
     secrets: ["ASSEMBLYAI_KEY"],
   },
-  async (req, res) => {
+  async (event) => {
     try {
-      if (!req.body) throw new Error("Missing request body");
-      const event = DistributionLayer.parseMessage(req.body.message || req.body);
-      logger.info("[handleTranscription] Start", { jobId: event.jobId, eventId: event.eventId });
+      const parsedEvent = DistributionLayer.parseMessage(event.data.message);
+      logger.info("[handleTranscription] Start", { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId });
 
-      const { videoUrl, executionPlan } = event.data as { videoUrl: string; executionPlan: ExecutionPlan };
+      const { videoUrl, executionPlan } = parsedEvent.data as { videoUrl: string; executionPlan: ExecutionPlan };
 
       await transcriptionLayer.submitTranscription(
-        event.jobId,
-        event.userId,
+        parsedEvent.jobId,
+        parsedEvent.userId,
         videoUrl,
         executionPlan,
-        event.eventId
+        parsedEvent.eventId
       );
-
-      res.status(200).send("OK");
     } catch (error) {
       logger.error("[handleTranscription] Processing failure", { error: String(error) });
-      res.status(500).json({ error: String(error) });
+      throw error;
     }
   }
 );
@@ -282,38 +282,35 @@ export const handleTranscription = onRequest(
  *
  * CONFIG: minInstances=0, maxInstances=5, 1GiB, 300s timeout
  */
-export const handleCredibility = onRequest(
+export const handleCredibility = onMessagePublished(
   {
-    cors: false,
+    topic: "factcheck.requested",
     region: "asia-south1",
     timeoutSeconds: 540, // v10.6: increased from 300s — Pro+grounding+retry+circuit breaker needs up to ~540s
     memory: "1GiB",
     minInstances: 0,
-    maxInstances: 5,
+    maxInstances: 2,
     secrets: ["GEMINI_API_KEY"],
   },
-  async (req, res) => {
+  async (event) => {
     try {
-      if (!req.body) throw new Error("Missing request body");
-      const event = DistributionLayer.parseMessage(req.body.message || req.body);
-      logger.info("[handleCredibility] Start", { jobId: event.jobId, eventId: event.eventId });
+      const parsedEvent = DistributionLayer.parseMessage(event.data.message);
+      logger.info("[handleCredibility] Start", { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId });
 
-      const { executionPlan } = event.data as { executionPlan: ExecutionPlan };
+      const { executionPlan } = parsedEvent.data as { executionPlan: ExecutionPlan };
       const geminiKey = PIPELINE_CONFIG.GEMINI_API_KEY;
       const engine = new CredibilityEngine(geminiKey);
 
       await engine.runCredibilityPipeline(
-        event.jobId,
-        event.userId,
+        parsedEvent.jobId,
+        parsedEvent.userId,
         executionPlan,
-        event.eventId,
-        event.traceId
+        parsedEvent.eventId,
+        parsedEvent.traceId
       );
-
-      res.status(200).send("OK");
     } catch (error) {
-      logger.error("[handleCredibility] Critical failure", { error: String(error), body: req.body });
-      res.status(500).json({ error: String(error) });
+      logger.error("[handleCredibility] Critical failure", { error: String(error) });
+      throw error;
     }
   }
 );
@@ -323,43 +320,40 @@ export const handleCredibility = onRequest(
  *
  * CONFIG: minInstances=0, maxInstances=5, 1GiB, 540s timeout
  */
-export const handleDubbing = onRequest(
+export const handleDubbing = onMessagePublished(
   {
-    cors: false,
+    topic: "dubbing.requested",
     region: "asia-south1",
     timeoutSeconds: 540,
     memory: "1GiB",
     minInstances: 0,
-    maxInstances: 5,
-    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY", "GOOGLE_TRANSLATION_API_KEEY"],
+    maxInstances: 2,
+    secrets: ["ELEVENLABS_API_KEY", "GOOGLE_TRANSLATION_API_KEY"],
   },
-  async (req, res) => {
+  async (event) => {
     try {
-      if (!req.body) throw new Error("Missing request body");
-      const event = DistributionLayer.parseMessage(req.body.message || req.body);
-      logger.info("[handleDubbing] Start", { jobId: event.jobId, eventId: event.eventId });
+      const parsedEvent = DistributionLayer.parseMessage(event.data.message);
+      logger.info("[handleDubbing] Start", { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId });
 
-      const { videoUrl, executionPlan } = event.data as { videoUrl?: string; executionPlan: ExecutionPlan };
+      const { videoUrl, executionPlan } = parsedEvent.data as { videoUrl?: string; executionPlan: ExecutionPlan };
 
       // Get videoUrl from job doc if not in event
       let url = videoUrl ?? "";
       if (!url) {
-        const job = await admin.firestore().collection("video_jobs").doc(event.jobId).get();
+        const job = await admin.firestore().collection("video_jobs").doc(parsedEvent.jobId).get();
         url = job.data()?.videoUrl ?? "";
       }
 
       await dubbingEngine.runDubbingPipeline(
-        event.jobId,
-        event.userId,
+        parsedEvent.jobId,
+        parsedEvent.userId,
         url,
         executionPlan,
-        event.eventId
+        parsedEvent.eventId
       );
-
-      res.status(200).send("OK");
     } catch (error) {
-      logger.error("[handleDubbing] Critical failure", { error: String(error), body: req.body });
-      res.status(500).json({ error: String(error) });
+      logger.error("[handleDubbing] Critical failure", { error: String(error) });
+      throw error;
     }
   }
 );
@@ -369,41 +363,37 @@ export const handleDubbing = onRequest(
  *
  * CONFIG: minInstances=0, maxInstances=5, 60s timeout
  */
-export const handleFactComplete = onRequest(
+export const handleFactComplete = onMessagePublished(
   {
-    cors: false,
+    topic: "factcheck.completed",
     region: "asia-south1",
     timeoutSeconds: 60,
     minInstances: 0,
-    maxInstances: 5,
+    maxInstances: 2,
     memory: "256MiB",
-
   },
-  async (req, res) => {
+  async (event) => {
     try {
-      if (!req.body) throw new Error("Missing request body");
-      const event = DistributionLayer.parseMessage(req.body.message || req.body);
-      logger.info("[handleFactComplete] Start", { jobId: event.jobId, eventId: event.eventId });
+      const parsedEvent = DistributionLayer.parseMessage(event.data.message);
+      logger.info("[handleFactComplete] Start", { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId });
 
       const jobDoc = await admin
         .firestore()
         .collection("video_jobs")
-        .doc(event.jobId)
+        .doc(parsedEvent.jobId)
         .get();
       const executionPlan = jobDoc.data()?.executionPlan as ExecutionPlan;
 
       await aggregationLayer.onFactComplete(
-        event.jobId,
-        event.userId,
-        event.data as unknown as FactCompleteData,
+        parsedEvent.jobId,
+        parsedEvent.userId,
+        parsedEvent.data as unknown as FactCompleteData,
         executionPlan,
-        event.eventId
+        parsedEvent.eventId
       );
-
-      res.status(200).send("OK");
     } catch (error) {
-      logger.error("[handleFactComplete] Critical failure", { error: String(error), body: req.body });
-      res.status(500).json({ error: String(error) });
+      logger.error("[handleFactComplete] Critical failure", { error: String(error) });
+      throw error;
     }
   }
 );
@@ -413,41 +403,37 @@ export const handleFactComplete = onRequest(
  *
  * CONFIG: minInstances=0, maxInstances=5, 60s timeout
  */
-export const handleDubbingComplete = onRequest(
+export const handleDubbingComplete = onMessagePublished(
   {
-    cors: false,
+    topic: "dubbing.completed",
     region: "asia-south1",
     timeoutSeconds: 60,
     minInstances: 0,
-    maxInstances: 5,
+    maxInstances: 2,
     memory: "256MiB",
-
   },
-  async (req, res) => {
+  async (event) => {
     try {
-      if (!req.body) throw new Error("Missing request body");
-      const event = DistributionLayer.parseMessage(req.body.message || req.body);
-      logger.info("[handleDubbingComplete] Start", { jobId: event.jobId, eventId: event.eventId });
+      const parsedEvent = DistributionLayer.parseMessage(event.data.message);
+      logger.info("[handleDubbingComplete] Start", { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId });
 
       const jobDoc = await admin
         .firestore()
         .collection("video_jobs")
-        .doc(event.jobId)
+        .doc(parsedEvent.jobId)
         .get();
       const executionPlan = jobDoc.data()?.executionPlan as ExecutionPlan;
 
       await aggregationLayer.onDubbingComplete(
-        event.jobId,
-        event.userId,
-        event.data as unknown as DubbingCompleteData,
+        parsedEvent.jobId,
+        parsedEvent.userId,
+        parsedEvent.data as unknown as DubbingCompleteData,
         executionPlan,
-        event.eventId
+        parsedEvent.eventId
       );
-
-      res.status(200).send("OK");
     } catch (error) {
-      logger.error("[handleDubbingComplete] Critical failure", { error: String(error), body: req.body });
-      res.status(500).json({ error: String(error) });
+      logger.error("[handleDubbingComplete] Critical failure", { error: String(error) });
+      throw error;
     }
   }
 );
@@ -504,7 +490,7 @@ export const handleFastVerification = onRequest(
     timeoutSeconds: 30,
     memory: "256MiB",   // Reduced from 512MiB — Gemini API call is I/O bound
     minInstances: 0,
-    maxInstances: 10,   // Reduced from 20 — cost cap
+    maxInstances: 2,   // Reduced from 20 — cost cap
     secrets: ["GEMINI_API_KEY"],
   },
   async (req, res) => {
@@ -555,7 +541,7 @@ export const getCreatorCostDashboard = onRequest(
     cors: true,
     region: "asia-south1",
     minInstances: 0,
-    maxInstances: 5,
+    maxInstances: 2,
     timeoutSeconds: 30,
     memory: "256MiB",
 
@@ -602,7 +588,7 @@ export const getSystemCostOverview = onRequest(
     cors: true,
     region: "asia-south1",
     minInstances: 0,
-    maxInstances: 2,
+    maxInstances: 1,
     timeoutSeconds: 60,
     memory: "256MiB",   // Reduced from 512MiB — simple Firestore aggregation
 
@@ -633,7 +619,7 @@ export const getJobCostBreakdown = onRequest(
     cors: true,
     region: "asia-south1",
     minInstances: 0,
-    maxInstances: 5,
+    maxInstances: 2,
     timeoutSeconds: 30,
     memory: "256MiB",
 
@@ -730,7 +716,7 @@ export const onVideoPublished = onDocumentUpdated(
     region: "asia-south1",
     retry: true,
     memory: "256MiB",  // Reduced from 512MiB — only does Firestore writes + Pub/Sub
-    maxInstances: 10,
+    maxInstances: 2,
   },
   async (event) => {
     const beforeData = event.data?.before.data();
@@ -1203,8 +1189,7 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
 // FEATURE 2.5: VIDEO CONTENT MODERATION — Community Guidelines Gate
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/*
-export { onVideoUploadedForModeration } from "./moderation/videoModeration";
+export { onVideoUploadedForModeration, moderateVideoManual } from "./moderation/videoModeration";
 
 export {
   ingestUploadedImage,
@@ -1213,13 +1198,15 @@ export {
   moderationWorkerLow,
   prefilterWorker,
   retryQueueProcessor,
-  retryQueueProcessorManual,
+  // retryQueueProcessorManual,
   deadLetterHandler,
-  getImageVerificationStatus,
-  cleanupVerificationRecord,
+  // getImageVerificationStatus,
+  // cleanupVerificationRecord,
   scheduledRetryProcessor,
+  moderateImageManual,
 } from "./verification/verification";
 
+/*
 export {
   trackWatchEvent,
   aggregateWatchStats,
@@ -1228,8 +1215,10 @@ export {
 } from "./watchtime/watchtime";
 
 export { createChannel, switchChannelType } from "./channels/channels";
+*/
 export { onChannelWritten } from "./channels/moderation";
 
+/*
 export { 
   updateChannelProfile, 
   getPublicChannelProfile, 
@@ -1263,9 +1252,9 @@ export {
   onCommunityPostCreated
 } from "./notifications/triggers";
 
-/*
 export { onFactCheckCompleted } from "./channels/reputation_triggers";
 
+/*
 export {
   getHomeFeed,
   getDiscoveryModules
@@ -1314,11 +1303,13 @@ export {
 export {
   getCachedImage
 } from "./services/image-proxy";
+*/
 
 export {
   scheduledPublishing,
 } from "./publishing/scheduledPublishing";
 
+/*
 export {
   manualTriggerPublishing,    // POST /api/admin/publish/trigger
   getScheduledVideos,          // GET /api/admin/publish/scheduled
@@ -1342,7 +1333,7 @@ export const syncJobToShard = onDocumentWritten(
     region: "asia-south1",
     retry: true,
     memory: "256MiB",
-    maxInstances: 10, // Reduced from 50 — was causing excessive parallel invocations
+    maxInstances: 2, // Reduced from 50 — was causing excessive parallel invocations
   },
   async (event: any) => {
     const jobId = event.params.jobId;
@@ -1391,7 +1382,36 @@ export const syncJobToShard = onDocumentWritten(
 );
 
 // ─── SEO Server Cloud Function ───────────────────────────────────────────────
-/*
 export { seoServer } from "./seo/seoServer";
-*/
+
+export { onAdCampaignWritten } from "./ads/ads";
+
+/**
+ * 🔐 Temporary Admin Claim tool
+ * Trigger this endpoint to make any email account an admin for the manual verification panel.
+ * Example: https://asia-south1-truthworld-1.cloudfunctions.net/makeMeAdmin?email=your-email@gmail.com
+ */
+export const makeMeAdmin = onRequest(
+  {
+    cors: true,
+    region: "asia-south1",
+    minInstances: 0,
+    maxInstances: 1,
+    memory: "256MiB",
+  },
+  async (req, res) => {
+    const email = req.query.email as string;
+    if (!email) {
+      res.status(400).send("Missing 'email' query parameter.");
+      return;
+    }
+    try {
+      const user = await admin.auth().getUserByEmail(email);
+      await admin.auth().setCustomUserClaims(user.uid, { admin: true });
+      res.status(200).send(`Successfully set admin claim for ${email}. Please sign out and sign back in to refresh your token!`);
+    } catch (error) {
+      res.status(500).send(`Error: ${error}`);
+    }
+  }
+);
 

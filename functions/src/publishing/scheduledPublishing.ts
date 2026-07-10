@@ -70,7 +70,7 @@ export const scheduledPublishing = onMessagePublished(
     topic: "scheduled-publishing",
     region: "asia-south1",
     minInstances: 0,
-    maxInstances: 5,
+    maxInstances: 2,
     concurrency: 10,
     timeoutSeconds: 540,
     memory: "512MiB",

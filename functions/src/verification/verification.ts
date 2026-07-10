@@ -42,6 +42,7 @@ import { ImageAnnotatorClient } from "@google-cloud/vision";
 import { PubSub }               from "@google-cloud/pubsub";
 import * as crypto              from "crypto";
 import sharp                  from "sharp";
+import { requireAdmin } from "../utils/auth";
 
 if (!admin.apps.length) {
   admin.initializeApp();
@@ -249,24 +250,24 @@ const RETRY_BACKOFF = {
 };
 
 const RETRY_PROCESSOR_CONFIG = {
-  region: REGION, timeoutSeconds: 120, memory: "512MiB" as const, maxInstances: 20,
+  region: REGION, timeoutSeconds: 120, memory: "512MiB" as const, maxInstances: 5,
 };
 
 const INGEST_CONFIG = {
   bucket: BUCKET,
-  region: REGION, timeoutSeconds: 60,  memory: "256MiB" as const, maxInstances: 50, retry: true,
+  region: REGION, timeoutSeconds: 60,  memory: "256MiB" as const, maxInstances: 5, retry: true,
 };
 const PREFILTER_CONFIG = {
-  region: REGION, timeoutSeconds: 120, memory: "512MiB" as const, maxInstances: 40,  retry: true,
+  region: REGION, timeoutSeconds: 120, memory: "512MiB" as const, maxInstances: 5,  retry: true,
 };
 const MODERATION_CONFIG_HIGH = {
-  region: REGION, timeoutSeconds: 540, memory: "512MiB" as const, maxInstances: 30,  retry: true,
+  region: REGION, timeoutSeconds: 540, memory: "512MiB" as const, maxInstances: 5,  retry: true,
 };
 const MODERATION_CONFIG_MEDIUM = {
-  region: REGION, timeoutSeconds: 540, memory: "512MiB" as const, maxInstances: 20,  retry: true,
+  region: REGION, timeoutSeconds: 540, memory: "512MiB" as const, maxInstances: 5,  retry: true,
 };
 const MODERATION_CONFIG_LOW = {
-  region: REGION, timeoutSeconds: 540, memory: "512MiB" as const, maxInstances: 10,   retry: true,
+  region: REGION, timeoutSeconds: 540, memory: "512MiB" as const, maxInstances: 5,   retry: true,
 };
 
 const SHARDING_CONFIG = {
@@ -383,6 +384,8 @@ function extractMetadata(
     category = "banner";
     userId = parts[2];
 
+  } else if (/^community_images\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath)) {
+    category = "community";
   } else if (/^community_images\/[^/]+\/[^/]+\/[^/]+\.(jpg|jpeg|png|webp|gif)$/i.test(filePath)) {
     category = "community";
     userId = parts[1];
@@ -1656,6 +1659,135 @@ export const cleanupVerificationRecord = onRequest(
     } catch (err) {
       logger.error("[HTTP] cleanupVerificationRecord:", err);
       res.status(500).json({ error: "Failed to delete record" });
+    }
+  }
+);
+
+/**
+ * 🛡️ HTTPS Endpoint — Manually moderate a flagged image (Approve or Reject).
+ * Only accessible by authenticated administrators.
+ */
+export const moderateImageManual = onRequest(
+  {
+    cors: true,
+    region: REGION,
+    timeoutSeconds: 60,
+    memory: "256MiB",
+    maxInstances: 2,
+  },
+  async (req, res) => {
+    try {
+      const authUser = await requireAdmin(req, res);
+      if (!authUser) return; // Response is already handled by requireAdmin
+
+      const { verificationId, action, reason } = req.body;
+
+      if (!verificationId || typeof verificationId !== "string") {
+        res.status(400).json({ error: "Missing or invalid verificationId." });
+        return;
+      }
+
+      if (action !== "approve" && action !== "reject") {
+        res.status(400).json({ error: "Action must be 'approve' or 'reject'." });
+        return;
+      }
+
+      console.log(`[Verification] Manual ${action} request for image:`, { verificationId, adminUid: authUser.uid });
+
+      const flaggedRef = db().collection(COL_FLAGGED).doc(verificationId);
+      const flaggedDoc = await flaggedRef.get();
+
+      if (!flaggedDoc.exists) {
+        res.status(404).json({ error: "Flagged image record not found." });
+        return;
+      }
+
+      const flaggedData = flaggedDoc.data() as any;
+      const { fileName, filePath, category, userId, gcsUri, score, detailedScores } = flaggedData;
+
+      const imgMetadata: ImageMetadata = {
+        category: category || "unknown",
+        userId: userId || undefined,
+        fileName: fileName || verificationId,
+        filePath: filePath || "",
+        uploadedAt: Date.now(),
+        bucket: BUCKET,
+        gcsUri: gcsUri || "",
+        fileSize: 0,
+      };
+
+      const now = Date.now();
+      const valResult: ValidationResult = {
+        status: action === "approve" ? "APPROVED" : "REJECTED",
+        reason: reason || `Manually ${action}d by administrator.`,
+        score: score || 0,
+        timestamp: now,
+        processedAt: now,
+        detailedScores: detailedScores || {},
+      };
+
+      const storageBucket = admin.storage().bucket(BUCKET);
+
+      if (action === "approve") {
+        // 1. Update verification status doc
+        await updateVerificationDoc(fileName, imgMetadata, valResult);
+
+        // 2. Mark flagged queue doc as APPROVED
+        await flaggedRef.update({
+          status: "APPROVED",
+          reviewedBy: authUser.uid,
+          reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+          reviewReason: reason || "Approved manually.",
+        });
+
+        // 3. Update User Trust
+        if (userId) {
+          await updateUserTrust(userId, "APPROVED");
+        }
+
+        // 4. Set approved MD5 hash
+        const hashes = await getGCSMetadataHash(storageBucket, filePath);
+        if (hashes.md5) {
+          const hashDocId = hashToDocId(hashes.md5);
+          await setHashDoc(hashDocId, hashes.md5, "APPROVED", imgMetadata);
+        }
+
+        res.status(200).json({ success: true, message: "Image manually approved." });
+      } else {
+        // action === "reject"
+        // 1. Update verification status doc
+        await updateVerificationDoc(fileName, imgMetadata, valResult);
+
+        // 2. Mark flagged queue doc as REJECTED
+        await flaggedRef.update({
+          status: "REJECTED",
+          reviewedBy: authUser.uid,
+          reviewedAt: admin.firestore.FieldValue.serverTimestamp(),
+          reviewReason: reason || "Rejected manually.",
+        });
+
+        // 3. Update User Trust
+        if (userId) {
+          await updateUserTrust(userId, "REJECTED");
+        }
+
+        // 4. Set rejected MD5 hash
+        const hashes = await getGCSMetadataHash(storageBucket, filePath);
+        if (hashes.md5) {
+          const hashDocId = hashToDocId(hashes.md5);
+          await setHashDoc(hashDocId, hashes.md5, "REJECTED", imgMetadata);
+        }
+
+        // 5. Quarantine GCS file and remove original
+        if (filePath && await fileExists(storageBucket, filePath)) {
+          await quarantineFile(storageBucket, imgMetadata, valResult);
+        }
+
+        res.status(200).json({ success: true, message: "Image manually rejected and quarantined." });
+      }
+    } catch (err) {
+      console.error("[Verification] Manual moderation failed:", err);
+      res.status(500).json({ error: "Internal server error.", details: String(err) });
     }
   }
 );

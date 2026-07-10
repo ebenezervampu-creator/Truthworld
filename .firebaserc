@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "truthworld-1"
-  }
+  },
+  "targets": {
+    "truthworld-1": {
+      "hosting": {
+        "web-app": [
+          "truthworld-1"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

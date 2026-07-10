@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/utils/timestamp_utils.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/services/comment_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
@@ -205,7 +206,7 @@ class DashboardCommentsController extends BaseController {
             viewCount: videoData['viewCount'] ?? 0,
             commentCount: commentCount,
             createdAt:
-                (videoData['uploadedAt'] as Timestamp?)?.toDate() ??
+                TimestampUtils.parseToDateTime(videoData['uploadedAt']) ??
                 DateTime.now(),
           ),
         );

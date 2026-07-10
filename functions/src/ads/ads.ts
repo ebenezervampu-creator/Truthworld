@@ -14,6 +14,7 @@ export const onAdCampaignWritten = onDocumentWritten(
     document: "ad_campaigns/{campaignId}",
     region: "asia-south1",
     retry: false, // We handle retries internally with backoff
+    maxInstances: 2,
     secrets: ["GEMINI_API_KEY"],
   },
   async (event) => {

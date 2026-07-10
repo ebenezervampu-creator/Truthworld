@@ -864,6 +864,339 @@ class VideoScreen extends GetView<VideoController> {
     );
   }
 
+  void _showReportBottomSheet(BuildContext context) {
+    if (!AuthService.to.isAuthenticated.value) {
+      _showSignInPrompt();
+      return;
+    }
+
+    final reasons = [
+      {
+        'label': 'Sexual content',
+        'description': 'Nudity, sexually explicit content, or pornography',
+      },
+      {
+        'label': 'Violent or repulsive content',
+        'description': 'Fight clips, self-harm, gore, or animal abuse',
+      },
+      {
+        'label': 'Hateful or abusive content',
+        'description': 'Promoting violence or hatred against protected groups',
+      },
+      {
+        'label': 'Harassment or bullying',
+        'description': 'Cyberbullying or personal abuse',
+      },
+      {
+        'label': 'Harmful or dangerous acts',
+        'description': 'Dangerous challenges, stunts, or drug promotion',
+      },
+      {
+        'label': 'Child abuse',
+        'description': 'Endangerment, exploitation, or sexualization of minors',
+      },
+      {
+        'label': 'Promotes terrorism',
+        'description': 'Incitement to violence or terrorist recruitment',
+      },
+      {
+        'label': 'Spam or misleading',
+        'description': 'Scams, clickbait, or deceptive metadata',
+      },
+      {
+        'label': 'Infringement of my rights',
+        'description': 'Copyright violation or privacy invasion',
+      },
+    ];
+
+    String? selectedReason;
+    int currentStep = 1; // Step 1: select reason, Step 2: comment & timestamp
+    final commentController = TextEditingController();
+    
+    // Get current playback time to suggest as timestamp
+    final currentSeconds = controller.videoPlayerController?.value.position.inSeconds ?? 0;
+    final minutes = currentSeconds ~/ 60;
+    final seconds = currentSeconds % 60;
+    final defaultTimestamp = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    bool includeTimestamp = false;
+
+    Get.bottomSheet(
+      StatefulBuilder(
+        builder: (context, setState) {
+          return Container(
+            padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+            decoration: const BoxDecoration(
+              color: AppColors.bgSurface,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: textSecondary.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                
+                // Header
+                Row(
+                  children: [
+                    if (currentStep == 2)
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
+                        onPressed: () {
+                          setState(() {
+                            currentStep = 1;
+                          });
+                        },
+                      ),
+                    Icon(Icons.flag_rounded, color: primary, size: 28),
+                    const SizedBox(width: 12),
+                    Text(
+                      currentStep == 1 ? 'Report video' : 'Provide details',
+                      style: GoogleFonts.roboto(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                if (currentStep == 1) ...[
+                  // Info note
+                  Text(
+                    'Flagged videos are reviewed by staff 24/7 to determine whether they violate Community Guidelines. Severe violations may result in immediate video removal or account termination.',
+                    style: GoogleFonts.roboto(
+                      color: textSecondary,
+                      fontSize: 12,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Reasons List
+                  Flexible(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 350),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: reasons.length,
+                        itemBuilder: (context, index) {
+                          final r = reasons[index];
+                          final label = r['label']!;
+                          final desc = r['description']!;
+                          final isSelected = selectedReason == label;
+
+                          return InkWell(
+                            onTap: () {
+                              setState(() {
+                                selectedReason = label;
+                              });
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Radio<String>(
+                                    value: label,
+                                    groupValue: selectedReason,
+                                    activeColor: primary,
+                                    onChanged: (val) {
+                                      setState(() {
+                                        selectedReason = val;
+                                      });
+                                    },
+                                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          label,
+                                          style: GoogleFonts.roboto(
+                                            fontSize: 14,
+                                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                            color: textPrimary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          desc,
+                                          style: GoogleFonts.roboto(
+                                            fontSize: 11,
+                                            color: textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Next / Cancel
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Get.back(),
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.roboto(color: textSecondary),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      ElevatedButton(
+                        onPressed: selectedReason == null
+                            ? null
+                            : () {
+                                setState(() {
+                                  currentStep = 2;
+                                });
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primary,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: primary.withValues(alpha: 0.3),
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                        child: Text(
+                          'Next',
+                          style: GoogleFonts.roboto(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ] else ...[
+                  // Step 2: Timestamp & comments
+                  Text(
+                    'Selected Reason: $selectedReason',
+                    style: GoogleFonts.roboto(
+                      color: textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Timestamp checkbox
+                  CheckboxListTile(
+                    value: includeTimestamp,
+                    activeColor: primary,
+                    title: Text(
+                      'Include timestamp at $defaultTimestamp',
+                      style: GoogleFonts.roboto(color: textPrimary, fontSize: 13),
+                    ),
+                    subtitle: Text(
+                      'Helps reviewers locate the issue quickly',
+                      style: GoogleFonts.roboto(color: textSecondary, fontSize: 11),
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (val) {
+                      setState(() {
+                        includeTimestamp = val ?? false;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  TextField(
+                    controller: commentController,
+                    maxLines: 4,
+                    maxLength: 500,
+                    style: TextStyle(color: textPrimary, fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Provide additional details (e.g. description, background info)...',
+                      hintStyle: TextStyle(color: textSecondary, fontSize: 13),
+                      filled: true,
+                      fillColor: AppColors.bgInput,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      counterStyle: TextStyle(color: textSecondary, fontSize: 11),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Submit / Back
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            currentStep = 1;
+                          });
+                        },
+                        child: Text(
+                          'Back',
+                          style: GoogleFonts.roboto(color: textSecondary),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      ElevatedButton(
+                        onPressed: () {
+                          Get.back();
+                          
+                          // Build detailed comment including timestamp
+                          final timestampPrefix = includeTimestamp ? '[Timestamp: $defaultTimestamp] ' : '';
+                          final finalComment = '$timestampPrefix${commentController.text.trim()}';
+
+                          _mainController.reportVideo(
+                            context: context,
+                            videoId: controller.video.id,
+                            channelId: controller.video.channelId,
+                            reason: selectedReason!,
+                            comment: finalComment,
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                        child: Text(
+                          'Submit',
+                          style: GoogleFonts.roboto(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
+      ),
+      isScrollControlled: true,
+    );
+  }
+
   void _showClipDialog(BuildContext context) {
     if (!AuthService.to.isAuthenticated.value) {
       _showSignInPrompt();
@@ -1671,18 +2004,7 @@ class VideoScreen extends GetView<VideoController> {
               _showPlayerSettings(context);
               break;
             case 'report':
-              // Logic for report (usually requires sign in)
-              if (FirebaseAuth.instance.currentUser == null) {
-                _showSignInPrompt();
-              } else {
-                _mainController.reportVideo(
-                  context: context,
-                  videoId: controller.video.id,
-                  channelId: controller.video.channelId,
-                  reason: 'User reported',
-                  comment: '',
-                );
-              }
+              _showReportBottomSheet(context);
               break;
           }
         },

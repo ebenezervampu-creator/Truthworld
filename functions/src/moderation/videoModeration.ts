@@ -20,6 +20,8 @@
 
 import * as admin from "firebase-admin";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
+import { onRequest } from "firebase-functions/v2/https";
+import { requireAdmin } from "../utils/auth";
 import { videoModerationService } from "../pipeline/services/videoModerationService";
 
 const db = admin.firestore();
@@ -37,9 +39,9 @@ export const onVideoUploadedForModeration = onObjectFinalized(
     bucket: BUCKET_NAME,
     region: REGION,
     memory: "512MiB",      // No FFmpeg needed → less memory
-    timeoutSeconds: 60,     // Gemini direct is faster
+    timeoutSeconds: 180,    // 3min — sized for videos up to 15min (Gemini internal timeout: 120s + retries)
     minInstances: 0,        // Scale-to-zero to optimize costs
-    maxInstances: 10,
+    maxInstances: 2,
   },
   async (event) => {
     const filePath = event.data.name;
@@ -186,6 +188,134 @@ export const onVideoUploadedForModeration = onObjectFinalized(
       }).catch((updateErr) => {
         console.error("[VideoModeration] Failed to write error state:", updateErr);
       });
+    }
+  }
+);
+
+/**
+ * 🛡️ HTTPS Endpoint — Manually moderate a video (Approve or Reject).
+ * Only accessible by authenticated administrators.
+ */
+export const moderateVideoManual = onRequest(
+  {
+    cors: true,
+    region: REGION,
+    timeoutSeconds: 60,
+    memory: "256MiB",
+    maxInstances: 2,
+  },
+  async (req, res) => {
+    try {
+      const authUser = await requireAdmin(req, res);
+      if (!authUser) return; // Response is already handled by requireAdmin
+
+      const { videoId, action, reason } = req.body;
+
+      if (!videoId || typeof videoId !== "string") {
+        res.status(400).json({ error: "Missing or invalid videoId." });
+        return;
+      }
+
+      if (action !== "approve" && action !== "reject") {
+        res.status(400).json({ error: "Action must be 'approve' or 'reject'." });
+        return;
+      }
+
+      console.log(`[VideoModeration] Manual ${action} request for video:`, { videoId, adminUid: authUser.uid });
+
+      const videoRef = db.collection("videos").doc(videoId);
+      const videoDoc = await videoRef.get();
+
+      if (!videoDoc.exists) {
+        res.status(404).json({ error: "Video not found." });
+        return;
+      }
+
+      const now = Date.now();
+
+      if (action === "approve") {
+        // Update Video doc
+        await videoRef.update({
+          "moderation.status": "approved",
+          "moderation.reason": reason || "Manually approved by administrator.",
+          "moderation.manuallyVerified": true,
+          "moderation.verifiedBy": authUser.uid,
+          "moderation.checkedAt": now,
+          status: "published", // Resume or set status to published
+        });
+
+        // Update Job doc
+        const jobsSnap = await db.collection("video_jobs")
+          .where("videoId", "==", videoId)
+          .limit(1)
+          .get();
+
+        if (!jobsSnap.empty) {
+          const jobDoc = jobsSnap.docs[0];
+          await jobDoc.ref.update({
+            "stages.moderation": {
+              status: "completed",
+              progress: 100,
+              completedAt: now,
+              summary: "Manually approved by administrator.",
+            },
+            updatedAt: now,
+          });
+        }
+
+        res.status(200).json({ success: true, message: `Video approved manually.` });
+      } else {
+        // action === "reject"
+        // Update Video doc
+        await videoRef.update({
+          "moderation.status": "rejected",
+          "moderation.reason": reason || "Manually rejected by administrator.",
+          "moderation.manuallyVerified": true,
+          "moderation.verifiedBy": authUser.uid,
+          "moderation.checkedAt": now,
+          status: "rejected",
+          rejectionReason: reason || "Content violates Community Guidelines",
+        });
+
+        // Cancel running pipeline jobs
+        const jobsSnap = await db.collection("video_jobs")
+          .where("videoId", "==", videoId)
+          .where("status", "in", ["accepted", "processing", "running"])
+          .limit(1)
+          .get();
+
+        if (!jobsSnap.empty) {
+          const jobDoc = jobsSnap.docs[0];
+          await jobDoc.ref.update({
+            status: "rejected",
+            "stages.moderation": {
+              status: "failed",
+              reason: reason || "Manually rejected by administrator.",
+              failedAt: now,
+            },
+            updatedAt: now,
+          });
+        }
+
+        // Quarantine original file and resolution files in Storage
+        const bucket = admin.storage().bucket(BUCKET_NAME);
+        try {
+          const [files] = await bucket.getFiles({ prefix: `videos/${videoId}/` });
+          for (const file of files) {
+            const destPath = file.name.replace(`videos/${videoId}/`, `_quarantine/videos/${videoId}/`);
+            await file.copy(bucket.file(destPath));
+            await file.delete();
+            console.log(`[VideoModeration] Quarantined file: ${file.name} -> ${destPath}`);
+          }
+        } catch (storageErr) {
+          console.error(`[VideoModeration] Storage quarantine failed:`, storageErr);
+        }
+
+        res.status(200).json({ success: true, message: `Video rejected manually and files quarantined.` });
+      }
+    } catch (err) {
+      console.error("[VideoModeration] Manual moderation failed:", err);
+      res.status(500).json({ error: "Internal server error.", details: String(err) });
     }
   }
 );

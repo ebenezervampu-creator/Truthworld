@@ -203,10 +203,10 @@ export const createChannel = onCall(
             updatedAt: now
           });
         } else {
-          tx.update(userRef, { 
+          tx.set(userRef, { 
             channelsCount: admin.firestore.FieldValue.increment(1),
             updatedAt: now
-          });
+          }, { merge: true });
         }
 
         return { channelId, handle: channelDoc.handle };

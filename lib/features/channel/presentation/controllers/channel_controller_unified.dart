@@ -1158,9 +1158,9 @@ class ChannelController extends GetxController
         final channelRef = _firestore.collection(_channelsCol).doc();
         transaction.set(channelRef, channelData);
 
-        // Update user document with channelId
+        // Update user document with channelId (use set+merge in case user doc doesn't exist yet)
         final userRef = _firestore.collection('users').doc(uid);
-        transaction.update(userRef, {'channelId': channelRef.id});
+        transaction.set(userRef, {'channelId': channelRef.id}, SetOptions(merge: true));
 
         // Delete draft if exists
         if (draftId.value != null) {

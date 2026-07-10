@@ -203,6 +203,19 @@ void _notifyAppError(String message) {
 class Truthworld extends StatelessWidget {
   const Truthworld({super.key});
 
+  String _getInitialRoute() {
+    if (kIsWeb) {
+      final host = Uri.base.host;
+      final uriStr = Uri.base.toString().toLowerCase();
+      if (host.startsWith('admin') ||
+          uriStr.contains('admin') ||
+          Uri.base.queryParameters.containsKey('admin')) {
+        return '/admin/login';
+      }
+    }
+    return '/';
+  }
+
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
@@ -213,7 +226,7 @@ class Truthworld extends StatelessWidget {
       themeMode: ThemeMode.dark,
       defaultTransition: kIsWeb ? Transition.noTransition : Transition.native,
       transitionDuration: kIsWeb ? Duration.zero : const Duration(milliseconds: 250),
-      initialRoute: AppPages.routes.first.name,
+      initialRoute: _getInitialRoute(),
       initialBinding: InitialBinding(),
       getPages: AppPages.routes,
       builder: (context, child) {

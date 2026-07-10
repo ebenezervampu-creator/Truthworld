@@ -11,6 +11,11 @@ service cloud.firestore {
     function isOwner(ownerId) {
       return isAuthenticated() && request.auth.uid == ownerId;
     }
+
+    // Helper function to check if user is an admin
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.admin == true;
+    }
     
     // Channel Drafts Collection
     match /channel_drafts/{draftId} {
@@ -42,13 +47,13 @@ service cloud.firestore {
       allow create: if isAuthenticated() && 
                        request.resource.data.ownerId == request.auth.uid;
       
-      // Allow owners to update their channels
+      // Allow owners or admins to update their channels
       allow update: if isAuthenticated() && 
-                       resource.data.ownerId == request.auth.uid;
+                       (resource.data.ownerId == request.auth.uid || isAdmin());
       
-      // Allow owners to delete their channels
+      // Allow owners or admins to delete their channels
       allow delete: if isAuthenticated() && 
-                       resource.data.ownerId == request.auth.uid;
+                       (resource.data.ownerId == request.auth.uid || isAdmin());
 
       // Subscribers subcollection
       match /subscribers/{subscriberId} {
@@ -592,6 +597,29 @@ service cloud.firestore {
     // AI Health state (Circuit Breaker)
     match /_ai_health/{document=**} {
       allow read, write: if false; // Only Cloud Functions service accounts can access
+    }
+
+    // Reports Collection
+    match /reports/{reportId} {
+      allow read, update, delete: if isAdmin();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Admin Collections
+    match /flagged_images_review/{docId} {
+      allow read, write: if isAdmin();
+    }
+    match /rejected_images_log/{docId} {
+      allow read: if isAdmin();
+      allow write: if false; // System only
+    }
+    match /video_jobs/{jobId} {
+      allow read: if isAdmin();
+      allow write: if false; // System only
+    }
+    match /pipeline_errors/{errorId} {
+      allow read: if isAdmin();
+      allow write: if false; // System only
     }
 
     // Default: Deny all other access

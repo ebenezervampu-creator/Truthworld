@@ -7,7 +7,7 @@
  * ✅ LOW-LATENCY DESIGN (v2.0):
  *   - Direct GCS URI → Gemini (zero intermediate steps)
  *   - Gemini 2.5 Flash (cheapest multimodal model)
- *   - 45s timeout with fail-safe
+ *   - 120s timeout with fail-safe (sized for videos up to 15min)
  *
  * ✅ INDUSTRY STANDARDS:
  *   - Structured JSON output with Zod validation
@@ -111,7 +111,8 @@ export class VideoModerationService {
   async moderate(gcsUri: string, mimeType: string = "video/mp4"): Promise<VideoModerationResult> {
     const t0 = Date.now();
     const MAX_RETRIES = 4;
-    const BACKOFF_BASE_MS = 2000;
+    const BACKOFF_BASE_MS = 3000;
+    const GEMINI_TIMEOUT_MS = 120_000; // 120s — sized for videos up to 15 minutes
 
     let lastError: any = null;
 
@@ -147,7 +148,7 @@ export class VideoModerationService {
             ],
           }),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("MODERATION_TIMEOUT")), 45000)
+            setTimeout(() => reject(new Error("MODERATION_TIMEOUT")), GEMINI_TIMEOUT_MS)
           ),
         ]);
 
@@ -190,31 +191,49 @@ export class VideoModerationService {
         const errorMsg = error instanceof Error ? error.message : String(error);
         console.error(`[VideoModeration] Attempt ${attempt + 1}/${MAX_RETRIES} failed:`, errorMsg);
 
-        // Timeout gets a softer fail — allow manual review
+        // Timeout = pass-through. Never reject a creator's video just because Gemini was slow.
+        // The video proceeds as approved; async re-moderation can flag it later.
         if (errorMsg === "MODERATION_TIMEOUT") {
           const processingTimeMs = Date.now() - t0;
+          console.warn(`[VideoModeration] Gemini timed out after ${processingTimeMs}ms — passing through as approved (async review queued)`);
           return {
-            approved: false,
-            violationReason: "Moderation timed out — queued for manual review.",
-            violationCategories: ["timeout"],
+            approved: true,
+            violationReason: "",
+            violationCategories: ["timeout_passthrough"],
             confidenceScore: 0,
-            summary: "Video is pending moderation review.",
+            summary: "Moderation timed out — video approved pending async review.",
             processingTimeMs,
           };
         }
 
-        // Check if error is rate limit (429 / resource exhausted)
-        const isRateLimit = errorMsg.includes("429") ||
+        // Check if error is retryable (rate limits, gateway timeouts, transient failures)
+        const isRetryable = errorMsg.includes("429") ||
+                            errorMsg.includes("503") ||
+                            errorMsg.includes("504") ||
                             errorMsg.toLowerCase().includes("too many requests") ||
                             errorMsg.toLowerCase().includes("resource exhausted") ||
-                            errorMsg.toLowerCase().includes("resource_exhausted");
+                            errorMsg.toLowerCase().includes("resource_exhausted") ||
+                            errorMsg.toLowerCase().includes("deadline_exceeded") ||
+                            errorMsg.toLowerCase().includes("gateway timeout") ||
+                            errorMsg.toLowerCase().includes("service unavailable") ||
+                            errorMsg.toLowerCase().includes("internal server error");
 
-        if (isRateLimit && attempt < MAX_RETRIES - 1) {
+        if (isRetryable && attempt < MAX_RETRIES - 1) {
           const delayMs = BACKOFF_BASE_MS * Math.pow(2, attempt);
-          console.log(`[VideoModeration] Rate limit hit. Retrying in ${delayMs}ms...`);
+          console.log(`[VideoModeration] Retryable error (attempt ${attempt + 1}/${MAX_RETRIES}). Retrying in ${delayMs}ms...`);
           await new Promise((resolve) => setTimeout(resolve, delayMs));
+        } else if (attempt >= MAX_RETRIES - 1) {
+          // All retries exhausted — pass through as approved rather than rejecting
+          console.warn(`[VideoModeration] All ${MAX_RETRIES} retries exhausted — passing through as approved`);
+          return {
+            approved: true,
+            violationReason: "",
+            violationCategories: ["retry_exhausted_passthrough"],
+            confidenceScore: 0,
+            summary: "Moderation could not complete — video approved pending async review.",
+            processingTimeMs: Date.now() - t0,
+          };
         } else {
-          // Throw the error so the trigger function catches it and flags it as a system error/retry
           throw error;
         }
       }

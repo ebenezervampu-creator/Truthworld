@@ -1958,9 +1958,10 @@ class _DashboardScreenState extends State<DashboardScreen>
       bannerColor = const Color(0xFFEF4444); // Red
       icon = Icons.error_outline_rounded;
       title = 'Branding Verification Rejected by Gemini AI';
-      subtitle = channel.moderationReason != null && channel.moderationReason!.isNotEmpty
-          ? channel.moderationReason!
-          : 'Your channel details were rejected. Please update your name, description, or tags in customization to re-verify.';
+      subtitle = 'We created channel according to community guidelines, then channel selected for manual verification. ' +
+          (channel.moderationReason != null && channel.moderationReason!.isNotEmpty
+              ? '\n\nGemini Response: ${channel.moderationReason}'
+              : '');
       showButton = true;
     } else {
       return const SizedBox.shrink();

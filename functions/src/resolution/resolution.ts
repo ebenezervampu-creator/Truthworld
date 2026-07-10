@@ -20,6 +20,7 @@
 import * as admin from "firebase-admin";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onRequest } from "firebase-functions/v2/https";
+import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { v4 as uuidv4 } from "uuid";
 import { MessagingService } from "../shared/messaging";
 import { checkAndMarkEventId, markEventCompleted } from "../shared/idempotency";
@@ -83,7 +84,7 @@ export const onVideoUploadedForResolution = onObjectFinalized(
     memory: "256MiB",       // Reduced from 512MiB — only reads GCS metadata + writes Firestore
     timeoutSeconds: 120,    // Reduced from 300s — typical execution is <10s
     minInstances: 0,
-    maxInstances: 10,
+    maxInstances: 2,
   },
   async (event) => {
     const filePath = event.data.name;
@@ -265,7 +266,7 @@ export const getVideoResolutionStatus = onRequest(
     memory: "256MiB",
     timeoutSeconds: 30,
     minInstances: 0,
-    maxInstances: 5,
+    maxInstances: 2,
     cors: true,
   },
   async (req, res) => {
@@ -332,7 +333,7 @@ export const getResolutionProfiles = onRequest(
     memory: "256MiB",
     timeoutSeconds: 10,
     minInstances: 0,
-    maxInstances: 5,
+    maxInstances: 2,
     cors: true,
   },
   async (_req, res) => {
@@ -365,22 +366,22 @@ export const getResolutionProfiles = onRequest(
  *
  * ✅ CONFIG: minInstances=1, maxInstances=5, 2GiB memory, 540s timeout
  */
-export const handleResolution = onRequest(
+export const handleResolution = onMessagePublished(
   {
+    topic: "resolution.requested",
     region: REGION,
     memory: "2GiB",
     timeoutSeconds: 540,
     minInstances: 0,        // Scale-to-zero to optimize costs
-    maxInstances: 5,
-    cors: false,
+    maxInstances: 2,
   },
-  async (req, res) => {
+  async (event) => {
     const t0 = Date.now();
     let videoId = "unknown";
 
     try {
       // 1. Parse Pub/Sub message autonomously
-      const event = MessagingService.parseMessage<{
+      const parsedEvent = MessagingService.parseMessage<{
         jobId: string;
         eventId: string;
         data: {
@@ -390,20 +391,19 @@ export const handleResolution = onRequest(
           sourceHeight: number;
           variants: ResolutionProfile[];
         };
-      }>(req.body);
+      }>(event.data.message);
 
-      videoId = event.jobId;
-      const { sourcePath, sourceBucket, variants } = event.data;
+      videoId = parsedEvent.jobId;
+      const { sourcePath, sourceBucket, variants } = parsedEvent.data;
 
       // 2. IDEMPOTENCY — Shared Bulletproof logic
-      const status = await checkAndMarkEventId(event.eventId, videoId);
+      const status = await checkAndMarkEventId(parsedEvent.eventId, videoId);
       if (status === "COMPLETED" || status === "PROCESSING") {
-        console.log(`[Resolution Worker] Duplicate event detected, skipping: ${event.eventId}`, { videoId });
-        res.status(200).send("Duplicate event skipped");
+        console.log(`[Resolution Worker] Duplicate event detected, skipping: ${parsedEvent.eventId}`, { videoId });
         return;
       }
 
-      console.log(`[Resolution Worker] Starting job: ${videoId}`, { variants: variants.length, eventId: event.eventId });
+      console.log(`[Resolution Worker] Starting job: ${videoId}`, { variants: variants.length, eventId: parsedEvent.eventId });
 
       // 3. Update overall status to processing (atomic)
       await db.collection("resolution_jobs").doc(videoId).update({
@@ -526,7 +526,6 @@ export const handleResolution = onRequest(
       });
 
       // 🔥 UI EXPOSURE: Standard practice to sync results to the main 'videos' collection
-      // This allows the Flutter app to find playable URLs without searching another collection.
       try {
         const jobSnapshot = await resolutionRef.get();
         const jobData = jobSnapshot.data();
@@ -565,9 +564,7 @@ export const handleResolution = onRequest(
       console.log(`[Resolution Worker] Finished job: ${videoId}`, { status: finalStatus, duration: Date.now() - t0 });
 
       // Permanently mark event as completed in idempotency ledger
-      await markEventCompleted(event.eventId);
-
-      res.status(200).send("OK");
+      await markEventCompleted(parsedEvent.eventId);
 
     } catch (error) {
       console.error(`[Resolution Worker] Critical failure`, { videoId, error });
@@ -580,7 +577,7 @@ export const handleResolution = onRequest(
         }).catch(() => { });
       }
 
-      res.status(500).json({ error: String(error) });
+      throw error;
     }
   }
 );

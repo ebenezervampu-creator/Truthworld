@@ -14,6 +14,7 @@ export const onChannelWritten = onDocumentWritten(
     document: "channels/{channelId}",
     region: "asia-south1",
     retry: false,
+    maxInstances: 2,
     secrets: ["GEMINI_API_KEY"],
   },
   async (event) => {

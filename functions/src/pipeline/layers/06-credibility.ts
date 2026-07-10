@@ -1022,7 +1022,7 @@ export class CredibilityEngine {
       trustScore: finalTrustScore,
       videoRating: isNaN(finalVideoRating) ? 0 : finalVideoRating,
       trustLabel: result.trustLabel || "Low Reliability",
-      claimSummary: result.claims?.map(c => ({ claim: c.claim, status: c.status, severity: c.severity })) || [],
+      claimSummary: result.claims?.map(c => ({ claim: c.claim, status: c.status, severity: c.severity || "low" })) || [],
       fullResultPath: resultPath,
       factCheckUrl: factCheckUrl,
       isAppealed: false,

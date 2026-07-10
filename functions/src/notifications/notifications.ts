@@ -104,7 +104,7 @@ async function _sendPushNotification(
  * Retrieves latest notifications for the logged-in user.
  */
 export const getNotifications = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
+  { region: "asia-south1", memory: "256MiB", maxInstances: 2 },
   async (request) => {
     const userId = request.auth?.uid;
     if (!userId) throw new HttpsError("unauthenticated", "Auth required.");
@@ -131,7 +131,7 @@ export const getNotifications = onCall(
  * ✅ MARK NOTIFICATION AS READ (Callable)
  */
 export const markNotificationRead = onCall(
-  { region: "asia-south1", memory: "256MiB", maxInstances: 15 },
+  { region: "asia-south1", memory: "256MiB", maxInstances: 2 },
   async (request) => {
     const userId = request.auth?.uid;
     const { notificationId } = request.data;

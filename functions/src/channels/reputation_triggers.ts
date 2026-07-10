@@ -8,7 +8,13 @@ const db = admin.firestore();
  * 📊 TRIGGER: ON FACT CHECK COMPLETED
  * Updates the channel's rolling reputation and manages Recovery Mode streaks.
  */
-export const onFactCheckCompleted = onDocumentCreated("factChecks/{jobId}", async (event) => {
+export const onFactCheckCompleted = onDocumentCreated(
+  {
+    document: "factChecks/{jobId}",
+    region: "asia-south1",
+    maxInstances: 2,
+  },
+  async (event) => {
   const data = event.data?.data();
   if (!data || data.status === "failed") return;
 
