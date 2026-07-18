@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
@@ -21,7 +20,7 @@ class LiveSubscribersScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: BackSymbol(color: isDarkMode ? Colors.white : Colors.black,
+          icon: Icon(Icons.arrow_back, color: isDarkMode ? Colors.white : Colors.black,
           ),
           onPressed: () => Get.back(),
         ),

@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
@@ -14,7 +15,6 @@ import 'package:truthworld/features/home/presentation/controllers/home_controlle
 // import 'package:truthworld/features/home/presentation/views/home/search/search.dart';
 import 'package:truthworld/features/notifications/presentation/views/notifications/notification.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -22,8 +22,11 @@ import 'package:universal_html/html.dart' as html;
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
+import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 
 // Feature Pages for Dashboard (Deferred for YouTube-speed startup)
 import 'package:truthworld/features/subscriptions/presentation/views/subscriptions/subscriptions.dart'
@@ -392,6 +395,45 @@ const double kDesktopBreakpoint = 1000.0;
 const double kSideNavWidth = 280.0;
 const double kCompactSideNavWidth = 80.0;
 const double kBottomNavBarHeight = kToolbarHeight;
+
+class HomeSidebarVisibility {
+  const HomeSidebarVisibility._();
+
+  static List<String> getVisibleEntries({required bool isAuthenticated}) {
+    final publicEntries = <String>[
+      'Home',
+      'Discover Channel',
+      'Explore Topics',
+      'Settings',
+      'Help Center',
+      'Feedback',
+      'About Truthworld',
+      'Privacy Policy',
+      'Terms & Conditions',
+      'Community Guidelines',
+      'Truthworld Studio',
+      'Admin Portal',
+    ];
+
+    if (!isAuthenticated) {
+      return publicEntries;
+    }
+
+    return [
+      ...publicEntries,
+      'Subscriptions',
+      'Your channel',
+      'History',
+      'Playlists',
+      'Following Topics',
+      'Watch later',
+      'Liked videos',
+      'Your videos',
+      'Your Clips',
+      'Downloads',
+    ];
+  }
+}
 
 // ==========================================================================
 // ENHANCED HOME CONTROLLER
@@ -1173,7 +1215,13 @@ class Home extends GetView<HomeController> {
               NavigationDestination(
                 icon: (() {
                   final user = controller.currentUser.value;
-                  if (user != null &&
+                  final channel = AuthService.to.userChannel;
+                  if (channel != null && channel.avatarUrl.isNotEmpty) {
+                    return CircleAvatar(
+                      radius: 12,
+                      backgroundImage: NetworkImage(channel.avatarUrl),
+                    );
+                  } else if (user != null &&
                       user.photoURL != null &&
                       user.photoURL!.isNotEmpty) {
                     return CircleAvatar(
@@ -1204,7 +1252,19 @@ class Home extends GetView<HomeController> {
                 })(),
                 selectedIcon: (() {
                   final user = controller.currentUser.value;
-                  if (user != null &&
+                  final channel = AuthService.to.userChannel;
+                  if (channel != null && channel.avatarUrl.isNotEmpty) {
+                    return Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      child: CircleAvatar(
+                        radius: 11,
+                        backgroundImage: NetworkImage(channel.avatarUrl),
+                      ),
+                    );
+                  } else if (user != null &&
                       user.photoURL != null &&
                       user.photoURL!.isNotEmpty) {
                     return Container(
@@ -1299,391 +1359,428 @@ class _ModernSideNavigationRail extends StatelessWidget {
   Widget _buildNavigationItems(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
-    return ListView(
-      padding: EdgeInsets.zero,
-      children: [
-        SizedBox(height: 8),
+    return Obx(() {
+      final isAuthenticated = AuthService.to.isAuthenticated.value;
+      final visibleEntries = HomeSidebarVisibility.getVisibleEntries(
+        isAuthenticated: isAuthenticated,
+      );
+      final shouldShowPersonalSection = visibleEntries.contains('Your channel') ||
+          visibleEntries.contains('History');
 
-        // Main Navigation Section
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: isCompact ? 8.0 : 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (!isCompact)
-                Padding(
-                  padding: EdgeInsets.only(left: 4, bottom: 8, top: 4),
-                  child: Text(
-                    'EXPLORE',
-                    style: GoogleFonts.roboto(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: isDarkMode
-                          ? Colors.white54
-                          : AppColors.textSecondary,
-                      letterSpacing: 0.5,
+      return ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          SizedBox(height: 8),
+
+          // Main Navigation Section
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: isCompact ? 8.0 : 16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!isCompact)
+                  Padding(
+                    padding: EdgeInsets.only(left: 4, bottom: 8, top: 4),
+                    child: Text(
+                      'EXPLORE',
+                      style: GoogleFonts.roboto(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: isDarkMode
+                            ? Colors.white54
+                            : AppColors.textSecondary,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
+                _buildNavItem(
+                  context,
+                  Icons.home_rounded,
+                  Icons.home_outlined,
+                  'Home',
+                  HomeController.indexHome,
+                  route: "/home",
                 ),
-              _buildNavItem(
-                context,
-                Icons.home_rounded,
-                Icons.home_outlined,
-                'Home',
-                HomeController.indexHome,
-                route: "/home",
-              ),
-              _buildNavItem(
-                context,
-                Icons.subscriptions_rounded,
-                Icons.subscriptions_outlined,
-                'Subscriptions',
-                HomeController.indexSubscriptions,
-                route: "/subscriptions",
-                requiresAuth: true,
-              ),
-              _buildNavItem(
-                context,
-                Icons.explore_rounded,
-                Icons.explore_outlined,
-                'Discover Channel',
-                HomeController.indexDiscover,
-                route: "/discover",
-              ),
-              _buildNavItem(
-                context,
-                Icons.interests_rounded,
-                Icons.interests_outlined,
-                'Explore Topics',
-                HomeController.indexExploreTopics,
-                route: "/explore-topics",
-              ),
-            ],
+                if (isAuthenticated)
+                  _buildNavItem(
+                    context,
+                    Icons.subscriptions_rounded,
+                    Icons.subscriptions_outlined,
+                    'Subscriptions',
+                    HomeController.indexSubscriptions,
+                    route: "/subscriptions",
+                    requiresAuth: true,
+                  ),
+                _buildNavItem(
+                  context,
+                  Icons.explore_rounded,
+                  Icons.explore_outlined,
+                  'Discover Channel',
+                  HomeController.indexDiscover,
+                  route: "/discover",
+                ),
+                _buildNavItem(
+                  context,
+                  Icons.interests_rounded,
+                  Icons.interests_outlined,
+                  'Explore Topics',
+                  HomeController.indexExploreTopics,
+                  route: "/explore-topics",
+                ),
+              ],
+            ),
           ),
-        ),
 
-        Obx(() {
-          if (!AuthService.to.isAuthenticated.value) {
-            return const SizedBox.shrink();
-          }
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(height: 4),
-              _buildDivider(context),
-              SizedBox(height: 4),
-              // Personal Section
-              Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: isCompact ? 8.0 : 16.0,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (!isCompact)
-                      Padding(
-                        padding: EdgeInsets.only(left: 4, bottom: 8, top: 4),
-                        child: Text(
-                          'YOU',
-                          style: GoogleFonts.roboto(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: isDarkMode
-                                ? Colors.white54
-                                : AppColors.textSecondary,
-                            letterSpacing: 0.5,
+          if (shouldShowPersonalSection)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(height: 4),
+                _buildDivider(context),
+                SizedBox(height: 4),
+                // Personal Section
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isCompact ? 8.0 : 16.0,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (!isCompact)
+                        Padding(
+                          padding: EdgeInsets.only(left: 4, bottom: 8, top: 4),
+                          child: Text(
+                            'YOU',
+                            style: GoogleFonts.roboto(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
+                              color: isDarkMode
+                                  ? Colors.white54
+                                  : AppColors.textSecondary,
+                              letterSpacing: 0.5,
+                            ),
                           ),
                         ),
-                      ),
-                    Obx(() {
-                      final authService = Get.find<AuthService>();
-                      if (authService.hasChannel.value) {
-                        return _buildNavItem(
+                      Obx(() {
+                        final authService = Get.find<AuthService>();
+                        if (authService.hasChannel.value) {
+                          return _buildNavItem(
+                            context,
+                            Icons.account_circle_rounded,
+                            Icons.account_circle_outlined,
+                            'Your channel',
+                            HomeController.indexChannelDetail,
+                            requiresAuth: true,
+                            onTap: () => homeController.navigateToYourChannel(),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      }),
+                      if (homeController.hasWatchHistory.value)
+                        _buildNavItem(
                           context,
-                          Icons.account_circle_rounded,
-                          Icons.account_circle_outlined,
-                          'Your channel',
-                          HomeController.indexChannelDetail,
+                          Icons.history_rounded,
+                          Icons.history_outlined,
+                          'History',
+                          HomeController.indexHistory,
+                          route: "/history",
                           requiresAuth: true,
-                          onTap: () => homeController.navigateToYourChannel(),
-                        );
-                      }
-                      return const SizedBox.shrink();
-                    }),
-                    if (homeController.hasWatchHistory.value)
-                      _buildNavItem(
-                        context,
-                        Icons.history_rounded,
-                        Icons.history_outlined,
-                        'History',
-                        HomeController.indexHistory,
-                        route: "/history",
-                        requiresAuth: true,
-                      ),
-                    if (homeController.hasPlaylists.value)
-                      _buildNavItem(
-                        context,
-                        Icons.playlist_play_rounded,
-                        Icons.playlist_play_outlined,
-                        'Playlists',
-                        HomeController.indexPlaylists,
-                        route: "/playlistscreen",
-                        requiresAuth: true,
-                      ),
-                    if (homeController.hasFollowedTopics.value)
-                      _buildNavItem(
-                        context,
-                        Icons.check_circle_rounded,
-                        Icons.check_circle_outline_rounded,
-                        'Following Topics',
-                        HomeController.indexFollowingTopics,
-                        route: "/following-topics",
-                        requiresAuth: true,
-                      ),
-                    if (homeController.hasWatchLater.value)
-                      _buildNavItem(
-                        context,
-                        Icons.watch_later_rounded,
-                        Icons.watch_later_outlined,
-                        'Watch later',
-                        HomeController.indexWatchLater,
-                        requiresAuth: true,
-                        onTap: () => homeController.navigateToWatchLater(),
-                      ),
-                    if (homeController.hasLikedVideos.value)
-                      _buildNavItem(
-                        context,
-                        Icons.favorite_rounded,
-                        Icons.favorite_outline,
-                        'Liked videos',
-                        HomeController.indexLikedVideos,
-                        route: "/likedvideos",
-                        requiresAuth: true,
-                      ),
-                    if (homeController.hasUploadedVideos.value)
-                      _buildNavItem(
-                        context,
-                        Icons.slideshow_rounded,
-                        Icons.slideshow_outlined,
-                        'Your videos',
-                        HomeController.indexYourVideos,
-                        route: "/myvideos",
-                        requiresAuth: true,
-                      ),
-                    if (homeController.hasClips.value)
-                      _buildNavItem(
-                        context,
-                        Icons.content_cut_rounded,
-                        Icons.content_cut_outlined,
-                        'Your Clips',
-                        HomeController.indexClips,
-                        route: "/clips",
-                        requiresAuth: true,
-                      ),
-                    if (homeController.hasDownloads.value)
-                      _buildNavItem(
-                        context,
-                        Icons.download_rounded,
-                        Icons.download_outlined,
-                        'Downloads',
-                        HomeController.indexDownloads,
-                        route: "/downloads",
-                        requiresAuth: true,
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          );
-        }),
-
-        Obx(() {
-          if (!AuthService.to.isAuthenticated.value) {
-            return const SizedBox.shrink();
-          }
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(height: 4),
-              _buildDivider(context),
-              SizedBox(height: 8),
-
-              // Subscriptions Section
-              _buildSectionHeader(context, 'Following'),
-              _buildSubscriptionList(context),
-            ],
-          );
-        }),
-
-        SizedBox(height: 4),
-        _buildDivider(context),
-        SizedBox(height: 4),
-
-        // Support Section
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: isCompact ? 8.0 : 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (!isCompact)
-                Padding(
-                  padding: EdgeInsets.only(left: 4, bottom: 8, top: 4),
-                  child: Text(
-                    'SUPPORT',
-                    style: GoogleFonts.roboto(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: isDarkMode
-                          ? Colors.white54
-                          : AppColors.textSecondary,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-              _buildNavItem(
-                context,
-                Icons.settings_rounded,
-                Icons.settings_outlined,
-                'Settings',
-                HomeController.indexSettings,
-                route: "/settings",
-              ),
-              _buildNavItem(
-                context,
-                Icons.help_rounded,
-                Icons.help_outline,
-                'Help Center',
-                HomeController.indexHelp,
-                route: "/help",
-              ),
-              _buildNavItem(
-                context,
-                Icons.chat_bubble_rounded,
-                Icons.chat_bubble_outline,
-                'Feedback',
-                HomeController.indexFeedback,
-                route: "/feedback",
-              ),
-              _buildNavItem(
-                context,
-                Icons.info_rounded,
-                Icons.info_outline,
-                'About Truthworld',
-                HomeController.indexAbout,
-                route: '/about',
-              ),
-            ],
-          ),
-        ),
-
-        SizedBox(height: 4),
-        _buildDivider(context),
-        SizedBox(height: 4),
-
-        // Legal & Policies Section
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: isCompact ? 8.0 : 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (!isCompact)
-                Padding(
-                  padding: EdgeInsets.only(left: 4, bottom: 8, top: 4),
-                  child: Text(
-                    'POLICIES',
-                    style: GoogleFonts.roboto(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: isDarkMode
-                          ? Colors.white54
-                          : AppColors.textSecondary,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ),
-              _buildNavItem(
-                context,
-                Icons.privacy_tip_rounded,
-                Icons.privacy_tip_outlined,
-                'Privacy Policy',
-                HomeController.indexPrivacy,
-                route: '/privacy',
-              ),
-              _buildNavItem(
-                context,
-                Icons.article_rounded,
-                Icons.article_outlined,
-                'Terms & Conditions',
-                HomeController.indexTerms,
-                route: '/terms',
-              ),
-              _buildNavItem(
-                context,
-                Icons.gavel_rounded,
-                Icons.gavel_outlined,
-                'Community Guidelines',
-                HomeController.indexCommunityGuidelines,
-                route: '/community-guidelines',
-              ),
-              _buildNavItem(
-                context,
-                Icons.admin_panel_settings_rounded,
-                Icons.admin_panel_settings_outlined,
-                'Admin Portal',
-                999,
-                route: '/admin/login',
-                onTap: () {
-                  Get.toNamed('/admin/login');
-                },
-              ),
-            ],
-          ),
-        ),
-
-        SizedBox(height: 4),
-        _buildDivider(context),
-        SizedBox(height: 4),
-
-        // Footer Section
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: isCompact ? 8.0 : 16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(height: 16),
-              // Footer
-              if (!isCompact)
-                Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16, horizontal: 4),
-                  child: Column(
-                    children: [
-                      Text(
-                        '© 2026 Truthworld',
-                        style: GoogleFonts.roboto(
-                          fontSize: 12,
-                          color: isDarkMode
-                              ? Colors.white38
-                              : Color(0xFF94A3B8),
                         ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'Made with ❤️ for creators',
-                        style: GoogleFonts.roboto(
-                          fontSize: 11,
-                          color: isDarkMode
-                              ? Colors.white24
-                              : Color(0xFFCBD5E1),
+                      if (homeController.hasPlaylists.value)
+                        _buildNavItem(
+                          context,
+                          Icons.playlist_play_rounded,
+                          Icons.playlist_play_outlined,
+                          'Playlists',
+                          HomeController.indexPlaylists,
+                          route: "/playlistscreen",
+                          requiresAuth: true,
                         ),
-                      ),
+                      if (homeController.hasFollowedTopics.value)
+                        _buildNavItem(
+                          context,
+                          Icons.check_circle_rounded,
+                          Icons.check_circle_outline_rounded,
+                          'Following Topics',
+                          HomeController.indexFollowingTopics,
+                          route: "/following-topics",
+                          requiresAuth: true,
+                        ),
+                      if (homeController.hasWatchLater.value)
+                        _buildNavItem(
+                          context,
+                          Icons.watch_later_rounded,
+                          Icons.watch_later_outlined,
+                          'Watch later',
+                          HomeController.indexWatchLater,
+                          requiresAuth: true,
+                          onTap: () => homeController.navigateToWatchLater(),
+                        ),
+                      if (homeController.hasLikedVideos.value)
+                        _buildNavItem(
+                          context,
+                          Icons.favorite_rounded,
+                          Icons.favorite_outline,
+                          'Liked videos',
+                          HomeController.indexLikedVideos,
+                          route: "/likedvideos",
+                          requiresAuth: true,
+                        ),
+                      if (homeController.hasUploadedVideos.value)
+                        _buildNavItem(
+                          context,
+                          Icons.slideshow_rounded,
+                          Icons.slideshow_outlined,
+                          'Your videos',
+                          HomeController.indexYourVideos,
+                          route: "/myvideos",
+                          requiresAuth: true,
+                        ),
+                      if (homeController.hasClips.value)
+                        _buildNavItem(
+                          context,
+                          Icons.content_cut_rounded,
+                          Icons.content_cut_outlined,
+                          'Your Clips',
+                          HomeController.indexClips,
+                          route: "/clips",
+                          requiresAuth: true,
+                        ),
+                      if (homeController.hasDownloads.value)
+                        _buildNavItem(
+                          context,
+                          Icons.download_rounded,
+                          Icons.download_outlined,
+                          'Downloads',
+                          HomeController.indexDownloads,
+                          route: "/downloads",
+                          requiresAuth: true,
+                        ),
                     ],
                   ),
                 ),
-            ],
+              ],
+            ),
+
+          if (shouldShowPersonalSection)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(height: 4),
+                _buildDivider(context),
+                SizedBox(height: 8),
+
+                // Subscriptions Section
+                _buildSectionHeader(context, 'Following'),
+                _buildSubscriptionList(context),
+              ],
+            ),
+
+          SizedBox(height: 4),
+          _buildDivider(context),
+          SizedBox(height: 4),
+
+          // Support Section
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: isCompact ? 8.0 : 16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!isCompact)
+                  Padding(
+                    padding: EdgeInsets.only(left: 4, bottom: 8, top: 4),
+                    child: Text(
+                      'SUPPORT',
+                      style: GoogleFonts.roboto(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: isDarkMode
+                            ? Colors.white54
+                            : AppColors.textSecondary,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                _buildNavItem(
+                  context,
+                  Icons.settings_rounded,
+                  Icons.settings_outlined,
+                  'Settings',
+                  HomeController.indexSettings,
+                  route: "/settings",
+                ),
+                _buildNavItem(
+                  context,
+                  Icons.help_rounded,
+                  Icons.help_outline,
+                  'Help Center',
+                  HomeController.indexHelp,
+                  route: "/help",
+                ),
+                _buildNavItem(
+                  context,
+                  Icons.chat_bubble_rounded,
+                  Icons.chat_bubble_outline,
+                  'Feedback',
+                  HomeController.indexFeedback,
+                  route: "/feedback",
+                ),
+                _buildNavItem(
+                  context,
+                  Icons.info_rounded,
+                  Icons.info_outline,
+                  'About Truthworld',
+                  HomeController.indexAbout,
+                  route: '/about',
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
-    );
+
+          SizedBox(height: 4),
+          _buildDivider(context),
+          SizedBox(height: 4),
+
+          // Legal & Policies Section
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: isCompact ? 8.0 : 16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (!isCompact)
+                  Padding(
+                    padding: EdgeInsets.only(left: 4, bottom: 8, top: 4),
+                    child: Text(
+                      'POLICIES',
+                      style: GoogleFonts.roboto(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        color: isDarkMode
+                            ? Colors.white54
+                            : AppColors.textSecondary,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                _buildNavItem(
+                  context,
+                  Icons.privacy_tip_rounded,
+                  Icons.privacy_tip_outlined,
+                  'Privacy Policy',
+                  HomeController.indexPrivacy,
+                  route: '/privacy',
+                ),
+                _buildNavItem(
+                  context,
+                  Icons.article_rounded,
+                  Icons.article_outlined,
+                  'Terms & Conditions',
+                  HomeController.indexTerms,
+                  route: '/terms',
+                ),
+                _buildNavItem(
+                  context,
+                  Icons.gavel_rounded,
+                  Icons.gavel_outlined,
+                  'Community Guidelines',
+                  HomeController.indexCommunityGuidelines,
+                  route: '/community-guidelines',
+                ),
+                _buildNavItem(
+                  context,
+                  Icons.dashboard_rounded,
+                  Icons.dashboard_outlined,
+                  'Truthworld Studio',
+                  998,
+                  route: '/studio',
+                  onTap: () async {
+                    final origin = html.window.location.origin;
+                    final String studioUrl = kIsWeb && origin != null && origin.contains('localhost')
+                        ? '$origin/studio'
+                        : 'https://truthworld-1-studio.web.app/';
+                    final studioUri = Uri.parse(studioUrl);
+                    if (await canLaunchUrl(studioUri)) {
+                      await launchUrl(studioUri, mode: LaunchMode.externalApplication);
+                    } else {
+                      Get.snackbar(
+                        'Error',
+                        'Could not launch Truthworld Studio.',
+                        backgroundColor: const Color(0xFFCF6679),
+                        colorText: Colors.white,
+                      );
+                    }
+                  },
+                ),
+                _buildNavItem(
+                  context,
+                  Icons.admin_panel_settings_rounded,
+                  Icons.admin_panel_settings_outlined,
+                  'Admin Portal',
+                  999,
+                  route: '/admin/login',
+                  onTap: () async {
+                    final adminUri = Uri.parse('https://truthworld-1-admin.web.app/');
+                    if (await canLaunchUrl(adminUri)) {
+                      await launchUrl(adminUri, mode: LaunchMode.externalApplication);
+                    } else {
+                      Get.snackbar(
+                        'Error',
+                        'Could not launch Admin Portal.',
+                        backgroundColor: const Color(0xFFCF6679),
+                        colorText: Colors.white,
+                      );
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+
+          SizedBox(height: 4),
+          _buildDivider(context),
+          SizedBox(height: 4),
+
+          // Footer Section
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: isCompact ? 8.0 : 16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(height: 16),
+                // Footer
+                if (!isCompact)
+                  Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16, horizontal: 4),
+                    child: Column(
+                      children: [
+                        Text(
+                          '© 2026 Truthworld',
+                          style: GoogleFonts.roboto(
+                            fontSize: 12,
+                            color: isDarkMode
+                                ? Colors.white38
+                                : Color(0xFF94A3B8),
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Made with ❤️ for creators',
+                          style: GoogleFonts.roboto(
+                            fontSize: 11,
+                            color: isDarkMode
+                                ? Colors.white24
+                                : Color(0xFFCBD5E1),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      );
+    });
   }
 
   Widget _buildNavItem(
@@ -2319,11 +2416,10 @@ class _ModernMainContent extends StatelessWidget {
     BuildContext context,
     List<String> categories,
   ) {
-    final bool isMobile = MediaQuery.of(context).size.width < kTabletBreakpoint;
     return PreferredSize(
-      preferredSize: Size.fromHeight(isMobile ? 64.0 : 72.0),
+      preferredSize: const Size.fromHeight(48.0),
       child: Container(
-        height: isMobile ? 64.0 : 72.0,
+        height: 48.0,
         decoration: BoxDecoration(
           color: modernDarkProfessionalTheme.appBarTheme.backgroundColor,
           border: Border(
@@ -2333,10 +2429,10 @@ class _ModernMainContent extends StatelessWidget {
             ),
           ),
         ),
-        padding: EdgeInsets.symmetric(vertical: isMobile ? 12 : 14),
+        padding: const EdgeInsets.symmetric(vertical: 6),
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
-          padding: EdgeInsets.symmetric(horizontal: isMobile ? 8.0 : 16.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
           itemCount: categories.length,
           itemBuilder: (context, index) {
             final category = categories[index];
@@ -2344,78 +2440,31 @@ class _ModernMainContent extends StatelessWidget {
               final isSelected =
                   homeController.selectedCategory.value == category;
               return Padding(
-                padding: EdgeInsets.symmetric(horizontal: isMobile ? 4.0 : 6.0),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      homeController.selectCategory(category);
-                      Get.toNamed(
-                        "/category",
-                        arguments: {"category": category},
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(24),
-                    child: Row(
-                      children: [
-                        if (index == 0 && isMobile)
-                          Padding(
-                            padding: EdgeInsets.only(right: 8),
-                            child: Icon(
-                              Icons.category_rounded,
-                              color: isSelected
-                                  ? primaryAccent
-                                  : modernDarkProfessionalTheme
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                              size: 20,
-                            ),
-                          ),
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isMobile ? 16 : 20,
-                            vertical: isMobile ? 10 : 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? Color(0xFF2A2A2A)
-                                : Color(0xFF1E1E1E),
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                              color: isSelected
-                                  ? Colors.white.withValues(alpha: 0.5)
-                                  : Colors.transparent,
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              // Checkmark for selected
-                              if (isSelected) ...[
-                                Icon(
-                                  Icons.check,
-                                  color: Colors.white,
-                                  size: isMobile ? 14 : 16,
-                                ),
-                                SizedBox(width: 6),
-                              ],
-                              // Category text - show full text
-                              Text(
-                                category,
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: isMobile ? 13 : 14,
-                                  height: 1.2,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                padding: const EdgeInsets.only(right: 8.0),
+                child: GestureDetector(
+                  onTap: () {
+                    homeController.selectCategory(category);
+                    HapticFeedback.selectionClick();
+                    Get.toNamed(
+                      "/category",
+                      arguments: {"category": category},
+                    );
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.white : const Color(0xFF272727),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      category,
+                      style: GoogleFonts.roboto(
+                        fontSize: 14,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                        color: isSelected ? Colors.black : Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -2480,214 +2529,8 @@ class _ModernVideoGridSection extends StatelessWidget {
               precacheImage(CachedNetworkImageProvider(nextThumb), context);
             }
           }
-          return _buildGridVideoCard(context, videos[index]);
+          return VideoCard(video: videos[index], isGrid: true, heroPrefix: heroPrefix);
         },
-      ),
-    );
-  }
-
-  Widget _buildGridVideoCard(BuildContext context, Video video) {
-    return Container(
-      decoration: BoxDecoration(
-        color: modernDarkProfessionalTheme.colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: modernDarkProfessionalTheme.colorScheme.outline.withValues(
-            alpha: 0.1,
-          ),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {
-            // Navigate to video screen using miniplayer-aware navigation
-            // The miniplayer will be pre-loaded and ready to show when user navigates away
-            MiniplayerNavigationHelper.navigateToVideoScreen(
-              video: video,
-              routeArguments: {'video': video},
-            );
-          },
-          borderRadius: BorderRadius.circular(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildGridVideoThumbnail(context, video),
-              _buildGridVideoInfo(context, video),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGridVideoThumbnail(BuildContext context, Video video) {
-    return Hero(
-      tag: '${heroPrefix}_${video.id}',
-      child: ClipRRect(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-        child: AspectRatio(
-          aspectRatio: 16 / 9,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              CachedNetworkImage(
-                imageUrl: video.thumbnailUrl,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => _buildThumbnailShimmer(context),
-                errorWidget: (context, url, error) =>
-                    _buildThumbnailError(context),
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.3),
-                    ],
-                  ),
-                ),
-              ),
-              Positioned(
-                bottom: 8,
-                right: 8,
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.8),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    video.duration,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGridVideoInfo(BuildContext context, Video video) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _ModernAvatar(
-            imageUrl: video.channelImage,
-            radius: 18,
-            placeholderText: video.channelName
-                .safeSubstring(0, 1)
-                .toUpperCase(),
-          ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  video.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: modernDarkProfessionalTheme.textTheme.titleMedium
-                      ?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        height: 1.3,
-                        fontSize: 15,
-                      ),
-                ),
-                SizedBox(height: 6),
-                Text(
-                  video.channelName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: modernDarkProfessionalTheme.textTheme.bodySmall
-                      ?.copyWith(
-                        color: modernDarkProfessionalTheme
-                            .colorScheme
-                            .onSurfaceVariant,
-                        fontWeight: FontWeight.w500,
-                      ),
-                ),
-                SizedBox(height: 2),
-                Text(
-                  '${formatViews(video.views)} views • ${formatTimestamp(video.uploadedAt)}',
-                  style: modernDarkProfessionalTheme.textTheme.bodySmall
-                      ?.copyWith(
-                        color: modernDarkProfessionalTheme
-                            .colorScheme
-                            .onSurfaceVariant,
-                      ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: Icon(
-              Icons.more_vert,
-              size: 20,
-              color: modernDarkProfessionalTheme.colorScheme.onSurfaceVariant,
-            ),
-            onPressed: () {},
-            padding: EdgeInsets.zero,
-            constraints: BoxConstraints(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildThumbnailShimmer(BuildContext context) {
-    return Shimmer.fromColors(
-      baseColor: modernDarkProfessionalTheme.colorScheme.surfaceContainerHighest
-          .withValues(alpha: 0.3),
-      highlightColor: modernDarkProfessionalTheme
-          .colorScheme
-          .surfaceContainerHighest
-          .withValues(alpha: 0.1),
-      child: Container(
-        color: modernDarkProfessionalTheme.colorScheme.surfaceContainerHighest,
-      ),
-    );
-  }
-
-  Widget _buildThumbnailError(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            primaryAccent.withValues(alpha: 0.3),
-            secondaryAccent.withValues(alpha: 0.2),
-          ],
-        ),
-      ),
-      child: Center(
-        child: Icon(
-          Icons.play_circle_outline_rounded,
-          size: 48,
-          color: Colors.white,
-        ),
       ),
     );
   }

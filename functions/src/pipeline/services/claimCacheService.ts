@@ -11,7 +11,7 @@ import { logger } from "../utils/logger";
  */
 export class ClaimCacheService {
   private static readonly COLLECTION = "claim_cache";
-  private static readonly CACHE_ENABLED = true;
+  private static readonly CACHE_ENABLED = false;
 
   /**
    * Generates a stable hash for a claim after normalization.
@@ -111,7 +111,7 @@ export class ClaimCacheService {
    */
   async getBatch(texts: string[]): Promise<Map<string, Partial<VerifiedClaim>>> {
     const results = new Map<string, Partial<VerifiedClaim>>();
-    if (texts.length === 0) return results;
+    if (!ClaimCacheService.CACHE_ENABLED || texts.length === 0) return results;
 
     try {
       const hashes = texts.map(t => this.generateHash(t));

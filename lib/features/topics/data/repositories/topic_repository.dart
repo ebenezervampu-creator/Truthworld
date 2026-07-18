@@ -114,7 +114,6 @@ class TopicRepository {
       Query query = _firestore
           .collection('videos')
           .where('topics', arrayContains: topicSlug)
-          .where('visibility', isEqualTo: 'Public')
           .orderBy(orderBy, descending: descending)
           .limit(limit);
 
@@ -125,6 +124,7 @@ class TopicRepository {
       final snapshot = await query.get();
       return snapshot.docs
           .map((doc) => Video.fromDocumentSnapshot(doc))
+          .where((video) => video.visibility.toLowerCase() == 'public')
           .toList();
     } catch (e) {
       debugPrint('Error fetching videos by topic: $e');
@@ -142,12 +142,12 @@ class TopicRepository {
     return _firestore
         .collection('videos')
         .where('topics', arrayContains: topicSlug)
-        .where('visibility', isEqualTo: 'Public')
         .orderBy(orderBy, descending: descending)
         .limit(limit)
         .snapshots()
         .map((snapshot) => snapshot.docs
             .map((doc) => Video.fromDocumentSnapshot(doc))
+            .where((video) => video.visibility.toLowerCase() == 'public')
             .toList());
   }
 
@@ -166,11 +166,12 @@ class TopicRepository {
         final query = await _firestore
             .collection('videos')
             .where(FieldPath.documentId, whereIn: batch)
-            .where('visibility', isEqualTo: 'Public')
             .get();
 
         allVideos.addAll(
-          query.docs.map((doc) => Video.fromDocumentSnapshot(doc)),
+          query.docs
+              .map((doc) => Video.fromDocumentSnapshot(doc))
+              .where((video) => video.visibility.toLowerCase() == 'public'),
         );
       }
 

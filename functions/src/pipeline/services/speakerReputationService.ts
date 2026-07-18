@@ -26,7 +26,9 @@ export interface SpeakerReputation {
  * Tracks long-term credibility metrics for identifiable speakers.
  */
 export class SpeakerReputationService {
-  private db = admin.firestore();
+  private get db() {
+    return admin.firestore();
+  }
 
   /**
    * Update speaker reputation after a video is processed.

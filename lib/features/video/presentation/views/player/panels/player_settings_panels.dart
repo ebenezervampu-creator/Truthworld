@@ -11,7 +11,6 @@ import 'language_requests.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/player_controls.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
 import 'package:truthworld/features/video/presentation/widgets/language_preferences_dialog.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 
 class SettingsPanel extends StatelessWidget {
   final TowerPlayerController ctrl;
@@ -794,7 +793,7 @@ class PanelHeader extends StatelessWidget {
       child: Row(
         children: [
           if (onBack != null)
-            IconBtn(icon: const BackSymbol(size: 18), onTap: onBack!)
+            IconBtn(icon: Icons.arrow_back_ios_new, onTap: onBack!, size: 18)
           else
             const SizedBox(width: 8),
           Expanded(child: Text(title, style: TS.title)),

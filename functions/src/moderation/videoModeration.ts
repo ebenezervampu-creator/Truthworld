@@ -22,7 +22,6 @@ import * as admin from "firebase-admin";
 import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onRequest } from "firebase-functions/v2/https";
 import { requireAdmin } from "../utils/auth";
-import { videoModerationService } from "../pipeline/services/videoModerationService";
 
 const db = admin.firestore();
 const REGION = "asia-south1";
@@ -100,9 +99,9 @@ export const onVideoUploadedForModeration = onObjectFinalized(
       const videoGcsUri = `gs://${bucket}/${filePath}`;
       console.log("[VideoModeration] Sending GCS URI directly to Gemini:", { videoId, videoGcsUri });
 
+      const { videoModerationService } = require("../pipeline/services/videoModerationService");
       const result = await videoModerationService.moderate(videoGcsUri, contentType);
 
-      // ─── STEP 3: Write result to Firestore ───────────────────────────────
       const moderationData: Record<string, any> = {
         "moderation.status": result.approved ? "approved" : "rejected",
         "moderation.reason": result.violationReason,
@@ -113,6 +112,7 @@ export const onVideoUploadedForModeration = onObjectFinalized(
         "moderation.checkedAt": Date.now(),
         "moderation.model": "gemini-2.5-flash",
         "moderation.version": "v2.0-zero-ffmpeg",
+        category: result.category || "Other",
       };
 
       await db.collection("videos").doc(videoId).update(moderationData);

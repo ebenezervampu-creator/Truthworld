@@ -1,11 +1,12 @@
 import 'dart:async';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
@@ -640,7 +641,7 @@ class _VideoFeedNotificationScreenState
       backgroundColor: AppColors.bgPage,
       elevation: 0,
       leading: IconButton(
-        icon: const BackSymbol(color: Colors.white),
+        icon: const Icon(Icons.arrow_back, color: Colors.white),
         onPressed: () => Get.back(),
       ),
       title: Obx(() => controller.isSearching.value
@@ -719,9 +720,11 @@ class _VideoFeedNotificationScreenState
         children: [
           _buildPillButton(title: 'All', index: 0),
           const SizedBox(width: 8),
-          _buildPillButton(title: 'Comments', index: 1),
+          _buildPillButton(title: 'Topics', index: 1),
           const SizedBox(width: 8),
-          _buildPillButton(title: 'Mentions', index: 2),
+          _buildPillButton(title: 'Comments', index: 2),
+          const SizedBox(width: 8),
+          _buildPillButton(title: 'Mentions', index: 3),
         ],
       ),
     );
@@ -786,6 +789,9 @@ class _VideoFeedNotificationScreenState
       if (activeTab == 0) {
         belongsToTab = true; // All tab includes everything
       } else if (activeTab == 1) {
+        // Topics tab: only includes new_video_topic/topic notifications
+        belongsToTab = typeLower == 'new_video_topic' || typeLower.contains('topic');
+      } else if (activeTab == 2) {
         // Comments tab: social interactions like comments, replies, and comment/video likes, excluding mentions
         belongsToTab = !isMention && (
           typeLower.contains('comment') ||
@@ -793,7 +799,7 @@ class _VideoFeedNotificationScreenState
           typeLower.contains('like') ||
           n.typeCategory == 'social'
         );
-      } else if (activeTab == 2) {
+      } else if (activeTab == 3) {
         // Mentions tab
         belongsToTab = isMention;
       }
@@ -820,7 +826,10 @@ class _VideoFeedNotificationScreenState
 
   Widget _buildGroupedNotificationList(List<_UnifiedNotification> items) {
     if (items.isEmpty) {
-      if (_selectedTabIndex.value == 2) {
+      if (_selectedTabIndex.value == 1) {
+        return _buildEmptyTopicsState();
+      }
+      if (_selectedTabIndex.value == 3) {
         return _buildEmptyMentionsState();
       }
       return _buildEmptyState();
@@ -963,25 +972,6 @@ class _VideoFeedNotificationScreenState
       avatarUrl = metadata?['avatarUrl'] as String? ??
                   metadata?['userAvatar'] as String? ?? '';
 
-      final typeLower = item.alert!.type.toLowerCase();
-      if (typeLower.contains('like')) {
-        return Container(
-          width: 40,
-          height: 40,
-          decoration: const BoxDecoration(
-            color: Color(0xFFE50914), // Red play icon container
-            shape: BoxShape.circle,
-          ),
-          child: const Center(
-            child: Icon(
-              Icons.play_arrow_rounded,
-              color: Colors.white,
-              size: 24,
-            ),
-          ),
-        );
-      }
-
       switch (item.alert!.severity) {
         case NotificationSeverity.priority:
           fallbackIcon = Icons.warning_rounded;
@@ -1002,40 +992,11 @@ class _VideoFeedNotificationScreenState
       }
     }
 
-    if (avatarUrl.isNotEmpty) {
-      return Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.grey[900],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Image.network(
-          avatarUrl,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => CircleAvatar(
-            backgroundColor: fallbackBgColor,
-            child: Icon(fallbackIcon ?? Icons.notifications, color: Colors.white, size: 20),
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: fallbackBgColor.withValues(alpha: 0.2),
-        shape: BoxShape.circle,
-      ),
-      child: Center(
-        child: Icon(
-          fallbackIcon ?? Icons.notifications,
-          color: fallbackBgColor,
-          size: 20,
-        ),
-      ),
+    return _DynamicAvatar(
+      item: item,
+      initialAvatarUrl: avatarUrl,
+      fallbackIcon: fallbackIcon,
+      fallbackBgColor: fallbackBgColor,
     );
   }
 
@@ -1115,10 +1076,23 @@ class _VideoFeedNotificationScreenState
         color: Colors.grey[900],
       ),
       clipBehavior: Clip.antiAlias,
-      child: Image.network(
-        url,
+      child: CachedNetworkImage(
+        imageUrl: url,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+        placeholder: (context, url) => Container(
+          color: Colors.grey[900],
+          child: const Center(
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white24),
+              ),
+            ),
+          ),
+        ),
+        errorWidget: (context, url, error) => const SizedBox.shrink(),
       ),
     );
   }
@@ -1185,6 +1159,33 @@ class _VideoFeedNotificationScreenState
           child: Text('Delete notification'),
         ),
       ],
+    );
+  }
+
+  Widget _buildEmptyTopicsState() {
+    return SliverFillRemaining(
+      hasScrollBody: false,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(
+              Icons.topic_rounded,
+              size: 140,
+              color: Color(0xFF333333),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No topic updates yet',
+              style: GoogleFonts.roboto(
+                fontSize: 16,
+                fontWeight: FontWeight.w400,
+                color: Colors.white54,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1458,6 +1459,318 @@ class _UnifiedNotification {
     required this.timestamp,
     required this.isSeen,
   });
+}
+
+class _DynamicAvatarController extends GetxController {
+  final _UnifiedNotification item;
+  final String initialAvatarUrl;
+
+  final RxString avatarUrl = ''.obs;
+  final RxBool isLoading = false.obs;
+
+  // Persistent local cache to eliminate repeat Firestore lookups
+  static final _storage = GetStorage('AvatarCache');
+  static final Map<String, String> _avatarCache = {};
+  static final Map<String, Future<String>> _avatarFetchFutures = {};
+
+  _DynamicAvatarController({
+    required this.item,
+    required this.initialAvatarUrl,
+  });
+
+  @override
+  void onInit() {
+    super.onInit();
+    avatarUrl.value = initialAvatarUrl;
+    if (avatarUrl.value.isEmpty) {
+      fetchAvatarIfNeeded();
+    }
+  }
+
+  void updateInitialAvatarUrl(String url) {
+    if (avatarUrl.value != url) {
+      avatarUrl.value = url;
+      if (avatarUrl.value.isEmpty) {
+        fetchAvatarIfNeeded();
+      }
+    }
+  }
+
+  Future<void> fetchAvatarIfNeeded() async {
+    final alert = item.alert;
+    if (alert == null) return;
+    final metadata = alert.metadata;
+    if (metadata == null) return;
+
+    // Check action performer's ID first, instead of the video owner's channelId!
+    final String targetId = metadata['subscriberId'] as String? ??
+        metadata['likerId'] as String? ??
+        metadata['commentAuthorId'] as String? ??
+        metadata['senderUserId'] as String? ??
+        metadata['channelId'] as String? ??
+        '';
+
+    if (targetId.isEmpty) return;
+
+    // 1. In-memory Cache lookup
+    if (_avatarCache.containsKey(targetId)) {
+      avatarUrl.value = _avatarCache[targetId]!;
+      return;
+    }
+
+    // 2. Persistent Disk Cache lookup (O(1) local read, 0ms latency, 0 costs!)
+    final String? cachedUrl = _storage.read(targetId);
+    if (cachedUrl != null && cachedUrl.isNotEmpty) {
+      _avatarCache[targetId] = cachedUrl;
+      avatarUrl.value = cachedUrl;
+      return;
+    }
+
+    // 3. Fallback: Firestore async resolve (non-blocking)
+    isLoading.value = true;
+
+    try {
+      Future<String> fetchFuture;
+      if (_avatarFetchFutures.containsKey(targetId)) {
+        fetchFuture = _avatarFetchFutures[targetId]!;
+      } else {
+        fetchFuture = _performFetch(targetId);
+        _avatarFetchFutures[targetId] = fetchFuture;
+      }
+
+      final url = await fetchFuture;
+      _avatarFetchFutures.remove(targetId);
+
+      if (url.isNotEmpty) {
+        _avatarCache[targetId] = url;
+        _storage.write(targetId, url);
+      }
+      
+      avatarUrl.value = url;
+      isLoading.value = false;
+
+      // Update Firestore document metadata so we never hit this fallback again
+      final currentMetaAvatar = metadata['userAvatar'] as String? ?? metadata['avatarUrl'] as String? ?? '';
+      if (currentMetaAvatar.isEmpty && url.isNotEmpty) {
+        unawaited(() async {
+          try {
+            final Map<String, dynamic> updatedMetadata = Map<String, dynamic>.from(metadata);
+            updatedMetadata['userAvatar'] = url;
+            await FirebaseFirestore.instance
+                .collection('user_notifications')
+                .doc(alert.id)
+                .update({'metadata': updatedMetadata});
+          } catch (e) {
+            debugPrint('Error updating user_notification metadata: $e');
+          }
+        }());
+      }
+    } catch (e) {
+      debugPrint('Error fetching avatar in _DynamicAvatarController: $e');
+      isLoading.value = false;
+    }
+  }
+
+  Future<String> _performFetch(String targetId) async {
+    // Check if channel exists
+    final channelDoc = await FirebaseFirestore.instance
+        .collection('channels')
+        .doc(targetId)
+        .get();
+
+    if (channelDoc.exists) {
+      final data = channelDoc.data();
+      if (data != null) {
+        return data['avatarUrl'] as String? ??
+            (data['profile'] as Map<String, dynamic>?)?['photoUrl'] as String? ??
+            '';
+      }
+    }
+
+    // Check user document
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .get();
+
+    if (userDoc.exists) {
+      final userData = userDoc.data();
+      if (userData != null) {
+        final userChannelId = userData['channelId'] as String?;
+        if (userChannelId != null && userChannelId.isNotEmpty) {
+          final userChannelDoc = await FirebaseFirestore.instance
+              .collection('channels')
+              .doc(userChannelId)
+              .get();
+          if (userChannelDoc.exists) {
+            final chanData = userChannelDoc.data();
+            if (chanData != null) {
+              return chanData['avatarUrl'] as String? ??
+                  (chanData['profile'] as Map<String, dynamic>?)?['photoUrl'] as String? ??
+                  '';
+            }
+          }
+          return '';
+        } else {
+          final channelsQuery = await FirebaseFirestore.instance
+              .collection('channels')
+              .where('ownerId', isEqualTo: targetId)
+              .limit(1)
+              .get();
+
+          if (channelsQuery.docs.isNotEmpty) {
+            final chanData = channelsQuery.docs.first.data();
+            return chanData['avatarUrl'] as String? ??
+                (chanData['profile'] as Map<String, dynamic>?)?['photoUrl'] as String? ??
+                '';
+          }
+        }
+
+        return userData['avatarUrl'] as String? ??
+            userData['photoURL'] as String? ??
+            '';
+      }
+    }
+
+    return '';
+  }
+}
+
+class _DynamicAvatar extends StatefulWidget {
+  final _UnifiedNotification item;
+  final String initialAvatarUrl;
+  final IconData? fallbackIcon;
+  final Color fallbackBgColor;
+
+  const _DynamicAvatar({
+    required this.item,
+    required this.initialAvatarUrl,
+    required this.fallbackIcon,
+    required this.fallbackBgColor,
+  });
+
+  @override
+  State<_DynamicAvatar> createState() => _DynamicAvatarState();
+}
+
+class _DynamicAvatarState extends State<_DynamicAvatar> {
+  late final _DynamicAvatarController controller;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = _DynamicAvatarController(
+      item: widget.item,
+      initialAvatarUrl: widget.initialAvatarUrl,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _DynamicAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    controller.updateInitialAvatarUrl(widget.initialAvatarUrl);
+  }
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      if (controller.isLoading.value) {
+        return Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: widget.fallbackBgColor.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+          ),
+          child: const Center(
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white38),
+              ),
+            ),
+          ),
+        );
+      }
+
+      if (controller.avatarUrl.value.isNotEmpty) {
+        return Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.grey[900],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: CachedNetworkImage(
+            imageUrl: controller.avatarUrl.value,
+            fit: BoxFit.cover,
+            placeholder: (context, url) => Container(
+              color: Colors.grey[900],
+              child: const Center(
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white38),
+                  ),
+                ),
+              ),
+            ),
+            errorWidget: (context, url, error) => _buildFallback(),
+          ),
+        );
+      }
+
+      return _buildFallback();
+    });
+  }
+
+  Widget _buildFallback() {
+    final typeLower = widget.item.alert?.type.toLowerCase() ?? '';
+    if (typeLower.contains('like')) {
+      return Container(
+        width: 40,
+        height: 40,
+        decoration: const BoxDecoration(
+          color: Color(0xFFE50914),
+          shape: BoxShape.circle,
+        ),
+        child: const Center(
+          child: Icon(
+            Icons.play_arrow_rounded,
+            color: Colors.white,
+            size: 24,
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: widget.fallbackBgColor.withValues(alpha: 0.2),
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Icon(
+          widget.fallbackIcon ?? Icons.notifications,
+          color: widget.fallbackBgColor,
+          size: 20,
+        ),
+      ),
+    );
+  }
 }
 
 

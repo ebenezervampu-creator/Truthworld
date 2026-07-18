@@ -84,14 +84,28 @@ async function _sendPushNotification(
     },
     android: {
       priority: "high" as const,
+      ttl: 0, // 0s TTL requests immediate delivery or discard (low latency)
       notification: {
         sound: "default",
         channelId: "truthworld_notifications",
+        clickAction: "FLUTTER_NOTIFICATION_CLICK",
+        priority: "max" as const, // MAX system priority for heads-up alert
+        notificationPriority: "PRIORITY_MAX" as const,
+        visibility: "public" as const,
       },
     },
     apns: {
-      headers: { "apns-priority": "10" },
-      payload: { aps: { sound: "default", badge: 1 } },
+      headers: {
+        "apns-priority": "10",
+        "apns-push-type": "alert",
+      },
+      payload: {
+        aps: {
+          sound: "default",
+          badge: 1,
+          "mutable-content": 1, // iOS notification service extension trigger
+        },
+      },
     },
   };
 

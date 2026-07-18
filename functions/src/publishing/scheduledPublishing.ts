@@ -21,7 +21,6 @@
 
 import * as admin from "firebase-admin";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
-import { PubSub } from "@google-cloud/pubsub";
 import { logger } from "../pipeline/utils/logger";
 
 const db = admin.firestore();
@@ -292,6 +291,7 @@ async function batchPublishVideos(
 export async function manualTriggerScheduledPublishing() {
   logger.info(FUNCTION_NAME, "Manual trigger initiated by admin");
 
+  const { PubSub } = require("@google-cloud/pubsub");
   const pubsub = new PubSub();
   const topic = pubsub.topic("scheduled-publishing");
 

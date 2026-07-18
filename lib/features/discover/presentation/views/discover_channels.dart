@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -202,7 +201,7 @@ class DiscoverChannelsPage extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            icon: const BackSymbol(color: AppColors.textPrimary),
+            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
             onPressed: () => controller.selectCategory('All'),
           ),
           Text(

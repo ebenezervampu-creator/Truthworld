@@ -229,6 +229,19 @@ class ChannelController extends GetxController
   final bannerStatusReason = "".obs;
   final avatarStatusReason = "".obs;
 
+  // Verification File IDs
+  final avatarFileId = ''.obs;
+  final bannerFileId = ''.obs;
+
+  // Details screen real-time verification statuses
+  final detailsAvatarStatus = "".obs;
+  final detailsBannerStatus = "".obs;
+  final detailsAvatarReason = "".obs;
+  final detailsBannerReason = "".obs;
+
+  StreamSubscription? _detailsAvatarSub;
+  StreamSubscription? _detailsBannerSub;
+
   // Draft management
   final hasDraft = false.obs;
   final draftId = Rx<String?>(null);
@@ -900,10 +913,12 @@ class ChannelController extends GetxController
 
       if (isBanner) {
         bannerUrl.value = uploadedUrl;
+        bannerFileId.value = fileName;
         isUploadingBanner.value = false;
         _startModerationListener(fileName, true);
       } else {
         avatarUrl.value = uploadedUrl;
+        avatarFileId.value = fileName;
         isUploadingAvatar.value = false;
         _startModerationListener(fileName, false);
       }
@@ -1024,21 +1039,12 @@ class ChannelController extends GetxController
       }
       */
 
-      // 2. Moderation checks
+      // 2. Moderation checks (Background verification does not block creation if status is PENDING)
       if (avatarUrl.value.isNotEmpty) {
         if (avatarStatus.value == "REJECTED" ||
             avatarStatus.value == "FLAGGED") {
           _showErrorSnackbar(
             "Your avatar was rejected or flagged: ${avatarStatusReason.value}",
-          );
-          return;
-        }
-        if (avatarStatus.value == "PENDING") {
-          Get.snackbar(
-            "Verification Pending",
-            "Your avatar is still being verified. Please wait a moment.",
-            backgroundColor: Color(0xFF3B82F6),
-            colorText: Colors.white,
           );
           return;
         }
@@ -1049,15 +1055,6 @@ class ChannelController extends GetxController
             bannerStatus.value == "FLAGGED") {
           _showErrorSnackbar(
             "Your banner was rejected or flagged: ${bannerStatusReason.value}",
-          );
-          return;
-        }
-        if (bannerStatus.value == "PENDING") {
-          Get.snackbar(
-            "Verification Pending",
-            "Your banner is still being verified. Please wait a moment.",
-            backgroundColor: Color(0xFF3B82F6),
-            colorText: Colors.white,
           );
           return;
         }
@@ -1109,6 +1106,10 @@ class ChannelController extends GetxController
         "avatarUrl": avatarUrl.value.isEmpty
             ? "$defaultAvatar$channelNameText"
             : avatarUrl.value,
+        "avatarFileId": avatarFileId.value.isEmpty ? null : avatarFileId.value,
+        "bannerFileId": bannerFileId.value.isEmpty ? null : bannerFileId.value,
+        "avatarStatus": avatarStatus.value,
+        "bannerStatus": bannerStatus.value,
         "ownerId": uid,
         "createdAt": FieldValue.serverTimestamp(),
         "updatedAt": FieldValue.serverTimestamp(),
@@ -1763,6 +1764,12 @@ class ChannelController extends GetxController
     avatarImageData.value = null;
     bannerUrl.value = '';
     avatarUrl.value = '';
+    bannerFileId.value = '';
+    avatarFileId.value = '';
+    bannerStatus.value = 'PENDING';
+    avatarStatus.value = 'PENDING';
+    bannerStatusReason.value = '';
+    avatarStatusReason.value = '';
     isPublic.value = true;
     language.value = 'en';
     selectedCategory.value = null;
@@ -1838,6 +1845,57 @@ class ChannelController extends GetxController
     clearChannelDetailsState();
 
     selectedChannel.value = channel;
+
+    // Set initial values from the channel document
+    detailsAvatarStatus.value = channel.avatarStatus ?? "";
+    detailsBannerStatus.value = channel.bannerStatus ?? "";
+    detailsAvatarReason.value = "";
+    detailsBannerReason.value = "";
+
+    _detailsAvatarSub?.cancel();
+    _detailsBannerSub?.cancel();
+
+    final currentUser = _auth.currentUser;
+    if (currentUser != null && channel.ownerId == currentUser.uid) {
+      if (channel.avatarFileId != null &&
+          channel.avatarFileId!.isNotEmpty &&
+          channel.avatarStatus != "APPROVED") {
+        detailsAvatarStatus.value = channel.avatarStatus ?? "PENDING";
+        _detailsAvatarSub = _imageVerificationService
+            .streamVerificationStatus(channel.avatarFileId!)
+            .listen((result) {
+              detailsAvatarStatus.value = result.status.name.toUpperCase();
+              detailsAvatarReason.value = result.reason;
+              if (result.status == VerificationStatus.approved ||
+                  result.status == VerificationStatus.rejected ||
+                  result.status == VerificationStatus.flagged) {
+                _firestore.collection(_channelsCol).doc(channel.id).update({
+                  'avatarStatus': result.status.name.toUpperCase(),
+                }).catchError((_) {});
+              }
+            });
+      }
+
+      if (channel.bannerFileId != null &&
+          channel.bannerFileId!.isNotEmpty &&
+          channel.bannerStatus != "APPROVED") {
+        detailsBannerStatus.value = channel.bannerStatus ?? "PENDING";
+        _detailsBannerSub = _imageVerificationService
+            .streamVerificationStatus(channel.bannerFileId!)
+            .listen((result) {
+              detailsBannerStatus.value = result.status.name.toUpperCase();
+              detailsBannerReason.value = result.reason;
+              if (result.status == VerificationStatus.approved ||
+                  result.status == VerificationStatus.rejected ||
+                  result.status == VerificationStatus.flagged) {
+                _firestore.collection(_channelsCol).doc(channel.id).update({
+                  'bannerStatus': result.status.name.toUpperCase(),
+                }).catchError((_) {});
+              }
+            });
+      }
+    }
+
     listenSubscription(channel.channelId);
     _attachScrollListener();
     loadInitialVideos();
@@ -1983,6 +2041,12 @@ class ChannelController extends GetxController
     selectedChannel.value = null;
     videoSortFilter.value = 'Latest';
     _subscriptionListener?.cancel();
+    _detailsAvatarSub?.cancel();
+    _detailsBannerSub?.cancel();
+    detailsAvatarStatus.value = "";
+    detailsBannerStatus.value = "";
+    detailsAvatarReason.value = "";
+    detailsBannerReason.value = "";
     hasVideos.value = false;
     hasPlaylists.value = false;
     hasPosts.value = false;

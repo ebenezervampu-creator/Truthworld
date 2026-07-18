@@ -42,6 +42,10 @@ class Channel {
   final String avatarUrl;
   final String bannerUrl;
   final List<String> avatarVariants; // Small, HighRes
+  final String? avatarFileId;
+  final String? bannerFileId;
+  final String? avatarStatus;
+  final String? bannerStatus;
 
   // Ownership & Context
   final String ownerId;
@@ -99,6 +103,10 @@ class Channel {
     required this.avatarUrl,
     required this.bannerUrl,
     this.avatarVariants = const [],
+    this.avatarFileId,
+    this.bannerFileId,
+    this.avatarStatus,
+    this.bannerStatus,
     required this.ownerId,
     required this.createdAt,
     required this.updatedAt,
@@ -128,6 +136,10 @@ class Channel {
       'avatarUrl': avatarUrl,
       'bannerUrl': bannerUrl,
       'avatarVariants': avatarVariants,
+      'avatarFileId': avatarFileId,
+      'bannerFileId': bannerFileId,
+      'avatarStatus': avatarStatus,
+      'bannerStatus': bannerStatus,
       'ownerId': ownerId,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
@@ -158,6 +170,10 @@ class Channel {
       avatarUrl: data['avatarUrl'] ?? '',
       bannerUrl: data['bannerUrl'] ?? '',
       avatarVariants: List<String>.from(data['avatarVariants'] ?? []),
+      avatarFileId: data['avatarFileId'] as String?,
+      bannerFileId: data['bannerFileId'] as String?,
+      avatarStatus: data['avatarStatus'] as String?,
+      bannerStatus: data['bannerStatus'] as String?,
       ownerId: data['ownerId'] ?? '',
       createdAt: TimestampUtils.parse(data['createdAt']),
       updatedAt: TimestampUtils.parse(data['updatedAt']),

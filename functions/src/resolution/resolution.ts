@@ -24,15 +24,24 @@ import { onMessagePublished } from "firebase-functions/v2/pubsub";
 import { v4 as uuidv4 } from "uuid";
 import { MessagingService } from "../shared/messaging";
 import { checkAndMarkEventId, markEventCompleted } from "../shared/idempotency";
-import ffmpeg from "fluent-ffmpeg";
-import ffmpegInstaller from "ffmpeg-static";
 import * as path from "path";
 import * as os from "os";
 import * as fs from "fs";
 
-// Configure FFmpeg path
-if (ffmpegInstaller) {
-  ffmpeg.setFfmpegPath(ffmpegInstaller);
+let _ffmpegInitialized = false;
+let _ffmpegInstance: any = null;
+
+function getFFmpegInstance(): any {
+  if (!_ffmpegInitialized) {
+    const ffmpeg = require("fluent-ffmpeg");
+    const ffmpegInstaller = require("ffmpeg-static");
+    if (ffmpegInstaller) {
+      ffmpeg.setFfmpegPath(ffmpegInstaller);
+    }
+    _ffmpegInstance = ffmpeg;
+    _ffmpegInitialized = true;
+  }
+  return _ffmpegInstance;
 }
 
 const db = admin.firestore();
@@ -453,7 +462,7 @@ export const handleResolution = onMessagePublished(
 
           // Execute FFmpeg Transcode
           await new Promise<void>((resolve, reject) => {
-            ffmpeg(localSourcePath)
+            getFFmpegInstance()(localSourcePath)
               .outputOptions([
                 "-c:v libx264",
                 `-b:v ${variant.bitrateKbps}k`,

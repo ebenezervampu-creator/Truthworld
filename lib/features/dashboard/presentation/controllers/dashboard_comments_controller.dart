@@ -394,6 +394,8 @@ class DashboardCommentsController extends BaseController {
         commentId: commentId,
         userId: userId,
         asChannel: asChannel,
+        isVideoCreator: true,
+        creatorName: userChannelName.value,
       );
 
       logger.info(
@@ -428,6 +430,7 @@ class DashboardCommentsController extends BaseController {
         commentId: commentId,
         userId: userId,
         asChannel: asChannel,
+        isVideoCreator: true,
       );
 
       logger.info(

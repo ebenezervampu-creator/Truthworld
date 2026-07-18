@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:truthworld/data/models/subscriptions.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
@@ -11,6 +10,7 @@ import 'package:truthworld/features/commnuity/data/models/community_post_model.d
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/data/models/subscription_content.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 
 enum ContentFilter {
   all,
@@ -43,7 +43,6 @@ enum DateRangeFilter {
 
 class SubscriptionController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   StreamSubscription? _connectivitySubscription;
 
   final RxList<SubscriptionContent> allContent = <SubscriptionContent>[].obs;
@@ -60,7 +59,7 @@ class SubscriptionController extends GetxController {
   final RxBool hasError = false.obs;
   final RxString errorMessage = ''.obs;
 
-  String? get currentUserId => _auth.currentUser?.uid;
+  String? get currentUserId => AuthService.to.uid.isNotEmpty ? AuthService.to.uid : null;
 
   @override
   void onInit() {
@@ -68,6 +67,12 @@ class SubscriptionController extends GetxController {
     
     // Initial load
     refresh();
+
+    // Setup auth listener to automatically refresh on auth status change
+    ever(AuthService.to.currentUser, (user) {
+      debugPrint('[SubscriptionController] Auth state changed. Refreshing subscriptions...');
+      refresh();
+    });
 
     // Setup connectivity listener for automatic recovery
     _connectivitySubscription = Get.find<ConnectivityService>().onConnectivityChanged.listen((results) {
@@ -137,7 +142,7 @@ class SubscriptionController extends GetxController {
       subscribedChannels.clear();
       return;
     }
-    final channelIds = subscriptions.map((s) => s.channelId).toList();
+    final channelIds = subscriptions.map((s) => s.channelId).toSet().toList();
     try {
       final List<Channel> channels = [];
       if (channelIds.length > 10) {
@@ -172,7 +177,7 @@ class SubscriptionController extends GetxController {
       return;
     }
 
-    final channelIds = subscriptions.map((s) => s.channelId).toList();
+    final channelIds = subscriptions.map((s) => s.channelId).toSet().toList();
     
     try {
       final List<SubscriptionContent> contentList = [];
@@ -222,7 +227,7 @@ class SubscriptionController extends GetxController {
         final snapshot = await _firestore
             .collection('videos')
             .where('channelId', whereIn: batch)
-            .where('visibility', isEqualTo: 'public')
+            .where('visibility', isEqualTo: 'Public')
             .orderBy('createdAt', descending: true)
             .limit(50)
             .get();
@@ -232,7 +237,7 @@ class SubscriptionController extends GetxController {
       final snapshot = await _firestore
           .collection('videos')
           .where('channelId', whereIn: channelIds)
-          .where('visibility', isEqualTo: 'public')
+          .where('visibility', isEqualTo: 'Public')
           .orderBy('createdAt', descending: true)
           .limit(50)
           .get();

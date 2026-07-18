@@ -10,7 +10,7 @@ class AppColors {
 
   // ── Brand
   static const brand            = Color(0xFF9B30FF);
-  static const brandMuted       = Color(0xFF5C1B9F);
+  static const brandVariant     = Color(0xFF5C1B9F);
   static const brandContainer   = Color(0xFF2D1060);
   static const brandOverlay     = Color(0x299B30FF);
   static const brandHover       = Color(0xFF8B5CF6);
@@ -25,6 +25,7 @@ class AppColors {
   static const bgSurfaceContainerHighest = bgElevated;
   static const bgInput          = Color(0xFF121212);
   static const bgDivider        = Color(0xFF3F3F3F);
+  static const appBarSurface    = Color(0xFF161618);
   
   // ── Text
   static const textPrimary      = Color(0xFFF1F1F1);

@@ -176,7 +176,7 @@ class AppToast {
                   vertical: 6,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: radius?.circularMd ?? BorderRadius.circular(8),
+                  borderRadius: radius?.md ?? BorderRadius.circular(8),
                   side: BorderSide(
                     color: config.color.withValues(alpha: 0.3),
                   ),
@@ -201,7 +201,7 @@ class AppToast {
       duration: config.duration,
       margin: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      borderRadius: radius?.lg ?? 12,
+      borderRadius: radius?.lgValue ?? 12,
       backgroundColor: colors?.surfaceContainer ?? AppColors.bgSurfaceHover,
       borderColor: Colors.white.withValues(alpha: 0.08),
       borderWidth: 1,

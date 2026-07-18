@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/utils/timestamp_utils.dart';
 
 enum TopicVisibilityType {
   public,
@@ -87,8 +88,8 @@ class Topic {
       videoCount: data['videoCount'] ?? 0,
       featuredVideoIds: List<String>.from(data['featuredVideoIds'] ?? []),
       relatedTopics: List<String>.from(data['relatedTopics'] ?? []),
-      createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: TimestampUtils.parseToDateTime(data['createdAt']) ?? DateTime.now(),
+      updatedAt: TimestampUtils.parseToDateTime(data['updatedAt']) ?? DateTime.now(),
       likeCount: data['likeCount'] ?? 0,
       commentCount: data['commentCount'] ?? 0,
       views: data['views'] ?? 0,

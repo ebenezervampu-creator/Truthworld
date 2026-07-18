@@ -33,8 +33,11 @@ export const addComment = onCall(
     if (!videoId || !text) throw new HttpsError("invalid-argument", "Missing data.");
 
     try {
-      const channelSnap = await db().collection("channels").doc(userId).get();
-      const channelData = channelSnap.data();
+      const channelsSnap = await db().collection("channels").where("ownerId", "==", userId).limit(1).get();
+      let channelData = null;
+      if (!channelsSnap.empty) {
+        channelData = channelsSnap.docs[0].data();
+      }
       const channelRating = channelData?.reputation?.channelRating ?? channelData?.reputation?.avgTrustIndex ?? 5.0;
 
       const commentId = db().collection("comments").doc().id;
@@ -43,7 +46,7 @@ export const addComment = onCall(
         videoId,
         userId,
         userName: channelData?.name || "Anonymous",
-        userAvatar: channelData?.profile?.avatarUrl,
+        userAvatar: channelData?.avatarUrl || channelData?.profile?.photoUrl || channelData?.profile?.avatarUrl || "",
         userTrustIndex: channelRating,
         text: sanitizeText(text.slice(0, 1000)),
         likes: 0,
@@ -251,6 +254,13 @@ export const toggleCommentInteraction = onCall(
         const legacyLikedBy = { ...(data.likedBy || {}) };
         const legacyDislikedBy = { ...(data.dislikedBy || {}) };
 
+        // Load video document to check creator
+        const videoSnap = await tx.get(db().collection("videos").doc(videoId));
+        const videoData = videoSnap.data() || {};
+        const videoCreatorId = videoData.ownerId || videoData.userId || "";
+        const videoCreatorName = videoData.channelName || videoData.creatorName || "Creator";
+        const isCreatorLiking = userId === videoCreatorId;
+
         // Determine old interaction type
         let foundLegacy = false;
 
@@ -328,6 +338,17 @@ export const toggleCommentInteraction = onCall(
           updatePayload.dislikedBy = legacyDislikedBy;
         }
 
+        // Set or remove creator heart badge
+        if (isCreatorLiking) {
+          if (interactionType === "like") {
+            updatePayload.isHeartedByCreator = true;
+            updatePayload.creatorHeartName = videoCreatorName;
+          } else if (interactionType === "remove" || interactionType === "dislike") {
+            updatePayload.isHeartedByCreator = false;
+            updatePayload.creatorHeartName = admin.firestore.FieldValue.delete();
+          }
+        }
+
         // Atomic increments
         updatePayload.likeCount = admin.firestore.FieldValue.increment(likeDiff);
         updatePayload.dislikeCount = admin.firestore.FieldValue.increment(dislikeDiff);
@@ -337,8 +358,32 @@ export const toggleCommentInteraction = onCall(
 
       if (interactionType === "like" && oldType !== "like" && commentAuthorId && commentAuthorId !== userId) {
         try {
-          const likerSnap = await db().collection("channels").doc(userId).get();
-          const likerName = likerSnap.data()?.name || "Someone";
+          let likerName = "Someone";
+          let likerAvatar = "";
+
+          const channelsSnap = await db().collection("channels").where("ownerId", "==", userId).limit(1).get();
+          if (!channelsSnap.empty) {
+            const channelDoc = channelsSnap.docs[0];
+            const channelData = channelDoc.data();
+            likerName = channelData.name || "Someone";
+            likerAvatar = channelData.avatarUrl || channelData.profile?.photoUrl || channelData.profile?.avatarUrl || "";
+          } else {
+            const userSnap = await db().collection("users").doc(userId).get();
+            if (userSnap.exists) {
+              const userData = userSnap.data();
+              if (userData && userData.channelId) {
+                const channelDoc = await db().collection("channels").doc(userData.channelId).get();
+                if (channelDoc.exists) {
+                  const channelData = channelDoc.data();
+                  likerName = channelData?.name || "Someone";
+                  likerAvatar = channelData?.avatarUrl || channelData?.profile?.photoUrl || channelData?.profile?.avatarUrl || "";
+                }
+              } else {
+                likerName = userData?.displayName || userData?.username || "Someone";
+                likerAvatar = userData?.avatarUrl || userData?.photoURL || "";
+              }
+            }
+          }
           const truncatedText = commentText.length > 60 ? commentText.slice(0, 60) + "..." : commentText;
           await notifyUser({
             userId: commentAuthorId,
@@ -351,6 +396,7 @@ export const toggleCommentInteraction = onCall(
               videoId,
               commentId,
               likerId: userId,
+              userAvatar: likerAvatar,
             }
           });
         } catch (notifyErr) {
@@ -501,8 +547,32 @@ export const toggleReplyInteraction = onCall(
 
       if (interactionType === "like" && oldType !== "like" && replyAuthorId && replyAuthorId !== userId) {
         try {
-          const likerSnap = await db().collection("channels").doc(userId).get();
-          const likerName = likerSnap.data()?.name || "Someone";
+          let likerName = "Someone";
+          let likerAvatar = "";
+
+          const channelsSnap = await db().collection("channels").where("ownerId", "==", userId).limit(1).get();
+          if (!channelsSnap.empty) {
+            const channelDoc = channelsSnap.docs[0];
+            const channelData = channelDoc.data();
+            likerName = channelData.name || "Someone";
+            likerAvatar = channelData.avatarUrl || channelData.profile?.photoUrl || channelData.profile?.avatarUrl || "";
+          } else {
+            const userSnap = await db().collection("users").doc(userId).get();
+            if (userSnap.exists) {
+              const userData = userSnap.data();
+              if (userData && userData.channelId) {
+                const channelDoc = await db().collection("channels").doc(userData.channelId).get();
+                if (channelDoc.exists) {
+                  const channelData = channelDoc.data();
+                  likerName = channelData?.name || "Someone";
+                  likerAvatar = channelData?.avatarUrl || channelData?.profile?.photoUrl || channelData?.profile?.avatarUrl || "";
+                }
+              } else {
+                likerName = userData?.displayName || userData?.username || "Someone";
+                likerAvatar = userData?.avatarUrl || userData?.photoURL || "";
+              }
+            }
+          }
           const truncatedText = replyText.length > 60 ? replyText.slice(0, 60) + "..." : replyText;
           await notifyUser({
             userId: replyAuthorId,
@@ -516,6 +586,7 @@ export const toggleReplyInteraction = onCall(
               commentId,
               replyId,
               likerId: userId,
+              userAvatar: likerAvatar,
             }
           });
         } catch (notifyErr) {

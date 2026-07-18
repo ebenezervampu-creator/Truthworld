@@ -23,15 +23,18 @@
 
 import * as admin from "firebase-admin";
 import * as crypto from "crypto";
+import { GoogleAuth } from "google-auth-library";
+import axios from "axios";
 import {
   CostMetrics,
   PerformanceConfig,
   VerifiedClaim,
   ExtractedClaim,
 } from "../types";
-import { getCache, setCache, deleteCache } from "../utils/memory-cache";
+import { getCache, setCache } from "../utils/memory-cache";
 import { logger } from "../utils/logger";
 import { alerting } from "../utils/alerting";
+import { getClaimCacheProvider, ClaimCacheProvider } from "../services/claimCacheProvider.js";
 
 const db = () => admin.firestore();
 
@@ -56,13 +59,82 @@ const DEFAULT_CONFIG: PerformanceConfig = {
 /** Per-job cost alert threshold (USD) */
 const COST_ALERT_THRESHOLD = 1.0;
 
+/** Granular Cache Versioning */
+export const CACHE_VERSION = {
+  embeddingModel: "text-embedding-005",
+  embeddingVersion: 2,
+  verification: 5,
+  citation: 1
+};
+
+/** Configurable Vector Thresholds per Domain (commented out as caching is disabled)
+const CACHE_VECTOR_THRESHOLDS: Record<string, number> = {
+  medical: 0.10,
+  scientific: 0.12,
+  financial: 0.12,
+  political: 0.15,
+  history: 0.15,
+  news: 0.08,
+  entertainment: 0.20,
+  default: 0.15
+};*/
+
 // ─── PerformanceLayer ────────────────────────────────────────────────────────
 
 export class PerformanceLayer {
   private config: PerformanceConfig;
+  private auth = new GoogleAuth({
+    scopes: "https://www.googleapis.com/auth/cloud-platform"
+  });
+  private cacheProvider: ClaimCacheProvider;
 
-  constructor(config?: Partial<PerformanceConfig>) {
+  constructor(config?: Partial<PerformanceConfig>, cacheProvider?: ClaimCacheProvider) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.cacheProvider = cacheProvider || getClaimCacheProvider();
+  }
+
+  /**
+   * Generates a semantic embedding vector for a claim text using text-embedding-004.
+   */
+  async getClaimEmbedding(text: string): Promise<number[] | null> {
+    try {
+      const client = await this.auth.getClient();
+      const tokenResponse = await client.getAccessToken();
+      const token = tokenResponse.token;
+      if (!token) {
+        throw new Error("Failed to retrieve access token");
+      }
+
+      const project = "truthworld-1";
+      const location = "asia-south1";
+      const model = "text-embedding-004";
+      const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/${model}:predict`;
+
+      const response = await axios.post(
+        url,
+        {
+          instances: [
+            {
+              content: text,
+              task_type: "RETRIEVAL_DOCUMENT"
+            }
+          ]
+        },
+        {
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          }
+        }
+      );
+
+      const predictions = response.data?.predictions;
+      const embeddingValues = predictions?.[0]?.embeddings?.values;
+      return embeddingValues || null;
+    } catch (err) {
+      logger.error("[Performance] Failed to generate embedding via REST", { text, err: err instanceof Error ? err.message : err });
+      return null;
+    }
   }
 
   // ─── Connection management ────────────────────────────────────────────────
@@ -85,133 +157,28 @@ export class PerformanceLayer {
   // ─── Claim caching (FIRESTORE + IN-MEMORY) ──────────────────────────────
 
   /**
-   * Get cached claim verification result.
-   *
-   * ✅ PROCESS:
-   *    1. Check in-memory cache (L1) — if hit, return immediately
-   *    2. Query Firestore "claim_cache" collection (L2)
-   *    3. If found + not expired: cache in memory, return
-   *    4. If expired or not found: return null (caller must verify)
-   *
-   * @param claimHash - MD5 hash of claim text (unique key)
-   * @returns Cached verification result or null if not found/expired
-   */
+  // getVectorThreshold commented out as caching is disabled
+  // private getVectorThreshold(domainContext?: string): number { ... }
+
   async getVerifiedClaimFromCache(claimHash: string): Promise<VerifiedClaim | null> {
-    const cacheKey = `claim:${claimHash}`;
-
-    // ── L1: In-memory cache ──────────────────────────────────────────────────
-    const memCached = getCache(cacheKey);
-    if (memCached) {
-      logger.debug("[Performance] L1 cache HIT", { claimHash });
-      return memCached as VerifiedClaim;
-    }
-
-    // ── L2: Firestore cache ──────────────────────────────────────────────────
-    try {
-      const doc = await db().collection("claim_cache").doc(claimHash).get();
-
-      if (!doc.exists) {
-        logger.debug("[Performance] Cache MISS", { claimHash });
-        return null;
-      }
-
-      const data = doc.data()!;
-
-      // Check TTL expiration
-      if (data.expiresAt && Date.now() > data.expiresAt) {
-        logger.debug("[Performance] Cache expired", { claimHash });
-        // Clean up the expired document
-        await db().collection("claim_cache").doc(claimHash).delete().catch(() => { });
-        return null;
-      }
-
-      // ── Backfill L1 cache ────────────────────────────────────────────────
-      setCache(cacheKey, data.value, 3600); // 1 hour TTL in memory
-
-      logger.debug("[Performance] L2 cache HIT", { claimHash });
-      return data.value as VerifiedClaim;
-    } catch (err) {
-      logger.error("[Performance] Firestore cache read failed", { claimHash, err });
-      return null;
-    }
+    return this.cacheProvider.getVerifiedClaim(claimHash);
   }
 
   /**
-   * Cache a verified claim with category-aware TTL.
-   *
-   * ✅ PROCESS:
-   *    1. Store in in-memory cache (L1) — instant availability
-   *    2. Store in Firestore (L2) — persistent across instances
-   *    3. Set TTL field for Firestore TTL policy
-   *
-   * @param claim - The verified claim to cache
-   * @param ttlSeconds - Cache duration (per claim category)
+   * Cache a verified claim with category-aware TTL, separating claims and citations.
+   * Atomic transactional write.
    */
   async cacheVerifiedClaim(claim: VerifiedClaim, ttlSeconds: number): Promise<void> {
-    const claimHash = this.hashClaim(claim.text);
-    const cacheKey = `claim:${claimHash}`;
-
-    const cacheData = {
-      value: claim,
-      claimText: claim.text,
-      claimHash,
-      expiresAt: Date.now() + ttlSeconds * 1000,
-      cachedAt: admin.firestore.FieldValue.serverTimestamp(),
-      ttl: Date.now() + ttlSeconds * 1000,
-    };
-
-    try {
-      // ── L1: In-memory ────────────────────────────────────────────────────
-      setCache(cacheKey, claim, ttlSeconds);
-
-      // ── L2: Firestore ────────────────────────────────────────────────────
-      await db().collection("claim_cache").doc(claimHash).set(cacheData, { merge: true });
-
-      logger.debug("[Performance] Claim cached", { claimHash, ttlSeconds });
-    } catch (err) {
-      logger.error("[Performance] Failed to cache claim", { claimHash, err });
-      await alerting.notify("cache-write-failure", {
-        context: "cacheVerifiedClaim",
-        claimHash,
-      });
-    }
+    return this.cacheProvider.cacheVerifiedClaim(claim, ttlSeconds);
   }
 
   /**
-   * Batch cache multiple verified claims (cost optimization).
-   *
-   * Uses Firestore batch write to reduce # of operations.
+   * Batch cache multiple verified claims.
    */
   async cacheVerifiedClaimsBatch(claims: VerifiedClaim[], ttlSeconds: number): Promise<void> {
     if (claims.length === 0) return;
-
-    const batch = db().batch();
-    const expiresAt = Date.now() + ttlSeconds * 1000;
-
-    for (const claim of claims) {
-      const claimHash = this.hashClaim(claim.text);
-      const cacheKey = `claim:${claimHash}`;
-
-      // L1: In-memory
-      setCache(cacheKey, claim, ttlSeconds);
-
-      // L2: Firestore batch write
-      batch.set(
-        db().collection("claim_cache").doc(claimHash),
-        {
-          value: claim,
-          claimText: claim.text,
-          claimHash,
-          expiresAt,
-          cachedAt: admin.firestore.FieldValue.serverTimestamp(),
-          ttl: expiresAt,
-        },
-        { merge: true }
-      );
-    }
-
     try {
-      await batch.commit();
+      await Promise.all(claims.map(claim => this.cacheVerifiedClaim(claim, ttlSeconds)));
       logger.info("[Performance] Batch cached claims", { count: claims.length });
     } catch (err) {
       logger.error("[Performance] Batch cache failed", { count: claims.length, err });
@@ -220,31 +187,16 @@ export class PerformanceLayer {
   }
 
   /**
-   * Invalidate claim cache (called when claim is marked incorrect).
+   * Invalidate claim cache.
    */
   async invalidateClaim(claim: ExtractedClaim): Promise<void> {
-    const claimHash = this.hashClaim(claim.text);
-    const cacheKey = `claim:${claimHash}`;
-
-    try {
-      // L1: Delete from memory
-      deleteCache(cacheKey);
-
-      // L2: Delete from Firestore
-      await db().collection("claim_cache").doc(claimHash).delete();
-
-      logger.debug("[Performance] Claim invalidated", { claimHash });
-    } catch (err) {
-      logger.error("[Performance] Failed to invalidate claim", { claimHash, err });
-    }
+    return this.cacheProvider.invalidateClaim(claim);
   }
 
   // ─── Translation cache ───────────────────────────────────────────────────
 
   /**
    * Get cached translation.
-   *
-   * Key: `{sourceLanguage}:{targetLanguage}:{textHash}`
    */
   async getTranslation(
     text: string,
@@ -429,33 +381,16 @@ export class PerformanceLayer {
 
   // ─── Convenience methods (used by 06-credibility + 07-dubbing) ──────────
 
-  /**
-   * Batch check claim cache. Returns cached and uncached claims.
-   * Used by CredibilityEngine.
-   */
-  async checkClaimCache(claims: ExtractedClaim[]): Promise<{
+  async checkClaimCache(claims: ExtractedClaim[], domainContext?: string): Promise<{
     cached: VerifiedClaim[];
+    stale: VerifiedClaim[];
     uncached: ExtractedClaim[];
   }> {
-    const cached: VerifiedClaim[] = [];
-    const uncached: ExtractedClaim[] = [];
-
-    for (const claim of claims) {
-      const hash = this.hashClaim(claim.text);
-      const result = await this.getVerifiedClaimFromCache(hash);
-      if (result) {
-        cached.push(result);
-      } else {
-        uncached.push(claim);
-      }
-    }
-
-    return { cached, uncached };
+    return this.cacheProvider.checkClaimCache(claims, domainContext);
   }
 
   /**
    * Batch cache verified claims with TTL. Alias for cacheVerifiedClaimsBatch.
-   * Used by CredibilityEngine.
    */
   async cacheVerifiedClaimsWithTTL(claims: VerifiedClaim[], ttlSeconds: number): Promise<void> {
     await this.cacheVerifiedClaimsBatch(claims, ttlSeconds);
@@ -515,14 +450,13 @@ export class PerformanceLayer {
    * Strips punctuation, collapses whitespace, and trims.
    */
   private normalizeClaim(text: string): string {
-    // v11.6: Aggressive normalization (Strip emojis, special chars, normalize whitespace)
     return text.toLowerCase()
       .replace(/[^\p{L}\p{N}\s]/gu, "") // Remove all non-alphanumeric/non-whitespace (including emojis)
       .replace(/\s{2,}/g, " ") // Collapse multiple spaces
       .trim();
   }
 
-  private hashClaim(claimText: string): string {
+  public hashClaim(claimText: string): string {
     const normalized = this.normalizeClaim(claimText);
     return crypto.createHash("md5").update(normalized).digest("hex");
   }

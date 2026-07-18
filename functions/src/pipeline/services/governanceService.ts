@@ -2,6 +2,7 @@ import * as admin from 'firebase-admin';
 import { TrustAppeal, GovernanceAuditLog } from '../types';
 import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
+import { getAnalysisRepository, AnalysisRepository } from './analysisRepository.js';
 
 /**
  * ⚖️ GOVERNANCE SERVICE (v4.0 Alpha)
@@ -10,7 +11,14 @@ import { v4 as uuidv4 } from 'uuid';
  * This ensures "Defense-Grade" accountability and transparency.
  */
 export class GovernanceService {
-  private db = admin.firestore();
+  private get db() {
+    return admin.firestore();
+  }
+  private analysisRepository: AnalysisRepository;
+
+  constructor(analysisRepository?: AnalysisRepository) {
+    this.analysisRepository = analysisRepository || getAnalysisRepository();
+  }
 
   /**
    * Submit a trust score appeal
@@ -18,10 +26,11 @@ export class GovernanceService {
   async submitAppeal(userId: string, jobId: string, reason: string, evidenceLinks?: string[]): Promise<string> {
     const appealId = `appeal_${uuidv4().substring(0, 8)}`;
     
-    // Fetch original score
-    const credDoc = await this.db.collection('factChecks').doc(jobId).get();
-    if (!credDoc.exists) throw new Error("Job not found");
-    const originalScore = credDoc.data()?.trustScore || 0;
+    // Fetch original score from Storage via repository
+    const factCheckData = await this.analysisRepository.loadAnalysis(jobId, "factChecks");
+    if (!factCheckData) throw new Error("Job result not found in Storage");
+
+    const originalScore = factCheckData.trustScore || 0;
 
     const appeal: TrustAppeal = {
       appealId,
@@ -35,12 +44,13 @@ export class GovernanceService {
     };
 
     await this.db.collection('appeals').doc(appealId).set(appeal);
-    await this.db.collection('factChecks').doc(jobId).update({
-      isAppealed: true,
-      appealStatus: 'pending'
-    });
 
-    logger.info("[Governance] Appeal submitted", { appealId, jobId, userId });
+    // Update appeal status and save a new immutable version in GCS
+    factCheckData.isAppealed = true;
+    factCheckData.appealStatus = 'pending';
+    await this.analysisRepository.saveAnalysis(jobId, "factChecks", factCheckData);
+
+    logger.info("[Governance] Appeal submitted and stored versioned in GCS", { appealId, jobId, userId });
     return appealId;
   }
 
@@ -53,40 +63,47 @@ export class GovernanceService {
     newScore: number, 
     rationale: string
   ): Promise<void> {
-    const credRef = this.db.collection('factChecks').doc(jobId);
+    // Fetch original data via repository
+    const factCheckData = await this.analysisRepository.loadAnalysis(jobId, "factChecks");
+    if (!factCheckData) throw new Error("Job result not found in Storage");
+
+    const previousValue = factCheckData.trustScore;
+
+    // Update factCheckData
+    factCheckData.trustScore = newScore;
+    factCheckData.manualOverride = true;
+    factCheckData.overriddenBy = reviewerId;
+    factCheckData.overrideRationale = rationale;
+    factCheckData.updatedAt = Date.now();
+
+    // Save a new version in GCS
+    await this.analysisRepository.saveAnalysis(jobId, "factChecks", factCheckData);
+
+    // Sync to final_outputs in GCS as a new version if exists
+    const outputData = await this.analysisRepository.loadAnalysis(jobId, "final_outputs");
+    if (outputData) {
+      outputData.trustScore = newScore;
+      outputData.rating = newScore;
+      outputData.updatedAt = Date.now();
+      await this.analysisRepository.saveAnalysis(jobId, "final_outputs", outputData);
+    }
+
+    // Create Audit Log in Firestore
+    const logId = `log_${uuidv4().substring(0, 8)}`;
+    const log: GovernanceAuditLog = {
+      logId,
+      targetId: jobId,
+      action: 'manual_override',
+      performerId: reviewerId,
+      previousValue,
+      newValue: newScore,
+      rationale,
+      timestamp: Date.now()
+    };
     
-    await this.db.runTransaction(async (transaction) => {
-      const snap = await transaction.get(credRef);
-      if (!snap.exists) throw new Error("Job result not found");
-      
-      const previousValue = snap.data()?.trustScore;
-      
-      // Update result
-      transaction.update(credRef, {
-        trustScore: newScore,
-        manualOverride: true,
-        overriddenBy: reviewerId,
-        overrideRationale: rationale,
-        updatedAt: Date.now()
-      });
+    await this.db.collection('governance_audit').doc(logId).set(log);
 
-      // Create Audit Log
-      const logId = `log_${uuidv4().substring(0, 8)}`;
-      const log: GovernanceAuditLog = {
-        logId,
-        targetId: jobId,
-        action: 'manual_override',
-        performerId: reviewerId,
-        previousValue,
-        newValue: newScore,
-        rationale,
-        timestamp: Date.now()
-      };
-      
-      transaction.set(this.db.collection('governance_audit').doc(logId), log);
-    });
-
-    logger.warn("[Governance] Manual override executed", { jobId, reviewerId, newScore });
+    logger.warn("[Governance] Manual override executed and saved versioned to GCS", { jobId, reviewerId, newScore });
   }
 
   /**
@@ -100,43 +117,53 @@ export class GovernanceService {
     newScore?: number
   ): Promise<void> {
     const appealRef = this.db.collection('appeals').doc(appealId);
-    
-    await this.db.runTransaction(async (transaction) => {
-      const snap = await transaction.get(appealRef);
-      if (!snap.exists) throw new Error("Appeal not found");
-      const appeal = snap.data() as TrustAppeal;
+    const snap = await appealRef.get();
+    if (!snap.exists) throw new Error("Appeal not found");
+    const appeal = snap.data() as TrustAppeal;
 
-      // Update Appeal
-      transaction.update(appealRef, {
-        status,
-        reviewerId,
-        resolutionNote: note,
-        newScore: newScore || appeal.originalScore,
-        resolvedAt: Date.now()
-      });
+    const resolvedScore = newScore || appeal.originalScore;
 
-      // Update FactCheck
-      transaction.update(this.db.collection('factChecks').doc(appeal.jobId), {
-        appealStatus: status === 'resolved' ? 'resolved' : 'rejected',
-        trustScore: newScore || appeal.originalScore,
-        updatedAt: Date.now()
-      });
+    // Fetch and update GCS factcheck result as a new version
+    const factCheckData = await this.analysisRepository.loadAnalysis(appeal.jobId, "factChecks");
+    if (factCheckData) {
+      factCheckData.appealStatus = status === 'resolved' ? 'resolved' : 'rejected';
+      factCheckData.trustScore = resolvedScore;
+      factCheckData.updatedAt = Date.now();
+      await this.analysisRepository.saveAnalysis(appeal.jobId, "factChecks", factCheckData);
+    }
 
-      // Log Audit
-      const logId = `log_${uuidv4().substring(0, 8)}`;
-      transaction.set(this.db.collection('governance_audit').doc(logId), {
-        logId,
-        targetId: appeal.jobId,
-        action: 'appeal_resolved',
-        performerId: reviewerId,
-        previousValue: appeal.originalScore,
-        newValue: newScore || appeal.originalScore,
-        rationale: note,
-        timestamp: Date.now()
-      });
+    // Fetch and sync to final_outputs in GCS as a new version if exists
+    const outputData = await this.analysisRepository.loadAnalysis(appeal.jobId, "final_outputs");
+    if (outputData) {
+      outputData.trustScore = resolvedScore;
+      outputData.rating = resolvedScore;
+      outputData.updatedAt = Date.now();
+      await this.analysisRepository.saveAnalysis(appeal.jobId, "final_outputs", outputData);
+    }
+
+    // Update Appeal document in Firestore
+    await appealRef.update({
+      status,
+      reviewerId,
+      resolutionNote: note,
+      newScore: resolvedScore,
+      resolvedAt: Date.now()
     });
 
-    logger.info("[Governance] Appeal resolved", { appealId, status });
+    // Log Audit in Firestore
+    const logId = `log_${uuidv4().substring(0, 8)}`;
+    await this.db.collection('governance_audit').doc(logId).set({
+      logId,
+      targetId: appeal.jobId,
+      action: 'appeal_resolved',
+      performerId: reviewerId,
+      previousValue: appeal.originalScore,
+      newValue: resolvedScore,
+      rationale: note,
+      timestamp: Date.now()
+    });
+
+    logger.info("[Governance] Appeal resolved and saved versioned to GCS", { appealId, status });
   }
 }
 

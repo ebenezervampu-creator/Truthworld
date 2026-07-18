@@ -183,9 +183,11 @@ export const onNewSubscription = onDocumentCreated(
     // Don't notify if subscribing to own channel
     if (subscriberId === channelOwnerId) return;
 
-    // 2. Get subscriber name
+    // 2. Get subscriber name and avatar
     const subscriberSnap = await db.collection("users").doc(subscriberId).get();
-    const subscriberName = subscriberSnap.data()?.username || "Someone";
+    const subscriberData = subscriberSnap.data();
+    const subscriberName = subscriberData?.username || "Someone";
+    const avatarUrl = subscriberData?.avatarUrl || subscriberData?.photoURL || "";
 
     await notifyUser({
       userId: channelOwnerId,
@@ -196,7 +198,8 @@ export const onNewSubscription = onDocumentCreated(
       actionUrl: `/channel/${channelId}`,
       metadata: { 
         channelId, 
-        subscriberId 
+        subscriberId,
+        avatarUrl
       }
     });
   } catch (err) {

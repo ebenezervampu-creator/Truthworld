@@ -6,6 +6,9 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 
+import 'package:truthworld/features/video/data/models/comment.dart';
+import 'package:truthworld/features/video/data/models/reply.dart';
+
 class TopicInteractionController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -17,12 +20,12 @@ class TopicInteractionController extends GetxController {
   final RxBool dbIsLiked = false.obs;
   final RxBool hasCheckedInteraction = false.obs;
 
-  final RxList<Map<String, dynamic>> comments = <Map<String, dynamic>>[].obs;
+  final RxList<Comment> comments = <Comment>[].obs;
   final RxBool isLoadingComments = false.obs;
 
   // Track reply list for each comment ID
-  final RxMap<String, List<Map<String, dynamic>>> repliesMap =
-      <String, List<Map<String, dynamic>>>{}.obs;
+  final RxMap<String, List<Reply>> repliesMap =
+      <String, List<Reply>>{}.obs;
 
   // Track user comment and reply interactions (isLiked, isDisliked)
   final RxMap<String, Map<String, bool>> userCommentInteractions =
@@ -250,9 +253,7 @@ class TopicInteractionController extends GetxController {
           .get();
 
       comments.value = snap.docs.map((doc) {
-        final data = doc.data();
-        data['id'] = doc.id;
-        return data;
+        return Comment.fromDocumentSnapshot(doc);
       }).toList();
 
       // CRITICAL FIX: Removed eager N+1 fetchReplies loop.
@@ -298,33 +299,26 @@ class TopicInteractionController extends GetxController {
         channelHandle = channel.handle;
       }
 
-      final newComment = <String, dynamic>{
-        'id': commentRef.id,
-        'topicId': topicId,
-        'videoId': topicId, // compatibility alias
-        'userId': currentUserId,
-        'channelId': channelId ?? currentUserId,
-        'channelName': channelName,
-        'channelProfilePicUrl': channelProfilePicUrl,
-        'channelHandle': channelHandle,
-        'text': text.trim(),
-        'likeCount': 0,
-        'dislikeCount': 0,
-        'reportCount': 0,
-        'createdAt': Timestamp.now(),
-        'isEdited': false,
-        'likedBy': <String, bool>{},
-        'dislikedBy': <String, bool>{},
-        'isHeartedByCreator': false,
-        'creatorHeartName': null,
-      };
+      final commentObj = Comment(
+        id: commentRef.id,
+        videoId: topicId,
+        userId: currentUserId,
+        userName: currentUserName,
+        userProfilePicUrl: currentUserProfilePicUrl,
+        channelId: channelId ?? currentUserId,
+        channelName: channelName,
+        channelProfilePicUrl: channelProfilePicUrl,
+        text: text.trim(),
+        likeCount: 0,
+        dislikeCount: 0,
+        reportCount: 0,
+        createdAt: Timestamp.now(),
+        hasCreatorReply: false,
+        isHeartedByCreator: false,
+        creatorHeartName: null,
+      );
 
-      if (channelId == null) {
-        newComment['userName'] = currentUserName;
-        newComment['userProfilePicUrl'] = currentUserProfilePicUrl;
-      }
-
-      await commentRef.set(newComment);
+      await commentRef.set(commentObj.toMap());
 
       // Update commentCount in Firestore topics collection
       await _firestore.collection('topics').doc(topicId).update({
@@ -333,7 +327,7 @@ class TopicInteractionController extends GetxController {
 
       // Update local UI count and list
       commentCount.value++;
-      comments.insert(0, newComment);
+      comments.insert(0, commentObj);
       comments.refresh();
     } catch (e) {
       AppSnackbar.show(
@@ -345,9 +339,6 @@ class TopicInteractionController extends GetxController {
     }
   }
 
-  // ==========================
-  // REPLIES
-  // ==========================
   Future<void> fetchReplies(String topicId, String commentId) async {
     try {
       final snap = await _firestore
@@ -360,9 +351,7 @@ class TopicInteractionController extends GetxController {
           .get();
 
       repliesMap[commentId] = snap.docs.map((doc) {
-        final data = doc.data();
-        data['id'] = doc.id;
-        return data;
+        return Reply.fromDocumentSnapshot(doc);
       }).toList();
     } catch (e) {
       debugPrint('Error fetching replies: $e');
@@ -405,32 +394,24 @@ class TopicInteractionController extends GetxController {
         channelHandle = channel.handle;
       }
 
-      final newReply = <String, dynamic>{
-        'id': replyRef.id,
-        'commentId': commentId,
-        'topicId': topicId,
-        'videoId': topicId, // compatibility alias
-        'userId': currentUserId,
-        'channelId': channelId ?? currentUserId,
-        'channelName': channelName,
-        'channelProfilePicUrl': channelProfilePicUrl,
-        'channelHandle': channelHandle,
-        'text': text.trim(),
-        'likeCount': 0,
-        'dislikeCount': 0,
-        'reportCount': 0,
-        'createdAt': Timestamp.now(),
-        'isEdited': false,
-        'likedBy': <String, bool>{},
-        'dislikedBy': <String, bool>{},
-      };
+      final replyObj = Reply(
+        id: replyRef.id,
+        commentId: commentId,
+        videoId: topicId,
+        userId: currentUserId,
+        userName: currentUserName,
+        userProfilePicUrl: currentUserProfilePicUrl,
+        channelId: channelId ?? currentUserId,
+        channelName: channelName,
+        channelProfilePicUrl: channelProfilePicUrl,
+        text: text.trim(),
+        likeCount: 0,
+        dislikeCount: 0,
+        reportCount: 0,
+        createdAt: Timestamp.now(),
+      );
 
-      if (channelId == null) {
-        newReply['userName'] = currentUserName;
-        newReply['userProfilePicUrl'] = currentUserProfilePicUrl;
-      }
-
-      await replyRef.set(newReply);
+      await replyRef.set(replyObj.toMap());
 
       // Update commentCount in Firestore topics collection
       await _firestore.collection('topics').doc(topicId).update({
@@ -442,7 +423,7 @@ class TopicInteractionController extends GetxController {
       if (repliesMap[commentId] == null) {
         repliesMap[commentId] = [];
       }
-      repliesMap[commentId]!.add(newReply);
+      repliesMap[commentId]!.add(replyObj);
       repliesMap.refresh();
     } catch (e) {
       AppSnackbar.show(
@@ -485,17 +466,12 @@ class TopicInteractionController extends GetxController {
     };
     userCommentInteractions.refresh();
 
-    final index = comments.indexWhere((c) => c['id'] == commentId);
-    int oldLikeCount = 0;
-    int oldDislikeCount = 0;
-    Map<String, dynamic>? oldComment;
+    final index = comments.indexWhere((c) => c.id == commentId);
+    Comment? oldComment;
     if (index != -1) {
       oldComment = comments[index];
-      oldLikeCount = oldComment['likeCount'] ?? 0;
-      oldDislikeCount = oldComment['dislikeCount'] ?? 0;
-
-      int newLikeCount = oldLikeCount;
-      int newDislikeCount = oldDislikeCount;
+      int newLikeCount = oldComment.likeCount;
+      int newDislikeCount = oldComment.dislikeCount;
       if (newLiked) {
         newLikeCount++;
         if (wasDisliked) {
@@ -505,11 +481,12 @@ class TopicInteractionController extends GetxController {
         newLikeCount = (newLikeCount - 1).clamp(0, 999999);
       }
 
-      comments[index] = {
-        ...oldComment,
-        'likeCount': newLikeCount,
-        'dislikeCount': newDislikeCount,
-      };
+      comments[index] = oldComment.copyWith(
+        likeCount: newLikeCount,
+        dislikeCount: newDislikeCount,
+        isLikedByCurrentUser: newLiked,
+        isDislikedByCurrentUser: newDisliked,
+      );
       comments.refresh();
     }
 
@@ -520,41 +497,49 @@ class TopicInteractionController extends GetxController {
           .collection('comments')
           .doc(commentId);
 
+      final likeRef = commentRef.collection('likes').doc(userId);
+      final dislikeRef = commentRef.collection('dislikes').doc(userId);
+
       final userInteractionRef = _firestore
           .collection('users')
           .doc(userId)
           .collection('liked_topic_comments')
           .doc(commentId);
 
-      await _firestore.runTransaction((transaction) async {
-        final commentSnap = await transaction.get(commentRef);
-        if (!commentSnap.exists) return;
+      final likeDoc = await likeRef.get();
+      final dislikeDoc = await dislikeRef.get();
 
-        final data = commentSnap.data() as Map<String, dynamic>;
-        final likedBy = Map<String, bool>.from(data['likedBy'] ?? {});
-        final dislikedBy = Map<String, bool>.from(data['dislikedBy'] ?? {});
+      final batch = _firestore.batch();
 
-        if (newLiked) {
-          likedBy[userId] = true;
-          dislikedBy.remove(userId);
-          transaction.set(userInteractionRef, {
-            'topicId': topicId,
-            'isLiked': true,
-            'isDisliked': false,
-            'timestamp': FieldValue.serverTimestamp(),
-          });
-        } else {
-          likedBy.remove(userId);
-          transaction.delete(userInteractionRef);
-        }
-
-        transaction.update(commentRef, {
-          'likedBy': likedBy,
-          'dislikedBy': dislikedBy,
-          'likeCount': likedBy.length,
-          'dislikeCount': dislikedBy.length,
+      if (likeDoc.exists) {
+        batch.delete(likeRef);
+        batch.delete(userInteractionRef);
+        batch.update(commentRef, {
+          'likeCount': FieldValue.increment(-1),
         });
-      });
+      } else {
+        batch.set(likeRef, {
+          'userId': userId,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+        batch.set(userInteractionRef, {
+          'topicId': topicId,
+          'isLiked': true,
+          'isDisliked': false,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+        batch.update(commentRef, {
+          'likeCount': FieldValue.increment(1),
+        });
+        if (dislikeDoc.exists) {
+          batch.delete(dislikeRef);
+          batch.update(commentRef, {
+            'dislikeCount': FieldValue.increment(-1),
+          });
+        }
+      }
+
+      await batch.commit();
     } catch (e) {
       userCommentInteractions[commentId] = currentInteraction;
       userCommentInteractions.refresh();
@@ -594,29 +579,27 @@ class TopicInteractionController extends GetxController {
     };
     userCommentInteractions.refresh();
 
-    final index = comments.indexWhere((c) => c['id'] == commentId);
-    int oldLikeCount = 0;
-    int oldDislikeCount = 0;
-    Map<String, dynamic>? oldComment;
+    final index = comments.indexWhere((c) => c.id == commentId);
+    Comment? oldComment;
     if (index != -1) {
       oldComment = comments[index];
-      oldLikeCount = oldComment['likeCount'] ?? 0;
-      oldDislikeCount = oldComment['dislikeCount'] ?? 0;
-
-      int newLikeCount = oldLikeCount;
-      int newDislikeCount = oldDislikeCount;
+      int newLikeCount = oldComment.likeCount;
+      int newDislikeCount = oldComment.dislikeCount;
       if (newDisliked) {
         newDislikeCount++;
-        if (wasLiked) newLikeCount = (newLikeCount - 1).clamp(0, 999999);
+        if (wasLiked) {
+          newLikeCount = (newLikeCount - 1).clamp(0, 999999);
+        }
       } else {
         newDislikeCount = (newDislikeCount - 1).clamp(0, 999999);
       }
 
-      comments[index] = {
-        ...oldComment,
-        'likeCount': newLikeCount,
-        'dislikeCount': newDislikeCount,
-      };
+      comments[index] = oldComment.copyWith(
+        likeCount: newLikeCount,
+        dislikeCount: newDislikeCount,
+        isLikedByCurrentUser: newLiked,
+        isDislikedByCurrentUser: newDisliked,
+      );
       comments.refresh();
     }
 
@@ -627,41 +610,49 @@ class TopicInteractionController extends GetxController {
           .collection('comments')
           .doc(commentId);
 
+      final likeRef = commentRef.collection('likes').doc(userId);
+      final dislikeRef = commentRef.collection('dislikes').doc(userId);
+
       final userInteractionRef = _firestore
           .collection('users')
           .doc(userId)
           .collection('liked_topic_comments')
           .doc(commentId);
 
-      await _firestore.runTransaction((transaction) async {
-        final commentSnap = await transaction.get(commentRef);
-        if (!commentSnap.exists) return;
+      final likeDoc = await likeRef.get();
+      final dislikeDoc = await dislikeRef.get();
 
-        final data = commentSnap.data() as Map<String, dynamic>;
-        final likedBy = Map<String, bool>.from(data['likedBy'] ?? {});
-        final dislikedBy = Map<String, bool>.from(data['dislikedBy'] ?? {});
+      final batch = _firestore.batch();
 
-        if (newDisliked) {
-          dislikedBy[userId] = true;
-          likedBy.remove(userId);
-          transaction.set(userInteractionRef, {
-            'topicId': topicId,
-            'isLiked': false,
-            'isDisliked': true,
-            'timestamp': FieldValue.serverTimestamp(),
-          });
-        } else {
-          dislikedBy.remove(userId);
-          transaction.delete(userInteractionRef);
-        }
-
-        transaction.update(commentRef, {
-          'likedBy': likedBy,
-          'dislikedBy': dislikedBy,
-          'likeCount': likedBy.length,
-          'dislikeCount': dislikedBy.length,
+      if (dislikeDoc.exists) {
+        batch.delete(dislikeRef);
+        batch.delete(userInteractionRef);
+        batch.update(commentRef, {
+          'dislikeCount': FieldValue.increment(-1),
         });
-      });
+      } else {
+        batch.set(dislikeRef, {
+          'userId': userId,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+        batch.set(userInteractionRef, {
+          'topicId': topicId,
+          'isLiked': false,
+          'isDisliked': true,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+        batch.update(commentRef, {
+          'dislikeCount': FieldValue.increment(1),
+        });
+        if (likeDoc.exists) {
+          batch.delete(likeRef);
+          batch.update(commentRef, {
+            'likeCount': FieldValue.increment(-1),
+          });
+        }
+      }
+
+      await batch.commit();
     } catch (e) {
       userCommentInteractions[commentId] = currentInteraction;
       userCommentInteractions.refresh();
@@ -705,12 +696,12 @@ class TopicInteractionController extends GetxController {
     userReplyInteractions.refresh();
 
     final replies = repliesMap[commentId] ?? [];
-    final index = replies.indexWhere((r) => r['id'] == replyId);
-    Map<String, dynamic>? oldReply;
+    final index = replies.indexWhere((r) => r.id == replyId);
+    Reply? oldReply;
     if (index != -1) {
       oldReply = replies[index];
-      int newLikeCount = oldReply['likeCount'] ?? 0;
-      int newDislikeCount = oldReply['dislikeCount'] ?? 0;
+      int newLikeCount = oldReply.likeCount;
+      int newDislikeCount = oldReply.dislikeCount;
       if (newLiked) {
         newLikeCount++;
         if (wasDisliked) {
@@ -719,11 +710,12 @@ class TopicInteractionController extends GetxController {
       } else {
         newLikeCount = (newLikeCount - 1).clamp(0, 999999);
       }
-      replies[index] = {
-        ...oldReply,
-        'likeCount': newLikeCount,
-        'dislikeCount': newDislikeCount,
-      };
+      replies[index] = oldReply.copyWith(
+        likeCount: newLikeCount,
+        dislikeCount: newDislikeCount,
+        isLikedByCurrentUser: newLiked,
+        isDislikedByCurrentUser: newDisliked,
+      );
       repliesMap.refresh();
     }
 
@@ -736,42 +728,50 @@ class TopicInteractionController extends GetxController {
           .collection('replies')
           .doc(replyId);
 
+      final likeRef = replyRef.collection('likes').doc(userId);
+      final dislikeRef = replyRef.collection('dislikes').doc(userId);
+
       final userInteractionRef = _firestore
           .collection('users')
           .doc(userId)
           .collection('liked_topic_replies')
           .doc(replyId);
 
-      await _firestore.runTransaction((transaction) async {
-        final replySnap = await transaction.get(replyRef);
-        if (!replySnap.exists) return;
+      final likeDoc = await likeRef.get();
+      final dislikeDoc = await dislikeRef.get();
 
-        final data = replySnap.data() as Map<String, dynamic>;
-        final likedBy = Map<String, bool>.from(data['likedBy'] ?? {});
-        final dislikedBy = Map<String, bool>.from(data['dislikedBy'] ?? {});
+      final batch = _firestore.batch();
 
-        if (newLiked) {
-          likedBy[userId] = true;
-          dislikedBy.remove(userId);
-          transaction.set(userInteractionRef, {
-            'topicId': topicId,
-            'commentId': commentId,
-            'isLiked': true,
-            'isDisliked': false,
-            'timestamp': FieldValue.serverTimestamp(),
-          });
-        } else {
-          likedBy.remove(userId);
-          transaction.delete(userInteractionRef);
-        }
-
-        transaction.update(replyRef, {
-          'likedBy': likedBy,
-          'dislikedBy': dislikedBy,
-          'likeCount': likedBy.length,
-          'dislikeCount': dislikedBy.length,
+      if (likeDoc.exists) {
+        batch.delete(likeRef);
+        batch.delete(userInteractionRef);
+        batch.update(replyRef, {
+          'likeCount': FieldValue.increment(-1),
         });
-      });
+      } else {
+        batch.set(likeRef, {
+          'userId': userId,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+        batch.set(userInteractionRef, {
+          'topicId': topicId,
+          'commentId': commentId,
+          'isLiked': true,
+          'isDisliked': false,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+        batch.update(replyRef, {
+          'likeCount': FieldValue.increment(1),
+        });
+        if (dislikeDoc.exists) {
+          batch.delete(dislikeRef);
+          batch.update(replyRef, {
+            'dislikeCount': FieldValue.increment(-1),
+          });
+        }
+      }
+
+      await batch.commit();
     } catch (e) {
       userReplyInteractions[replyId] = currentInteraction;
       userReplyInteractions.refresh();
@@ -815,23 +815,24 @@ class TopicInteractionController extends GetxController {
     userReplyInteractions.refresh();
 
     final replies = repliesMap[commentId] ?? [];
-    final index = replies.indexWhere((r) => r['id'] == replyId);
-    Map<String, dynamic>? oldReply;
+    final index = replies.indexWhere((r) => r.id == replyId);
+    Reply? oldReply;
     if (index != -1) {
       oldReply = replies[index];
-      int newLikeCount = oldReply['likeCount'] ?? 0;
-      int newDislikeCount = oldReply['dislikeCount'] ?? 0;
+      int newLikeCount = oldReply.likeCount;
+      int newDislikeCount = oldReply.dislikeCount;
       if (newDisliked) {
         newDislikeCount++;
         if (wasLiked) newLikeCount = (newLikeCount - 1).clamp(0, 999999);
       } else {
         newDislikeCount = (newDislikeCount - 1).clamp(0, 999999);
       }
-      replies[index] = {
-        ...oldReply,
-        'likeCount': newLikeCount,
-        'dislikeCount': newDislikeCount,
-      };
+      replies[index] = oldReply.copyWith(
+        likeCount: newLikeCount,
+        dislikeCount: newDislikeCount,
+        isLikedByCurrentUser: newLiked,
+        isDislikedByCurrentUser: newDisliked,
+      );
       repliesMap.refresh();
     }
 
@@ -844,42 +845,50 @@ class TopicInteractionController extends GetxController {
           .collection('replies')
           .doc(replyId);
 
+      final likeRef = replyRef.collection('likes').doc(userId);
+      final dislikeRef = replyRef.collection('dislikes').doc(userId);
+
       final userInteractionRef = _firestore
           .collection('users')
           .doc(userId)
           .collection('liked_topic_replies')
           .doc(replyId);
 
-      await _firestore.runTransaction((transaction) async {
-        final replySnap = await transaction.get(replyRef);
-        if (!replySnap.exists) return;
+      final likeDoc = await likeRef.get();
+      final dislikeDoc = await dislikeRef.get();
 
-        final data = replySnap.data() as Map<String, dynamic>;
-        final likedBy = Map<String, bool>.from(data['likedBy'] ?? {});
-        final dislikedBy = Map<String, bool>.from(data['dislikedBy'] ?? {});
+      final batch = _firestore.batch();
 
-        if (newDisliked) {
-          dislikedBy[userId] = true;
-          likedBy.remove(userId);
-          transaction.set(userInteractionRef, {
-            'topicId': topicId,
-            'commentId': commentId,
-            'isLiked': false,
-            'isDisliked': true,
-            'timestamp': FieldValue.serverTimestamp(),
-          });
-        } else {
-          dislikedBy.remove(userId);
-          transaction.delete(userInteractionRef);
-        }
-
-        transaction.update(replyRef, {
-          'likedBy': likedBy,
-          'dislikedBy': dislikedBy,
-          'likeCount': likedBy.length,
-          'dislikeCount': dislikedBy.length,
+      if (dislikeDoc.exists) {
+        batch.delete(dislikeRef);
+        batch.delete(userInteractionRef);
+        batch.update(replyRef, {
+          'dislikeCount': FieldValue.increment(-1),
         });
-      });
+      } else {
+        batch.set(dislikeRef, {
+          'userId': userId,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+        batch.set(userInteractionRef, {
+          'topicId': topicId,
+          'commentId': commentId,
+          'isLiked': false,
+          'isDisliked': true,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+        batch.update(replyRef, {
+          'dislikeCount': FieldValue.increment(1),
+        });
+        if (likeDoc.exists) {
+          batch.delete(likeRef);
+          batch.update(replyRef, {
+            'likeCount': FieldValue.increment(-1),
+          });
+        }
+      }
+
+      await batch.commit();
     } catch (e) {
       userReplyInteractions[replyId] = currentInteraction;
       userReplyInteractions.refresh();

@@ -1,4 +1,26 @@
 User-agent: *
 Allow: /
+Allow: /watch
+Allow: /channel/
+Allow: /@
+Allow: /topic/
+Allow: /T/
+Allow: /playlist
+Allow: /trending
+Allow: /browse
+
+Disallow: /studio/
+Disallow: /dashboard
+Disallow: /settings
+Disallow: /myvideos
+Disallow: /uploadscreen
+Disallow: /likedvideos
+Disallow: /history
+Disallow: /notifications
+Disallow: /admin/
+Disallow: /api/
+Disallow: /functions/
+Disallow: /__/auth/
+Disallow: /__/firebase/
 
 Sitemap: https://www.truthworld.in/sitemap.xml

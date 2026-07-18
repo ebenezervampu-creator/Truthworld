@@ -71,4 +71,31 @@ class TWSpacing extends ThemeExtension<TWSpacing> {
 
 extension TWSpacingExtension on BuildContext {
   TWSpacing get spacing => Theme.of(this).extension<TWSpacing>()!;
+  TWInsets get insets => TWInsets(spacing);
+}
+
+class TWInsetHelper extends EdgeInsets {
+  const TWInsetHelper(double value) : super.all(value);
+  
+  EdgeInsets get h => EdgeInsets.symmetric(horizontal: left);
+  EdgeInsets get v => EdgeInsets.symmetric(vertical: top);
+  EdgeInsets get horizontalInsets => EdgeInsets.symmetric(horizontal: left);
+  EdgeInsets get verticalInsets => EdgeInsets.symmetric(vertical: top);
+  EdgeInsets get topOnly => EdgeInsets.only(top: top);
+  EdgeInsets get bottomOnly => EdgeInsets.only(bottom: bottom);
+  EdgeInsets get leftOnly => EdgeInsets.only(left: left);
+  EdgeInsets get rightOnly => EdgeInsets.only(right: right);
+}
+
+class TWInsets {
+  final TWSpacing spacing;
+  const TWInsets(this.spacing);
+
+  TWInsetHelper get xxs => TWInsetHelper(spacing.xxs);
+  TWInsetHelper get xs => TWInsetHelper(spacing.xs);
+  TWInsetHelper get sm => TWInsetHelper(spacing.sm);
+  TWInsetHelper get md => TWInsetHelper(spacing.md);
+  TWInsetHelper get lg => TWInsetHelper(spacing.lg);
+  TWInsetHelper get xl => TWInsetHelper(spacing.xl);
+  TWInsetHelper get xxl => TWInsetHelper(spacing.xxl);
 }

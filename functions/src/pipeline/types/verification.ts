@@ -28,9 +28,21 @@ export interface RichSource {
   title: string;
   url: string;
   domain?: string;
+  publisher?: string;
+  type?: string;
   publishedAt?: string;
   tier: SourceTier;
   snippet?: string;
+  lastPublished?: string;
+  lastVerified?: string;
+  retrievalMethod?: string;
+}
+
+export interface EvidenceSummary {
+  independentPublishers: number;
+  tierA: number;
+  tierB: number;
+  secondarySources: number;
 }
 
 export interface EvidenceLineage {
@@ -80,6 +92,15 @@ export interface VerifiedClaim extends FilteredClaim {
   /** v17.0: Contextual note for BELIEF/OPINION claims shown in UI */
   contextNote?: string;
   reasonCategory?: ReasonCategory;
+  sourceStatus?: 'complete' | 'partial' | 'missing';
+  evidenceSchemaVersion?: string;
+  evidenceSummary?: EvidenceSummary;
+  processingMetadata?: {
+    recoveryMethod?: string;
+    requiresCitationRetry?: boolean;
+    cacheSource?: string;
+    [key: string]: any;
+  };
 }
 
 // Zod schemas for Gemini response validation
@@ -130,6 +151,7 @@ const GeminiSourceSchema = z.object({
   title: z.string().optional().default('Reference Source'),
   url: z.string().optional().default(''),
   snippet: z.string().optional().default(''),
+  publishedAt: z.string().optional(),
 });
 
 export const GeminiVerificationSchema = z.object({

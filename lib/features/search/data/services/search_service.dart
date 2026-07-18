@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import '../models/search_result.dart';
 import '../models/search_cache.dart';
 
@@ -21,10 +23,6 @@ class SearchService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final SearchCache _cache = SearchCache();
 
-  /// Cost tracking (for monitoring - Problem 2)
-  int _queryCount = 0;
-  int _cacheHits = 0;
-
   /// Execute search query with intelligent fallback across all types
   ///
   /// Returns: Merged list of SearchResult objects (videos, channels, playlists)
@@ -35,10 +33,8 @@ class SearchService {
     final normalized = query.toLowerCase().trim();
     final cached = _cache.get(normalized);
     if (cached != null) {
-      _cacheHits++;
       return cached;
     }
-    _queryCount++;
 
     try {
       // Execute all search types in parallel for maximum speed
@@ -71,7 +67,6 @@ class SearchService {
     // Check cache
     final cached = _cache.get(cacheKey);
     if (cached != null) {
-      _cacheHits++;
       debugPrint('💾 [Search] Cache hit for videos: "$query"');
       return cached;
     }
@@ -92,7 +87,7 @@ class SearchService {
     var results = await _firestore
         .collection('videos')
         .where('keywords', arrayContains: query)
-        .where('status', isEqualTo: 'processed')
+        .where('status', whereIn: const ['processed', 'published'])
         .limit(20)
         .get()
         .then(
@@ -107,7 +102,7 @@ class SearchService {
           .collection('videos')
           .where('title', isGreaterThanOrEqualTo: query)
           .where('title', isLessThanOrEqualTo: '$query\uf8ff')
-          .where('status', isEqualTo: 'processed')
+          .where('status', whereIn: const ['processed', 'published'])
           .limit(20)
           .get()
           .then(
@@ -117,6 +112,33 @@ class SearchService {
                 )
                 .toList(),
           );
+    }
+
+    // 3. Free Local Cache Fallback (for development/testing or offline capability)
+    // Note: This fallback only searches currently cached/loaded videos in HomeController, not the entire Firestore catalog,
+    // which prevents costly Firestore reads.
+    if (results.isEmpty) {
+      try {
+        if (Get.isRegistered<HomeController>()) {
+          final homeCtrl = Get.find<HomeController>();
+          final localMatches = homeCtrl.videos
+              .where((v) => v.title.toLowerCase().contains(query))
+              .map((v) => SearchResult(
+                    id: v.id,
+                    title: v.title,
+                    thumbnail: v.thumbnailUrl,
+                    views: v.viewCount,
+                    channelName: v.channelName,
+                    channelImage: v.channelAvatarUrl,
+                    createdAt: v.createdAt,
+                    type: ResultType.video,
+                    durationMs: v.durationValue.inMilliseconds,
+                  ));
+          results.addAll(localMatches);
+        }
+      } catch (e) {
+        debugPrint('⚠️ [Search] Local cache fallback failed: $e');
+      }
     }
 
     return results;
@@ -134,7 +156,6 @@ class SearchService {
     // Check cache
     final cached = _cache.get(cacheKey);
     if (cached != null) {
-      _cacheHits++;
       debugPrint('💾 [Search] Cache hit for channels: "$query"');
       return cached;
     }
@@ -202,7 +223,6 @@ class SearchService {
     // Check cache
     final cached = _cache.get(cacheKey);
     if (cached != null) {
-      _cacheHits++;
       debugPrint('💾 [Search] Cache hit for playlists: "$query"');
       return cached;
     }
@@ -253,7 +273,6 @@ class SearchService {
     // Check cache
     final cached = _cache.get(cacheKey);
     if (cached != null) {
-      _cacheHits++;
       debugPrint('💾 [Search] Cache hit for topics: "$query"');
       return cached;
     }
@@ -315,7 +334,7 @@ class SearchService {
     try {
       final snapshot = await _firestore
           .collection('videos')
-          .where('status', isEqualTo: 'processed')
+          .where('status', whereIn: const ['processed', 'published'])
           .where('visibility', isEqualTo: 'Public')
           .orderBy('views', descending: true)
           .limit(5)
@@ -431,30 +450,6 @@ class SearchService {
     }
 
     debugPrint('✅ [Search] Cache warmup complete');
-  }
-
-  /// Get cost statistics (for monitoring - Problem 2)
-  Map<String, dynamic> getCostStats() {
-    final totalQueries = _queryCount + _cacheHits;
-    final hitRate = totalQueries == 0 ? 0.0 : (_cacheHits / totalQueries) * 100;
-
-    // Cost estimation: $0.06 per 100K reads
-    final estimatedCost = (_queryCount * 0.06) / 100000;
-
-    return {
-      'total_searches': totalQueries,
-      'firestore_queries': _queryCount,
-      'cache_hits': _cacheHits,
-      'hit_rate': hitRate,
-      'estimated_monthly_cost': estimatedCost * 30, // Approximate monthly
-    };
-  }
-
-  /// Reset cost tracking (for testing)
-  void resetCostTracking() {
-    _queryCount = 0;
-    _cacheHits = 0;
-    debugPrint('🔄 [Search] Cost tracking reset');
   }
 }
 

@@ -213,6 +213,11 @@ class Truthworld extends StatelessWidget {
           Uri.base.queryParameters.containsKey('admin')) {
         return '/admin/login';
       }
+      if (host.startsWith('studio') ||
+          uriStr.contains('studio') ||
+          Uri.base.queryParameters.containsKey('studio')) {
+        return '/';
+      }
     }
     return '/';
   }
@@ -232,8 +237,14 @@ class Truthworld extends StatelessWidget {
       getPages: AppPages.routes,
       navigatorObservers: [RouteStackObserver()],
       builder: (context, child) {
+        final mediaQueryData = MediaQuery.of(context);
+        final clampedTextScaler = mediaQueryData.textScaler.clamp(
+          minScaleFactor: 1.0,
+          maxScaleFactor: 1.4,
+        );
+
         return MediaQuery(
-          data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(1.0)),
+          data: mediaQueryData.copyWith(textScaler: clampedTextScaler),
           child: Stack(
             children: [
               child!,

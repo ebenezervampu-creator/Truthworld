@@ -404,8 +404,9 @@ class Video {
       commentCount: data['commentCount'] ?? 0,
       shareCount: data['shareCount'] ?? 0,
       vDurationValue: Duration(milliseconds: data['durationMs'] ?? 0),
-      createdAt: data['createdAt'] ?? Timestamp.now(),
-      updatedAt: data['updatedAt'] ?? Timestamp.now(),
+      createdAt: data['createdAt'],
+      uploadedAt: data['uploadedAt'] ?? data['publishedAt'],
+      updatedAt: data['updatedAt'],
       status: VideoStatus.values.firstWhere(
         (e) => e.name == data['status'],
         orElse: () => VideoStatus.processing,

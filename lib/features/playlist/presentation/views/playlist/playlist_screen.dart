@@ -11,6 +11,7 @@ import 'package:truthworld/features/playlist/presentation/controllers/playlist_c
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 const kPrimaryDark = Color(0xFFA50E2D); // Darker crimson
 const kSecondaryDark = Color(0xFF7B0A21); // Even darker crimson
 const kBorderRadius = 16.0;
@@ -1709,13 +1710,28 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                       ),
                     ),
                   )
-                : Text(
-                    'Playlists',
-                    style: GoogleFonts.roboto(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
+                : Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        onPressed: () {
+                          if (widget.isDashboard) {
+                            Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexLibrary;
+                          } else {
+                            Get.back();
+                          }
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Playlists',
+                        style: GoogleFonts.roboto(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
           ),
           Row(

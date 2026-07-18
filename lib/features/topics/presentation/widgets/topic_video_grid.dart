@@ -21,6 +21,10 @@ class TopicVideoGrid extends StatelessWidget {
   final bool isTablet;
   final String heroPrefix;
   final VoidCallback onLoadMore;
+  final bool isGrid;
+
+  final String? emptyTitle;
+  final String? emptySubtitle;
 
   const TopicVideoGrid({
     super.key,
@@ -31,6 +35,9 @@ class TopicVideoGrid extends StatelessWidget {
     required this.isTablet,
     required this.heroPrefix,
     required this.onLoadMore,
+    this.isGrid = true,
+    this.emptyTitle,
+    this.emptySubtitle,
   });
 
   @override
@@ -41,8 +48,8 @@ class TopicVideoGrid extends StatelessWidget {
 
     return Column(
       children: [
-        // Video Grid
-        _buildGrid(),
+        // Video Grid or List
+        isGrid ? _buildGrid() : _buildList(),
 
         // Loading more indicator
         if (isLoadingMore) _buildLoadingMore(),
@@ -52,6 +59,33 @@ class TopicVideoGrid extends StatelessWidget {
       ],
     );
   }
+
+  Widget _buildList() {
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: videos.length,
+      itemBuilder: (context, index) {
+        final video = videos[index];
+
+        return RepaintBoundary(
+          child: VideoCard(
+            video: video,
+            isGrid: false,
+            heroPrefix: heroPrefix,
+            onTap: () => Get.toNamed(
+              '/watch?v=${video.id}',
+              arguments: {
+                'video': video,
+                'heroTag': '${heroPrefix}_${video.id}',
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
 
   Widget _buildGrid() {
     // Determine grid configuration based on screen size
@@ -113,7 +147,7 @@ class TopicVideoGrid extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'No videos yet',
+            emptyTitle ?? 'No videos yet',
             style: TextStyle(
               fontSize: 18,
               color: AppColors.textSecondary,
@@ -121,7 +155,7 @@ class TopicVideoGrid extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Videos related to this topic will appear here',
+            emptySubtitle ?? 'Videos related to this topic will appear here',
             style: TextStyle(
               fontSize: 14,
               color: AppColors.textTertiary,

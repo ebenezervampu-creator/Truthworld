@@ -20,6 +20,7 @@ import { DistributionLayer } from "./04-distribution";
 import { costEngine } from "../services/cost-engine";
 import { pipelineEstimator } from "../services/pipeline-estimator";
 import { logger } from "../utils/logger";
+import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository.js";
 
 const db = () => admin.firestore();
 
@@ -48,10 +49,12 @@ const TYPE_COST_BUDGETS: Record<string, number> = {
 export class EdgeLayer {
   private readonly inputLayer: InputLayer;
   private readonly distribution: DistributionLayer;
+  private readonly analysisRepository: AnalysisRepository;
 
-  constructor() {
+  constructor(analysisRepository?: AnalysisRepository) {
     this.inputLayer = new InputLayer();
     this.distribution = new DistributionLayer();
+    this.analysisRepository = analysisRepository || getAnalysisRepository();
   }
 
   // ─── Public API ─────────────────────────────────────────────────────────────
@@ -232,14 +235,17 @@ export class EdgeLayer {
 
       let partial: Partial<AggregatedOutput> | undefined;
       if (stages.credibility?.status === "completed") {
-        const fd = await db().collection("factChecks").doc(jobId).get();
-        if (fd.exists) {
-          const d = fd.data()!;
-          partial = {
-            rating: d.trustScore,
-            claims: d.claimSummary,
-            fullResultPath: d.fullResultPath,
-          };
+        try {
+          const d = await this.analysisRepository.loadAnalysis(jobId, "factChecks");
+          if (d) {
+            partial = {
+              rating: d.trustScore ?? 0,
+              claims: d.claims?.map((c: any) => ({ claim: c.claim || c.text, status: c.status, severity: c.severity || "low" })) || [],
+              fullResultPath: `factChecks/${jobId}/latest.json`,
+            };
+          }
+        } catch (err) {
+          logger.error("[Edge] Failed to retrieve partial credibility from storage", { jobId, err: String(err) });
         }
       }
 

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 
 /// Topic Hero Widget
 ///
@@ -113,9 +115,16 @@ class TopicHeroWidget extends StatelessWidget {
   }
 
   Widget _buildBackground() {
-    if (topic?.coverImage != null && topic!.coverImage!.isNotEmpty) {
+    final bgUrl =
+        (topic?.coverImage != null && topic!.coverImage!.isNotEmpty)
+        ? topic!.coverImage
+        : (topic?.thumbnailUrl != null && topic!.thumbnailUrl!.isNotEmpty)
+        ? topic!.thumbnailUrl
+        : null;
+
+    if (bgUrl != null) {
       return Image.network(
-        topic!.coverImage!,
+        bgUrl,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
           return _buildGradientBackground();
@@ -165,27 +174,67 @@ class TopicHeroWidget extends StatelessWidget {
   }
 
   Widget _buildStatsRow() {
-    return Row(
-      children: [
-        Icon(
-          Icons.videocam_rounded,
-          color: AppColors.textSecondary,
-          size: isDesktop ? 20 : 18,
-        ),
-        const SizedBox(width: 8),
-        Text(
-          '${topic!.videoCount} videos',
-          style: GoogleFonts.roboto(
-            fontSize: isDesktop ? 16 : 14,
+    final followingController = Get.put(FollowingTopicsController());
+    return Obx(() {
+      final isFollowed = followingController.isTopicFollowed(topic!.id);
+      return Row(
+        children: [
+          Icon(
+            Icons.videocam_rounded,
             color: AppColors.textSecondary,
+            size: isDesktop ? 20 : 18,
           ),
-        ),
-        // Future: Add follower count here
-        // const SizedBox(width: 24),
-        // Icon(Icons.people_rounded, ...),
-        // Text('${topic!.followerCount} followers', ...),
-      ],
-    );
+          const SizedBox(width: 8),
+          Text(
+            '${topic!.videoCount} videos',
+            style: GoogleFonts.roboto(
+              fontSize: isDesktop ? 16 : 14,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(width: 24),
+          Icon(
+            Icons.people_rounded,
+            color: AppColors.textSecondary,
+            size: isDesktop ? 20 : 18,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${topic!.followerCount} followers',
+            style: GoogleFonts.roboto(
+              fontSize: isDesktop ? 16 : 14,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const Spacer(),
+          ElevatedButton.icon(
+            onPressed: () => followingController.toggleFollowTopic(topic!),
+            icon: Icon(
+              isFollowed ? Icons.check : Icons.add,
+              size: 16,
+              color: isFollowed ? AppColors.textPrimary : Colors.black,
+            ),
+            label: Text(
+              isFollowed ? 'Following' : 'Follow',
+              style: TextStyle(
+                color: isFollowed ? AppColors.textPrimary : Colors.black,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isFollowed ? Colors.white12 : AppColors.brand,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 8,
+              ),
+            ),
+          ),
+        ],
+      );
+    });
   }
 
   Widget _buildSkeleton() {

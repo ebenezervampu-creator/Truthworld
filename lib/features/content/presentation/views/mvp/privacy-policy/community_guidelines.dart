@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 
 // A simple class to hold our parsed guidelines sections
 class GuidelineSection {
@@ -273,16 +273,20 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
         final bool isDesktop = constraints.maxWidth >= breakpoint;
 
         return Scaffold(
-          appBar: !widget.isDashboard
-              ? AppBar(
+          appBar: AppBar(
                   backgroundColor: Theme.of(context).colorScheme.surface,
                   elevation: 1,
                   shadowColor: Colors.black.withValues(alpha: 0.1),
-                  leading: isDesktop
+                  leading: (widget.isDashboard || isDesktop)
                       ? IconButton(
-                          icon: BackSymbol(color: Theme.of(context).iconTheme.color,
-                          ),
-                          onPressed: () => Get.back(),
+                          icon: Icon(Icons.arrow_back, color: Theme.of(context).iconTheme.color),
+                          onPressed: () {
+                            if (widget.isDashboard) {
+                              Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexSettings;
+                            } else {
+                              Get.back();
+                            }
+                          },
                         )
                       : null,
                   title: Text(
@@ -322,8 +326,7 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
                     ),
                     const SizedBox(width: 8),
                   ],
-                )
-              : null,
+                ),
           drawer: isDesktop
               ? null
               : Drawer(child: _buildNavigationMenu(context, isDrawer: true)),

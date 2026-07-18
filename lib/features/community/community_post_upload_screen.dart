@@ -1,6 +1,5 @@
 import 'dart:io' as io;
 import 'package:flutter/foundation.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:get/get.dart';
@@ -9,7 +8,7 @@ import 'package:truthworld/features/community/data/models/community_draft.dart';
 import 'package:truthworld/features/community/data/models/poll_model.dart';
 import 'package:truthworld/features/presentation/widgets/upload_shared_widgets.dart';
 import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 // =============================================================================
 // COMMUNITY POST UPLOAD SCREEN Ã¢â‚¬â€ 100% StatelessWidget + GetX
@@ -43,40 +42,38 @@ class CommunityPostUploadScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
-      backgroundColor: isDark ? AppColors.bgPage : AppColors.textPrimary,
+      backgroundColor: context.colors.background,
       body: SafeArea(
         child: _isMobile(context)
-            ? _buildMobileLayout(context, isDark)
-            : _buildDesktopLayout(context, isDark),
+            ? _buildMobileLayout(context)
+            : _buildDesktopLayout(context),
       ),
     );
   }
 
   // Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â DESKTOP LAYOUT Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
 
-  Widget _buildDesktopLayout(BuildContext context, bool isDark) {
+  Widget _buildDesktopLayout(BuildContext context) {
     return Row(
       children: [
         // Sidebar
         Container(
           width: 280,
           decoration: BoxDecoration(
-            color: isDark ? AppColors.bgPage : AppColors.textPrimary,
+            color: context.colors.background,
             border: Border(
               right: BorderSide(
-                color: isDark ? AppColors.bgSurface : AppColors.textSecondary,
+                color: context.colors.divider,
               ),
             ),
           ),
           child: Column(
             children: [
-              _buildSidebarHeader(isDark),
+              _buildSidebarHeader(context),
               const SizedBox(height: 16),
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20),
+                padding: context.insets.lg.horizontalInsets,
                 child: Obx(() {
                   final channel = _c.selectedChannel.value;
                   return Column(
@@ -84,12 +81,12 @@ class CommunityPostUploadScreen extends StatelessWidget {
                     children: [
                       if (channel != null) ...[
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          padding: context.insets.sm,
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF161B22) : const Color(0xFFF9FAFB),
-                            borderRadius: BorderRadius.circular(12),
+                            color: context.colors.surface,
+                            borderRadius: context.radius.lg,
                             border: Border.all(
-                              color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
+                              color: context.colors.divider,
                               width: 1,
                             ),
                           ),
@@ -107,7 +104,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                                     fontFamily: 'Roboto',
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
-                                    color: isDark ? Colors.white : Colors.black87,
+                                    color: context.colors.textPrimary,
                                   ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -119,21 +116,21 @@ class CommunityPostUploadScreen extends StatelessWidget {
                       if (channel != null &&
                           channel.status != ChannelStatus.active) ...[
                         const SizedBox(height: 12),
-                        _buildChannelVerificationBanner(channel, isDark),
+                        _buildChannelVerificationBanner(channel, context),
                       ],
                     ],
                   );
                 }),
               ),
               const Spacer(),
-              _buildBackButton(isDark),
+              _buildBackButton(context),
             ],
           ),
         ),
         // Main content
         Expanded(
           child: SingleChildScrollView(
-            padding: EdgeInsets.all(32),
+            padding: context.insets.xl,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -144,19 +141,19 @@ class CommunityPostUploadScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildDetailsSection(isDark),
+                        _buildDetailsSection(context),
                         const SizedBox(height: 24),
-                        _buildImageGallerySection(isDark),
+                        _buildImageGallerySection(context),
                         const SizedBox(height: 24),
-                        _buildPollSection(isDark),
+                        _buildPollSection(context),
                         const SizedBox(height: 24),
-                        _buildSettingsSection(isDark),
+                        _buildSettingsSection(context),
                       ],
                     ),
                   ),
                 ),
                 const SizedBox(width: 32),
-                Expanded(child: _buildPreviewPanel(isDark)),
+                Expanded(child: _buildPreviewPanel(context)),
               ],
             ),
           ),
@@ -167,13 +164,13 @@ class CommunityPostUploadScreen extends StatelessWidget {
 
   // Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â MOBILE LAYOUT Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
 
-  Widget _buildMobileLayout(BuildContext context, bool isDark) {
+  Widget _buildMobileLayout(BuildContext context) {
     return Column(
       children: [
-        _buildMobileAppBar(isDark),
+        _buildMobileAppBar(context),
         Expanded(
           child: SingleChildScrollView(
-            padding: EdgeInsets.all(16),
+            padding: context.insets.md,
             child: Form(
               key: _formKey,
               child: Column(
@@ -185,12 +182,12 @@ class CommunityPostUploadScreen extends StatelessWidget {
                       children: [
                         if (channel != null) ...[
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            padding: context.insets.sm,
                             decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF161B22) : const Color(0xFFF9FAFB),
-                              borderRadius: BorderRadius.circular(12),
+                              color: context.colors.surface,
+                              borderRadius: context.radius.lg,
                               border: Border.all(
-                                color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
+                                color: context.colors.divider,
                                 width: 1,
                               ),
                             ),
@@ -208,7 +205,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                                       fontFamily: 'Roboto',
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
-                                      color: isDark ? Colors.white : Colors.black87,
+                                      color: context.colors.textPrimary,
                                     ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -220,19 +217,19 @@ class CommunityPostUploadScreen extends StatelessWidget {
                         if (channel != null &&
                             channel.status != ChannelStatus.active) ...[
                           const SizedBox(height: 12),
-                          _buildChannelVerificationBanner(channel, isDark),
+                          _buildChannelVerificationBanner(channel, context),
                         ],
                       ],
                     );
                   }),
                   const SizedBox(height: 20),
-                  _buildDetailsSection(isDark),
+                  _buildDetailsSection(context),
                   const SizedBox(height: 20),
-                  _buildImageGallerySection(isDark),
+                  _buildImageGallerySection(context),
                   const SizedBox(height: 20),
-                  _buildPollSection(isDark),
+                  _buildPollSection(context),
                   const SizedBox(height: 20),
-                  _buildSettingsSection(isDark),
+                  _buildSettingsSection(context),
                   const SizedBox(height: 24),
                   Obx(
                     () => UploadPublishButton(
@@ -243,7 +240,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                       isUploading: _c.isUploading.value,
                       uploadProgress: _c.overallProgress.value,
                       onPublish: _handlePublish,
-                      accentColor: AppColors.brand,
+                      accentColor: context.colors.brand,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -258,19 +255,19 @@ class CommunityPostUploadScreen extends StatelessWidget {
 
   // Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â IMAGE GALLERY (1-10, any ratio) Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
 
-  Widget _buildImageGallerySection(bool isDark) {
+  Widget _buildImageGallerySection(BuildContext context) {
     return _card(
-      isDark,
+      context,
       icon: Icons.photo_library_rounded,
       title: 'Image',
-      accentColor: AppColors.textPrimary,
+      accentColor: context.colors.brand,
       children: [
         Text(
           'Add 1 image, any aspect ratio. Max 20 MB.',
           style: TextStyle(
             fontFamily: 'Roboto',
             fontSize: 12,
-            color: isDark ? AppColors.textPrimary38 : AppColors.textSecondary,
+            color: context.colors.textSecondary,
           ),
         ),
         const SizedBox(height: 16),
@@ -283,18 +280,16 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 Stack(
                   children: [
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: context.radius.lg,
                       child: InkWell(
                         onTap: _c.pickImages,
                         child: Container(
                           width: double.infinity,
                           height: 200,
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: context.radius.lg,
                             border: Border.all(
-                              color: isDark
-                                  ? AppColors.bgPage
-                                  : AppColors.textSecondary,
+                              color: context.colors.divider,
                             ),
                           ),
                           child: kIsWeb || images.first.path != null
@@ -320,15 +315,15 @@ class CommunityPostUploadScreen extends StatelessWidget {
                       return Positioned.fill(
                         child: Container(
                           decoration: BoxDecoration(
-                            color: AppColors.bgPage54,
-                            borderRadius: BorderRadius.circular(14),
+                            color: context.colors.background.withValues(alpha: 0.54),
+                            borderRadius: context.radius.lg,
                           ),
                           child: Center(
                             child: CircularProgressIndicator(
                               value: progress,
                               strokeWidth: 3,
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                AppColors.textPrimary,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                context.colors.brand,
                               ),
                             ),
                           ),
@@ -344,15 +339,15 @@ class CommunityPostUploadScreen extends StatelessWidget {
                       return Positioned.fill(
                         child: Container(
                           decoration: BoxDecoration(
-                            color: AppColors.textSecondary.withValues(
+                            color: context.colors.divider.withValues(
                               alpha: 0.7,
                             ),
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: context.radius.lg,
                           ),
-                          child: const Center(
+                          child: Center(
                             child: Icon(
                               Icons.error_outline_rounded,
-                              color: AppColors.textPrimary,
+                              color: context.colors.error,
                               size: 28,
                             ),
                           ),
@@ -368,12 +363,12 @@ class CommunityPostUploadScreen extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: AppColors.bgPage.withValues(alpha: 0.54),
+                            color: context.colors.background.withValues(alpha: 0.54),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
                             Icons.close_rounded,
-                            color: AppColors.textPrimary,
+                            color: Colors.white,
                             size: 18,
                           ),
                         ),
@@ -389,25 +384,25 @@ class CommunityPostUploadScreen extends StatelessWidget {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: AppColors.bgPage54,
-                          borderRadius: BorderRadius.circular(8),
+                          color: context.colors.background.withValues(alpha: 0.54),
+                          borderRadius: context.radius.sm,
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const Icon(
                               Icons.edit_rounded,
-                              color: AppColors.textPrimary,
+                              color: Colors.white,
                               size: 12,
                             ),
                             const SizedBox(width: 4),
-                            Text(
+                            const Text(
                               'Tap to change',
                               style: TextStyle(
                                 fontFamily: 'Roboto',
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,
-                                color: AppColors.textPrimary,
+                                color: Colors.white,
                               ),
                             ),
                           ],
@@ -419,36 +414,33 @@ class CommunityPostUploadScreen extends StatelessWidget {
               if (images.isEmpty)
                 InkWell(
                   onTap: _c.pickImages,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: context.radius.lg,
                   child: Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 36),
                     decoration: BoxDecoration(
-                      color: isDark ? AppColors.bgPage : AppColors.textPrimary,
-                      borderRadius: BorderRadius.circular(14),
+                      color: context.colors.surface,
+                      borderRadius: context.radius.lg,
                       border: Border.all(
-                        color: AppColors.textPrimary.withValues(alpha: 0.4),
+                        color: context.colors.divider,
                         width: 2,
                         strokeAlign: BorderSide.strokeAlignInside,
                       ),
                     ),
                     child: Column(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.add_photo_alternate_rounded,
                           size: 36,
-                          color: AppColors.textPrimary,
+                          color: context.colors.textSecondary,
                         ),
-
                         const SizedBox(height: 4),
                         Text(
                           'JPEG, PNG, GIF • Any aspect ratio',
                           style: TextStyle(
                             fontFamily: 'Roboto',
                             fontSize: 12,
-                            color: isDark
-                                ? AppColors.textPrimary38
-                                : AppColors.textSecondary,
+                            color: context.colors.textSecondary,
                           ),
                         ),
                       ],
@@ -462,15 +454,13 @@ class CommunityPostUploadScreen extends StatelessWidget {
     );
   }
 
-  // Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â POLL SECTION Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
-
-  Widget _buildPollSection(bool isDark) {
+  Widget _buildPollSection(BuildContext context) {
     return Obx(() {
       return _card(
-        isDark,
+        context,
         icon: Icons.poll_rounded,
         title: 'Poll',
-        accentColor: AppColors.textSecondary,
+        accentColor: context.colors.brand,
         children: [
           // Toggle
           SwitchListTile.adaptive(
@@ -480,7 +470,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 fontFamily: 'Roboto',
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: isDark ? AppColors.textPrimary : AppColors.bgPage,
+                color: context.colors.textPrimary,
               ),
             ),
             subtitle: Text(
@@ -488,14 +478,12 @@ class CommunityPostUploadScreen extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'Roboto',
                 fontSize: 12,
-                color: isDark
-                    ? AppColors.textPrimary38
-                    : AppColors.textSecondary,
+                color: context.colors.textSecondary,
               ),
             ),
             value: _c.hasPoll.value,
             onChanged: _c.togglePoll,
-            activeTrackColor: AppColors.textSecondary,
+            activeTrackColor: context.colors.brand,
             contentPadding: EdgeInsets.zero,
           ),
 
@@ -506,14 +494,14 @@ class CommunityPostUploadScreen extends StatelessWidget {
             Row(
               children: [
                 _pollTypeChip(
-                  isDark,
+                  context,
                   PollType.yesNo,
                   'Yes / No',
                   Icons.thumbs_up_down_rounded,
                 ),
                 const SizedBox(width: 10),
                 _pollTypeChip(
-                  isDark,
+                  context,
                   PollType.multiChoice,
                   'Multi-Choice',
                   Icons.list_rounded,
@@ -543,26 +531,26 @@ class CommunityPostUploadScreen extends StatelessWidget {
             // Options (for multi-choice)
             if (_c.pollType.value == PollType.multiChoice) ...[
               Text(
-                'Options (3Ã¢â‚¬â€œ5)',
+                'Options (3–5)',
                 style: TextStyle(
                   fontFamily: 'Roboto',
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
-                  color: isDark ? AppColors.textPrimary70 : AppColors.bgPage,
+                  color: context.colors.textSecondary,
                 ),
               ),
               const SizedBox(height: 10),
               ...List.generate(_c.pollOptions.length, (i) {
                 return Padding(
-                  padding: EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.only(bottom: 10),
                   child: Row(
                     children: [
                       Container(
                         width: 28,
                         height: 28,
                         decoration: BoxDecoration(
-                          color: AppColors.textSecondary.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
+                          color: context.colors.textSecondary.withValues(alpha: 0.1),
+                          borderRadius: context.radius.sm,
                         ),
                         child: Center(
                           child: Text(
@@ -571,7 +559,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                               fontFamily: 'Roboto',
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.textSecondary,
+                              color: context.colors.textSecondary,
                             ),
                           ),
                         ),
@@ -584,47 +572,37 @@ class CommunityPostUploadScreen extends StatelessWidget {
                           style: TextStyle(
                             fontFamily: 'Roboto',
                             fontSize: 14,
-                            color: isDark
-                                ? AppColors.textPrimary
-                                : AppColors.bgPage,
+                            color: context.colors.textPrimary,
                           ),
                           decoration: InputDecoration(
                             hintText: 'Option ${i + 1}',
                             hintStyle: TextStyle(
                               fontFamily: 'Roboto',
-                              color: isDark
-                                  ? AppColors.textPrimary30
-                                  : AppColors.textSecondary,
+                              color: context.colors.textSecondary.withValues(alpha: 0.5),
                               fontSize: 14,
                             ),
                             filled: true,
-                            fillColor: isDark
-                                ? AppColors.bgPage
-                                : AppColors.textPrimary,
+                            fillColor: context.colors.surface,
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: context.radius.sm,
                               borderSide: BorderSide(
-                                color: isDark
-                                    ? AppColors.bgPage
-                                    : AppColors.textSecondary,
+                                color: context.colors.divider,
                               ),
                             ),
                             enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: context.radius.sm,
                               borderSide: BorderSide(
-                                color: isDark
-                                    ? AppColors.bgPage
-                                    : AppColors.textSecondary,
+                                color: context.colors.divider,
                               ),
                             ),
                             focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(10),
+                              borderRadius: context.radius.sm,
                               borderSide: BorderSide(
-                                color: AppColors.textSecondary,
+                                color: context.colors.brand,
                                 width: 2,
                               ),
                             ),
-                            contentPadding: EdgeInsets.symmetric(
+                            contentPadding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 10,
                             ),
@@ -636,7 +614,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                         IconButton(
                           icon: Icon(
                             Icons.close_rounded,
-                            color: AppColors.textSecondary,
+                            color: context.colors.textSecondary,
                           ),
                           onPressed: () => _c.removePollOption(i),
                         ),
@@ -647,14 +625,14 @@ class CommunityPostUploadScreen extends StatelessWidget {
               if (_c.pollOptions.length < 5)
                 TextButton.icon(
                   onPressed: _c.addPollOption,
-                  icon: Icon(Icons.add_rounded, color: AppColors.textSecondary),
+                  icon: Icon(Icons.add_rounded, color: context.colors.textSecondary),
                   label: Text(
                     'Add Option',
                     style: TextStyle(
                       fontFamily: 'Roboto',
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
-                      color: AppColors.textSecondary,
+                      color: context.colors.textSecondary,
                     ),
                   ),
                 ),
@@ -667,19 +645,19 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _yesNoPill(
-                      isDark,
+                      context,
                       'Yes',
                       Icons.check_rounded,
-                      AppColors.bgPage,
+                      context.colors.brand,
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: _yesNoPill(
-                      isDark,
+                      context,
                       'No',
                       Icons.close_rounded,
-                      AppColors.textSecondary,
+                      context.colors.textSecondary,
                     ),
                   ),
                 ],
@@ -693,9 +671,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 Icon(
                   Icons.timer_outlined,
                   size: 16,
-                  color: isDark
-                      ? AppColors.textPrimary38
-                      : AppColors.textSecondary,
+                  color: context.colors.textSecondary,
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -704,7 +680,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                     fontFamily: 'Roboto',
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
-                    color: isDark ? AppColors.textPrimary70 : AppColors.bgPage,
+                    color: context.colors.textSecondary,
                   ),
                 ),
               ],
@@ -716,22 +692,18 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 final isSelected = _c.pollDurationDays.value == days;
                 return InkWell(
                   onTap: () => _c.pollDurationDays.value = days,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: context.radius.lg,
                   child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
                       color: isSelected
-                          ? AppColors.textSecondary.withValues(alpha: 0.15)
-                          : isDark
-                          ? AppColors.bgPage
-                          : AppColors.textPrimary,
-                      borderRadius: BorderRadius.circular(20),
+                          ? context.colors.brand.withValues(alpha: 0.15)
+                          : context.colors.surface,
+                      borderRadius: context.radius.lg,
                       border: Border.all(
                         color: isSelected
-                            ? AppColors.textSecondary
-                            : isDark
-                            ? AppColors.bgPage
-                            : AppColors.textSecondary,
+                            ? context.colors.brand
+                            : context.colors.divider,
                         width: isSelected ? 2 : 1,
                       ),
                     ),
@@ -744,14 +716,10 @@ class CommunityPostUploadScreen extends StatelessWidget {
                       style: TextStyle(
                         fontFamily: 'Roboto',
                         fontSize: 12,
-                        fontWeight: isSelected
-                            ? FontWeight.w500
-                            : FontWeight.w500,
+                        fontWeight: FontWeight.w500,
                         color: isSelected
-                            ? AppColors.textSecondary
-                            : isDark
-                            ? AppColors.textPrimary60
-                            : AppColors.textSecondary,
+                            ? context.colors.brand
+                            : context.colors.textSecondary,
                       ),
                     ),
                   ),
@@ -765,7 +733,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
   }
 
   Widget _pollTypeChip(
-    bool isDark,
+    BuildContext context,
     PollType type,
     String label,
     IconData icon,
@@ -775,22 +743,18 @@ class CommunityPostUploadScreen extends StatelessWidget {
       return Expanded(
         child: InkWell(
           onTap: () => _c.setPollType(type),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: context.radius.lg,
           child: Container(
-            padding: EdgeInsets.symmetric(vertical: 12),
+            padding: const EdgeInsets.symmetric(vertical: 12),
             decoration: BoxDecoration(
               color: isSelected
-                  ? AppColors.textSecondary.withValues(alpha: 0.12)
-                  : isDark
-                  ? AppColors.bgPage
-                  : AppColors.textPrimary,
-              borderRadius: BorderRadius.circular(12),
+                  ? context.colors.brand.withValues(alpha: 0.12)
+                  : context.colors.surface,
+              borderRadius: context.radius.lg,
               border: Border.all(
                 color: isSelected
-                    ? AppColors.textSecondary
-                    : isDark
-                    ? AppColors.bgPage
-                    : AppColors.textSecondary,
+                    ? context.colors.brand
+                    : context.colors.divider,
                 width: isSelected ? 2 : 1,
               ),
             ),
@@ -801,8 +765,8 @@ class CommunityPostUploadScreen extends StatelessWidget {
                   icon,
                   size: 18,
                   color: isSelected
-                      ? AppColors.textSecondary
-                      : AppColors.textSecondary,
+                      ? context.colors.brand
+                      : context.colors.textSecondary,
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -810,12 +774,10 @@ class CommunityPostUploadScreen extends StatelessWidget {
                   style: TextStyle(
                     fontFamily: 'Roboto',
                     fontSize: 13,
-                    fontWeight: isSelected ? FontWeight.w500 : FontWeight.w500,
+                    fontWeight: FontWeight.w500,
                     color: isSelected
-                        ? AppColors.textSecondary
-                        : isDark
-                        ? AppColors.textPrimary60
-                        : AppColors.textSecondary,
+                        ? context.colors.brand
+                        : context.colors.textSecondary,
                   ),
                 ),
               ],
@@ -826,12 +788,12 @@ class CommunityPostUploadScreen extends StatelessWidget {
     });
   }
 
-  Widget _yesNoPill(bool isDark, String label, IconData icon, Color color) {
+  Widget _yesNoPill(BuildContext context, String label, IconData icon, Color color) {
     return Container(
-      padding: EdgeInsets.symmetric(vertical: 14),
+      padding: const EdgeInsets.symmetric(vertical: 14),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: context.radius.lg,
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
@@ -855,12 +817,12 @@ class CommunityPostUploadScreen extends StatelessWidget {
 
   // Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â DETAILS Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
 
-  Widget _buildDetailsSection(bool isDark) {
+  Widget _buildDetailsSection(BuildContext context) {
     return _card(
-      isDark,
+      context,
       icon: Icons.edit_rounded,
       title: 'Post Details',
-      accentColor: AppColors.textPrimary,
+      accentColor: context.colors.brand,
       children: [
         UploadInputField(
           controller: _titleCtrl,
@@ -897,12 +859,12 @@ class CommunityPostUploadScreen extends StatelessWidget {
 
   // Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â SETTINGS Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
 
-  Widget _buildSettingsSection(bool isDark) {
+  Widget _buildSettingsSection(BuildContext context) {
     return _card(
-      isDark,
+      context,
       icon: Icons.tune_rounded,
       title: 'Settings',
-      accentColor: AppColors.textPrimary,
+      accentColor: context.colors.brand,
       children: [
         Text(
           'Visibility',
@@ -910,7 +872,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
             fontFamily: 'Roboto',
             fontSize: 13,
             fontWeight: FontWeight.w500,
-            color: isDark ? AppColors.textPrimary70 : AppColors.bgPage,
+            color: context.colors.textSecondary,
           ),
         ),
         const SizedBox(height: 12),
@@ -924,7 +886,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
             fontFamily: 'Roboto',
             fontSize: 13,
             fontWeight: FontWeight.w500,
-            color: isDark ? AppColors.textPrimary70 : AppColors.bgPage,
+            color: context.colors.textSecondary,
           ),
         ),
         const SizedBox(height: 10),
@@ -936,22 +898,18 @@ class CommunityPostUploadScreen extends StatelessWidget {
               final isSelected = _c.selectedCategory.value == cat;
               return InkWell(
                 onTap: () => _c.selectedCategory.value = cat,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: context.radius.lg,
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? AppColors.textPrimary.withValues(alpha: 0.15)
-                        : isDark
-                        ? AppColors.bgPage
-                        : AppColors.textPrimary,
-                    borderRadius: BorderRadius.circular(20),
+                        ? context.colors.brand.withValues(alpha: 0.15)
+                        : context.colors.surface,
+                    borderRadius: context.radius.lg,
                     border: Border.all(
                       color: isSelected
-                          ? AppColors.textPrimary
-                          : isDark
-                          ? AppColors.bgPage
-                          : AppColors.textSecondary,
+                          ? context.colors.brand
+                          : context.colors.divider,
                       width: isSelected ? 2 : 1,
                     ),
                   ),
@@ -960,14 +918,10 @@ class CommunityPostUploadScreen extends StatelessWidget {
                     style: TextStyle(
                       fontFamily: 'Roboto',
                       fontSize: 12,
-                      fontWeight: isSelected
-                          ? FontWeight.w500
-                          : FontWeight.w500,
+                      fontWeight: FontWeight.w500,
                       color: isSelected
-                          ? AppColors.textPrimary
-                          : isDark
-                          ? AppColors.textPrimary60
-                          : AppColors.textSecondary,
+                          ? context.colors.brand
+                          : context.colors.textSecondary,
                     ),
                   ),
                 ),
@@ -986,12 +940,12 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 fontFamily: 'Roboto',
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: isDark ? AppColors.textPrimary : AppColors.bgPage,
+                color: context.colors.textPrimary,
               ),
             ),
             value: _c.isScheduled.value,
             onChanged: (v) => _c.isScheduled.value = v,
-            activeTrackColor: AppColors.textPrimary,
+            activeTrackColor: context.colors.brand,
             contentPadding: EdgeInsets.zero,
           ),
         ),
@@ -1003,12 +957,12 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 fontFamily: 'Roboto',
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: isDark ? AppColors.textPrimary : AppColors.bgPage,
+                color: context.colors.textPrimary,
               ),
             ),
             value: _c.isKidFriendly.value,
             onChanged: (v) => _c.isKidFriendly.value = v,
-            activeTrackColor: AppColors.textPrimary,
+            activeTrackColor: context.colors.brand,
             contentPadding: EdgeInsets.zero,
           ),
         ),
@@ -1018,12 +972,12 @@ class CommunityPostUploadScreen extends StatelessWidget {
 
   // Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â PREVIEW & PUBLISH Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
 
-  Widget _buildPreviewPanel(bool isDark) {
+  Widget _buildPreviewPanel(BuildContext context) {
     return Column(
       children: [
-        _buildPreview(isDark),
+        _buildPreview(context),
         const SizedBox(height: 20),
-        _buildDraftButton(isDark),
+        _buildDraftButton(context),
         const SizedBox(height: 12),
         Obx(
           () => UploadPublishButton(
@@ -1034,38 +988,31 @@ class CommunityPostUploadScreen extends StatelessWidget {
             isUploading: _c.isUploading.value,
             uploadProgress: _c.overallProgress.value,
             onPublish: _handlePublish,
-            accentColor: AppColors.textPrimary,
+            accentColor: context.colors.brand,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildPreview(bool isDark) {
+  Widget _buildPreview(BuildContext context) {
     return Obx(() {
       final imageCount = _c.pickedImages.length;
       return Container(
-        padding: EdgeInsets.all(24),
+        padding: context.insets.lg,
         decoration: BoxDecoration(
-          color: isDark ? AppColors.bgPage : AppColors.textPrimary,
-          borderRadius: BorderRadius.circular(18),
+          color: context.colors.surface,
+          borderRadius: context.radius.lg,
           border: Border.all(
-            color: isDark ? AppColors.bgPage : AppColors.textSecondary,
+            color: context.colors.divider,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.bgPage.withValues(alpha: isDark ? 0.35 : 0.06),
-              blurRadius: 28,
-              offset: const Offset(0, 12),
-            ),
-          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(Icons.preview_rounded, color: AppColors.textPrimary),
+                Icon(Icons.preview_rounded, color: context.colors.brand),
                 const SizedBox(width: 10),
                 Text(
                   'Preview',
@@ -1073,7 +1020,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                     fontFamily: 'Roboto',
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
-                    color: isDark ? AppColors.textPrimary : AppColors.bgPage,
+                    color: context.colors.textPrimary,
                   ),
                 ),
               ],
@@ -1085,7 +1032,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 height: 150,
                 margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: context.radius.lg,
                   image: DecorationImage(
                     image: kIsWeb
                         ? NetworkImage(_c.pickedImages.first.xFile.path)
@@ -1128,27 +1075,25 @@ class CommunityPostUploadScreen extends StatelessWidget {
 
   // Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â SHARED COMPONENTS Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
 
-  Widget _buildSidebarHeader(bool isDark) {
+  Widget _buildSidebarHeader(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: isDark ? AppColors.bgSurface : AppColors.textSecondary,
+            color: context.colors.divider,
           ),
         ),
       ),
       child: Column(
         children: [
           Container(
-            padding: EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppColors.brand, AppColors.textSecondary],
-              ),
-              borderRadius: BorderRadius.circular(12),
+              gradient: context.gradients.primary,
+              borderRadius: context.radius.lg,
             ),
-            child: Icon(Icons.forum_rounded, color: AppColors.textPrimary),
+            child: const Icon(Icons.forum_rounded, color: Colors.white),
           ),
           const SizedBox(height: 12),
           Text(
@@ -1157,7 +1102,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
               fontFamily: 'Roboto',
               fontSize: 18,
               fontWeight: FontWeight.w700,
-              color: isDark ? AppColors.textPrimary : AppColors.bgPage,
+              color: context.colors.textPrimary,
               letterSpacing: -0.5,
             ),
           ),
@@ -1166,33 +1111,31 @@ class CommunityPostUploadScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMobileAppBar(bool isDark) {
+  Widget _buildMobileAppBar(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.bgPage : AppColors.textPrimary,
+        color: context.colors.appBarSurface,
         border: Border(
           bottom: BorderSide(
-            color: isDark ? AppColors.bgSurface : AppColors.textSecondary,
+            color: context.colors.divider,
           ),
         ),
       ),
       child: Row(
         children: [
           IconButton(
-            icon: const BackSymbol(),
+            icon: const Icon(Icons.arrow_back),
             onPressed: () => Get.back(),
           ),
           const SizedBox(width: 8),
           Container(
-            padding: EdgeInsets.all(8),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppColors.brand, AppColors.textSecondary],
-              ),
-              borderRadius: BorderRadius.circular(12),
+              gradient: context.gradients.primary,
+              borderRadius: context.radius.lg,
             ),
-            child: Icon(Icons.forum_rounded, color: AppColors.textPrimary),
+            child: const Icon(Icons.forum_rounded, color: Colors.white),
           ),
           const SizedBox(width: 12),
           Text(
@@ -1201,7 +1144,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
               fontFamily: 'Roboto',
               fontSize: 18,
               fontWeight: FontWeight.w700,
-              color: isDark ? AppColors.textPrimary : AppColors.bgPage,
+              color: context.colors.textPrimary,
               letterSpacing: -0.5,
             ),
           ),
@@ -1210,15 +1153,15 @@ class CommunityPostUploadScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBackButton(bool isDark) {
+  Widget _buildBackButton(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       child: SizedBox(
         width: double.infinity,
         child: OutlinedButton.icon(
           onPressed: () => Get.back(),
-          icon: const BackSymbol(size: 18),
-          label: Text(
+          icon: const Icon(Icons.arrow_back, size: 18),
+          label: const Text(
             'Back to Home',
             style: TextStyle(
               fontFamily: 'Roboto',
@@ -1227,15 +1170,13 @@ class CommunityPostUploadScreen extends StatelessWidget {
             ),
           ),
           style: OutlinedButton.styleFrom(
-            foregroundColor: isDark
-                ? AppColors.textPrimary60
-                : AppColors.textSecondary,
+            foregroundColor: context.colors.textSecondary,
             side: BorderSide(
-              color: isDark ? AppColors.bgPage : AppColors.textSecondary,
+              color: context.colors.divider,
             ),
-            padding: EdgeInsets.symmetric(vertical: 14),
+            padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: context.radius.lg,
             ),
           ),
         ),
@@ -1243,7 +1184,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDraftButton(bool isDark) {
+  Widget _buildDraftButton(BuildContext context) {
     return Obx(() {
       return SizedBox(
         width: double.infinity,
@@ -1260,28 +1201,31 @@ class CommunityPostUploadScreen extends StatelessWidget {
                   );
                 },
           icon: _c.isSavingDraft.value
-              ? const SizedBox(
+              ? SizedBox(
                   width: 14,
                   height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(context.colors.brand),
+                  ),
                 )
               : const Icon(Icons.save_rounded, size: 18),
           label: Text(
             _c.isSavingDraft.value ? 'Saving...' : 'Save as Draft',
-            style: TextStyle(
+            style: const TextStyle(
               fontFamily: 'Roboto',
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
           ),
           style: OutlinedButton.styleFrom(
-            foregroundColor: isDark ? AppColors.textPrimary : AppColors.bgPage,
+            foregroundColor: context.colors.textPrimary,
             side: BorderSide(
-              color: isDark ? AppColors.bgPage : AppColors.textSecondary,
+              color: context.colors.divider,
             ),
-            padding: EdgeInsets.symmetric(vertical: 14),
+            padding: const EdgeInsets.symmetric(vertical: 14),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: context.radius.lg,
             ),
           ),
         ),
@@ -1290,27 +1234,21 @@ class CommunityPostUploadScreen extends StatelessWidget {
   }
 
   Widget _card(
-    bool isDark, {
+    BuildContext context, {
     required IconData icon,
     required String title,
-    Color accentColor = AppColors.textSecondary,
+    Color? accentColor,
     required List<Widget> children,
   }) {
+    final effectiveAccentColor = accentColor ?? context.colors.brand;
     return Container(
-      padding: EdgeInsets.all(24),
+      padding: context.insets.lg,
       decoration: BoxDecoration(
-        color: isDark ? AppColors.bgPage : AppColors.textPrimary,
-        borderRadius: BorderRadius.circular(18),
+        color: context.colors.surface,
+        borderRadius: context.radius.lg,
         border: Border.all(
-          color: isDark ? AppColors.bgPage : AppColors.textSecondary,
+          color: context.colors.divider,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.bgPage.withValues(alpha: isDark ? 0.35 : 0.06),
-            blurRadius: 28,
-            offset: const Offset(0, 12),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1318,14 +1256,17 @@ class CommunityPostUploadScreen extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: EdgeInsets.all(8),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: context.radius.sm,
                   gradient: LinearGradient(
-                    colors: [accentColor, accentColor.withValues(alpha: 0.7)],
+                    colors: [
+                      effectiveAccentColor,
+                      effectiveAccentColor.withValues(alpha: 0.7),
+                    ],
                   ),
                 ),
-                child: Icon(icon, size: 18, color: AppColors.textPrimary),
+                child: Icon(icon, size: 18, color: Colors.white),
               ),
               const SizedBox(width: 12),
               Text(
@@ -1334,7 +1275,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                   fontFamily: 'Roboto',
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: isDark ? AppColors.textPrimary : AppColors.bgPage,
+                  color: context.colors.textPrimary,
                 ),
               ),
             ],
@@ -1368,19 +1309,19 @@ class CommunityPostUploadScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildChannelVerificationBanner(Channel channel, bool isDark) {
+  Widget _buildChannelVerificationBanner(Channel channel, BuildContext context) {
     final bool isUnderReview = channel.status == ChannelStatus.underReview;
     final bool isPending = channel.status == ChannelStatus.verificationPending;
     final bool isRejected =
         channel.status == ChannelStatus.verificationRejected;
 
-    Color statusColor = Colors.red;
+    Color statusColor = context.colors.error;
     IconData statusIcon = Icons.gpp_bad_rounded;
     String title = 'Channel Blocked';
     String message = 'Your channel is not active.';
 
     if (isUnderReview) {
-      statusColor = Colors.blue;
+      statusColor = context.colors.brand;
       statusIcon = Icons.hourglass_empty_rounded;
       title = 'Moderation Pending';
       message =
@@ -1407,8 +1348,8 @@ class CommunityPostUploadScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: statusColor.withValues(alpha: isDark ? 0.15 : 0.08),
-        borderRadius: BorderRadius.circular(10),
+        color: statusColor.withValues(alpha: 0.15),
+        borderRadius: context.radius.lg,
         border: Border.all(
           color: statusColor.withValues(alpha: 0.5),
           width: 1.5,
@@ -1438,7 +1379,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                   message,
                   style: TextStyle(
                     fontFamily: 'Roboto',
-                    color: isDark ? Colors.white70 : Colors.black87,
+                    color: context.colors.textSecondary,
                     fontSize: 12,
                   ),
                 ),

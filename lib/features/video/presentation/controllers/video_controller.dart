@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:universal_html/html.dart' as html;
@@ -427,13 +428,17 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
     ]);
 
     // 2. Identify initial playback URL immediately from video model to prevent startup latency
+    //    On web, skip HLS (.m3u8) because non-Safari browsers don't support it natively
+    //    and there's no HLS.js polyfill. Prefer direct MP4 URLs instead.
+    //    Always skip gs:// URLs — they are storage references, not playable URLs.
     String? initialUrl;
-    if (video.hlsUrl.isNotEmpty) {
+    if (!kIsWeb && video.hlsUrl.isNotEmpty && !video.hlsUrl.startsWith('gs://')) {
       initialUrl = video.hlsUrl;
-    } else if (video.videoUrl.isNotEmpty) {
-      initialUrl = video.videoUrl;
-    } else if (video.originalUrl.isNotEmpty) {
+    } else if (video.originalUrl.isNotEmpty && !video.originalUrl.startsWith('gs://')) {
       initialUrl = video.originalUrl;
+    } else if (video.hlsUrl.isNotEmpty && !video.hlsUrl.startsWith('gs://')) {
+      // Fallback: use HLS even on web if it's the only option
+      initialUrl = video.hlsUrl;
     }
 
     // 3. If we have a direct url on the model, initialize player instantly while metadata loads
@@ -1696,7 +1701,50 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
 
     try {
       // Validate video URL
-      final targetUrl = overrideUrl;
+      //    On web, skip HLS (.m3u8) because non-Safari browsers don't support it natively.
+      //    Always skip gs:// URLs — they are storage references, not playable URLs.
+      String? targetUrl = overrideUrl;
+      if (targetUrl == null || targetUrl.isEmpty) {
+        if (currentResolution.value != null && currentResolution.value!.url.isNotEmpty) {
+          targetUrl = currentResolution.value!.url;
+        } else if (!kIsWeb && video.hlsUrl.isNotEmpty && !video.hlsUrl.startsWith('gs://')) {
+          targetUrl = video.hlsUrl;
+        } else if (video.originalUrl.isNotEmpty && !video.originalUrl.startsWith('gs://')) {
+          targetUrl = video.originalUrl;
+        } else if (video.hlsUrl.isNotEmpty && !video.hlsUrl.startsWith('gs://')) {
+          targetUrl = video.hlsUrl;
+        }
+      }
+
+      // Resolve gs:// storage references to HTTPS download URLs
+      if (targetUrl != null && targetUrl.startsWith('gs://')) {
+        debugPrint('[VideoController] ⚠️ Resolving gs:// URL to HTTPS download URL...');
+        try {
+          targetUrl = await FirebaseStorage.instance
+              .refFromURL(targetUrl)
+              .getDownloadURL();
+          debugPrint('[VideoController] ✅ Resolved to: ${targetUrl.substring(0, 60)}...');
+        } catch (e) {
+          debugPrint('[VideoController] ❌ Failed to resolve gs:// URL: $e');
+          targetUrl = null;
+        }
+      }
+
+      // On web, if the resolved URL is an HLS manifest and we have transcoded
+      // resolutions available, prefer an MP4 resolution instead.
+      if (kIsWeb && targetUrl != null && targetUrl.contains('.m3u8')) {
+        if (currentResolution.value != null && currentResolution.value!.url.isNotEmpty && !currentResolution.value!.url.contains('.m3u8')) {
+          debugPrint('[VideoController] ⚠️ Skipping HLS URL on web, using resolution MP4 instead');
+          targetUrl = currentResolution.value!.url;
+        } else if (availableResolutions.isNotEmpty) {
+          final mp4Res = availableResolutions.firstWhereOrNull((r) => !r.url.contains('.m3u8'));
+          if (mp4Res != null) {
+            debugPrint('[VideoController] ⚠️ Skipping HLS URL on web, using ${mp4Res.label} MP4 instead');
+            targetUrl = mp4Res.url;
+          }
+        }
+      }
+
       if (targetUrl == null || targetUrl.isEmpty) {
         throw Exception("No optimized video resolution available");
       }
@@ -1789,9 +1837,15 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
         looping: false,
         allowMuting: true,
         showControls: true,
-        aspectRatio: _videoPlayerController!.value.aspectRatio.isFinite
-            ? _videoPlayerController!.value.aspectRatio
-            : 16 / 9,
+        aspectRatio: null,
+        allowedScreenSleep: false,
+        showControlsOnInitialize: false,
+        placeholder: Container(
+          color: Colors.black,
+          child: const Center(
+            child: CircularProgressIndicator(color: Colors.red),
+          ),
+        ),
         materialProgressColors: ChewieProgressColors(
           playedColor: Colors.red,
           handleColor: Colors.red,
@@ -1865,9 +1919,11 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
     }
   }
 
+  bool _isRecoveringFromFormatError = false;
+
   void _videoErrorListener() {
     if (_videoPlayerController?.value.hasError == true) {
-      final error = _videoPlayerController?.value.errorDescription;
+      final error = _videoPlayerController?.value.errorDescription ?? '';
       debugPrint('[VideoController] ❌ Video error: $error');
       
       // If we are currently offline, don't show a fatal error yet, 
@@ -1877,8 +1933,69 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
         return; 
       }
 
+      // Ignore transient web race condition: play() interrupted because the
+      // <video> element was removed from the DOM during re-initialization.
+      // This is not a real playback failure and resolves itself.
+      if (error.contains('removed from the document') ||
+          error.contains('play() request was interrupted')) {
+        debugPrint('[VideoController] ℹ️ Ignoring transient play() interruption (DOM lifecycle)');
+        return;
+      }
+
+      // If this is a format/source error and we haven't already tried recovery,
+      // attempt to fall back to a transcoded MP4 resolution.
+      if (!_isRecoveringFromFormatError &&
+          (error.contains('MEDIA_ERR_SRC_NOT_SUPPORTED') ||
+           error.contains('Format error') ||
+           error.contains('format not supported'))) {
+        debugPrint('[VideoController] 🔄 Format error detected — attempting MP4 fallback...');
+        _attemptFormatFallback();
+        return;
+      }
+
       videoError.value = true;
-      errorMessage.value = error ?? "Unknown playback error";
+      errorMessage.value = error.isNotEmpty ? error : "Unknown playback error";
+    }
+  }
+
+  /// Tries to recover from a format error by switching to a transcoded MP4 URL.
+  Future<void> _attemptFormatFallback() async {
+    _isRecoveringFromFormatError = true;
+    try {
+      // 1. If resolutions haven't been fetched yet, fetch them now
+      if (availableResolutions.isEmpty) {
+        await fetchAvailableResolutions();
+      }
+
+      // 2. Find a non-HLS MP4 resolution
+      final mp4Res = availableResolutions.firstWhereOrNull(
+        (r) => r.url.isNotEmpty && !r.url.contains('.m3u8'),
+      );
+
+      if (mp4Res != null) {
+        debugPrint('[VideoController] ✅ Found MP4 fallback: ${mp4Res.label} (${mp4Res.url.substring(0, 60)}...)');
+        currentResolution.value = mp4Res;
+        await initializeVideoPlayer(overrideUrl: mp4Res.url);
+        return;
+      }
+
+      // 3. Try originalUrl as last resort (it might be MP4 even if HLS failed)
+      if (video.originalUrl.isNotEmpty && !video.originalUrl.contains('.m3u8')) {
+        debugPrint('[VideoController] ✅ Falling back to originalUrl');
+        await initializeVideoPlayer(overrideUrl: video.originalUrl);
+        return;
+      }
+
+      // 4. Nothing worked — show the error
+      debugPrint('[VideoController] ❌ No MP4 fallback available');
+      videoError.value = true;
+      errorMessage.value = "Video format is not supported by your browser. Please try a different browser.";
+    } catch (e) {
+      debugPrint('[VideoController] ❌ Format fallback failed: $e');
+      videoError.value = true;
+      errorMessage.value = "Video format is not supported by your browser.";
+    } finally {
+      _isRecoveringFromFormatError = false;
     }
   }
 

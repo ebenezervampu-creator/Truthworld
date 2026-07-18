@@ -7,6 +7,12 @@
       "hosting": {
         "web-app": [
           "truthworld-1"
+        ],
+        "admin-portal": [
+          "truthworld-1-admin"
+        ],
+        "studio-app": [
+          "truthworld-1-studio"
         ]
       }
     }

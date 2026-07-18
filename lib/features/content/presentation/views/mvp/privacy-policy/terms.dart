@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 
 // A simple class to hold our parsed policy sections
 class PolicySection {
@@ -174,19 +174,23 @@ class _TermsAndConditionsPageState extends State<TermsAndConditionsPage> {
         final bool isDesktop = constraints.maxWidth >= breakpoint;
 
         return Scaffold(
-          appBar: !widget.isDashboard ? AppBar(
+          appBar: AppBar(
             // Use theme-aware colors for a clean look
             backgroundColor: Theme.of(context).colorScheme.surface,
             elevation: 1,
             shadowColor: Colors.black.withValues(alpha: 0.1),
-            // Use the hamburger icon ONLY on mobile
-            leading: isDesktop
+            leading: (widget.isDashboard || isDesktop)
                 ? IconButton(
-                    icon: BackSymbol(color: Theme.of(context).iconTheme.color,
-                    ),
-                    onPressed: () => Get.back(),
+                    icon: Icon(Icons.arrow_back, color: Theme.of(context).iconTheme.color),
+                    onPressed: () {
+                      if (widget.isDashboard) {
+                        Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexSettings;
+                      } else {
+                        Get.back();
+                      }
+                    },
                   )
-                : null, // Let the Drawer handle the leading icon
+                : null,
             title: Text(
               'Terms and Conditions | Truthworld',
               style: GoogleFonts.roboto(
@@ -210,7 +214,7 @@ class _TermsAndConditionsPageState extends State<TermsAndConditionsPage> {
               ),
               const SizedBox(width: 8),
             ],
-          ) : null,
+          ),
           // Show the drawer ONLY on mobile
           drawer: isDesktop
               ? null

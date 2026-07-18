@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'package:truthworld/components/ui/back_symbol.dart';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -769,7 +767,7 @@ class _CategoryPageState extends State<CategoryPage>
           borderRadius: BorderRadius.circular(12),
         ),
         child: IconButton(
-          icon: BackSymbol(color: Theme.of(context).colorScheme.onSurface,
+          icon: Icon(Icons.arrow_back, color: Theme.of(context).colorScheme.onSurface,
           ),
           onPressed: () => Get.back(),
         ),

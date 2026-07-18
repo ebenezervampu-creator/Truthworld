@@ -28,235 +28,204 @@ class VideoOptionsSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.bgSurface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.5),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Drag Handle
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: AppColors.textSecondary.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-
-          // Menu Options
-          ListView(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            padding: const EdgeInsets.only(bottom: 24),
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Material(
+          color: const Color(0xFF1E1E1E), // Premium dark theme matching screenshot
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              _buildMenuItem(
-                context,
-                icon: Icons.playlist_play_rounded,
-                title: 'Add to queue',
-                onTap: () {
-                  Get.back();
-                  AppSnackbar.show(
-                    "Added to queue",
-                    "'${video.title}' has been added to your play queue.",
-                    snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: AppColors.brand.withValues(alpha: 0.8),
-                    colorText: Colors.white,
-                    margin: const EdgeInsets.all(20),
-                    borderRadius: 16,
-                  );
-                },
-              ),
-              _buildMenuItem(
-                context,
-                icon: Icons.watch_later_outlined,
-                title: 'Save to Watch later',
-                onTap: () async {
-                  Get.back();
-                  if (!Get.isRegistered<PlaylistController>()) {
-                    Get.put(PlaylistController());
-                  }
-                  final playlistCtrl = Get.find<PlaylistController>();
-                  await playlistCtrl.toggleWatchLater(video.id);
-                },
-              ),
-              _buildMenuItem(
-                context,
-                icon: Icons.bookmark_outline_rounded,
-                title: 'Save to playlist',
-                onTap: () {
-                  Get.back();
-                  showModernizedPlaylistDialog(context: context, videoId: video.id);
-                },
-              ),
-              _buildMenuItem(
-                context,
-                icon: Icons.download_outlined,
-                title: 'Download',
-                onTap: () async {
-                  Get.back();
-                  try {
-                    final offlineVideo = OfflineVideo(
-                      id: video.id,
-                      title: video.title,
-                      channelName: video.channelName,
-                      channelImage: video.channelImage.isNotEmpty
-                          ? video.channelImage
-                          : video.channelAvatarUrl,
-                      views: video.views.toString(),
-                      thumbnailUrl: video.thumbnailUrl,
-                      downloadedAt: DateTime.now(),
-                    );
-
-                    await saveOfflineVideoBytes(
-                      video.id,
-                      Uint8List(
-                        0,
-                      ), // empty bytes for lightweight local playback representation
-                      offlineVideo,
-                    );
-
-                    if (Get.isRegistered<DownloadsController>()) {
-                      Get.find<DownloadsController>().loadVideos();
-                    }
-
-                    AppSnackbar.show(
-                      "Download Complete",
-                      "'${video.title}' downloaded successfully for offline viewing.",
-                      snackPosition: SnackPosition.BOTTOM,
-                      backgroundColor: AppColors.success.withValues(alpha: 0.8),
-                      colorText: Colors.white,
-                      margin: const EdgeInsets.all(20),
-                      borderRadius: 16,
-                    );
-                  } catch (e) {
-                    AppSnackbar.show(
-                      "Download Failed",
-                      "Could not download video: $e",
-                      snackPosition: SnackPosition.BOTTOM,
-                      backgroundColor: AppColors.error.withValues(alpha: 0.8),
-                      colorText: Colors.white,
-                      margin: const EdgeInsets.all(20),
-                      borderRadius: 16,
-                    );
-                  }
-                },
-              ),
-              _buildMenuItem(
-                context,
-                icon: Icons.share_outlined,
-                title: 'Share',
-                onTap: () {
-                  Get.back();
-                  ShareBottomSheet.show(
-                    title: video.title,
-                    url: 'https://www.truthworld.in/watch?v=${video.id}',
-                    thumbnailUrl: video.thumbnailUrl,
-                    channelName: video.channelName,
-                    durationMs: video.durationValue.inMilliseconds,
-                    type: 'video',
-                  );
-                },
-              ),
-              _buildMenuItem(
-                context,
-                icon: Icons.block_outlined,
-                title: 'Not interested',
-                onTap: () {
-                  Get.back();
-                  AppSnackbar.show(
-                    "Not interested",
-                    "We won't recommend this video anymore.",
-                    snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: AppColors.bgSurfaceHover,
-                    colorText: AppColors.textPrimary,
-                    margin: const EdgeInsets.all(20),
-                    borderRadius: 16,
-                    mainButton: TextButton(
-                      onPressed: () {
-                        if (Get.isSnackbarOpen) Get.back();
-                        AppSnackbar.show(
-                          "Restored",
-                          "Video recommendation restored.",
-                          snackPosition: SnackPosition.BOTTOM,
+              ListView(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                children: [
+                  _buildMenuItem(
+                    context,
+                    icon: const Icon(Icons.watch_later_outlined, color: Colors.white, size: 24),
+                    title: 'Save to Watch later',
+                    onTap: () async {
+                      Get.back();
+                      if (!Get.isRegistered<PlaylistController>()) {
+                        Get.put(PlaylistController());
+                      }
+                      final playlistCtrl = Get.find<PlaylistController>();
+                      await playlistCtrl.toggleWatchLater(video.id);
+                    },
+                  ),
+                  _buildMenuItem(
+                    context,
+                    icon: const Icon(Icons.bookmark_outline_rounded, color: Colors.white, size: 24),
+                    title: 'Save to playlist',
+                    onTap: () {
+                      Get.back();
+                      showModernizedPlaylistDialog(context: context, videoId: video.id);
+                    },
+                  ),
+                  _buildMenuItem(
+                    context,
+                    icon: const Icon(Icons.download_outlined, color: Colors.white, size: 24),
+                    title: 'Download video',
+                    onTap: () async {
+                      Get.back();
+                      try {
+                        final offlineVideo = OfflineVideo(
+                          id: video.id,
+                          title: video.title,
+                          channelName: video.channelName,
+                          channelImage: video.channelImage.isNotEmpty
+                              ? video.channelImage
+                              : video.channelAvatarUrl,
+                          views: video.views.toString(),
+                          thumbnailUrl: video.thumbnailUrl,
+                          downloadedAt: DateTime.now(),
                         );
-                      },
-                      child: const Text(
-                        "Undo",
-                        style: TextStyle(
-                          color: AppColors.brand,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              _buildMenuItem(
-                context,
-                icon: Icons.remove_circle_outline_rounded,
-                title: "Don't recommend channel",
-                onTap: () {
-                  Get.back();
-                  AppSnackbar.show(
-                    "Don't recommend channel",
-                    "We won't recommend videos from ${video.channelName} anymore.",
-                    snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: AppColors.bgSurfaceHover,
-                    colorText: AppColors.textPrimary,
-                    margin: const EdgeInsets.all(20),
-                    borderRadius: 16,
-                    mainButton: TextButton(
-                      onPressed: () {
-                        if (Get.isSnackbarOpen) Get.back();
-                        AppSnackbar.show(
-                          "Restored",
-                          "Channel recommendations restored.",
-                          snackPosition: SnackPosition.BOTTOM,
+
+                        await saveOfflineVideoBytes(
+                          video.id,
+                          Uint8List(
+                            0,
+                          ), // empty bytes for lightweight local playback representation
+                          offlineVideo,
                         );
-                      },
-                      child: const Text(
-                        "Undo",
-                        style: TextStyle(
-                          color: AppColors.brand,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+
+                        if (Get.isRegistered<DownloadsController>()) {
+                          Get.find<DownloadsController>().loadVideos();
+                        }
+
+                        AppSnackbar.show(
+                          "Download Complete",
+                          "'${video.title}' downloaded successfully for offline viewing.",
+                          snackPosition: SnackPosition.BOTTOM,
+                          backgroundColor: AppColors.success.withValues(alpha: 0.8),
+                          colorText: Colors.white,
+                          margin: const EdgeInsets.all(20),
+                          borderRadius: 16,
+                        );
+                      } catch (e) {
+                        AppSnackbar.show(
+                          "Download Failed",
+                          "Could not download video: $e",
+                          snackPosition: SnackPosition.BOTTOM,
+                          backgroundColor: AppColors.error.withValues(alpha: 0.8),
+                          colorText: Colors.white,
+                          margin: const EdgeInsets.all(20),
+                          borderRadius: 16,
+                        );
+                      }
+                    },
+                  ),
+                  _buildMenuItem(
+                    context,
+                    icon: Transform.flip(
+                      flipX: true,
+                      child: const Icon(Icons.reply_outlined, color: Colors.white, size: 24),
                     ),
-                  );
-                },
-              ),
-              _buildMenuItem(
-                context,
-                icon: Icons.flag_outlined,
-                title: 'Report',
-                onTap: () {
-                  Get.back();
-                  _showReportDialog(context);
-                },
+                    title: 'Share',
+                    onTap: () {
+                      Get.back();
+                      ShareBottomSheet.show(
+                        title: video.title,
+                        url: 'https://www.truthworld.in/watch?v=${video.id}',
+                        thumbnailUrl: video.thumbnailUrl,
+                        channelName: video.channelName,
+                        durationMs: video.durationValue.inMilliseconds,
+                        type: 'video',
+                      );
+                    },
+                  ),
+                  _buildMenuItem(
+                    context,
+                    icon: const Icon(Icons.block_outlined, color: Colors.white, size: 24),
+                    title: 'Not interested',
+                    onTap: () {
+                      Get.back();
+                      AppSnackbar.show(
+                        "Not interested",
+                        "We won't recommend this video anymore.",
+                        snackPosition: SnackPosition.BOTTOM,
+                        backgroundColor: AppColors.bgSurfaceHover,
+                        colorText: AppColors.textPrimary,
+                        margin: const EdgeInsets.all(20),
+                        borderRadius: 16,
+                        mainButton: TextButton(
+                          onPressed: () {
+                            if (Get.isSnackbarOpen) Get.back();
+                            AppSnackbar.show(
+                              "Restored",
+                              "Video recommendation restored.",
+                              snackPosition: SnackPosition.BOTTOM,
+                            );
+                          },
+                          child: const Text(
+                            "Undo",
+                            style: TextStyle(
+                              color: AppColors.brand,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildMenuItem(
+                    context,
+                    icon: const Icon(Icons.no_accounts_outlined, color: Colors.white, size: 24),
+                    title: "Don't recommend channel",
+                    onTap: () {
+                      Get.back();
+                      AppSnackbar.show(
+                        "Don't recommend channel",
+                        "We won't recommend videos from ${video.channelName} anymore.",
+                        snackPosition: SnackPosition.BOTTOM,
+                        backgroundColor: AppColors.bgSurfaceHover,
+                        colorText: AppColors.textPrimary,
+                        margin: const EdgeInsets.all(20),
+                        borderRadius: 16,
+                        mainButton: TextButton(
+                          onPressed: () {
+                            if (Get.isSnackbarOpen) Get.back();
+                            AppSnackbar.show(
+                              "Restored",
+                              "Channel recommendations restored.",
+                              snackPosition: SnackPosition.BOTTOM,
+                            );
+                          },
+                          child: const Text(
+                            "Undo",
+                            style: TextStyle(
+                              color: AppColors.brand,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildMenuItem(
+                    context,
+                    icon: const Icon(Icons.flag_outlined, color: Colors.white, size: 24),
+                    title: 'Report',
+                    onTap: () {
+                      Get.back();
+                      _showReportDialog(context);
+                    },
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildMenuItem(
     BuildContext context, {
-    required IconData icon,
+    required Widget icon,
     required String title,
     required VoidCallback onTap,
   }) {
@@ -267,17 +236,17 @@ class VideoOptionsSheet extends StatelessWidget {
         splashColor: AppColors.brand.withValues(alpha: 0.15),
         highlightColor: AppColors.brand.withValues(alpha: 0.05),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Row(
             children: [
-              Icon(icon, color: AppColors.textPrimary, size: 24),
+              icon,
               const SizedBox(width: 20),
               Text(
                 title,
-                style: TextStyle(
+                style: const TextStyle(
                   fontFamily: 'Roboto',
                   fontSize: 16,
-                  color: AppColors.textPrimary,
+                  color: Colors.white,
                   fontWeight: FontWeight.w400,
                 ),
               ),

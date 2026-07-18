@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
@@ -11,6 +10,9 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/theme/app_theme.dart';
+import 'package:truthworld/features/home/presentation/views/home/home.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+
 
 class SendFeedbackController extends GetxController {
   final formKey = GlobalKey<FormState>();
@@ -161,6 +163,69 @@ class SendFeedbackController extends GetxController {
   }
 }
 
+ThemeData _getTheme(BuildContext context) {
+  final parentTheme = Theme.of(context);
+  final parentColors = parentTheme.extension<TWColors>()!;
+  final parentTypography = parentTheme.extension<TWTypography>()!;
+
+  final homeColors = TWColors(
+    brand: const Color(0xFF1976D2), // Professional blue
+    brandContainer: const Color(0xFF1976D2).withValues(alpha: 0.12),
+    brandVariant: const Color(0xFF42A5F5), // Lighter blue
+    textPrimary: const Color(0xFFE8E8E8),
+    textSecondary: const Color(0xFFB8B8B8),
+    textTertiary: const Color(0xFFB8B8B8).withValues(alpha: 0.7),
+    textDisabled: const Color(0xFFB8B8B8).withValues(alpha: 0.38),
+    background: const Color(0xFF0F0F0F),
+    surface: const Color(0xFF121212),
+    surfaceContainer: const Color(0xFF1E1E1E),
+    surfaceContainerHigh: const Color(0xFF1E1E1E),
+    surfaceContainerHighest: const Color(0xFF1E1E1E),
+    surfaceInput: const Color(0xFF121212),
+    appBarSurface: const Color(0xFF121212),
+    divider: const Color(0xFF1E1E1E),
+    success: parentColors.success,
+    warning: parentColors.warning,
+    error: const Color(0xFFFF6B6B),
+    info: const Color(0xFF42A5F5),
+    successContainer: parentColors.successContainer,
+    warningContainer: parentColors.warningContainer,
+    errorContainer: parentColors.errorContainer,
+    infoContainer: parentColors.infoContainer,
+    selectedOverlay: parentColors.selectedOverlay,
+    hoverOverlay: parentColors.hoverOverlay,
+    pressedOverlay: parentColors.pressedOverlay,
+    focusRing: parentColors.focusRing,
+  );
+
+  final homeTypography = TWTypography(
+    logo: GoogleFonts.roboto(textStyle: parentTypography.logo),
+    hero: GoogleFonts.roboto(textStyle: parentTypography.hero),
+    display: GoogleFonts.roboto(textStyle: parentTypography.display),
+    headline: GoogleFonts.roboto(textStyle: parentTypography.headline),
+    title: GoogleFonts.roboto(textStyle: parentTypography.title),
+    body: GoogleFonts.roboto(textStyle: parentTypography.body),
+    bodySmall: GoogleFonts.roboto(textStyle: parentTypography.bodySmall),
+    label: GoogleFonts.roboto(textStyle: parentTypography.label),
+    caption: GoogleFonts.roboto(textStyle: parentTypography.caption),
+    button: GoogleFonts.roboto(textStyle: parentTypography.button),
+    overline: GoogleFonts.roboto(textStyle: parentTypography.overline),
+  );
+
+  return modernDarkProfessionalTheme.copyWith(
+    extensions: [
+      homeColors,
+      homeTypography,
+      parentTheme.extension<TWSpacing>()!,
+      parentTheme.extension<TWRadius>()!,
+      parentTheme.extension<TWMotion>()!,
+      parentTheme.extension<TWShadows>()!,
+      parentTheme.extension<TWGradients>()!,
+      parentTheme.extension<TWLayoutTokens>()!,
+    ],
+  );
+}
+
 class SendFeedbackPage extends GetView<SendFeedbackController> {
   final bool isDashboard;
   const SendFeedbackPage({super.key, this.isDashboard = false});
@@ -173,64 +238,76 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
     }
     final controller = Get.find<SendFeedbackController>();
 
-    return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text(
-          'Feedback',
-          style: GoogleFonts.roboto(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
-          ),
-        ),
-        leading: IconButton(
-          icon: const BackSymbol(color: AppColors.textPrimary,
-          ),
-          onPressed: () => Get.back(),
-        ),
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment.topLeft,
-            radius: 1.5,
-            colors: [
-              AppColors.brand.withValues(alpha: 0.1),
-              AppColors.bgPage,
-            ],
-          ),
-        ),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Form(
-            key: controller.formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeader(),
-                const SizedBox(height: 32),
-                _buildTypeSelector(),
-                const SizedBox(height: 24),
-                _buildRatingSection(),
-                const SizedBox(height: 24),
-                _buildMessageInput(),
-                const SizedBox(height: 24),
-                _buildImageUploadSection(),
-                const SizedBox(height: 48),
-                _buildSubmitButton(),
-                const SizedBox(height: 40),
-              ],
+    return Theme(
+      data: _getTheme(context),
+      child: Builder(
+        builder: (context) {
+          return Scaffold(
+            backgroundColor: context.colors.background,
+            appBar: AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              title: Text(
+                'Feedback',
+                style: GoogleFonts.roboto(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: context.colors.textPrimary,
+                ),
+              ),
+              leading: IconButton(
+                icon: Icon(Icons.arrow_back, color: context.colors.textPrimary),
+                onPressed: () {
+                  if (isDashboard) {
+                    Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexSettings;
+                  } else {
+                    Get.back();
+                  }
+                },
+              ),
             ),
-          ),
-        ),
+            body: Container(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: Alignment.topLeft,
+                  radius: 1.5,
+                  colors: [
+                    context.colors.brand.withValues(alpha: 0.1),
+                    context.colors.background,
+                  ],
+                ),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                child: Form(
+                  key: controller.formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeader(context),
+                      const SizedBox(height: 32),
+                      _buildTypeSelector(context),
+                      const SizedBox(height: 24),
+                      _buildRatingSection(context),
+                      const SizedBox(height: 24),
+                      _buildMessageInput(context),
+                      const SizedBox(height: 24),
+                      _buildImageUploadSection(context),
+                      const SizedBox(height: 48),
+                      _buildSubmitButton(context),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -239,7 +316,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
           style: GoogleFonts.roboto(
             fontSize: 28,
             fontWeight: FontWeight.w700,
-            color: AppColors.textPrimary,
+            color: context.colors.textPrimary,
             letterSpacing: -0.5,
           ),
         ),
@@ -248,14 +325,14 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
           'Tell us how we can make TruthWorld better for you.',
           style: GoogleFonts.roboto(
             fontSize: 15,
-            color: AppColors.textSecondary,
+            color: context.colors.textSecondary,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildTypeSelector() {
+  Widget _buildTypeSelector(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -286,12 +363,12 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
                   decoration: BoxDecoration(
                     color: isSelected
                         ? Colors.white
-                        : AppColors.bgSurface,
+                        : context.colors.surface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: isSelected
                           ? Colors.white
-                          : AppColors.bgDivider.withValues(alpha: 0.1),
+                          : context.colors.divider.withValues(alpha: 0.1),
                     ),
                     boxShadow: isSelected
                         ? [
@@ -309,7 +386,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
                     style: GoogleFonts.roboto(
                       color: isSelected
                           ? Colors.black
-                          : AppColors.textSecondary,
+                          : context.colors.textSecondary,
                       fontWeight: isSelected
                           ? FontWeight.bold
                           : FontWeight.normal,
@@ -325,7 +402,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
     );
   }
 
-  Widget _buildRatingSection() {
+  Widget _buildRatingSection(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -342,10 +419,10 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: AppColors.bgSurface,
+            color: context.colors.surface,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: AppColors.bgDivider.withValues(alpha: 0.1),
+              color: context.colors.divider.withValues(alpha: 0.1),
             ),
           ),
           child: Row(
@@ -364,7 +441,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
                           : Icons.star_outline_rounded,
                       color: isSelected
                           ? Colors.white
-                          : AppColors.textSecondary.withValues(alpha: 0.3),
+                          : context.colors.textSecondary.withValues(alpha: 0.3),
                       size: 36,
                     ),
                   ),
@@ -377,7 +454,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
     );
   }
 
-  Widget _buildMessageInput() {
+  Widget _buildMessageInput(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -394,24 +471,24 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
         TextFormField(
           controller: controller.feedbackController,
           maxLines: 6,
-          style: GoogleFonts.roboto(color: AppColors.textPrimary),
+          style: GoogleFonts.roboto(color: context.colors.textPrimary),
           decoration: InputDecoration(
             hintText: 'Share your thoughts, suggestions or bug details...',
             hintStyle: GoogleFonts.roboto(
-              color: AppColors.textSecondary.withValues(alpha: 0.5),
+              color: context.colors.textSecondary.withValues(alpha: 0.5),
             ),
             filled: true,
-            fillColor: AppColors.bgSurface,
+            fillColor: context.colors.surface,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(
-                color: AppColors.bgDivider.withValues(alpha: 0.1),
+                color: context.colors.divider.withValues(alpha: 0.1),
               ),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(
-                color: AppColors.bgDivider.withValues(alpha: 0.1),
+                color: context.colors.divider.withValues(alpha: 0.1),
               ),
             ),
             focusedBorder: OutlineInputBorder(
@@ -437,7 +514,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
     );
   }
 
-  Widget _buildImageUploadSection() {
+  Widget _buildImageUploadSection(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -458,7 +535,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
                 '${controller.attachments.length}/5',
                 style: GoogleFonts.roboto(
                   fontSize: 12,
-                  color: AppColors.textSecondary,
+                  color: context.colors.textSecondary,
                 ),
               ),
             ),
@@ -487,7 +564,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
                           fit: BoxFit.cover,
                         ),
                         border: Border.all(
-                          color: AppColors.bgDivider.withValues(alpha: 0.2),
+                          color: context.colors.divider.withValues(alpha: 0.2),
                         ),
                       ),
                     ),
@@ -520,26 +597,26 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
                     width: 80,
                     height: 80,
                     decoration: BoxDecoration(
-                      color: AppColors.bgSurface,
+                      color: context.colors.surface,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: AppColors.bgDivider.withValues(alpha: 0.1),
+                        color: context.colors.divider.withValues(alpha: 0.1),
                         style: BorderStyle.solid,
                       ),
                     ),
-                    child: const Column(
+                    child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           Icons.add_photo_alternate_outlined,
-                          color: AppColors.brand,
+                          color: context.colors.brand,
                           size: 28,
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
                           'Add',
                           style: TextStyle(
-                            color: AppColors.textSecondary,
+                            color: context.colors.textSecondary,
                             fontSize: 11,
                           ),
                         ),
@@ -554,7 +631,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
     );
   }
 
-  Widget _buildSubmitButton() {
+  Widget _buildSubmitButton(BuildContext context) {
     return Obx(
       () => SizedBox(
         width: double.infinity,

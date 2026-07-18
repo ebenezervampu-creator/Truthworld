@@ -55,14 +55,14 @@ const SUBJECTIVE_PHRASES: string[] = [
 
 /** Promotional / marketing signal phrases (Commercial CTAs) */
 const PROMOTIONAL_SIGNALS: string[] = [
-  "buy now", "subscribe", "limited offer", "sign up", "best product",
+  "buy now", "limited offer", "sign up", "best product",
   "discount", "pricing", "free trial", "check it out", "check this out",
   "you need to", "you have to", "go try", "try it", "try this",
   "link in", "link below", "use my code", "use code", "promo code",
-  "coupon", "affiliate", "sponsored", "partnership", "collaboration",
+  "coupon", "affiliate link", "sponsored by", "brand partnership", "brand collaboration",
   "brand deal", "new product", "new tool", "new feature", "new release",
   "hit the bell", "smash the like", "like and subscribe", "comment below",
-  "game changer for", "replace", "better than", "compared to",
+  "game changer for", "better than", "compared to",
   "alternative to", "switch to", "move to", "upgrade to",
 ];
 

@@ -1,5 +1,4 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -279,7 +278,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: BackSymbol(color: AppColors.brand,
+                      icon: Icon(Icons.arrow_back, color: AppColors.brand,
                       ),
                       onPressed: () => controller.selectVideo(null),
                     ),

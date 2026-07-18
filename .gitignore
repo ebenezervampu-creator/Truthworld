@@ -56,3 +56,7 @@ functions/*.txt
 functions/*.js
 *.srt
 transcript_*.json
+manifest.json
+full.json
+latest.json
+

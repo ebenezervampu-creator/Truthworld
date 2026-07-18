@@ -8,6 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/watchhistory/presentation/controllers/watch_history_controller.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 
 
 // ==========================================================================
@@ -67,14 +68,29 @@ class _WatchHistoryState extends State<WatchHistory>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Watch history',
-                  style: GoogleFonts.roboto(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w700,
-                    color: primaryText,
-                    letterSpacing: -0.5,
-                  ),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      onPressed: () {
+                        if (widget.isDashboard) {
+                          Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexLibrary;
+                        } else {
+                          Get.back();
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Watch history',
+                      style: GoogleFonts.roboto(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w700,
+                        color: primaryText,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ],
                 ),
                 Row(
                   children: [

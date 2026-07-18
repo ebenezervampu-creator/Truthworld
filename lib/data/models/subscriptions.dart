@@ -16,10 +16,11 @@ class Subscription {
 
   factory Subscription.fromDocumentSnapshot(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
+    final rawTimestamp = data['subscribedAt'] ?? data['timestamp'];
     return Subscription(
       userId: data['userId'] ?? '',
       channelId: data['channelId'] ?? '',
-      timestamp: data['timestamp'] != null ? TimestampUtils.parse(data['timestamp']) : null,
+      timestamp: rawTimestamp != null ? TimestampUtils.parse(rawTimestamp) : null,
       notificationsEnabled: data['notificationsEnabled'] ?? true,
     );
   }
@@ -29,6 +30,7 @@ class Subscription {
       'userId': userId,
       'channelId': channelId,
       'timestamp': timestamp ?? FieldValue.serverTimestamp(),
+      'subscribedAt': timestamp ?? FieldValue.serverTimestamp(),
       'notificationsEnabled': notificationsEnabled,
     };
   }

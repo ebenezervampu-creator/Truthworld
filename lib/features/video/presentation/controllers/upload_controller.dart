@@ -45,7 +45,7 @@ class UploadController extends GetxController with ContentValidationMixin {
 
   /// Current upload progress (0.0 - 1.0) - maintained for backward compatibility with UI
   RxDouble uploadProgress = 0.0.obs;
-  RxString selectedCategory = "Music".obs;
+  RxString selectedCategory = "Other".obs;
   Rx<Channel?> selectedChannel = Rx<Channel?>(null);
   RxString selectedVisibility = 'Public'.obs;
   RxBool isKidFriendly = false.obs;
@@ -1163,9 +1163,18 @@ class UploadController extends GetxController with ContentValidationMixin {
     }
   }
 
-  // ==========================================================================
-  // VIDEO UPLOAD WITH CONTENT VALIDATION
-  // ==========================================================================
+  List<String> _generateKeywords(String title) {
+    final cleanTitle = title.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '');
+    final words = cleanTitle.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final Set<String> keywords = {};
+    for (final word in words) {
+      keywords.add(word);
+      for (int i = 1; i <= word.length; i++) {
+        keywords.add(word.substring(0, i));
+      }
+    }
+    return keywords.toList();
+  }
 
   Future<void> uploadVideo(
     String title,
@@ -1316,6 +1325,7 @@ class UploadController extends GetxController with ContentValidationMixin {
       final updateData = {
         'title': title.trim(),
         'description': description.trim(),
+        'keywords': _generateKeywords(title.trim()),
         'videoUrl': videoUrl.value,
         'thumbnailUrl': thumbnailUrl.value,
         'channelName': channelName.trim(),

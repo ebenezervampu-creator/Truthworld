@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Truthworld uses the microphone to search videos by voice.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Truthworld uses speech recognition to search videos by voice.</string>
 </dict>
 </plist>

@@ -28,6 +28,7 @@ const VideoModerationResponseSchema = z.object({
   violationCategories: z.array(z.string()).default([]),
   confidenceScore: z.number().min(0).max(1).default(0.5),
   summary: z.string(),
+  category: z.string().default("Other"),
 });
 
 export interface VideoModerationResult {
@@ -36,6 +37,7 @@ export interface VideoModerationResult {
   violationCategories: string[];
   confidenceScore: number;
   summary: string;
+  category?: string;
   processingTimeMs: number;
 }
 
@@ -79,10 +81,14 @@ You MUST return a JSON object matching this exact schema:
   "violationReason": "Clear explanation if rejected, empty string if approved",
   "violationCategories": ["category1", "category2"],
   "confidenceScore": 0.0 to 1.0 (how confident you are in your decision),
-  "summary": "Concise 2-3 sentence summary of the video content for users to read"
+  "summary": "Concise 2-3 sentence summary of the video content for users to read",
+  "category": "Select one relevant category for this video from the valid list below."
 }
 
 Valid violation categories: "hate_speech", "self_harm", "violence", "sexual_content", "illegal_activity", "gambling", "violent_games", "romantic_content", "misinformation"
+
+Valid categories (must match casing exactly, default is 'Other'):
+'Education', 'Entertainment', 'Music', 'News', 'Sports', 'Gaming', 'Technology', 'Science', 'Travel', 'Lifestyle', 'Comedy', 'Documentary', 'Movies', 'TV Shows', 'Vlogs', 'DIY & How-to', 'Health & Fitness', 'Fashion & Beauty', 'Food & Cooking', 'Business & Finance', 'Animation', 'Short Films', 'Motivation', 'History', 'Art & Design', 'Automotive', 'Animals & Pets', 'Spirituality', 'Nature & Wildlife', 'Kids & Family', 'Other'
 
 Be fair and balanced. Do NOT reject content simply because it discusses controversial topics — only reject if it actively promotes, glorifies, or instructs harmful behavior.`;
 
@@ -184,6 +190,7 @@ export class VideoModerationService {
           violationCategories: parsed.data.violationCategories,
           confidenceScore: parsed.data.confidenceScore,
           summary: parsed.data.summary || "Summary unavailable.",
+          category: parsed.data.category || "Other",
           processingTimeMs,
         };
       } catch (error) {
@@ -202,6 +209,7 @@ export class VideoModerationService {
             violationCategories: ["timeout_passthrough"],
             confidenceScore: 0,
             summary: "Moderation timed out — video approved pending async review.",
+            category: "Other",
             processingTimeMs,
           };
         }
@@ -231,6 +239,7 @@ export class VideoModerationService {
             violationCategories: ["retry_exhausted_passthrough"],
             confidenceScore: 0,
             summary: "Moderation could not complete — video approved pending async review.",
+            category: "Other",
             processingTimeMs: Date.now() - t0,
           };
         } else {

@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart' as ctrl;
+import 'package:truthworld/features/search/presentation/widgets/voice_search_dialog.dart';
 
 /// GetX Controller to manage state for SubscribeButton
 class SubscribeButtonController extends GetxController {
@@ -138,8 +139,18 @@ class SearchResultCard extends StatelessWidget {
   }
 
   Widget _buildVideoCard(BuildContext context) {
-    // Generate a consistent pseudo-random duration based on ID to look premium
-    final mockDuration = '${(result.id.hashCode % 12) + 2}:${(result.id.hashCode % 50 + 10).toString().padLeft(2, '0')}';
+    final seconds = result.duration;
+    String? durationStr;
+    if (seconds != null && seconds > 0) {
+      final h = seconds ~/ 3600;
+      final m = (seconds % 3600) ~/ 60;
+      final s = seconds % 60;
+      if (h > 0) {
+        durationStr = '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+      } else {
+        durationStr = '$m:${s.toString().padLeft(2, '0')}';
+      }
+    }
     
     return InkWell(
       onTap: onTap,
@@ -169,21 +180,22 @@ class SearchResultCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                Positioned(
-                  bottom: 6,
-                  right: 6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      mockDuration,
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                if (durationStr != null)
+                  Positioned(
+                    bottom: 6,
+                    right: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        durationStr,
+                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
             const SizedBox(width: 12),
@@ -874,12 +886,14 @@ class SearchBar extends StatelessWidget {
           // Separate circle mic button next to capsule
           InkWell(
             onTap: () {
-              Get.snackbar(
-                'Voice Search',
-                'Listening...',
-                snackPosition: SnackPosition.BOTTOM,
-                backgroundColor: Colors.white.withValues(alpha: 0.9),
-                colorText: Colors.black,
+              Get.dialog(
+                VoiceSearchDialog(
+                  onSearch: (query) {
+                    controller.text = query;
+                    onSearchSubmitted();
+                  },
+                ),
+                useSafeArea: false,
               );
             },
             borderRadius: BorderRadius.circular(20),

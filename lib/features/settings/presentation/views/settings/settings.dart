@@ -1,12 +1,15 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/features/watchhistory/presentation/controllers/watch_history_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/features/home/presentation/views/home/home.dart';
+
 
 // Constants for consistent styling
 const double kBorderRadius = 16.0;
@@ -14,51 +17,373 @@ const double kSmallPadding = 8.0;
 const double kMediumPadding = 16.0;
 const double kLargePadding = 24.0;
 
+ThemeData _getSettingsTheme(BuildContext context) {
+  final parentTheme = Theme.of(context);
+  final parentColors = parentTheme.extension<TWColors>()!;
+  final parentTypography = parentTheme.extension<TWTypography>()!;
+
+  final homeColors = TWColors(
+    brand: const Color(0xFF1976D2), // Professional blue
+    brandContainer: const Color(0xFF1976D2).withValues(alpha: 0.12),
+    brandVariant: const Color(0xFF42A5F5), // Lighter blue
+    textPrimary: const Color(0xFFE8E8E8),
+    textSecondary: const Color(0xFFB8B8B8),
+    textTertiary: const Color(0xFFB8B8B8).withValues(alpha: 0.7),
+    textDisabled: const Color(0xFFB8B8B8).withValues(alpha: 0.38),
+    background: const Color(0xFF0F0F0F),
+    surface: const Color(0xFF121212),
+    surfaceContainer: const Color(0xFF1E1E1E),
+    surfaceContainerHigh: const Color(0xFF1E1E1E),
+    surfaceContainerHighest: const Color(0xFF1E1E1E),
+    surfaceInput: const Color(0xFF121212),
+    appBarSurface: const Color(0xFF121212),
+    divider: const Color(0xFF1E1E1E),
+    success: parentColors.success,
+    warning: parentColors.warning,
+    error: const Color(0xFFFF6B6B),
+    info: const Color(0xFF42A5F5),
+    successContainer: parentColors.successContainer,
+    warningContainer: parentColors.warningContainer,
+    errorContainer: parentColors.errorContainer,
+    infoContainer: parentColors.infoContainer,
+    selectedOverlay: parentColors.selectedOverlay,
+    hoverOverlay: parentColors.hoverOverlay,
+    pressedOverlay: parentColors.pressedOverlay,
+    focusRing: parentColors.focusRing,
+  );
+
+  final homeTypography = TWTypography(
+    logo: GoogleFonts.roboto(textStyle: parentTypography.logo),
+    hero: GoogleFonts.roboto(textStyle: parentTypography.hero),
+    display: GoogleFonts.roboto(textStyle: parentTypography.display),
+    headline: GoogleFonts.roboto(textStyle: parentTypography.headline),
+    title: GoogleFonts.roboto(textStyle: parentTypography.title),
+    body: GoogleFonts.roboto(textStyle: parentTypography.body),
+    bodySmall: GoogleFonts.roboto(textStyle: parentTypography.bodySmall),
+    label: GoogleFonts.roboto(textStyle: parentTypography.label),
+    caption: GoogleFonts.roboto(textStyle: parentTypography.caption),
+    button: GoogleFonts.roboto(textStyle: parentTypography.button),
+    overline: GoogleFonts.roboto(textStyle: parentTypography.overline),
+  );
+
+  return modernDarkProfessionalTheme.copyWith(
+    extensions: [
+      homeColors,
+      homeTypography,
+      parentTheme.extension<TWSpacing>()!,
+      parentTheme.extension<TWRadius>()!,
+      parentTheme.extension<TWMotion>()!,
+      parentTheme.extension<TWShadows>()!,
+      parentTheme.extension<TWGradients>()!,
+      parentTheme.extension<TWLayoutTokens>()!,
+    ],
+  );
+}
+
+class WatchHistorySettingsView extends StatelessWidget {
+  const WatchHistorySettingsView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = Get.isRegistered<WatchHistoryController>()
+        ? Get.find<WatchHistoryController>()
+        : Get.put(WatchHistoryController());
+
+    return Theme(
+      data: _getSettingsTheme(context),
+      child: Builder(
+        builder: (context) {
+          return Scaffold(
+            backgroundColor: context.colors.background,
+            appBar: AppBar(
+              backgroundColor: context.colors.background,
+              elevation: 0,
+              title: Text(
+                'Watch history',
+                style: context.typography.headline.copyWith(
+                  color: context.colors.textPrimary,
+                ),
+              ),
+              leading: IconButton(
+                icon: Icon(Icons.arrow_back, color: context.colors.textPrimary),
+                onPressed: () => Get.back(),
+              ),
+            ),
+            body: ListView(
+              children: [
+                _buildHeader(context),
+                const Divider(color: Colors.white10),
+                _buildControlSection(context, controller),
+                const Divider(color: Colors.white10),
+                _buildDeleteSection(context, controller),
+              ],
+            ),
+          );
+        }
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Manage your viewing history',
+            style: context.typography.title.copyWith(
+              color: context.colors.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'History helps you find videos you\'ve watched and improves your recommendations.',
+            style: context.typography.bodySmall.copyWith(
+              color: context.colors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildControlSection(
+    BuildContext context,
+    WatchHistoryController controller,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle(context, 'CONTROLS'),
+        Obx(
+          () => ListTile(
+            leading: Icon(
+              controller.isHistoryPaused.value
+                  ? Icons.play_arrow_outlined
+                  : Icons.pause_circle_outline,
+              color: context.colors.textPrimary,
+            ),
+            title: Text(
+              controller.isHistoryPaused.value
+                  ? 'Resume watch history'
+                  : 'Pause watch history',
+              style: context.typography.body.copyWith(
+                color: context.colors.textPrimary,
+              ),
+            ),
+            onTap: controller.toggleHistoryPaused,
+          ),
+        ),
+        ListTile(
+          leading: Icon(Icons.list_alt_rounded, color: context.colors.textPrimary),
+          title: Text(
+            'View full history',
+            style: context.typography.body.copyWith(
+              color: context.colors.textPrimary,
+            ),
+          ),
+          onTap: () {
+            if (Get.isRegistered<HomeController>()) {
+              Get.find<HomeController>().onSideNavItemSelect(HomeController.indexHistory);
+              Get.back(); // Go back to settings
+              Get.back(); // Go back to library/home
+            } else {
+              Get.toNamed('/watchhistory');
+            }
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDeleteSection(
+    BuildContext context,
+    WatchHistoryController controller,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle(context, 'DELETE OPTIONS'),
+        _buildDeleteTile(
+          context,
+          'Delete today',
+          Icons.today_outlined,
+          onTap: () => _confirmDelete(context, 'today', controller.deleteToday),
+        ),
+        _buildDeleteTile(
+          context,
+          'Delete yesterday',
+          Icons.event_note_outlined,
+          onTap: () => _confirmDelete(
+            context,
+            'yesterday',
+            controller.deleteYesterday,
+          ),
+        ),
+        _buildDeleteTile(
+          context,
+          'Delete this week',
+          Icons.calendar_view_week_outlined,
+          onTap: () => _confirmDelete(
+            context,
+            'this week',
+            controller.deleteThisWeek,
+          ),
+        ),
+        _buildDeleteTile(
+          context,
+          'Delete previous week',
+          Icons.calendar_month_outlined,
+          onTap: () => _confirmDelete(
+            context,
+            'previous week',
+            controller.deletePreviousWeek,
+          ),
+        ),
+        _buildDeleteTile(
+          context,
+          'Delete all time',
+          Icons.delete_forever_outlined,
+          isError: true,
+          onTap: controller.clearAllHistory,
+        ),
+        const Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text(
+            'To delete a particular video, use the "View full history" option above.',
+            style: TextStyle(color: Colors.white54, fontSize: 12, fontStyle: FontStyle.italic),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSectionTitle(BuildContext context, String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Text(
+        title,
+        style: context.typography.overline.copyWith(
+          color: context.colors.brand,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeleteTile(
+    BuildContext context,
+    String title,
+    IconData icon, {
+    required VoidCallback onTap,
+    bool isError = false,
+  }) {
+    return ListTile(
+      leading: Icon(
+        icon,
+        color: isError ? context.colors.error : context.colors.textPrimary,
+      ),
+      title: Text(
+        title,
+        style: context.typography.body.copyWith(
+          color: isError ? context.colors.error : context.colors.textPrimary,
+        ),
+      ),
+      onTap: onTap,
+    );
+  }
+
+  void _confirmDelete(BuildContext context, String label, VoidCallback onConfirm) {
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: context.colors.surface,
+        title: Text(
+          'Delete History?',
+          style: TextStyle(color: context.colors.textPrimary),
+        ),
+        content: Text(
+          'Are you sure you want to delete your watch history from $label?',
+          style: TextStyle(color: context.colors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: context.colors.textSecondary),
+            ),
+          ),
+          TextButton(
+            onPressed: () {
+              Get.back();
+              onConfirm();
+            },
+            child: Text(
+              'Delete',
+              style: TextStyle(color: context.colors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class SettingsScreen extends StatelessWidget {
   final bool isDashboard;
   const SettingsScreen({super.key, this.isDashboard = false});
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return ResponsiveBuilder(
-      builder: (context, deviceType) {
-        return Scaffold(
-          backgroundColor: colorScheme.surface,
-          appBar: !isDashboard ? _buildAppBar(context, colorScheme) : null,
-          body: _buildBody(context, colorScheme),
-        );
-      },
+    return Theme(
+      data: _getSettingsTheme(context),
+      child: Builder(
+        builder: (context) {
+          return ResponsiveBuilder(
+            builder: (context, deviceType) {
+              return Scaffold(
+                backgroundColor: context.colors.background,
+                appBar: _buildAppBar(context),
+                body: _buildBody(context),
+              );
+            },
+          );
+        }
+      ),
     );
   }
 
-  PreferredSizeWidget _buildAppBar(
-    BuildContext context,
-    ColorScheme colorScheme,
-  ) {
+  PreferredSizeWidget _buildAppBar(BuildContext context) {
     return AppBar(
       title: Text(
         'Settings',
-        style: AppTextStyles.headlineSmall.copyWith(
-          fontSize:
-              (AppTextStyles.headlineSmall.fontSize ?? 24) * context.fontScale,
-          color: colorScheme.onSurface,
+        style: context.typography.headline.copyWith(
+          color: context.colors.textPrimary,
         ),
       ),
-      backgroundColor: colorScheme.surface,
+      backgroundColor: context.colors.background,
       elevation: 0,
       centerTitle: context.isMobile,
       leading: IconButton(
-        icon: BackSymbol(color: colorScheme.onSurface,
+        icon: Icon(
+          Icons.arrow_back,
+          color: context.colors.textPrimary,
           size: context.isMobileSmall ? 20 : 24,
         ),
-        onPressed: () => Get.back(),
+        onPressed: () {
+          if (isDashboard) {
+            Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexLibrary;
+          } else {
+            Get.back();
+          }
+        },
       ),
     );
   }
 
-  Widget _buildBody(BuildContext context, ColorScheme colorScheme) {
+  Widget _buildBody(BuildContext context) {
     return ResponsiveContainer(
       child: ListView(
         padding: EdgeInsets.symmetric(vertical: context.layoutSpacing),
@@ -67,18 +392,10 @@ class SettingsScreen extends StatelessWidget {
           _buildSection(
             context,
             title: 'Account',
-            colorScheme: colorScheme,
-            settings: [_buildUserInfoTile(context, colorScheme)],
-          ),
-          SizedBox(height: context.layoutSpacing),
-          // Appearance Section
-          _buildSection(
-            context,
-            title: 'Appearance',
-            colorScheme: colorScheme,
             settings: [
-              _buildThemeTile(context, colorScheme),
-              _buildLanguageTile(context, colorScheme),
+              _buildUserInfoTile(context),
+              _buildWatchHistoryTile(context),
+              _buildLogoutTile(context),
             ],
           ),
           SizedBox(height: context.layoutSpacing),
@@ -86,11 +403,39 @@ class SettingsScreen extends StatelessWidget {
           _buildSection(
             context,
             title: 'Privacy',
-            colorScheme: colorScheme,
             settings: [
-              _buildPrivacyTile(context, colorScheme),
-              _buildDataTile(context, colorScheme),
-              _buildDeleteAccountTile(context, colorScheme),
+              _buildPrivacyTile(context),
+              _buildDataTile(context),
+              _buildDeleteAccountTile(context),
+            ],
+          ),
+          SizedBox(height: context.layoutSpacing),
+          // Legal Section
+          _buildSection(
+            context,
+            title: 'Legal',
+            settings: [
+              _buildLegalTile(
+                context,
+                title: 'Privacy Policy',
+                icon: Icons.privacy_tip_outlined,
+                index: HomeController.indexPrivacy,
+                route: '/privacy',
+              ),
+              _buildLegalTile(
+                context,
+                title: 'Terms & Conditions',
+                icon: Icons.article_outlined,
+                index: HomeController.indexTerms,
+                route: '/terms',
+              ),
+              _buildLegalTile(
+                context,
+                title: 'Community Guidelines',
+                icon: Icons.gavel_outlined,
+                index: HomeController.indexCommunityGuidelines,
+                route: '/community-guidelines',
+              ),
             ],
           ),
           SizedBox(height: context.layoutSpacing),
@@ -98,10 +443,10 @@ class SettingsScreen extends StatelessWidget {
           _buildSection(
             context,
             title: 'About',
-            colorScheme: colorScheme,
             settings: [
-              _buildVersionTile(context, colorScheme),
-              _buildHelpTile(context, colorScheme),
+              _buildVersionTile(context),
+              _buildHelpTile(context),
+              _buildFeedbackTile(context),
             ],
           ),
         ],
@@ -112,21 +457,14 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildSection(
     BuildContext context, {
     required String title,
-    required ColorScheme colorScheme,
     required List<Widget> settings,
   }) {
     return Container(
       margin: EdgeInsets.symmetric(horizontal: context.layoutSpacing),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(context.isMobileSmall ? 12 : 16),
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.shadow.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: context.colors.surface,
+        borderRadius: context.radius.lg,
+        border: Border.all(color: context.colors.divider, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,12 +473,9 @@ class SettingsScreen extends StatelessWidget {
             padding: EdgeInsets.all(context.layoutSpacing),
             child: Text(
               title,
-              style: AppTextStyles.titleMedium.copyWith(
-                fontSize:
-                    (AppTextStyles.titleMedium.fontSize ?? 18) *
-                    context.fontScale,
+              style: context.typography.title.copyWith(
                 fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface,
+                color: context.colors.textPrimary,
               ),
             ),
           ),
@@ -150,7 +485,7 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildUserInfoTile(BuildContext context, ColorScheme colorScheme) {
+  Widget _buildUserInfoTile(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     return ListTile(
       leading: UserAvatar(
@@ -160,160 +495,208 @@ class SettingsScreen extends StatelessWidget {
       ),
       title: Text(
         user?.displayName ?? 'User',
-        style: AppTextStyles.bodyLarge.copyWith(
-          fontSize:
-              (AppTextStyles.bodyLarge.fontSize ?? 16) * context.fontScale,
+        style: context.typography.body.copyWith(
+          color: context.colors.textPrimary,
         ),
       ),
       subtitle: Text(
         user?.email ?? '',
-        style: AppTextStyles.bodySmall.copyWith(
-          fontSize:
-              (AppTextStyles.bodySmall.fontSize ?? 12) * context.fontScale,
+        style: context.typography.bodySmall.copyWith(
+          color: context.colors.textSecondary,
         ),
       ),
-      trailing: Icon(Icons.chevron_right, color: colorScheme.onSurface),
+      trailing: Icon(Icons.chevron_right, color: context.colors.textPrimary),
       onTap: () {
         // Navigate to profile
       },
     );
   }
 
-  Widget _buildThemeTile(BuildContext context, ColorScheme colorScheme) {
+  Widget _buildWatchHistoryTile(BuildContext context) {
     return ListTile(
-      leading: Icon(Icons.palette, color: colorScheme.primary),
+      leading: Icon(Icons.history, color: context.colors.brand),
       title: Text(
-        'Theme',
-        style: AppTextStyles.bodyLarge.copyWith(
-          fontSize:
-              (AppTextStyles.bodyLarge.fontSize ?? 16) * context.fontScale,
+        'Watch history',
+        style: context.typography.body.copyWith(
+          color: context.colors.textPrimary,
         ),
       ),
-      subtitle: Text(
-        'Dark Mode',
-        style: AppTextStyles.bodySmall.copyWith(
-          fontSize:
-              (AppTextStyles.bodySmall.fontSize ?? 12) * context.fontScale,
-        ),
-      ),
-      trailing: Switch(
-        value: Theme.of(context).brightness == Brightness.dark,
-        onChanged: (value) {
-          // Toggle theme
-        },
-      ),
-    );
-  }
-
-  Widget _buildLanguageTile(BuildContext context, ColorScheme colorScheme) {
-    return ListTile(
-      leading: Icon(Icons.language, color: colorScheme.primary),
-      title: Text(
-        'Language',
-        style: AppTextStyles.bodyLarge.copyWith(
-          fontSize:
-              (AppTextStyles.bodyLarge.fontSize ?? 16) * context.fontScale,
-        ),
-      ),
-      subtitle: Text(
-        'English',
-        style: AppTextStyles.bodySmall.copyWith(
-          fontSize:
-              (AppTextStyles.bodySmall.fontSize ?? 12) * context.fontScale,
-        ),
-      ),
-      trailing: Icon(Icons.chevron_right, color: colorScheme.onSurface),
+      trailing: Icon(Icons.chevron_right, color: context.colors.textPrimary),
       onTap: () {
-        // Change language
+        Get.to(() => const WatchHistorySettingsView());
       },
     );
   }
 
-  Widget _buildPrivacyTile(BuildContext context, ColorScheme colorScheme) {
+  Widget _buildLogoutTile(BuildContext context) {
     return ListTile(
-      leading: Icon(Icons.lock, color: colorScheme.primary),
+      leading: Icon(Icons.logout, color: context.colors.error),
       title: Text(
-        'Privacy',
-        style: AppTextStyles.bodyLarge.copyWith(
-          fontSize:
-              (AppTextStyles.bodyLarge.fontSize ?? 16) * context.fontScale,
+        'Log Out',
+        style: context.typography.body.copyWith(
+          color: context.colors.error,
         ),
       ),
-      trailing: Icon(Icons.chevron_right, color: colorScheme.onSurface),
+      onTap: () => _showLogoutConfirmation(context),
+    );
+  }
+
+  void _showLogoutConfirmation(BuildContext context) {
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: context.colors.surface,
+        title: Text('Log Out', style: TextStyle(color: context.colors.textPrimary)),
+        content: Text(
+          'Are you sure you want to log out of your account?',
+          style: TextStyle(color: context.colors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back(),
+            child: Text('Cancel', style: TextStyle(color: context.colors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Get.back();
+              await AuthService.to.logout();
+              Get.offAllNamed('/');
+            },
+            child: Text('Log Out', style: TextStyle(color: context.colors.error)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPrivacyTile(BuildContext context) {
+    return ListTile(
+      leading: Icon(Icons.lock, color: context.colors.brand),
+      title: Text(
+        'Privacy',
+        style: context.typography.body.copyWith(
+          color: context.colors.textPrimary,
+        ),
+      ),
+      trailing: Icon(Icons.chevron_right, color: context.colors.textPrimary),
       onTap: () {
         // Open privacy settings
       },
     );
   }
 
-  Widget _buildDataTile(BuildContext context, ColorScheme colorScheme) {
+  Widget _buildDataTile(BuildContext context) {
     return ListTile(
-      leading: Icon(Icons.data_usage, color: colorScheme.primary),
+      leading: Icon(Icons.data_usage, color: context.colors.brand),
       title: Text(
         'Data Usage',
-        style: AppTextStyles.bodyLarge.copyWith(
-          fontSize:
-              (AppTextStyles.bodyLarge.fontSize ?? 16) * context.fontScale,
+        style: context.typography.body.copyWith(
+          color: context.colors.textPrimary,
         ),
       ),
-      trailing: Icon(Icons.chevron_right, color: colorScheme.onSurface),
+      trailing: Icon(Icons.chevron_right, color: context.colors.textPrimary),
       onTap: () {
         // Open data usage settings
       },
     );
   }
 
-  Widget _buildVersionTile(BuildContext context, ColorScheme colorScheme) {
+  Widget _buildVersionTile(BuildContext context) {
     return ListTile(
-      leading: Icon(Icons.info, color: colorScheme.primary),
+      leading: Icon(Icons.info, color: context.colors.brand),
       title: Text(
         'Version',
-        style: AppTextStyles.bodyLarge.copyWith(
-          fontSize:
-              (AppTextStyles.bodyLarge.fontSize ?? 16) * context.fontScale,
+        style: context.typography.body.copyWith(
+          color: context.colors.textPrimary,
         ),
       ),
       subtitle: Text(
         '1.0.0',
-        style: AppTextStyles.bodySmall.copyWith(
-          fontSize:
-              (AppTextStyles.bodySmall.fontSize ?? 12) * context.fontScale,
+        style: context.typography.bodySmall.copyWith(
+          color: context.colors.textSecondary,
         ),
       ),
     );
   }
 
-  Widget _buildHelpTile(BuildContext context, ColorScheme colorScheme) {
+  Widget _buildHelpTile(BuildContext context) {
     return ListTile(
-      leading: Icon(Icons.help, color: colorScheme.primary),
+      leading: Icon(Icons.help, color: context.colors.brand),
       title: Text(
         'Help & Support',
-        style: AppTextStyles.bodyLarge.copyWith(
-          fontSize:
-              (AppTextStyles.bodyLarge.fontSize ?? 16) * context.fontScale,
+        style: context.typography.body.copyWith(
+          color: context.colors.textPrimary,
         ),
       ),
-      trailing: Icon(Icons.chevron_right, color: colorScheme.onSurface),
+      trailing: Icon(Icons.chevron_right, color: context.colors.textPrimary),
       onTap: () {
-        // Open help
+        if (Get.isRegistered<HomeController>()) {
+          Get.find<HomeController>().onSideNavItemSelect(HomeController.indexHelp);
+        } else {
+          Get.toNamed('/help');
+        }
       },
     );
   }
 
-  Widget _buildDeleteAccountTile(BuildContext context, ColorScheme colorScheme) {
+  Widget _buildFeedbackTile(BuildContext context) {
+    return ListTile(
+      leading: Icon(Icons.chat_bubble_outline, color: context.colors.brand),
+      title: Text(
+        'Feedback',
+        style: context.typography.body.copyWith(
+          color: context.colors.textPrimary,
+        ),
+      ),
+      trailing: Icon(Icons.chevron_right, color: context.colors.textPrimary),
+      onTap: () {
+        if (Get.isRegistered<HomeController>()) {
+          Get.find<HomeController>().onSideNavItemSelect(HomeController.indexFeedback);
+        } else {
+          Get.toNamed('/feedback');
+        }
+      },
+    );
+  }
+
+  Widget _buildLegalTile(
+    BuildContext context, {
+    required String title,
+    required IconData icon,
+    required int index,
+    required String route,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: context.colors.brand),
+      title: Text(
+        title,
+        style: context.typography.body.copyWith(
+          color: context.colors.textPrimary,
+        ),
+      ),
+      trailing: Icon(Icons.chevron_right, color: context.colors.textPrimary),
+      onTap: () {
+        if (Get.isRegistered<HomeController>()) {
+          Get.find<HomeController>().onSideNavItemSelect(index);
+        } else {
+          Get.toNamed(route);
+        }
+      },
+    );
+  }
+
+  Widget _buildDeleteAccountTile(BuildContext context) {
     return ListTile(
       leading: const Icon(Icons.person_remove_outlined, color: Colors.redAccent),
       title: Text(
         'Delete Account',
-        style: AppTextStyles.bodyLarge.copyWith(
-          fontSize: (AppTextStyles.bodyLarge.fontSize ?? 16) * context.fontScale,
+        style: context.typography.body.copyWith(
           color: Colors.redAccent,
         ),
       ),
       subtitle: Text(
         'Permanently remove your account',
-        style: AppTextStyles.bodySmall.copyWith(
-          fontSize: (AppTextStyles.bodySmall.fontSize ?? 12) * context.fontScale,
+        style: context.typography.bodySmall.copyWith(
+          color: context.colors.textSecondary,
         ),
       ),
       onTap: () => _showDeleteAccountConfirmation(context),
@@ -323,16 +706,16 @@ class SettingsScreen extends StatelessWidget {
   void _showDeleteAccountConfirmation(BuildContext context) {
     Get.dialog(
       AlertDialog(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        title: const Text('Delete Account', style: TextStyle(color: Colors.white)),
-        content: const Text(
+        backgroundColor: context.colors.surface,
+        title: Text('Delete Account', style: TextStyle(color: context.colors.textPrimary)),
+        content: Text(
           'Are you sure you want to delete your account? This action is permanent and cannot be undone.',
-          style: TextStyle(color: Colors.white70),
+          style: TextStyle(color: context.colors.textSecondary),
         ),
         actions: [
           TextButton(
             onPressed: () => Get.back(),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+            child: Text('Cancel', style: TextStyle(color: context.colors.textSecondary)),
           ),
           TextButton(
             onPressed: () async {
@@ -365,220 +748,6 @@ class SettingsScreen extends StatelessWidget {
   }
 }
 
-class ModernSettingsSection extends StatelessWidget {
-  final String title;
-  final List<Widget> settings;
-
-  const ModernSettingsSection({
-    super.key,
-    required this.title,
-    required this.settings,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.only(
-        bottom: kMediumPadding,
-      ), // Spacing between sections
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: kLargePadding,
-              vertical: kSmallPadding,
-            ),
-            child: Text(
-              title,
-              style: GoogleFonts.roboto(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-                color: colorScheme.primary, // Section title color
-              ),
-            ),
-          ),
-          // Use Column to ensure proper layout and prevent overflow for settings list
-          Column(
-            children: settings
-                .map(
-                  (setting) => Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: kMediumPadding,
-                      vertical: 2,
-                    ), // Padding for each tile
-                    child: setting,
-                  ),
-                )
-                .toList(),
-          ),
-          Divider(
-            indent: kMediumPadding,
-            endIndent: kMediumPadding,
-            color: colorScheme.outline.withValues(alpha: 0.2),
-            thickness: 1,
-            height: kMediumPadding * 1.5, // Spacing around divider
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class ModernSettingsTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final VoidCallback onTap;
-
-  const ModernSettingsTile({
-    super.key,
-    required this.icon,
-    required this.title,
-    this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Card(
-      margin: EdgeInsets.zero, // Remove default card margin
-      color: AppTheme.secondaryBackground.withValues(
-        alpha: 0.2,
-      ), // Subtle background for tile
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(
-          kBorderRadius / 2,
-        ), // Slightly rounded corners
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(kBorderRadius / 2),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            vertical: kSmallPadding,
-            horizontal: kMediumPadding,
-          ),
-          child: Row(
-            children: [
-              Icon(
-                icon,
-                color: colorScheme.primary,
-                size: 24,
-              ), // Primary color for icons
-              const SizedBox(width: kMediumPadding),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: GoogleFonts.roboto(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 16,
-                        color: colorScheme.onSurface,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle!,
-                        style: GoogleFonts.roboto(
-                          fontSize: 13,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 2,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: kMediumPadding),
-              Icon(
-                Icons.arrow_forward_ios_rounded,
-                size: 16,
-                color: colorScheme.onSurfaceVariant,
-              ), // Rounded arrow
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class ModernSwitchSettingsTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  const ModernSwitchSettingsTile({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Card(
-      margin: EdgeInsets.zero,
-      color: AppTheme.secondaryBackground.withValues(alpha: 0.2),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(kBorderRadius / 2),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          vertical: kSmallPadding,
-          horizontal: kMediumPadding,
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: colorScheme.primary, size: 24),
-            const SizedBox(width: kMediumPadding),
-            Expanded(
-              child: Text(
-                title,
-                style: GoogleFonts.roboto(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 16,
-                  color: colorScheme.onSurface,
-                ),
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
-            ),
-            Switch(
-              value: value,
-              onChanged: onChanged,
-              activeThumbColor: colorScheme.primary,
-              inactiveThumbColor: colorScheme.onSurfaceVariant.withValues(
-                alpha: 0.6,
-              ),
-              inactiveTrackColor: colorScheme.onSurfaceVariant.withValues(
-                alpha: 0.2,
-              ),
-              activeTrackColor: colorScheme.primary.withValues(alpha: 0.5),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 
 

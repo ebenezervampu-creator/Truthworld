@@ -226,7 +226,7 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
                       style: GoogleFonts.roboto(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
-                        color: const Color(0xFFFF6B6B),
+                        color: context.colors.error,
                       ),
                     ),
                   ],
@@ -259,7 +259,7 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
               isActive: false,
               onTap: () {},
               color: isDark ? Colors.white54 : Colors.grey[700] ?? Colors.grey,
-              activeColor: const Color(0xFFFF6B6B),
+              activeColor: context.colors.error,
               isMobile: isMobile,
             ),
             const Spacer(),

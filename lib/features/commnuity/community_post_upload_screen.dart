@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/commnuity/community_post_upload_controller.dart';
@@ -1162,7 +1161,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            icon: const BackSymbol(),
+            icon: const Icon(Icons.arrow_back),
             onPressed: () => Get.back(),
           ),
           const SizedBox(width: 8),
@@ -1206,7 +1205,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
         width: double.infinity,
         child: OutlinedButton.icon(
           onPressed: () => Get.back(),
-          icon: const BackSymbol(size: 18),
+          icon: const Icon(Icons.arrow_back, size: 18),
           label: Text(
             'Back to Home',
             style: GoogleFonts.roboto(fontSize: 13, fontWeight: FontWeight.w500),

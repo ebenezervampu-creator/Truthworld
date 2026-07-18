@@ -112,25 +112,25 @@ class WatchHistoryController extends BaseController {
     );
   }
 
-  Future<void> deleteLast24Hours() async {
+  Future<void> deleteHistoryRange(DateTime start, DateTime end, String label) async {
     final userId = AuthService.to.uid;
     if (userId.isEmpty) return;
 
-    final now = DateTime.now();
-    final twentyFourHoursAgo = now.subtract(const Duration(hours: 24));
-
     try {
+      setViewState(ViewState.loading);
       final collection = FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
           .collection('watch_history');
       
       final snapshots = await collection
-          .where('watchedAt', isGreaterThan: Timestamp.fromDate(twentyFourHoursAgo))
+          .where('watchedAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+          .where('watchedAt', isLessThanOrEqualTo: Timestamp.fromDate(end))
           .get();
 
       if (snapshots.docs.isEmpty) {
-        Get.snackbar('History', 'No history found from the last 24 hours');
+        setViewState(ViewState.idle);
+        Get.snackbar('History', 'No history found for $label');
         return;
       }
 
@@ -140,10 +140,48 @@ class WatchHistoryController extends BaseController {
       }
       
       await batch.commit();
-      Get.snackbar('Success', 'Cleared history from the last 24 hours');
+      setViewState(ViewState.idle);
+      Get.snackbar('Success', 'Cleared history for $label');
     } catch (e) {
-      Get.snackbar('Error', 'Failed to clear recent history: $e');
+      setViewState(ViewState.idle);
+      Get.snackbar('Error', 'Failed to clear history: $e');
     }
+  }
+
+  Future<void> deleteLast24Hours() async {
+    final now = DateTime.now();
+    final start = now.subtract(const Duration(hours: 24));
+    await deleteHistoryRange(start, now, 'last 24 hours');
+  }
+
+  Future<void> deleteToday() async {
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day);
+    await deleteHistoryRange(startOfDay, now, 'today');
+  }
+
+  Future<void> deleteYesterday() async {
+    final now = DateTime.now();
+    final yesterday = now.subtract(const Duration(days: 1));
+    final startOfYesterday = DateTime(yesterday.year, yesterday.month, yesterday.day);
+    final endOfYesterday = DateTime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59);
+    await deleteHistoryRange(startOfYesterday, endOfYesterday, 'yesterday');
+  }
+
+  Future<void> deleteThisWeek() async {
+    final now = DateTime.now();
+    final startOfWeek = now.subtract(Duration(days: now.weekday - 1));
+    final startOfFirstDay = DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day);
+    await deleteHistoryRange(startOfFirstDay, now, 'this week');
+  }
+
+  Future<void> deletePreviousWeek() async {
+    final now = DateTime.now();
+    final startOfThisWeek = now.subtract(Duration(days: now.weekday - 1));
+    final endOfPrevWeek = startOfThisWeek.subtract(const Duration(seconds: 1));
+    final startOfPrevWeek = startOfThisWeek.subtract(const Duration(days: 7));
+    final startOfPrevWeekDay = DateTime(startOfPrevWeek.year, startOfPrevWeek.month, startOfPrevWeek.day);
+    await deleteHistoryRange(startOfPrevWeekDay, endOfPrevWeek, 'previous week');
   }
 
   void _onScroll() {

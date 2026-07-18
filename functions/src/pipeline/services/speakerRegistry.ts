@@ -19,7 +19,9 @@ export interface PersistentSpeaker {
  * Manages persistent speaker identities using a Composite Identity Model.
  */
 export class SpeakerRegistryService {
-  private db = admin.firestore();
+  private get db() {
+    return admin.firestore();
+  }
 
   /**
    * Resolve a temporary speaker label to a persistent ID.

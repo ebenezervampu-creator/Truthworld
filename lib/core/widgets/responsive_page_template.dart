@@ -69,10 +69,10 @@ class ResponsivePageTemplate extends StatelessWidget {
   }
 
   Widget _buildBody(BuildContext context) {
-    if (context.isDesktop && sideNavigation != null) {
+    if (context.showSideNav && sideNavigation != null) {
       return Row(
         children: [
-          SizedBox(width: _getSideNavWidth(context), child: sideNavigation!),
+          SizedBox(width: context.layoutTokens.sidebarWidth, child: sideNavigation!),
           VerticalDivider(
             width: 1,
             thickness: 1,
@@ -91,7 +91,7 @@ class ResponsivePageTemplate extends StatelessWidget {
   }
 
   Widget? _getBottomNavigation(BuildContext context) {
-    if (context.isDesktop) return null;
+    if (context.isDesktop || context.isLargeDesktop || context.isUltraWide) return null;
     return bottomNavigation;
   }
 

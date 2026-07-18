@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -96,7 +95,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: BackSymbol(color: isDark ? Colors.white : Colors.black87,
+          icon: Icon(Icons.arrow_back, color: isDark ? Colors.white : Colors.black87,
           ),
           onPressed: () => Get.back(),
         ),

@@ -4,9 +4,10 @@ import 'package:video_player/video_player.dart';
 import 'package:chewie/chewie.dart';
 import 'dart:io' show Platform;
 import 'package:get/get.dart';
+import 'package:universal_html/html.dart' as html;
 
 /// A video player widget that wraps raw [VideoPlayer] but automatically uses
-/// [Chewie] on Android and iOS devices, conforming to platform requirements.
+/// [Chewie] on Android and iOS devices, and for Android users on web.
 class MobileFriendlyVideoPlayer extends StatefulWidget {
   final VideoPlayerController controller;
   final bool showControls;
@@ -23,6 +24,25 @@ class MobileFriendlyVideoPlayer extends StatefulWidget {
 
   @override
   State<MobileFriendlyVideoPlayer> createState() => _MobileFriendlyVideoPlayerState();
+}
+
+/// Detects if the current user is on mobile web (Android, iPhone, iPad, iPod)
+bool _isMobileWebUser() {
+  if (!kIsWeb) {
+    return Platform.isAndroid || Platform.isIOS;
+  }
+  
+  // On web, check user agent for mobile operating systems
+  try {
+    final userAgent = html.window.navigator.userAgent.toLowerCase();
+    return userAgent.contains('android') || 
+           userAgent.contains('iphone') || 
+           userAgent.contains('ipad') || 
+           userAgent.contains('ipod') ||
+           (userAgent.contains('macintosh') && html.window.navigator.maxTouchPoints != null && html.window.navigator.maxTouchPoints! > 0);
+  } catch (_) {
+    return false;
+  }
 }
 
 class _MobileFriendlyVideoPlayerState extends State<MobileFriendlyVideoPlayer> {
@@ -47,16 +67,17 @@ class _MobileFriendlyVideoPlayerState extends State<MobileFriendlyVideoPlayer> {
 
   void _initPlayer() {
     final isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
-    if (isMobile) {
+    final isMobileOnWeb = kIsWeb && _isMobileWebUser();
+    
+    // Use Chewie for mobile devices and mobile users on web
+    if (isMobile || isMobileOnWeb) {
       _chewieController.value = ChewieController(
         videoPlayerController: widget.controller,
         autoPlay: widget.autoPlay,
         looping: widget.looping,
         showControls: widget.showControls,
         allowedScreenSleep: false,
-        aspectRatio: widget.controller.value.isInitialized 
-            ? widget.controller.value.aspectRatio 
-            : null,
+        aspectRatio: null,
       );
       if (!widget.controller.value.isInitialized) {
         widget.controller.addListener(_onControllerInitialized);
@@ -74,7 +95,7 @@ class _MobileFriendlyVideoPlayerState extends State<MobileFriendlyVideoPlayer> {
         looping: widget.looping,
         showControls: widget.showControls,
         allowedScreenSleep: false,
-        aspectRatio: widget.controller.value.aspectRatio,
+        aspectRatio: null,
       );
       old?.dispose();
     }
@@ -96,9 +117,11 @@ class _MobileFriendlyVideoPlayerState extends State<MobileFriendlyVideoPlayer> {
   @override
   Widget build(BuildContext context) {
     final isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+    final isMobileOnWeb = kIsWeb && _isMobileWebUser();
+    
     return Obx(() {
       final chewie = _chewieController.value;
-      if (isMobile && chewie != null) {
+      if ((isMobile || isMobileOnWeb) && chewie != null) {
         return Chewie(controller: chewie);
       }
       return VideoPlayer(widget.controller);

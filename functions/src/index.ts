@@ -28,6 +28,7 @@ import { onObjectFinalized } from "firebase-functions/v2/storage";
 import { onRequest } from "firebase-functions/v2/https";
 import { onDocumentUpdated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onMessagePublished } from "firebase-functions/v2/pubsub";
+import { onTaskDispatched } from "firebase-functions/v2/tasks";
 import { v4 as uuidv4 } from "uuid";
 import { requireAuth, requireAdmin } from "./utils/auth";
 import { strictLimiter } from "./utils/rate-limiter";
@@ -35,13 +36,6 @@ import { notifyUser } from "./notifications/notifications";
 import { notifyMentions } from "./notifications/triggers";
 
 // ─── Pipeline imports ────────────────────────────────────────────────────────
-import { EdgeLayer } from "./pipeline/layers/01-edge";
-import { IngestionLayer } from "./pipeline/layers/03-ingestion";
-import { DistributionLayer } from "./pipeline/layers/04-distribution";
-import { TranscriptionLayer } from "./pipeline/layers/05-transcription";
-import { CredibilityEngine } from "./pipeline/layers/06-credibility";
-import { DubbingEngine } from "./pipeline/layers/07-dubbing";
-import { aggregationLayer } from "./pipeline/layers/09-aggregation";
 import {
   ExecutionPlan,
   FactCompleteData,
@@ -64,13 +58,6 @@ setGlobalOptions({
  */
 import { PIPELINE_CONFIG } from "./pipeline/config";
 
-// Singleton instances
-const edgeLayer = new EdgeLayer();
-const ingestionLayer = new IngestionLayer();
-const distributionLayer = new DistributionLayer();
-const transcriptionLayer = new TranscriptionLayer();
-const dubbingEngine = new DubbingEngine();
-// aggregationLayer is imported directly as singleton
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FEATURE 1: PIPELINE — Video Processing (10 Layers)
@@ -105,6 +92,8 @@ export const submitVideo = onRequest(
         return;
       }
 
+      const { EdgeLayer } = require("./pipeline/layers/01-edge");
+      const edgeLayer = new EdgeLayer();
       const result = await edgeLayer.submitVideo(
         userId,
         videoUrl,
@@ -148,6 +137,8 @@ export const getProgressiveStatus = onRequest(
         return;
       }
 
+      const { EdgeLayer } = require("./pipeline/layers/01-edge");
+      const edgeLayer = new EdgeLayer();
       const status = await edgeLayer.getProgressiveStatus(jobId);
       if (!status) {
         res.status(404).json({ error: "Job not found" });
@@ -189,6 +180,7 @@ export const getFinalOutput = onRequest(
         return;
       }
 
+      const { aggregationLayer } = require("./pipeline/layers/09-aggregation");
       const output = await aggregationLayer.getFinalOutput(jobId);
       if (!output) {
         res.status(404).json({ error: "Output not ready" });
@@ -229,6 +221,8 @@ export const onVideoUpload = onObjectFinalized(
       const bucket = event.data.bucket;
       console.log(`[Upload Trigger] Processing: ${filePath}`);
 
+      const { IngestionLayer } = require("./pipeline/layers/03-ingestion");
+      const ingestionLayer = new IngestionLayer();
       await ingestionLayer.handleVideoUpload(bucket, filePath, contentType);
     } catch (error) {
       console.error("[Upload Trigger] Error:", error);
@@ -254,11 +248,14 @@ export const handleTranscription = onMessagePublished(
   },
   async (event) => {
     try {
+      const { DistributionLayer } = require("./pipeline/layers/04-distribution");
       const parsedEvent = DistributionLayer.parseMessage(event.data.message);
       logger.info("[handleTranscription] Start", { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId });
 
       const { videoUrl, executionPlan } = parsedEvent.data as { videoUrl: string; executionPlan: ExecutionPlan };
 
+      const { TranscriptionLayer } = require("./pipeline/layers/05-transcription");
+      const transcriptionLayer = new TranscriptionLayer();
       await transcriptionLayer.submitTranscription(
         parsedEvent.jobId,
         parsedEvent.userId,
@@ -294,11 +291,13 @@ export const handleCredibility = onMessagePublished(
   },
   async (event) => {
     try {
+      const { DistributionLayer } = require("./pipeline/layers/04-distribution");
       const parsedEvent = DistributionLayer.parseMessage(event.data.message);
       logger.info("[handleCredibility] Start", { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId });
 
       const { executionPlan } = parsedEvent.data as { executionPlan: ExecutionPlan };
       const geminiKey = PIPELINE_CONFIG.GEMINI_API_KEY;
+      const { CredibilityEngine } = require("./pipeline/layers/06-credibility");
       const engine = new CredibilityEngine(geminiKey);
 
       await engine.runCredibilityPipeline(
@@ -332,6 +331,7 @@ export const handleDubbing = onMessagePublished(
   },
   async (event) => {
     try {
+      const { DistributionLayer } = require("./pipeline/layers/04-distribution");
       const parsedEvent = DistributionLayer.parseMessage(event.data.message);
       logger.info("[handleDubbing] Start", { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId });
 
@@ -344,6 +344,8 @@ export const handleDubbing = onMessagePublished(
         url = job.data()?.videoUrl ?? "";
       }
 
+      const { DubbingEngine } = require("./pipeline/layers/07-dubbing");
+      const dubbingEngine = new DubbingEngine();
       await dubbingEngine.runDubbingPipeline(
         parsedEvent.jobId,
         parsedEvent.userId,
@@ -374,6 +376,7 @@ export const handleFactComplete = onMessagePublished(
   },
   async (event) => {
     try {
+      const { DistributionLayer } = require("./pipeline/layers/04-distribution");
       const parsedEvent = DistributionLayer.parseMessage(event.data.message);
       logger.info("[handleFactComplete] Start", { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId });
 
@@ -384,6 +387,7 @@ export const handleFactComplete = onMessagePublished(
         .get();
       const executionPlan = jobDoc.data()?.executionPlan as ExecutionPlan;
 
+      const { aggregationLayer } = require("./pipeline/layers/09-aggregation");
       await aggregationLayer.onFactComplete(
         parsedEvent.jobId,
         parsedEvent.userId,
@@ -414,6 +418,7 @@ export const handleDubbingComplete = onMessagePublished(
   },
   async (event) => {
     try {
+      const { DistributionLayer } = require("./pipeline/layers/04-distribution");
       const parsedEvent = DistributionLayer.parseMessage(event.data.message);
       logger.info("[handleDubbingComplete] Start", { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId });
 
@@ -424,6 +429,7 @@ export const handleDubbingComplete = onMessagePublished(
         .get();
       const executionPlan = jobDoc.data()?.executionPlan as ExecutionPlan;
 
+      const { aggregationLayer } = require("./pipeline/layers/09-aggregation");
       await aggregationLayer.onDubbingComplete(
         parsedEvent.jobId,
         parsedEvent.userId,
@@ -458,6 +464,8 @@ export const setupPipeline = onRequest(
       if (!adminUser) return;
 
       console.log("[Setup] Initializing pipeline topics...");
+      const { DistributionLayer } = require("./pipeline/layers/04-distribution");
+      const distributionLayer = new DistributionLayer();
       await distributionLayer.ensureTopicsExist();
       res.status(200).json({
         success: true,
@@ -471,9 +479,7 @@ export const setupPipeline = onRequest(
   }
 );
 
-// ─── FAST TIER — Real-Time Credibility Signal (v11.0) ────────────────────────
 
-import { FastVerificationService } from "./pipeline/services/fastVerification";
 
 /**
  * ⚡ Fast credibility check — returns traffic-light signal in < 5 seconds
@@ -505,6 +511,7 @@ export const handleFastVerification = onRequest(
         return;
       }
 
+      const { FastVerificationService } = require("./pipeline/services/fastVerification");
       const service = new FastVerificationService(PIPELINE_CONFIG.GEMINI_API_KEY);
       const result = await service.verify(text.trim(), domain || 'General', category || 'unknown');
 
@@ -771,6 +778,9 @@ export const onVideoPublished = onDocumentUpdated(
     }
 
     const db = admin.firestore();
+    const { EdgeLayer } = require("./pipeline/layers/01-edge");
+    const { DistributionLayer } = require("./pipeline/layers/04-distribution");
+    const distributionLayer = new DistributionLayer();
 
     // ═══════════════════════════════════════════════════════════════════════════
     // SCENARIO D: Trigger Subscriber Notifications once video is approved & published
@@ -893,6 +903,7 @@ export const onVideoPublished = onDocumentUpdated(
 
         // Duration from video doc metadata
         duration: afterData.duration ? parseInt(String(afterData.duration)) : undefined,
+        videoCategory: afterData.category || "Other",
       };
 
       // ── Build pipeline stages ───────────────────────────────────────────────
@@ -1234,7 +1245,7 @@ export {
 
 export { createChannel, switchChannelType } from "./channels/channels";
 */
-export { onChannelWritten } from "./channels/moderation";
+export { onChannelWritten, onImageVerificationWritten } from "./channels/moderation";
 export { onTopicWritten } from "./topics/moderation";
 
 /*
@@ -1436,5 +1447,71 @@ export const makeMeAdmin = onRequest(
 
 // ─── Playlist Moderation triggers ─────────────────────────────────────────────
 export { onPublicPlaylistWritten, onPrivatePlaylistWritten } from "./moderation/playlistModeration";
+
+// ─── SWR Cache Refresh Task Handlers (Cloud Tasks) ───────────────────────────
+const runSWRTask = async (event: any) => {
+  try {
+    const payload = event.data;
+    if (!payload || !payload.jobId || !payload.claimIds || !payload.cacheKeys) {
+      logger.error("[SWR Task] Invalid payload", { payload });
+      return;
+    }
+    const geminiKey = PIPELINE_CONFIG.GEMINI_API_KEY;
+    const { CredibilityEngine } = require("./pipeline/layers/06-credibility");
+    const engine = new CredibilityEngine(geminiKey);
+    await engine.refreshCacheForClaims(payload);
+  } catch (error) {
+    logger.error("[SWR Task] Execution failed", { error: String(error) });
+    throw error;
+  }
+};
+
+export const refreshHighQueue = onTaskDispatched(
+  {
+    retryConfig: { maxAttempts: 3, minBackoffSeconds: 10 },
+    rateLimits: { maxConcurrentDispatches: 10 },
+    region: "asia-south1",
+    secrets: ["GEMINI_API_KEY"],
+    memory: "512MiB",
+    timeoutSeconds: 300,
+  },
+  runSWRTask
+);
+
+export const refreshMediumQueue = onTaskDispatched(
+  {
+    retryConfig: { maxAttempts: 2, minBackoffSeconds: 30 },
+    rateLimits: { maxConcurrentDispatches: 5 },
+    region: "asia-south1",
+    secrets: ["GEMINI_API_KEY"],
+    memory: "512MiB",
+    timeoutSeconds: 300,
+  },
+  runSWRTask
+);
+
+export const refreshLowQueue = onTaskDispatched(
+  {
+    retryConfig: { maxAttempts: 1, minBackoffSeconds: 60 },
+    rateLimits: { maxConcurrentDispatches: 2 },
+    region: "asia-south1",
+    secrets: ["GEMINI_API_KEY"],
+    memory: "512MiB",
+    timeoutSeconds: 300,
+  },
+  runSWRTask
+);
+
+export const refreshBackgroundQueue = onTaskDispatched(
+  {
+    retryConfig: { maxAttempts: 1, minBackoffSeconds: 120 },
+    rateLimits: { maxConcurrentDispatches: 1 },
+    region: "asia-south1",
+    secrets: ["GEMINI_API_KEY"],
+    memory: "512MiB",
+    timeoutSeconds: 300,
+  },
+  runSWRTask
+);
 
 

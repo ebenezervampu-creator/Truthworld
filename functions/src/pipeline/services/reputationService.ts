@@ -11,7 +11,9 @@ import { CredibilityResult, CreatorReputation } from '../types';
 import { logger } from '../utils/logger';
 
 export class ReputationService {
-  private db = admin.firestore();
+  private get db() {
+    return admin.firestore();
+  }
 
   /**
    * Update a creator's reputation based on a new credibility report

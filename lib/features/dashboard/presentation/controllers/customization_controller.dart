@@ -20,6 +20,14 @@ class CustomizationController extends GetxController {
   final RxString moderationReason = ''.obs;
   StreamSubscription<DocumentSnapshot>? _channelSub;
 
+  // Image Verification Statuses (Reactive)
+  final RxString avatarStatus = 'APPROVED'.obs;
+  final RxString bannerStatus = 'APPROVED'.obs;
+  final RxString avatarStatusReason = ''.obs;
+  final RxString bannerStatusReason = ''.obs;
+  final RxString avatarFileId = ''.obs;
+  final RxString bannerFileId = ''.obs;
+
   // Loading States
   final RxBool isLoading = false.obs;
   final RxBool isSaving = false.obs;
@@ -66,6 +74,12 @@ class CustomizationController extends GetxController {
         final data = snapshot.data()!;
         status.value = data['status'] ?? 'active';
         moderationReason.value = data['moderationReason'] ?? '';
+        avatarStatus.value = data['avatarStatus'] ?? 'APPROVED';
+        bannerStatus.value = data['bannerStatus'] ?? 'APPROVED';
+        avatarStatusReason.value = data['avatarStatusReason'] ?? '';
+        bannerStatusReason.value = data['bannerStatusReason'] ?? '';
+        avatarFileId.value = data['avatarFileId'] ?? '';
+        bannerFileId.value = data['bannerFileId'] ?? '';
       }
     });
   }
@@ -103,6 +117,12 @@ class CustomizationController extends GetxController {
         languageController.text = data['language'] ?? 'en';
         avatarUrl.value = data['avatarUrl'] ?? '';
         bannerUrl.value = data['bannerImageUrl'] ?? '';
+        avatarStatus.value = data['avatarStatus'] ?? 'APPROVED';
+        bannerStatus.value = data['bannerStatus'] ?? 'APPROVED';
+        avatarStatusReason.value = data['avatarStatusReason'] ?? '';
+        bannerStatusReason.value = data['bannerStatusReason'] ?? '';
+        avatarFileId.value = data['avatarFileId'] ?? '';
+        bannerFileId.value = data['bannerFileId'] ?? '';
         isPublic.value = data['isPublic'] ?? true;
         allowComments.value = data['allowComments'] ?? true;
         allowSubscriptions.value = data['allowSubscriptions'] ?? true;
@@ -125,6 +145,43 @@ class CustomizationController extends GetxController {
         colorText: Colors.white);
     } finally {
       isLoading.value = false;
+    }
+  }
+
+  Future<void> bypassVerification(bool isBanner) async {
+    try {
+      final fileId = isBanner ? bannerFileId.value : avatarFileId.value;
+      final statusField = isBanner ? 'bannerStatus' : 'avatarStatus';
+      final reasonField = isBanner ? 'bannerStatusReason' : 'avatarStatusReason';
+
+      await _firestore.collection('channels').doc(channelId).update({
+        statusField: 'APPROVED',
+        reasonField: 'Bypassed in local/debug environment.',
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
+      });
+
+      if (fileId.isNotEmpty) {
+        await _firestore.collection('image_verification').doc(fileId).set({
+          'status': 'APPROVED',
+          'reason': 'Bypassed in local/debug environment.',
+          'category': isBanner ? 'banner' : 'avatar',
+          'processedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      Get.snackbar(
+        "Verification Bypassed",
+        "Successfully approved the ${isBanner ? 'banner' : 'avatar'} for local testing.",
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.snackbar(
+        "Bypass Failed",
+        e.toString(),
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 
@@ -171,19 +228,21 @@ class CustomizationController extends GetxController {
       String? updatedAvatarUrl = avatarUrl.value;
       String? updatedBannerUrl = bannerUrl.value;
 
+      String? uploadedAvatarFileName;
       if (newAvatarBytes.value != null) {
-        final fileName = newAvatarName.value ?? 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        uploadedAvatarFileName = newAvatarName.value ?? 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
         updatedAvatarUrl = await _uploadImage(
           newAvatarBytes.value!,
-          'channels/avatars/$ownerId/$fileName',
+          'channels/avatars/$ownerId/$uploadedAvatarFileName',
         );
       }
 
+      String? uploadedBannerFileName;
       if (newBannerBytes.value != null) {
-        final fileName = newBannerName.value ?? 'banner_${DateTime.now().millisecondsSinceEpoch}.jpg';
+        uploadedBannerFileName = newBannerName.value ?? 'banner_${DateTime.now().millisecondsSinceEpoch}.jpg';
         updatedBannerUrl = await _uploadImage(
           newBannerBytes.value!,
-          'channels/banners/$ownerId/$fileName',
+          'channels/banners/$ownerId/$uploadedBannerFileName',
         );
       }
 
@@ -200,7 +259,7 @@ class CustomizationController extends GetxController {
         if (websiteUrlController.text.isNotEmpty) 'website': websiteUrlController.text,
       };
 
-      await _firestore.collection('channels').doc(channelId).update({
+      final Map<String, dynamic> updateData = {
         'name': channelNameController.text,
         'nameLowercase': channelNameController.text.toLowerCase(),
         'channelName': channelNameController.text,
@@ -227,7 +286,21 @@ class CustomizationController extends GetxController {
         'status': 'underReview',
         'geminiApproved': FieldValue.delete(),
         'moderationReason': FieldValue.delete(),
-      });
+      };
+
+      if (uploadedAvatarFileName != null) {
+        updateData['avatarFileId'] = uploadedAvatarFileName;
+        updateData['avatarStatus'] = 'PENDING';
+        updateData['avatarStatusReason'] = FieldValue.delete();
+      }
+
+      if (uploadedBannerFileName != null) {
+        updateData['bannerFileId'] = uploadedBannerFileName;
+        updateData['bannerStatus'] = 'PENDING';
+        updateData['bannerStatusReason'] = FieldValue.delete();
+      }
+
+      await _firestore.collection('channels').doc(channelId).update(updateData);
 
       if (updatedAvatarUrl != null) avatarUrl.value = updatedAvatarUrl;
       if (updatedBannerUrl != null) bannerUrl.value = updatedBannerUrl;

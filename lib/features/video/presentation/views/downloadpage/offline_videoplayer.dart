@@ -1,5 +1,4 @@
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/data/models/offline.dart';
@@ -31,7 +30,7 @@ class OfflineVideoPlayerPage extends StatelessWidget {
         backgroundColor: Colors.black,
         elevation: 0,
         leading: IconButton(
-          icon: const BackSymbol(color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Get.back(),
         ),
         actions: [

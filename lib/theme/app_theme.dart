@@ -6,6 +6,10 @@ import 'tw_spacing.dart';
 import 'tw_radius.dart';
 import 'tw_motion.dart';
 import 'tw_shadows.dart';
+import 'tw_gradients.dart';
+import 'tw_layout_tokens.dart';
+import 'tw_breakpoints.dart';
+import 'device_state.dart';
 
 export 'app_colors.dart';
 export 'responsive_helpers.dart';
@@ -16,8 +20,10 @@ export 'tw_spacing.dart';
 export 'tw_radius.dart';
 export 'tw_motion.dart';
 export 'tw_shadows.dart';
+export 'tw_gradients.dart';
+export 'tw_layout_tokens.dart';
 
-ThemeData buildAppTheme() {
+ThemeData buildAppTheme({DeviceState? device}) {
   return ThemeData(
     useMaterial3: true,
     fontFamily: 'Roboto',
@@ -30,16 +36,19 @@ ThemeData buildAppTheme() {
     extensions: [
       const TWColors(
         brand: AppColors.brand,
-        brandMuted: AppColors.brandMuted,
         brandContainer: AppColors.brandContainer,
+        brandVariant: AppColors.brandVariant,
         textPrimary: AppColors.textPrimary,
         textSecondary: AppColors.textSecondary,
         textTertiary: AppColors.textTertiary,
         textDisabled: AppColors.textDisabled,
         background: AppColors.bgPage,
         surface: AppColors.bgSurface,
-        surfaceElevated: AppColors.bgElevated,
         surfaceContainer: AppColors.bgSurfaceHover,
+        surfaceContainerHigh: AppColors.bgSurfaceHigh,
+        surfaceContainerHighest: AppColors.bgElevated,
+        surfaceInput: AppColors.bgInput,
+        appBarSurface: AppColors.appBarSurface,
         divider: AppColors.bgDivider,
         success: AppColors.success,
         warning: AppColors.warning,
@@ -59,6 +68,9 @@ ThemeData buildAppTheme() {
       TWRadius.defaults(),
       TWMotion.defaults(),
       TWShadows.defaults(),
+      TWGradients.defaults(),
+      if (device != null) TWLayoutTokens.fromDevice(device)
+      else TWLayoutTokens.fromDevice(const DeviceState(width: 375, height: 812, type: DeviceType.mobile, fontScale: 1.0)),
     ],
     
     colorScheme: const ColorScheme.dark(

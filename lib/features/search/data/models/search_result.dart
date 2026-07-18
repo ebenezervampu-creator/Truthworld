@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/utils/timestamp_utils.dart';
 
 enum ResultType { video, channel, playlist, topic }
 
@@ -13,6 +14,7 @@ class SearchResult {
   final String channelImage;
   final Timestamp createdAt;
   final ResultType type;
+  final int? durationMs;
 
   SearchResult({
     required this.id,
@@ -23,12 +25,13 @@ class SearchResult {
     required this.channelImage,
     required this.createdAt,
     this.type = ResultType.video,
+    this.durationMs,
   });
 
   // Getters for compatibility with EnhancedSearchController
   int get viewCount => views;
   DateTime get uploadedAt => createdAt.toDate();
-  int? get duration => null; // SearchResult is lightweight, duration might not be present
+  int? get duration => durationMs != null ? (durationMs! ~/ 1000) : null;
   String? get quality => null; // SearchResult is lightweight, quality might not be present
   int? get videoCount => type == ResultType.playlist || type == ResultType.topic ? views : null;
 
@@ -49,7 +52,7 @@ class SearchResult {
           channelName:
               data['handle'] as String? ?? '', // Using handle if available
           channelImage: data['avatarUrl'] as String? ?? '',
-          createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
+          createdAt: TimestampUtils.parse(data['createdAt']),
           type: ResultType.channel,
         );
       case ResultType.playlist:
@@ -62,7 +65,7 @@ class SearchResult {
               0, // Using videoCount as "views" for sorting
           channelName: data['creatorName'] as String? ?? 'Unknown',
           channelImage: '',
-          createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
+          createdAt: TimestampUtils.parse(data['createdAt']),
           type: ResultType.playlist,
         );
       case ResultType.topic:
@@ -73,7 +76,7 @@ class SearchResult {
           views: (data['videoCount'] as num?)?.toInt() ?? 0, // Using videoCount as views/popularity
           channelName: data['handle'] as String? ?? 'T/${data['slug'] ?? ""}',
           channelImage: '',
-          createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
+          createdAt: TimestampUtils.parse(data['createdAt']),
           type: ResultType.topic,
         );
       case ResultType.video:
@@ -84,8 +87,9 @@ class SearchResult {
           views: (data['views'] as num?)?.toInt() ?? 0,
           channelName: data['channelName'] as String? ?? 'Unknown',
           channelImage: data['channelImage'] as String? ?? '',
-          createdAt: data['uploadedAt'] as Timestamp? ?? Timestamp.now(),
+          createdAt: TimestampUtils.parse(data['uploadedAt'] ?? data['createdAt']),
           type: ResultType.video,
+          durationMs: (data['durationMs'] as num?)?.toInt(),
         );
     }
   }
@@ -99,13 +103,12 @@ class SearchResult {
       views: (map['views'] as num?)?.toInt() ?? 0,
       channelName: map['channelName'] as String? ?? '',
       channelImage: map['channelImage'] as String? ?? '',
-      createdAt: map['createdAt'] is Timestamp 
-          ? map['createdAt'] as Timestamp 
-          : Timestamp.now(), // Fallback if serialization lost Timestamp type
+      createdAt: TimestampUtils.parse(map['createdAt']), // Fallback if serialization lost Timestamp type
       type: ResultType.values.firstWhere(
         (e) => e.toString() == (map['type'] as String?),
         orElse: () => ResultType.video,
       ),
+      durationMs: (map['durationMs'] as num?)?.toInt(),
     );
   }
 
@@ -119,6 +122,7 @@ class SearchResult {
     'channelImage': channelImage,
     'createdAt': createdAt,
     'type': type.toString(),
+    'durationMs': durationMs,
   };
 
   @override

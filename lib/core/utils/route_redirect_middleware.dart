@@ -105,12 +105,21 @@ class TopicRedirectMiddleware extends GetMiddleware {
 
   @override
   RouteSettings? redirect(String? route) {
+    // Prevent infinite redirect loop if we are already on a '/T/' route
+    if (route != null) {
+      final cleanRoute = route.split('?').first;
+      if (cleanRoute.startsWith('/T/')) {
+        return null;
+      }
+    }
+
     final args = Get.arguments;
     if (args != null && args is Map && args['topic'] != null) {
       final topic = args['topic'];
       try {
         final topicRoute = topic.topicRoute as String?;
         if (topicRoute != null && topicRoute.isNotEmpty) {
+          if (route == topicRoute) return null;
           return RouteSettings(name: topicRoute, arguments: args);
         }
       } catch (_) {}
@@ -129,7 +138,11 @@ class TopicRedirectMiddleware extends GetMiddleware {
         } else if (clean.startsWith('t/')) {
           clean = clean.substring(2);
         }
-        return RouteSettings(name: '/T/$clean', arguments: args);
+        final targetRoute = '/T/$clean';
+        if (route == targetRoute || route == '/T/$slug') {
+          return null;
+        }
+        return RouteSettings(name: targetRoute, arguments: args);
       }
     }
 

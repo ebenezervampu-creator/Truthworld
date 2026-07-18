@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:truthworld/theme/app_theme.dart';
-
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 
 // Constants for consistent styling
 const double kBorderRadius = 16.0;
@@ -44,7 +43,7 @@ class HelpPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: colorScheme.surface,
-      appBar: !isDashboard ? AppBar(
+      appBar: AppBar(
         title: Text(
           'Help & Support',
           style: GoogleFonts.roboto(
@@ -56,11 +55,16 @@ class HelpPage extends StatelessWidget {
         elevation: 0,
         centerTitle: false,
         leading: IconButton(
-          icon: BackSymbol(color: colorScheme.onSurface,
-          ),
-          onPressed: () => Get.back(),
+          icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
+          onPressed: () {
+            if (isDashboard) {
+              Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexSettings;
+            } else {
+              Get.back();
+            }
+          },
         ),
-      ) : null,
+      ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           return ListView(

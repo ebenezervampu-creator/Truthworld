@@ -248,22 +248,13 @@ class _ModernReplyInputState extends State<ModernReplyInput>
               color: canSend ? null : AppTheme.colors.surfaceContainerHighest,
             ),
             child: IconButton(
-              icon: _controller.isSending.value
-                  ? SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: theme.colorScheme.onPrimary,
-                      ),
-                    )
-                  : Icon(
-                      Icons.send_rounded,
-                      color: canSend
-                          ? theme.colorScheme.onPrimary
-                          : theme.colorScheme.onSurfaceVariant,
-                      size: 20,
-                    ),
+              icon: Icon(
+                Icons.send_rounded,
+                color: canSend
+                    ? theme.colorScheme.onPrimary
+                    : theme.colorScheme.onSurfaceVariant,
+                size: 20,
+              ),
               onPressed: canSend ? () => _controller.sendReply() : null,
               tooltip: 'Send reply',
             ),

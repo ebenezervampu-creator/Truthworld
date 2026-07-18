@@ -1,5 +1,4 @@
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -298,7 +297,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                         shape: BoxShape.circle,
                       ),
                       child: IconButton(
-                        icon: const BackSymbol(color: Colors.white),
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
                         tooltip: 'Back',
                         onPressed: () {
                           if (isDashboard && Get.isRegistered<HomeController>()) {
@@ -310,6 +309,86 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                       ),
                     ),
                   ),
+                Obx(() {
+                  final currentUser = FirebaseAuth.instance.currentUser;
+                  if (currentUser == null || channel.ownerId != currentUser.uid) {
+                    return const SizedBox.shrink();
+                  }
+
+                  final status = controller.detailsBannerStatus.value;
+                  if (status.isEmpty || status == "APPROVED") {
+                    return const SizedBox.shrink();
+                  }
+
+                  Color overlayColor = Colors.black54;
+                  Color badgeColor = const Color(0xFF3B82F6);
+                  String text = "Banner Verification Pending";
+                  IconData icon = Icons.sync_rounded;
+                  bool isPending = status == "PENDING";
+
+                  if (status == "REJECTED") {
+                    overlayColor = Colors.black.withValues(alpha: 0.8);
+                    badgeColor = const Color(0xFFEF4444);
+                    text = "Banner Rejected: ${controller.detailsBannerReason.value.isNotEmpty ? controller.detailsBannerReason.value : 'Violated Community Guidelines'}";
+                    icon = Icons.error_outline_rounded;
+                  } else if (status == "FLAGGED") {
+                    overlayColor = Colors.black.withValues(alpha: 0.7);
+                    badgeColor = const Color(0xFFF59E0B);
+                    text = "Banner Review Needed: ${controller.detailsBannerReason.value}";
+                    icon = Icons.warning_amber_rounded;
+                  }
+
+                  return Positioned.fill(
+                    child: Container(
+                      color: overlayColor,
+                      padding: const EdgeInsets.all(16),
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: badgeColor,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: badgeColor.withValues(alpha: 0.3),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isPending)
+                                const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  ),
+                                )
+                              else
+                                Icon(icon, color: Colors.white, size: 18),
+                              const SizedBox(width: 8),
+                              Flexible(
+                                child: Text(
+                                  text,
+                                  style: GoogleFonts.roboto(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
               ],
             ),
           ),
@@ -352,25 +431,87 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                     border: Border.all(color: ytSurfaceLight, width: 1),
                   ),
                   child: ClipOval(
-                    child: CachedNetworkImage(
-                      imageUrl: channel.avatarUrl,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
-                        color: ytSurface,
-                        child: Icon(
-                          Icons.person,
-                          color: ytTextTertiary,
-                          size: avatarSize * 0.4,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: CachedNetworkImage(
+                            imageUrl: channel.avatarUrl,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(
+                              color: ytSurface,
+                              child: Icon(
+                                Icons.person,
+                                color: ytTextTertiary,
+                                size: avatarSize * 0.4,
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              color: ytSurface,
+                              child: Icon(
+                                Icons.person,
+                                color: ytTextTertiary,
+                                size: avatarSize * 0.4,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        color: ytSurface,
-                        child: Icon(
-                          Icons.person,
-                          color: ytTextTertiary,
-                          size: avatarSize * 0.4,
-                        ),
-                      ),
+                        Obx(() {
+                          final currentUser = FirebaseAuth.instance.currentUser;
+                          if (currentUser == null || channel.ownerId != currentUser.uid) {
+                            return const SizedBox.shrink();
+                          }
+
+                          final status = controller.detailsAvatarStatus.value;
+                          if (status.isEmpty || status == "APPROVED") {
+                            return const SizedBox.shrink();
+                          }
+
+                          Color overlayColor = Colors.black54;
+                          Color badgeColor = const Color(0xFF3B82F6);
+                          IconData icon = Icons.sync_rounded;
+                          bool isPending = status == "PENDING";
+
+                          if (status == "REJECTED") {
+                            overlayColor = Colors.black.withValues(alpha: 0.8);
+                            badgeColor = const Color(0xFFEF4444);
+                            icon = Icons.error_outline_rounded;
+                          } else if (status == "FLAGGED") {
+                            overlayColor = Colors.black.withValues(alpha: 0.7);
+                            badgeColor = const Color(0xFFF59E0B);
+                            icon = Icons.warning_amber_rounded;
+                          }
+
+                          return Positioned.fill(
+                            child: Container(
+                              color: overlayColor,
+                              child: Tooltip(
+                                message: status == "REJECTED"
+                                    ? "Avatar Rejected: ${controller.detailsAvatarReason.value}"
+                                    : (status == "FLAGGED" ? "Review Needed: ${controller.detailsAvatarReason.value}" : "Avatar Verification Pending"),
+                                child: Center(
+                                  child: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: badgeColor,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: isPending
+                                        ? const SizedBox(
+                                            width: 14,
+                                            height: 14,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                            ),
+                                          )
+                                        : Icon(icon, color: Colors.white, size: 14),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
                     ),
                   ),
                 ),

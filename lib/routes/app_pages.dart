@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:truthworld/core/widgets/deferred_widget.dart';
 import 'package:truthworld/core/utils/route_guards.dart';
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/privacy_polices.dart';
@@ -49,7 +50,25 @@ import 'package:truthworld/features/admin/presentation/views/admin_dashboard_scr
 
 class AppPages {
   static final routes = [
-    GetPage(name: "/", page: () => Home(), binding: HomeBinding()),
+    GetPage(
+      name: "/",
+      page: () {
+        if (kIsWeb) {
+          final host = Uri.base.host.toLowerCase();
+          final uriStr = Uri.base.toString().toLowerCase();
+          if (host.startsWith('studio') ||
+              uriStr.contains('studio') ||
+              Uri.base.queryParameters.containsKey('studio')) {
+            return DeferredWidget(
+              loader: dashboard.loadLibrary,
+              builder: () => dashboard.DashboardScreen(),
+            );
+          }
+        }
+        return Home();
+      },
+      binding: HomeBinding(),
+    ),
     GetPage(
       name: "/studio",
       page: () => DeferredWidget(

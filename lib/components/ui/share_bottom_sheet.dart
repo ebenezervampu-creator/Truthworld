@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -89,16 +88,24 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
 
   String _detectType() {
     if (widget.type != null) return widget.type!;
-    if (widget.currentPosition != null || widget.durationMs != null || widget.url.contains('/watch')) {
+    if (widget.currentPosition != null ||
+        widget.durationMs != null ||
+        widget.url.contains('/watch')) {
       return 'video';
     }
-    if (widget.subscriberCount != null || widget.url.contains('/channel/') || (widget.handle != null && widget.handle!.startsWith('@'))) {
+    if (widget.subscriberCount != null ||
+        widget.url.contains('/channel/') ||
+        (widget.handle != null && widget.handle!.startsWith('@'))) {
       return 'channel';
     }
-    if (widget.videoCount != null && (widget.url.contains('/playlist') || widget.subtitle?.toLowerCase().contains('playlist') == true)) {
+    if (widget.videoCount != null &&
+        (widget.url.contains('/playlist') ||
+            widget.subtitle?.toLowerCase().contains('playlist') == true)) {
       return 'playlist';
     }
-    if (widget.followerCount != null || widget.url.contains('/topic/') || widget.url.contains('/T/')) {
+    if (widget.followerCount != null ||
+        widget.url.contains('/topic/') ||
+        widget.url.contains('/T/')) {
       return 'topic';
     }
     return 'video'; // Default fallback
@@ -130,7 +137,8 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   }
 
   String _getShareUrl() {
-    if (!_startAtChecked.value || widget.currentPosition == null) return widget.url;
+    if (!_startAtChecked.value || widget.currentPosition == null)
+      return widget.url;
     final seconds = widget.currentPosition!.inSeconds;
     if (widget.url.contains('?')) {
       return '${widget.url}&t=$seconds';
@@ -186,12 +194,14 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
       ),
       child: SafeArea(
         top: false,
-        child: Obx(() => AnimatedSwitcher(
-          duration: const Duration(milliseconds: 250),
-          child: _showEmbedPanel.value
-              ? _buildEmbedPanel(context)
-              : _buildMainPanel(context, contentType),
-        )),
+        child: Obx(
+          () => AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: _showEmbedPanel.value
+                ? _buildEmbedPanel(context)
+                : _buildMainPanel(context, contentType),
+          ),
+        ),
       ),
     );
   }
@@ -258,7 +268,10 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                     value: _startAtChecked.value,
                     activeColor: AppColors.brand,
                     checkColor: Colors.white,
-                    side: const BorderSide(color: AppColors.textSecondary, width: 1.5),
+                    side: const BorderSide(
+                      color: AppColors.textSecondary,
+                      width: 1.5,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(4),
                     ),
@@ -354,7 +367,10 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
               ),
               const SizedBox(height: 10),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.bgPage,
                   borderRadius: BorderRadius.circular(12),
@@ -427,7 +443,10 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           child: Row(
             children: [
               IconButton(
-                icon: const BackSymbol(color: AppColors.textPrimary),
+                icon: const Icon(
+                  Icons.arrow_back,
+                  color: AppColors.textPrimary,
+                ),
                 onPressed: () => _showEmbedPanel.value = false,
               ),
               const SizedBox(width: 8),
@@ -493,7 +512,9 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                     const SizedBox(width: 12),
                     ElevatedButton(
                       onPressed: () {
-                        Clipboard.setData(ClipboardData(text: _getIframeCode()));
+                        Clipboard.setData(
+                          ClipboardData(text: _getIframeCode()),
+                        );
                         Get.back();
                         Get.snackbar(
                           'Copied',
@@ -546,7 +567,10 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                       value: _showControls.value,
                       activeColor: AppColors.brand,
                       checkColor: Colors.white,
-                      side: const BorderSide(color: AppColors.textSecondary, width: 1.5),
+                      side: const BorderSide(
+                        color: AppColors.textSecondary,
+                        width: 1.5,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(4),
                       ),
@@ -580,7 +604,10 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                       value: _privacyMode.value,
                       activeColor: AppColors.brand,
                       checkColor: Colors.white,
-                      side: const BorderSide(color: AppColors.textSecondary, width: 1.5),
+                      side: const BorderSide(
+                        color: AppColors.textSecondary,
+                        width: 1.5,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(4),
                       ),
@@ -615,7 +642,10 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                         value: _startAtChecked.value,
                         activeColor: AppColors.brand,
                         checkColor: Colors.white,
-                        side: const BorderSide(color: AppColors.textSecondary, width: 1.5),
+                        side: const BorderSide(
+                          color: AppColors.textSecondary,
+                          width: 1.5,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(4),
                         ),
@@ -626,7 +656,8 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                     ),
                     const SizedBox(width: 10),
                     GestureDetector(
-                      onTap: () => _startAtChecked.value = !_startAtChecked.value,
+                      onTap: () =>
+                          _startAtChecked.value = !_startAtChecked.value,
                       child: Text(
                         'Start at ${_formatDuration(widget.currentPosition!)}',
                         style: GoogleFonts.roboto(
@@ -679,14 +710,25 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                   width: 120,
                   height: 120 * 9 / 16,
                   color: AppColors.bgInput,
-                  child: widget.thumbnailUrl != null && widget.thumbnailUrl!.isNotEmpty
+                  child:
+                      widget.thumbnailUrl != null &&
+                          widget.thumbnailUrl!.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: widget.thumbnailUrl!,
                           fit: BoxFit.cover,
-                          placeholder: (context, url) => Container(color: AppColors.bgInput),
-                          errorWidget: (context, url, err) => const Icon(Icons.play_circle_fill_rounded, color: AppColors.textTertiary, size: 36),
+                          placeholder: (context, url) =>
+                              Container(color: AppColors.bgInput),
+                          errorWidget: (context, url, err) => const Icon(
+                            Icons.play_circle_fill_rounded,
+                            color: AppColors.textTertiary,
+                            size: 36,
+                          ),
                         )
-                      : const Icon(Icons.play_circle_fill_rounded, color: AppColors.textTertiary, size: 36),
+                      : const Icon(
+                          Icons.play_circle_fill_rounded,
+                          color: AppColors.textTertiary,
+                          size: 36,
+                        ),
                 ),
               ),
               if (widget.durationMs != null)
@@ -694,7 +736,10 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                   bottom: 4,
                   right: 4,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.75),
                       borderRadius: BorderRadius.circular(4),
@@ -777,14 +822,24 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
               width: 56,
               height: 56,
               color: AppColors.bgInput,
-              child: widget.thumbnailUrl != null && widget.thumbnailUrl!.isNotEmpty
+              child:
+                  widget.thumbnailUrl != null && widget.thumbnailUrl!.isNotEmpty
                   ? CachedNetworkImage(
                       imageUrl: widget.thumbnailUrl!,
                       fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(color: AppColors.bgInput),
-                      errorWidget: (context, url, err) => const Icon(Icons.person_rounded, color: AppColors.textTertiary, size: 32),
+                      placeholder: (context, url) =>
+                          Container(color: AppColors.bgInput),
+                      errorWidget: (context, url, err) => const Icon(
+                        Icons.person_rounded,
+                        color: AppColors.textTertiary,
+                        size: 32,
+                      ),
                     )
-                  : const Icon(Icons.person_rounded, color: AppColors.textTertiary, size: 32),
+                  : const Icon(
+                      Icons.person_rounded,
+                      color: AppColors.textTertiary,
+                      size: 32,
+                    ),
             ),
           ),
           const SizedBox(width: 16),
@@ -808,7 +863,9 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                 const SizedBox(height: 2),
                 Text(
                   widget.handle != null && widget.handle!.isNotEmpty
-                      ? (widget.handle!.startsWith('@') ? widget.handle! : '@${widget.handle!}')
+                      ? (widget.handle!.startsWith('@')
+                            ? widget.handle!
+                            : '@${widget.handle!}')
                       : '@channel',
                   style: GoogleFonts.roboto(
                     color: AppColors.brand,
@@ -857,14 +914,25 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                   width: 120,
                   height: 120 * 9 / 16,
                   color: AppColors.bgInput,
-                  child: widget.thumbnailUrl != null && widget.thumbnailUrl!.isNotEmpty
+                  child:
+                      widget.thumbnailUrl != null &&
+                          widget.thumbnailUrl!.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: widget.thumbnailUrl!,
                           fit: BoxFit.cover,
-                          placeholder: (context, url) => Container(color: AppColors.bgInput),
-                          errorWidget: (context, url, err) => const Icon(Icons.playlist_play_rounded, color: AppColors.textTertiary, size: 36),
+                          placeholder: (context, url) =>
+                              Container(color: AppColors.bgInput),
+                          errorWidget: (context, url, err) => const Icon(
+                            Icons.playlist_play_rounded,
+                            color: AppColors.textTertiary,
+                            size: 36,
+                          ),
                         )
-                      : const Icon(Icons.playlist_play_rounded, color: AppColors.textTertiary, size: 36),
+                      : const Icon(
+                          Icons.playlist_play_rounded,
+                          color: AppColors.textTertiary,
+                          size: 36,
+                        ),
                 ),
               ),
               // Right overlay bar
@@ -876,7 +944,9 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.65),
-                    borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
+                    borderRadius: const BorderRadius.horizontal(
+                      right: Radius.circular(8),
+                    ),
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -931,7 +1001,8 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  widget.subtitle ?? 'Playlist • ${widget.videoCount ?? 0} videos',
+                  widget.subtitle ??
+                      'Playlist • ${widget.videoCount ?? 0} videos',
                   style: GoogleFonts.roboto(
                     color: AppColors.textTertiary,
                     fontSize: 11,
@@ -964,7 +1035,10 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.brand.withValues(alpha: 0.5), width: 1.5),
+                  border: Border.all(
+                    color: AppColors.brand.withValues(alpha: 0.5),
+                    width: 1.5,
+                  ),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(6),
@@ -972,14 +1046,25 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                     width: 120,
                     height: 120 * 9 / 16,
                     color: AppColors.bgInput,
-                    child: widget.thumbnailUrl != null && widget.thumbnailUrl!.isNotEmpty
+                    child:
+                        widget.thumbnailUrl != null &&
+                            widget.thumbnailUrl!.isNotEmpty
                         ? CachedNetworkImage(
                             imageUrl: widget.thumbnailUrl!,
                             fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(color: AppColors.bgInput),
-                            errorWidget: (context, url, err) => const Icon(Icons.tag_rounded, color: AppColors.textTertiary, size: 36),
+                            placeholder: (context, url) =>
+                                Container(color: AppColors.bgInput),
+                            errorWidget: (context, url, err) => const Icon(
+                              Icons.tag_rounded,
+                              color: AppColors.textTertiary,
+                              size: 36,
+                            ),
                           )
-                        : const Icon(Icons.tag_rounded, color: AppColors.textTertiary, size: 36),
+                        : const Icon(
+                            Icons.tag_rounded,
+                            color: AppColors.textTertiary,
+                            size: 36,
+                          ),
                   ),
                 ),
               ),
@@ -1096,7 +1181,8 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   void _shareNative() async {
     await SharePlus.instance.share(
       ShareParams(
-        text: 'Check this out on TruthWorld: ${widget.title}\n${_getShareUrl()}',
+        text:
+            'Check this out on TruthWorld: ${widget.title}\n${_getShareUrl()}',
         subject: widget.title,
       ),
     );

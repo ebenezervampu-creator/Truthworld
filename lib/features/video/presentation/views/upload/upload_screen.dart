@@ -1,5 +1,4 @@
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'dart:ui';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -153,26 +152,25 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF0D1117)
-          : const Color(0xFFFAFAFA),
+      backgroundColor: context.colors.background,
       body: SafeArea(
-        child: FadeTransition(
-          opacity: _fadeInAnimation,
-          child: SlideTransition(
-            position: _slideInAnimation,
-            child: _buildMainContent(isDark),
-          ),
+        child: ResponsiveBuilder(
+          builder: (context, device) {
+            return FadeTransition(
+              opacity: _fadeInAnimation,
+              child: SlideTransition(
+                position: _slideInAnimation,
+                child: _buildMainContent(device),
+              ),
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildMainContent(bool isDark) {
+  Widget _buildMainContent(DeviceState device) {
     return Obx(() {
       if (_uploadController.isChannelsLoading.value) {
         return const Center(child: CircularProgressIndicator());
@@ -181,7 +179,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
       if (_uploadController.channels.isEmpty) {
         return Center(
           child: SingleChildScrollView(
-            child: _buildNoChannelsCard(isDark),
+            child: _buildNoChannelsCard(),
           ),
         );
       }
@@ -194,25 +192,24 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
       if (channel.status != ChannelStatus.active) {
         return Center(
           child: SingleChildScrollView(
-            child: _buildBlockedUploadCard(isDark, channel),
+            child: _buildBlockedUploadCard(channel),
           ),
         );
       }
 
-      // For web/desktop: use horizontal split layout with fixed sections
-      if (isDesktop || isTablet) {
+      // For web/desktop/tablet: use horizontal split layout with fixed sections
+      if (!device.isMobile) {
+        final tokens = context.layoutTokens;
         return Row(
           children: [
             // Left sidebar - fixed width
             Container(
-              width: 280,
+              width: tokens.sidebarWidth > 0 ? tokens.sidebarWidth : 280,
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF161B22) : Colors.white,
+                color: context.colors.surface,
                 border: Border(
                   right: BorderSide(
-                    color: isDark
-                        ? const Color(0xFF21262D)
-                        : const Color(0xFFE5E7EB),
+                    color: context.colors.divider,
                     width: 1,
                   ),
                 ),
@@ -220,9 +217,9 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
               child: SingleChildScrollView(
                 child: Column(
                   children: [
-                    _buildCompactAppBar(isDark),
+                    _buildCompactAppBar(true),
                     const SizedBox(height: 20),
-                    _buildVerticalStepper(isDark),
+                    _buildVerticalStepper(true),
                   ],
                 ),
               ),
@@ -233,12 +230,12 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
                 length: 2,
                 child: Column(
                   children: [
-                    _buildCompactTabBar(isDark),
+                    _buildCompactTabBar(true),
                     Expanded(
                       child: TabBarView(
                         children: [
-                          _buildVideoUploadFlow(isDark),
-                          _buildCommunityUploadFlow(isDark),
+                          _buildVideoUploadFlow(true),
+                          _buildCommunityUploadFlow(true),
                         ],
                       ),
                     ),
@@ -253,22 +250,22 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
       // Mobile layout - original vertical layout
       return Column(
         children: [
-          _buildEnhancedAppBar(isDark),
-          _buildProgressIndicator(isDark),
+          _buildEnhancedAppBar(),
+          _buildProgressIndicator(true),
           Expanded(
             child: Container(
-              constraints: BoxConstraints(maxWidth: maxContentWidth),
-              margin: EdgeInsets.symmetric(horizontal: responsivePadding),
+              constraints: BoxConstraints(maxWidth: context.layoutTokens.contentMaxWidth),
+              margin: EdgeInsets.symmetric(horizontal: context.layoutSpacing),
               child: DefaultTabController(
                 length: 2,
                 child: Column(
                   children: [
-                    _buildModernTabBar(isDark),
+                    _buildModernTabBar(true),
                     Expanded(
                       child: TabBarView(
                         children: [
-                          _buildVideoUploadFlow(isDark),
-                          _buildCommunityUploadFlow(isDark),
+                          _buildVideoUploadFlow(true),
+                          _buildCommunityUploadFlow(true),
                         ],
                       ),
                     ),
@@ -282,7 +279,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
     });
   }
 
-  Widget _buildBlockedUploadCard(bool isDark, Channel channel) {
+  Widget _buildBlockedUploadCard(Channel channel) {
     Color statusColor;
     IconData icon;
     String title;
@@ -290,12 +287,12 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
     bool showButton = false;
 
     if (channel.status == ChannelStatus.underReview) {
-      statusColor = const Color(0xFF3B82F6); // Blue
+      statusColor = context.colors.info;
       icon = Icons.sync_rounded;
       title = 'Branding Under Moderation';
       subtitle = 'Your channel details are currently under review by Gemini AI. You can publish videos once approved.';
     } else if (channel.status == ChannelStatus.verificationRejected) {
-      statusColor = const Color(0xFFEF4444); // Red
+      statusColor = context.colors.error;
       icon = Icons.error_outline_rounded;
       title = 'Branding Verification Rejected';
       subtitle = channel.moderationReason != null && channel.moderationReason!.isNotEmpty
@@ -303,17 +300,17 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
           : 'Your channel details were rejected by Gemini AI. Please update your name, description, or tags in customization to re-verify.';
       showButton = true;
     } else if (channel.status == ChannelStatus.verificationPending) {
-      statusColor = const Color(0xFFF59E0B); // Orange
+      statusColor = context.colors.warning;
       icon = Icons.hourglass_empty_rounded;
       title = 'Verification Pending';
       subtitle = 'Your channel is currently verification pending. You can publish videos once your branding is verified.';
     } else if (channel.status == ChannelStatus.suspended) {
-      statusColor = const Color(0xFFEF4444); // Red
+      statusColor = context.colors.error;
       icon = Icons.gavel_rounded;
       title = 'Channel Suspended';
       subtitle = 'Your channel has been suspended for policy violations. Publishing is disabled.';
     } else {
-      statusColor = const Color(0xFF6B7280); // Grey
+      statusColor = context.colors.textDisabled;
       icon = Icons.info_outline_rounded;
       title = 'Upload Disabled';
       subtitle = 'Publishing is currently disabled for this channel.';
@@ -324,10 +321,10 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
       margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
       padding: const EdgeInsets.all(40),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        color: context.colors.surface,
+        borderRadius: context.radius.lg,
         border: Border.all(
-          color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
+          color: context.colors.divider,
           width: 1.5,
         ),
       ),
@@ -369,7 +366,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
             style: GoogleFonts.roboto(
               fontSize: 20,
               fontWeight: FontWeight.w700,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
+              color: context.colors.textPrimary,
               letterSpacing: -0.3,
             ),
           ),
@@ -379,7 +376,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
             textAlign: TextAlign.center,
             style: GoogleFonts.roboto(
               fontSize: 14,
-              color: isDark ? Colors.white60 : AppColors.textSecondary,
+              color: context.colors.textSecondary,
               height: 1.5,
             ),
           ),
@@ -416,24 +413,24 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
     );
   }
 
-  Widget _buildEnhancedAppBar(bool isDark) {
+  Widget _buildEnhancedAppBar() {
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: responsivePadding,
         vertical: 20,
       ),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF0D1117) : Colors.white,
+        color: context.colors.appBarSurface,
         border: Border(
           bottom: BorderSide(
-            color: isDark ? const Color(0xFF21262D) : const Color(0xFFE5E7EB),
+            color: context.colors.divider,
             width: 1,
           ),
         ),
       ),
       child: Row(
         children: [
-          _buildBackButton(isDark),
+          _buildBackButton(true),
           const SizedBox(width: 20),
           Expanded(
             child: Column(
@@ -442,12 +439,10 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
                 Row(
                   children: [
                     Container(
-                      padding: EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                        ),
-                        borderRadius: BorderRadius.circular(10),
+                        gradient: context.gradients.primary,
+                        borderRadius: context.radius.md,
                       ),
                       child: const Icon(
                         Icons.cloud_upload_rounded,
@@ -461,14 +456,14 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
                       style: GoogleFonts.roboto(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        color: context.colors.textPrimary,
                         letterSpacing: -0.5,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                _buildChannelSelector(isDark),
+                _buildChannelSelector(true),
               ],
             ),
           ),
@@ -477,14 +472,14 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
     );
   }
 
-  Widget _buildNoChannelsCard(bool isDark) {
+  Widget _buildNoChannelsCard() {
     return Container(
-      padding: EdgeInsets.all(40),
+      padding: const EdgeInsets.all(40),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        color: context.colors.surface,
+        borderRadius: context.radius.lg,
         border: Border.all(
-          color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
+          color: context.colors.divider,
           width: 1.5,
         ),
       ),
@@ -492,21 +487,21 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            padding: EdgeInsets.all(20),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: const Color(0xFFEF4444).withValues(alpha: 0.1),
+              color: context.colors.error.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Container(
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                color: context.colors.error.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.video_library_outlined,
                 size: 40,
-                color: Color(0xFFEF4444),
+                color: context.colors.error,
               ),
             ),
           ),
@@ -516,7 +511,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
             style: GoogleFonts.roboto(
               fontSize: 20,
               fontWeight: FontWeight.w700,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
+              color: context.colors.textPrimary,
               letterSpacing: -0.3,
             ),
           ),
@@ -526,7 +521,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
             textAlign: TextAlign.center,
             style: GoogleFonts.roboto(
               fontSize: 14,
-              color: isDark ? Colors.white60 : AppColors.textSecondary,
+              color: context.colors.textSecondary,
               height: 1.5,
             ),
           ),
@@ -542,9 +537,9 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
               ),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF6366F1),
+              backgroundColor: context.colors.brand,
               foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
               elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -1822,7 +1817,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
                 ),
                 child: OutlinedButton.icon(
                   onPressed: _goToPreviousStep,
-                  icon: const BackSymbol(size: 20),
+                  icon: const Icon(Icons.arrow_back, size: 20),
                   label: Text(
                     'Back',
                     style: GoogleFonts.roboto(
@@ -2854,7 +2849,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
               width: 1,
             ),
           ),
-          child: BackSymbol(size: 20,
+          child: Icon(Icons.arrow_back, size: 20,
             color: isDark ? Colors.white : const Color(0xFF0F172A),
           ),
         ),
@@ -3203,8 +3198,6 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
                 return null;
               },
             ),
-            const SizedBox(height: 20),
-            _buildCategorySelection(isDark),
             const SizedBox(height: 20),
             _buildEnhancedTextField(
               controller: _tagsController,
@@ -5543,7 +5536,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
   Widget _buildChannelSelectionSection(bool isDark) {
     return Obx(() {
       if (_uploadController.channels.isEmpty) {
-        return _buildNoChannelsCard(isDark);
+        return _buildNoChannelsCard();
       }
 
       return Column(

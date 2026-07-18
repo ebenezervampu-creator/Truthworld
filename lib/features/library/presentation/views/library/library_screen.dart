@@ -9,12 +9,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/video/data/models/video_clip.dart';
 import 'package:truthworld/features/watchhistory/presentation/controllers/watch_history_controller.dart';
-import 'package:truthworld/features/topics/data/models/topic.dart';
-import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 
 // ==========================================================================
 // YOUTUBE-STYLE THEME COLORS
@@ -408,67 +406,181 @@ class LibraryScreenState extends State<LibraryScreen>
                 ? Get.find<HomeController>()
                 : Get.put(HomeController());
 
+            final bool isLibraryEmpty = !homeController.hasWatchHistory.value &&
+                !homeController.hasPlaylists.value &&
+                !homeController.hasFollowedTopics.value &&
+                !homeController.hasLikedVideos.value &&
+                !homeController.hasClips.value &&
+                !homeController.hasUploadedVideos.value;
+
             final items = <Widget>[];
 
-            // 2. History Section
-            if (homeController.hasWatchHistory.value) {
-              items.add(_buildHistorySection(userId));
-              items.add(const SizedBox(height: 24));
-            }
-
-            // 3. Playlists Section
-            if (homeController.hasPlaylists.value) {
-              items.add(_buildPlaylistsSection(userId));
-              items.add(const SizedBox(height: 24));
-            }
-
-            // Following Topics Section
-            if (homeController.hasFollowedTopics.value) {
-              items.add(_buildFollowingTopicsSection(userId));
-              items.add(const SizedBox(height: 24));
-            }
-
-            // 4. Liked Videos Section
-            if (homeController.hasLikedVideos.value) {
-              items.add(_buildLikedVideosSection(userId));
-              items.add(const SizedBox(height: 24));
-            }
-
-            // 5. Clips Section
-            if (homeController.hasClips.value) {
-              items.add(_buildClipsSection(userId));
-              items.add(const SizedBox(height: 24));
-            }
-
-            // 6. Your Videos Section
-            if (homeController.hasUploadedVideos.value) {
-              items.add(_buildYourVideosSection(userId));
-              items.add(const SizedBox(height: 40));
-            }
-
-            if (items.isEmpty) {
-              return SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 24),
-                    child: Text(
-                      "Your library is empty",
-                      style: GoogleFonts.roboto(
-                        fontSize: 16,
+            // If library is empty, show "Your library is empty" with Settings and Create Channel buttons
+            if (isLibraryEmpty) {
+              items.add(
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.folder_open_outlined,
+                        size: 64,
                         color: secondaryText,
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Your library is empty",
+                        style: GoogleFonts.roboto(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: primaryText,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "Configure your settings or create a channel to get started.",
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.roboto(
+                          fontSize: 14,
+                          color: secondaryText,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                HapticFeedback.lightImpact();
+                                Get.toNamed('/settings');
+                              },
+                              icon: Icon(Icons.settings_outlined, size: 18, color: primaryText),
+                              label: Text(
+                                "Settings",
+                                style: GoogleFonts.roboto(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: primaryText,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                backgroundColor: buttonBg,
+                                side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                HapticFeedback.lightImpact();
+                                Get.toNamed('/channelscreen');
+                              },
+                              icon: Icon(Icons.add_circle_outline, size: 18, color: primaryText),
+                              label: Text(
+                                "Create Channel",
+                                style: GoogleFonts.roboto(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: primaryText,
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                backgroundColor: buttonBg,
+                                side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
               );
+              items.add(const Divider());
             }
 
-            return SliverPadding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate(items),
+            // Always display the Text and icon for every Tab
+            items.addAll([
+              _buildLibraryListTile(
+                icon: Icons.history_rounded,
+                title: "History",
+                onTap: () => Get.toNamed('/history'),
               ),
+              _buildLibraryListTile(
+                icon: Icons.playlist_play_rounded,
+                title: "Playlists",
+                onTap: () => Get.toNamed('/playlistscreen'),
+              ),
+              _buildLibraryListTile(
+                icon: Icons.people_outline_rounded,
+                title: "Following Topics",
+                onTap: () => Get.toNamed('/following-topics'),
+              ),
+              _buildLibraryListTile(
+                icon: Icons.thumb_up_outlined,
+                title: "Liked videos",
+                onTap: () => Get.toNamed('/likedvideos'),
+              ),
+              _buildLibraryListTile(
+                icon: Icons.content_cut_rounded,
+                title: "Clips",
+                onTap: () => Get.toNamed('/clips'),
+              ),
+              _buildLibraryListTile(
+                icon: Icons.file_download_outlined,
+                title: "Downloads",
+                trailing: const Icon(
+                  Icons.check_circle,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                onTap: () {
+                  if (Get.isRegistered<HomeController>()) {
+                    Get.find<HomeController>().onSideNavItemSelect(HomeController.indexDownloads);
+                  } else {
+                    Get.toNamed('/downloads');
+                  }
+                },
+              ),
+              _buildLibraryListTile(
+                icon: Icons.settings_outlined,
+                title: "Settings",
+                onTap: () {
+                  if (Get.isRegistered<HomeController>()) {
+                    Get.find<HomeController>().onSideNavItemSelect(HomeController.indexSettings);
+                  } else {
+                    Get.toNamed('/settings');
+                  }
+                },
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8.0),
+                child: Divider(color: Colors.white10, height: 1),
+              ),
+              _buildLibraryListTile(
+                icon: Icons.workspace_premium_outlined,
+                title: "Get Premium",
+                onTap: () => Get.toNamed('/premium'),
+              ),
+              _buildLibraryListTile(
+                icon: Icons.add_circle_outline,
+                title: "Create Channel to upload videos",
+                onTap: () => Get.toNamed('/channelscreen'),
+              ),
+            ]);
+
+            return SliverList(
+              delegate: SliverChildListDelegate(items),
             );
           }),
         ],
@@ -477,807 +589,122 @@ class LibraryScreenState extends State<LibraryScreen>
   }
 
   Widget _buildProfileHeader(String userId) {
-    final user = FirebaseAuth.instance.currentUser;
-    final displayName = user?.displayName ?? "User";
-    final email = user?.email ?? "";
-    final handle = email.isNotEmpty ? "@${email.split('@')[0]}" : "@user";
+    return Obx(() {
+      final user = FirebaseAuth.instance.currentUser;
+      final authService = AuthService.to;
+      final hasChannel = authService.hasChannel.value;
+      final Channel? channel = authService.userChannel;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              UserAvatar(
-                radius: 40,
-                photoUrl: user?.photoURL,
-                displayName: displayName,
-                backgroundColor: buttonBg,
-                textColor: primaryText,
-                fontSize: 32,
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      final displayName = hasChannel && channel != null
+          ? channel.name
+          : (user?.displayName ?? "User");
+      final email = user?.email ?? "";
+      final handle = hasChannel && channel != null
+          ? (channel.handle.startsWith('@') ? channel.handle : '@${channel.handle}')
+          : (email.isNotEmpty ? "@${email.split('@')[0]}" : "@user");
+      final avatarUrl = hasChannel && channel != null
+          ? channel.avatarUrl
+          : user?.photoURL;
+
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              onTap: (hasChannel && channel != null)
+                  ? () => Get.toNamed('/studio')
+                  : null,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(4.0),
+                child: Row(
                   children: [
-                    Text(
-                      displayName,
-                      style: GoogleFonts.roboto(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: primaryText,
-                      ),
+                    UserAvatar(
+                      radius: 40,
+                      photoUrl: avatarUrl,
+                      displayName: displayName,
+                      backgroundColor: buttonBg,
+                      textColor: primaryText,
+                      fontSize: 32,
                     ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Text(
-                          handle,
-                          style: GoogleFonts.roboto(
-                            fontSize: 14,
-                            color: secondaryText,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            displayName,
+                            style: GoogleFonts.roboto(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: primaryText,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        InkWell(
-                          onTap: () {
-                            // Navigate to channel
-                          },
-                          child: Text(
-                            "View channel",
+                          const SizedBox(height: 4),
+                          Text(
+                            handle,
                             style: GoogleFonts.roboto(
                               fontSize: 14,
                               color: secondaryText,
-                              fontWeight: FontWeight.w500,
                             ),
                           ),
-                        ),
-                        Icon(
-                          Icons.chevron_right,
-                          color: secondaryText,
-                          size: 16,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              _buildHeaderButton(
-                icon: Icons.account_circle_outlined,
-                label: "Switch account",
-                onPressed: () {},
-              ),
-              const SizedBox(width: 8),
-              _buildHeaderButton(
-                icon: Icons.account_box_outlined,
-                label: "Google Account",
-                onPressed: () {},
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+            ),
+          ],
+        ),
+      );
+    });
   }
 
-  Widget _buildHeaderButton({
+  Widget _buildLibraryListTile({
     required IconData icon,
-    required String label,
-    required VoidCallback onPressed,
-  }) {
-    return Expanded(
-      child: OutlinedButton.icon(
-        onPressed: onPressed,
-        icon: Icon(icon, size: 18, color: primaryText),
-        label: Text(
-          label,
-          style: GoogleFonts.roboto(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: primaryText,
-          ),
-        ),
-        style: OutlinedButton.styleFrom(
-          backgroundColor: buttonBg,
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-        ),
-      ),
-    );
-  }
-
-
-  Widget _buildSectionHeader({
     required String title,
-    VoidCallback? onViewAll,
-    VoidCallback? onAdd,
-    bool showArrows = true,
+    Widget? trailing,
+    required VoidCallback onTap,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          Text(
-            title,
-            style: GoogleFonts.roboto(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: primaryText,
-            ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                color: Colors.white,
+                size: 24,
+              ),
+              const SizedBox(width: 24),
+              Expanded(
+                child: Text(
+                  title,
+                  style: GoogleFonts.roboto(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              if (trailing != null) trailing,
+            ],
           ),
-          const Spacer(),
-          if (onAdd != null)
-            IconButton(
-              icon: Icon(Icons.add, color: primaryText),
-              onPressed: onAdd,
-            ),
-          if (onViewAll != null)
-            TextButton(
-              onPressed: onViewAll,
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
-                ),
-              ),
-              child: Text(
-                "View all",
-                style: GoogleFonts.roboto(
-                  color: primaryText,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          if (showArrows) ...[
-            const SizedBox(width: 8),
-            // Mock arrows for design fidelity
-            const Icon(Icons.chevron_left, color: Colors.white24, size: 24),
-            const Icon(Icons.chevron_right, color: Colors.white, size: 24),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHistorySection(String userId) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader(
-          title: "History",
-          onViewAll: () => Get.toNamed('/watchhistory'),
-        ),
-        StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .doc(userId)
-              .collection('watch_history')
-              .orderBy('watchedAt', descending: true)
-              .limit(10)
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  "Videos you watch will show up here.",
-                  style: GoogleFonts.roboto(color: secondaryText, fontSize: 14),
-                ),
-              );
-            }
-            final videos = snapshot.data!.docs
-                .map((doc) => Video.fromDocumentSnapshot(doc))
-                .toList();
-            return SizedBox(
-              height: 180,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: videos.length,
-                itemBuilder: (context, index) {
-                  return _buildYouTubeVideoCard(videos[index]);
-                },
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildYouTubeVideoCard(Video video) {
-    return Container(
-      width: 160,
-      margin: const EdgeInsets.only(right: 12),
-      child: InkWell(
-        onTap: () => Get.toNamed('/watch?v=${video.id}', arguments: {'video': video}),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: CachedNetworkImage(
-                    imageUrl: video.thumbnailUrl,
-                    height: 90,
-                    width: 160,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(color: buttonBg),
-                  ),
-                ),
-                Positioned(
-                  bottom: 6,
-                  right: 6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      video.duration,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              video.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.roboto(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: primaryText,
-                height: 1.2,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              "${video.channelName} • ${video.views} views",
-              style: GoogleFonts.roboto(
-                fontSize: 11,
-                color: secondaryText,
-              ),
-            ),
-          ],
         ),
       ),
     );
   }
 
-  Widget _buildPlaylistsSection(String userId) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader(
-          title: "Playlists",
-          onAdd: () => _showCreatePlaylistDialog(context),
-          onViewAll: () => Get.toNamed('/playlistscreen'),
-        ),
-        StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .doc(userId)
-              .collection('playlists')
-              .orderBy('createdAt', descending: true)
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return const SizedBox.shrink();
-            }
-            final playlists = snapshot.data!.docs
-                .map((doc) => PlaylistModel.fromDocumentSnapshot(doc))
-                .toList();
 
-            return SizedBox(
-              height: 160,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: playlists.length,
-                itemBuilder: (context, index) {
-                  return _buildYouTubePlaylistCard(playlists[index]);
-                },
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
 
-  Widget _buildYouTubePlaylistCard(PlaylistModel playlist) {
-    return Container(
-      width: 140,
-      margin: const EdgeInsets.only(right: 16),
-      child: InkWell(
-        onTap: () {
-          // Check if HomeController is available (we're in home screen context)
-          if (Get.isRegistered<HomeController>()) {
-            final homeController = Get.find<HomeController>();
-            homeController.navigateToPlaylistDetail(playlist);
-          } else {
-            // Navigate to home first, then show playlist detail
-            Get.toNamed('/', arguments: {'openPlaylist': playlist});
-          }
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              alignment: Alignment.bottomCenter,
-              children: [
-                Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  width: 110,
-                  height: 70,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                Container(
-                  margin: const EdgeInsets.only(bottom: 6),
-                  width: 125,
-                  height: 75,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: CachedNetworkImage(
-                    imageUrl: playlist.thumbnailUrl,
-                    height: 80,
-                    width: 140,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(color: buttonBg),
-                  ),
-                ),
-                Positioned(
-                  bottom: 6,
-                  right: 6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.playlist_play, color: Colors.white, size: 14),
-                        const SizedBox(width: 4),
-                        Text(
-                          "${playlist.videoIds.length}",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              playlist.playlistName,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.roboto(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: primaryText,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              "Playlist",
-              style: GoogleFonts.roboto(
-                fontSize: 11,
-                color: secondaryText,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFollowingTopicsSection(String userId) {
-    if (!Get.isRegistered<FollowingTopicsController>()) {
-      Get.put(FollowingTopicsController());
-    }
-    final controller = Get.find<FollowingTopicsController>();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader(
-          title: "Following Topics",
-          onViewAll: () {
-            if (Get.isRegistered<HomeController>()) {
-              final homeController = Get.find<HomeController>();
-              homeController.sideNavSelectedIndex.value = HomeController.indexFollowingTopics;
-            } else {
-              Get.toNamed('/following-topics');
-            }
-          },
-          showArrows: true,
-        ),
-        Obx(() {
-          if (controller.isLoading.value) {
-            return SizedBox(
-              height: 160,
-              child: Center(
-                child: CircularProgressIndicator(color: primaryText),
-              ),
-            );
-          }
-          if (controller.followedTopics.isEmpty) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                "Topics you follow will show up here.",
-                style: GoogleFonts.roboto(color: secondaryText, fontSize: 14),
-              ),
-            );
-          }
-          return SizedBox(
-            height: 160,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: controller.followedTopics.length,
-              itemBuilder: (context, index) {
-                final topic = controller.followedTopics[index];
-                return _buildLibraryTopicCard(topic);
-              },
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  Widget _buildLibraryTopicCard(Topic topic) {
-    return Container(
-      width: 140,
-      margin: const EdgeInsets.only(right: 16),
-      child: InkWell(
-        onTap: () {
-          Get.toNamed(
-            topic.topicRoute,
-            arguments: {
-              'slug': topic.slug,
-              'topic': topic,
-            },
-          );
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              alignment: Alignment.bottomCenter,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: CachedNetworkImage(
-                    imageUrl: topic.coverImage ?? topic.thumbnailUrl ?? 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop',
-                    height: 80,
-                    width: 140,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(color: buttonBg),
-                  ),
-                ),
-                Positioned(
-                  bottom: 6,
-                  right: 6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.people_outline_rounded, color: Colors.white, size: 12),
-                        const SizedBox(width: 4),
-                        Text(
-                          "${topic.followerCount}",
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              topic.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.roboto(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: primaryText,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              "Topic • ${topic.videoCount} videos",
-              style: GoogleFonts.roboto(
-                fontSize: 11,
-                color: secondaryText,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLikedVideosSection(String userId) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader(
-          title: "Liked videos",
-          onViewAll: () => Get.toNamed('/likedvideos'),
-        ),
-        StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('videos')
-              .where("likedBy", arrayContains: userId)
-              .limit(10)
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return const SizedBox.shrink();
-            }
-            final videos = snapshot.data!.docs
-                .map((doc) => Video.fromDocumentSnapshot(doc))
-                .toList();
-            return SizedBox(
-              height: 180,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: videos.length,
-                itemBuilder: (context, index) {
-                  return _buildYouTubeVideoCard(videos[index]);
-                },
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildClipsSection(String userId) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader(
-          title: "Clips",
-          onViewAll: () {},
-        ),
-        StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .doc(userId)
-              .collection('clips')
-              .orderBy('createdAt', descending: true)
-              .limit(10)
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  "No clips yet.",
-                  style: GoogleFonts.roboto(color: secondaryText, fontSize: 14),
-                ),
-              );
-            }
-            final clips = snapshot.data!.docs
-                .map((doc) => VideoClip.fromDocumentSnapshot(doc))
-                .toList();
-            return SizedBox(
-              height: 240,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: clips.length,
-                itemBuilder: (context, index) {
-                  return _buildClipCard(clips[index]);
-                },
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildClipCard(VideoClip clip) {
-    return Container(
-      width: 140,
-      margin: const EdgeInsets.only(right: 12),
-      child: InkWell(
-        onTap: () {
-          final videoShell = Video(
-            id: clip.videoId,
-            title: clip.videoTitle,
-            thumbnailUrl: clip.thumbnailUrl,
-            channelName: clip.channelName,
-            ownerId: clip.userId, // Use clip.userId as ownerId
-            category: 'Clips',
-            tags: [],
-            description: 'Clip from ${clip.videoTitle}',
-            views: '0',
-            likes: 0,
-            uploadedAt: Timestamp.fromDate(clip.createdAt),
-            videoUrl: '',
-            channelId: '',
-            channelImage: '',
-            duration: '0:00',
-          );
-          Get.toNamed('/watch?v=${videoShell.id}', arguments: {
-            'video': videoShell,
-            'clip': clip,
-          });
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: CachedNetworkImage(
-                    imageUrl: clip.thumbnailUrl,
-                    height: 180,
-                    width: 140,
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(color: buttonBg),
-                  ),
-                ),
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.6),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.content_cut_rounded, color: Colors.white, size: 14),
-                  ),
-                ),
-                Positioned(
-                  bottom: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      '${(clip.endTime - clip.startTime).toStringAsFixed(0)}s',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              clip.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.roboto(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: primaryText,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              clip.videoTitle,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.roboto(
-                fontSize: 11,
-                color: secondaryText,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildYourVideosSection(String userId) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader(
-          title: "Your videos",
-          onViewAll: () => Get.toNamed('/myvideos'),
-        ),
-        StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('videos')
-              .where('ownerId', isEqualTo: userId)
-              .orderBy('createdAt', descending: true)
-              .limit(10)
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  "You haven't uploaded any videos yet.",
-                  style: GoogleFonts.roboto(color: secondaryText, fontSize: 14),
-                ),
-              );
-            }
-            final videos = snapshot.data!.docs
-                .map((doc) => Video.fromDocumentSnapshot(doc))
-                .toList();
-            return SizedBox(
-              height: 180,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: videos.length,
-                itemBuilder: (context, index) {
-                  return _buildYouTubeVideoCard(videos[index]);
-                },
-              ),
-            );
-          },
-        ),
-      ],
-    );
-  }
 
 
 
@@ -1521,13 +948,18 @@ class LibraryScreenState extends State<LibraryScreen>
     final user = FirebaseAuth.instance.currentUser;
     return Row(
       children: [
-        UserAvatar(
-          radius: 24,
-          photoUrl: user?.photoURL,
-          displayName: user?.displayName ?? "User",
-          backgroundColor: buttonBg,
-          textColor: Colors.white,
-          fontSize: 18,
+        InkWell(
+          onTap: () {
+            Get.toNamed('/studio');
+          },
+          child: UserAvatar(
+            radius: 24,
+            photoUrl: user?.photoURL,
+            displayName: user?.displayName ?? "User",
+            backgroundColor: buttonBg,
+            textColor: Colors.white,
+            fontSize: 18,
+          ),
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -1601,11 +1033,6 @@ class LibraryScreenState extends State<LibraryScreen>
           icon: Icons.history_rounded,
           title: "Watch History",
           onTap: () => Get.toNamed('/watchhistory'),
-        ),
-        _buildSidebarAction(
-          icon: Icons.video_library_rounded,
-          title: "My Videos",
-          onTap: () => Get.toNamed('/myvideos'),
         ),
         _buildSidebarAction(
           icon: Icons.thumb_up_rounded,

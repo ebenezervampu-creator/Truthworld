@@ -14,6 +14,7 @@ import { logger } from "../utils/logger";
 import { reputationService } from "../services/reputationService";
 import { SpeakerReputationService } from "../services/speakerReputationService";
 import { CredibilityResult } from "../types";
+import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository.js";
 
 const db = () => admin.firestore();
 
@@ -36,10 +37,12 @@ export class AggregationLayer {
   private readonly distribution: DistributionLayer;
 
   private readonly speakerReputation: SpeakerReputationService;
+  private readonly analysisRepository: AnalysisRepository;
   
-  constructor() {
+  constructor(analysisRepository?: AnalysisRepository) {
     this.distribution = new DistributionLayer();
     this.speakerReputation = new SpeakerReputationService();
+    this.analysisRepository = analysisRepository || getAnalysisRepository();
   }
 
   /**
@@ -164,7 +167,7 @@ export class AggregationLayer {
     triggerStage: string
   ): Promise<AggregatedOutput | null> {
     try {
-      return await db().runTransaction(async (transaction) => {
+      const resultOutput = await db().runTransaction(async (transaction) => {
         const jobRef = db().collection("video_jobs").doc(jobId);
         const jobSnap = await transaction.get(jobRef);
         const jobData = jobSnap.data() as JobData;
@@ -367,8 +370,8 @@ export class AggregationLayer {
           },
         };
 
-        // 1. Persist final output (Canonical)
-        transaction.set(db().collection("final_outputs").doc(jobId), output);
+        // Skip Firestore final_outputs write, persisting to GCS after transaction success
+        logger.info("[Aggregation] Bypassed Firestore final_outputs write, persisting to Storage post-transaction", { jobId });
 
         // 2. Update job record with terminal metrics & results
         const now = Date.now();
@@ -548,6 +551,17 @@ export class AggregationLayer {
 
         return output;
       });
+
+      if (resultOutput) {
+        try {
+          const { path: latestPath } = await this.analysisRepository.saveAnalysis(jobId, "final_outputs", resultOutput);
+          logger.info("[Aggregation] Successfully stored final aggregated output in Storage", { jobId, latestPath });
+        } catch (storageErr) {
+          logger.error("[Aggregation] Failed to store final aggregated output in Storage", { jobId, err: String(storageErr) });
+        }
+      }
+
+      return resultOutput;
     } catch (err) {
       logger.error("[Aggregation] Transaction failed", { jobId, err: String(err) });
       return null;
@@ -555,8 +569,7 @@ export class AggregationLayer {
   }
 
   async getFinalOutput(jobId: string): Promise<AggregatedOutput | null> {
-    const doc = await db().collection("final_outputs").doc(jobId).get();
-    return doc.exists ? (doc.data() as AggregatedOutput) : null;
+    return this.analysisRepository.loadAnalysis(jobId, "final_outputs");
   }
 
   /**

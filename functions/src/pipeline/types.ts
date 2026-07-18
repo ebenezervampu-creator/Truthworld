@@ -241,12 +241,12 @@ export enum FramingStyle {
 }
 
 export enum EvidenceLevel {
+  VERY_STRONG = 'VERY_STRONG',
   STRONG = 'STRONG',
   MODERATE = 'MODERATE',
-  WEAK = 'WEAK',
-  NONE = 'NONE',
+  LIMITED = 'LIMITED',
   CONTRADICTED = 'CONTRADICTED',
-  INSUFFICIENT = 'INSUFFICIENT',  // v10.5: sources found but below quality threshold
+  NONE = 'NONE',
 }
 
 export type AnalysisFailureReason = 
@@ -313,9 +313,14 @@ export interface RichSource {
   title: string;
   url: string;
   domain?: string;
+  publisher?: string;
+  type?: string;
   publishedAt?: string;
   tier: SourceTier;
   snippet?: string; // Stored in full.json only
+  lastPublished?: string;
+  lastVerified?: string;
+  retrievalMethod?: string;
 }
 
 export type ClaimType = string;
@@ -391,6 +396,22 @@ export interface VerifiedClaim extends FilteredClaim {
   recommendedAction?: string;
   timedOutAt?: number;   // v10.6: set when claim timed out, cleared after retry conversion
   verificationMethod?: VerificationMethod; // v11.5: deterministic | grounded | cache_hit
+  sourceStatus?: 'complete' | 'partial' | 'missing';
+  evidenceSchemaVersion?: string;
+  evidenceSummary?: EvidenceSummary;
+  processingMetadata?: {
+    recoveryMethod?: string;
+    requiresCitationRetry?: boolean;
+    cacheSource?: string;
+    [key: string]: any;
+  };
+}
+
+export interface EvidenceSummary {
+  independentPublishers: number;
+  tierA: number;
+  tierB: number;
+  secondarySources: number;
 }
 
 
@@ -658,6 +679,24 @@ export interface FactCheckResult {
     scoring: string;
     registry: string;
   };
+  processingMetadata?: {
+    verificationPipeline?: VerificationPipelineProvenance;
+    [key: string]: any;
+  };
+}
+
+export interface VerificationPipelineProvenance {
+  verifiedBy: string;
+  grounded: boolean;
+  groundingProvider: string;
+  embeddingModel: string;
+  cacheVersion: {
+    embedding: number;
+    verification: number;
+    citation: number;
+  };
+  verifiedAt: string;          // ISO String when Gemini ran verification
+  cacheGeneratedAt: string;     // ISO String when written to cache
 }
 
 /**
@@ -1393,6 +1432,10 @@ export interface CredibilityResult {
   };
   repairSuggestions?: RepairSuggestion[];
   consistencyIssues?: ConsistencyIssue[];
+  processingMetadata?: {
+    verificationPipeline?: VerificationPipelineProvenance;
+    [key: string]: any;
+  };
 }
 
 export interface DubbingSegment {

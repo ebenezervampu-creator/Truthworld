@@ -77,7 +77,7 @@ class TowerPlayerController extends GetxController {
       showControls: false, // Maintain custom overlays
       autoInitialize: true,
       allowedScreenSleep: false,
-      aspectRatio: videoPlayerController.value.aspectRatio,
+      aspectRatio: null,
       placeholder: Container(
         color: Colors.black,
         child: const Center(
@@ -1432,12 +1432,73 @@ class TowerPlayerController extends GetxController {
     } else if (key == LogicalKeyboardKey.slash) {
       if (HardwareKeyboard.instance.isShiftPressed) showShortcutsDialog();
     } else if (key == LogicalKeyboardKey.comma) {
-      // YouTube: , = previous frame (approximate via -1/30 s)
-      seekRelative(-1);
+      if (HardwareKeyboard.instance.isShiftPressed) {
+        _adjustSpeedRelative(-0.25);
+      } else {
+        // YouTube: , = previous frame (approximate via -1/30 s)
+        seekRelative(-1);
+      }
     } else if (key == LogicalKeyboardKey.period) {
-      // YouTube: . = next frame
-      seekRelative(1);
+      if (HardwareKeyboard.instance.isShiftPressed) {
+        _adjustSpeedRelative(0.25);
+      } else {
+        // YouTube: . = next frame
+        seekRelative(1);
+      }
+    } else {
+      // Handle digit keys 0-9 to seek to 0%-90% of duration
+      final digitMap = {
+        LogicalKeyboardKey.digit0: 0.0,
+        LogicalKeyboardKey.digit1: 0.1,
+        LogicalKeyboardKey.digit2: 0.2,
+        LogicalKeyboardKey.digit3: 0.3,
+        LogicalKeyboardKey.digit4: 0.4,
+        LogicalKeyboardKey.digit5: 0.5,
+        LogicalKeyboardKey.digit6: 0.6,
+        LogicalKeyboardKey.digit7: 0.7,
+        LogicalKeyboardKey.digit8: 0.8,
+        LogicalKeyboardKey.digit9: 0.9,
+        LogicalKeyboardKey.numpad0: 0.0,
+        LogicalKeyboardKey.numpad1: 0.1,
+        LogicalKeyboardKey.numpad2: 0.2,
+        LogicalKeyboardKey.numpad3: 0.3,
+        LogicalKeyboardKey.numpad4: 0.4,
+        LogicalKeyboardKey.numpad5: 0.5,
+        LogicalKeyboardKey.numpad6: 0.6,
+        LogicalKeyboardKey.numpad7: 0.7,
+        LogicalKeyboardKey.numpad8: 0.8,
+        LogicalKeyboardKey.numpad9: 0.9,
+      };
+      if (digitMap.containsKey(key)) {
+        final fraction = digitMap[key]!;
+        final dur = vv.duration;
+        if (dur > Duration.zero) {
+          seekTo(dur * fraction);
+          showToast('Seek to ${(fraction * 100).round()}%');
+        }
+      }
     }
+  }
+
+  void _adjustSpeedRelative(double delta) {
+    const speeds = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+    double current = playbackSpeed.value;
+    int index = speeds.indexOf(current);
+    if (index == -1) {
+      double minDiff = double.infinity;
+      int closestIdx = 3; // 1.0
+      for (int i = 0; i < speeds.length; i++) {
+        final diff = (speeds[i] - current).abs();
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestIdx = i;
+        }
+      }
+      index = closestIdx;
+    }
+    int newIndex = (index + (delta > 0 ? 1 : -1)).clamp(0, speeds.length - 1);
+    setSpeed(speeds[newIndex]);
+    showToast('Speed: ${speeds[newIndex]}×');
   }
 
   // ─── Long press 2× ───────────────────────────────────────

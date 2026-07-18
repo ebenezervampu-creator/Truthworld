@@ -14,6 +14,7 @@ import {
   FactCompleteData,
   ExtractedClaim,
   VerifiedClaim,
+  FilteredClaim,
   CredibilityErrorCode,
   ExtractionError,
   SynthesisResult,
@@ -36,8 +37,38 @@ import { speakerTrustEngine }       from "../services/speakerTrustEngine";
 import { SpeakerRegistryService }    from "../services/speakerRegistry";
 import { SpeakerReputationService }  from "../services/speakerReputationService";
 import { registryService } from "../registry/RegistryService";
+import { sourceTrustService } from "../services/sourceTrustService";
+import { getAnalysisRepository, AnalysisRepository } from "../services/analysisRepository.js";
 
 const db = () => admin.firestore();
+
+// Module-level Circuit Breaker state (in-memory per function instance)
+let failureCount = 0;
+let breakerTrippedUntil = 0;
+
+function recordFailure() {
+  failureCount++;
+  if (failureCount >= 3) {
+    breakerTrippedUntil = Date.now() + 5 * 60 * 1000; // Trip for 5 minutes
+    logger.warn(`[CIRCUIT BREAKER] Tripped until ${new Date(breakerTrippedUntil).toISOString()} due to multiple failures`);
+  }
+}
+
+function recordSuccess() {
+  failureCount = 0;
+  breakerTrippedUntil = 0;
+}
+
+function isBreakerTripped(): boolean {
+  if (breakerTrippedUntil && Date.now() < breakerTrippedUntil) {
+    return true;
+  }
+  if (breakerTrippedUntil && Date.now() >= breakerTrippedUntil) {
+    failureCount = 0;
+    breakerTrippedUntil = 0;
+  }
+  return false;
+}
 
 /** v11.0: Content-aware cache TTL in seconds per claim category */
 const CLAIM_TTL: Record<string, number> = {
@@ -63,8 +94,9 @@ export class CredibilityEngine {
   private readonly performanceLayer:    PerformanceLayer;
   private readonly speakerRegistry:     SpeakerRegistryService;   // v7
   private readonly speakerReputation:   SpeakerReputationService; // v7
+  private readonly analysisRepository:  AnalysisRepository;
 
-  constructor(geminiApiKey: string) {
+  constructor(geminiApiKey: string, analysisRepository?: AnalysisRepository) {
     this.extractionService   = new FactExtractionService(geminiApiKey);
     this.verificationService = new ClaimVerificationService(geminiApiKey, 0.6);
     this.scoringEngine       = new ScoringEngine();
@@ -72,6 +104,7 @@ export class CredibilityEngine {
     this.performanceLayer    = new PerformanceLayer();
     this.speakerRegistry     = new SpeakerRegistryService();
     this.speakerReputation   = new SpeakerReputationService();
+    this.analysisRepository  = analysisRepository || getAnalysisRepository();
   }
 
   /**
@@ -136,6 +169,19 @@ export class CredibilityEngine {
         ? DEEP_RESEARCH_CONFIG.MAX_CLAIMS_INSTITUTIONAL 
         : DEEP_RESEARCH_CONFIG.MAX_CLAIMS_STANDARD;
 
+      // v19.0: Scale extraction timeout with video duration.
+      // The Cloud Function has 540s — give extraction generous time so claims are NEVER lost.
+      // Priority: extract ALL claims. A slow extraction is infinitely better than 0 claims.
+      const rawDuration = transcript.duration;
+      const fallbackDurationSec = (transcript.utterances?.length > 0)
+        ? Math.max(...transcript.utterances.map((u: any) => u.end || 0)) / 1000
+        : 120;
+      const videoDurationSec = rawDuration > 0 ? rawDuration : fallbackDurationSec;
+      const extractionBudgetMs = deepResearchActive ? 150_000       // Deep research: 2.5 min
+        : videoDurationSec >= 600 ? 120_000   // 10+ minutes: 2 min
+        : videoDurationSec >= 180 ? 90_000    // 3-10 minutes: 1.5 min
+        : 60_000;                              // < 3 minutes: 1 min
+
       let extractionPartial = false;
       const [domainInfo, rawClaimsResult, speakerIdentities] = await Promise.all([
         // v13.2: Graceful degradation — domain detection must NEVER crash the pipeline
@@ -143,7 +189,7 @@ export class CredibilityEngine {
           logger.error("[Credibility] Domain detection failed, using safe defaults", { jobId, error: err?.message });
           return { domain: "General", stance: "Mixed", cautionLevel: "medium" as const, isLaunchNews: false, primaryIntent: "educational", isSensitive: false };
         }),
-        // v13.2: Extraction with crash-proof fallback
+        // v19.0: Extraction with duration-scaled budget (was hardcoded 30s — caused 0-claim failures on medium videos)
         Promise.race([
           this.extractionService.extractClaims(jobId, transcript, 60_000, maxExtractionTarget)
             .then(claims => ({ claims, partial: false }))
@@ -153,9 +199,9 @@ export class CredibilityEngine {
             }),
           new Promise<{ claims: any[], partial: boolean }>(resolve => {
             setTimeout(() => {
-              logger.warn("[Credibility] Extraction reached 30s budget — returning partial results", { jobId });
+              logger.warn(`[Credibility] Extraction reached ${extractionBudgetMs / 1000}s budget — returning partial results`, { jobId, budgetMs: extractionBudgetMs });
               resolve({ claims: [], partial: true });
-            }, 30_000);
+            }, extractionBudgetMs);
           })
         ]),
         this.resolveSpeakerIdentities(jobId, jobDoc.data()?.channelId || "unknown", transcript, {}).catch(() => ({}))
@@ -215,14 +261,18 @@ export class CredibilityEngine {
         logger.warn("[Credibility] No claims extracted from transcript", { jobId });
         // Proceed to synthesis/scoring with empty claims
       }
+      
+      // Load source trust registry from Firestore (with dynamic fallback)
+      await sourceTrustService.loadRegistry().catch(() => {});
 
       // 5. Cache lookup
       logger.info("[Credibility] Stage 4: Cache lookup", { jobId, traceId });
-      const { cached, uncached } = await this.cacheCheck(topClaims, jobId);
+      const { cached, stale, uncached } = await this.cacheCheck(topClaims, jobId, domainInfo.domain);
       cached.forEach(c => c.verificationMethod = 'cache_hit'); // v11.5
-      const hitRate = topClaims.length > 0 ? cached.length / topClaims.length : 0;
+      stale.forEach(c => c.verificationMethod = 'cache_hit');
+      const hitRate = topClaims.length > 0 ? (cached.length + stale.length) / topClaims.length : 0;
 
-      await this.trackAndAlertHitRate(jobId, cached.length, topClaims.length);
+      await this.trackAndAlertHitRate(jobId, cached.length + stale.length, topClaims.length);
 
       await EdgeLayer.updateStage(jobId, "credibility", { progress: 50 });
 
@@ -346,7 +396,9 @@ export class CredibilityEngine {
             verified = verificationResult.claims;
             batchStats = verificationResult.batchStats;
             await this.cacheWithTTL(verified);
+            recordSuccess();
           } catch (verErr) {
+            recordFailure();
             logger.error(`[Credibility] Verification pipeline threw — initiating Full Recovery Pass`, { jobId, error: (verErr as any)?.message });
             try {
               verified = await this.verificationService.verifyBatchWithFastKnowledge(factual, jobId);
@@ -361,10 +413,19 @@ export class CredibilityEngine {
         return verified;
       })();
 
-      // 9. Merge cached + newly verified + labeled opinions (v5.0)
+      // 9. Merge cached + stale + newly verified + labeled opinions (v5.0)
       const newlyVerified = await verificationPromise;
       const tVerificationEnd = Date.now();
-      let allVerified = [...cached, ...registryHits, ...newlyVerified, ...labeledOpinions];
+      let allVerified = [...cached, ...stale, ...registryHits, ...newlyVerified, ...labeledOpinions];
+
+      // Trigger SWR background refresh for stale claims if breaker is healthy
+      if (stale.length > 0) {
+        if (isBreakerTripped()) {
+          logger.warn("[SWR] Circuit breaker is tripped. Serving stale cache and skipping background refresh.", { jobId, count: stale.length });
+        } else {
+          await this.enqueueBackgroundRefresh(jobId, stale, domainInfo.domain);
+        }
+      }
 
       // v14.0: Final Recovery Sweep — catch ANY remaining verification_timeout claims
       const stillTimedOut = allVerified.filter(c =>
@@ -686,6 +747,21 @@ export class CredibilityEngine {
           synthesis:    tFinal - tConsistencyEnd,
           total:        tFinal - t0,
         },
+        processingMetadata: {
+          verificationPipeline: {
+            verifiedBy: deepResearchActive ? "Gemini 2.5 Pro" : "Gemini 2.5 Flash",
+            grounded: deepResearchActive || executionPlan.priorityMode === "accuracy",
+            groundingProvider: "Google Search",
+            embeddingModel: "text-embedding-005",
+            cacheVersion: {
+              embedding: 2,
+              verification: 5,
+              citation: 1
+            },
+            verifiedAt: new Date().toISOString(),
+            cacheGeneratedAt: new Date().toISOString()
+          }
+        }
       };
 
       // v5.0: Sync conclusion label with honest verdict when no evaluation occurred
@@ -831,14 +907,15 @@ export class CredibilityEngine {
 
   private async cacheCheck(
     claims: ExtractedClaim[],
-    jobId:  string
-  ): Promise<{ cached: VerifiedClaim[]; uncached: ExtractedClaim[] }> {
+    jobId:  string,
+    domainContext?: string
+  ): Promise<{ cached: VerifiedClaim[]; stale: VerifiedClaim[]; uncached: ExtractedClaim[] }> {
     try {
-      return await this.performanceLayer.checkClaimCache(claims);
+      return await this.performanceLayer.checkClaimCache(claims, domainContext);
     } catch (err) {
       logger.error("[Credibility] Cache lookup failed", { jobId, err });
       await alerting.notify("redis-read-failure", { jobId, context: "checkClaimCache" });
-      return { cached: [], uncached: claims };
+      return { cached: [], stale: [], uncached: claims };
     }
   }
 
@@ -995,14 +1072,9 @@ export class CredibilityEngine {
     userId: string,
     result: CredibilityResult
   ): Promise<void> {
-    const resultPath = `factChecks/${jobId}/full.json`;
+    const { path: latestPath } = await this.analysisRepository.saveAnalysis(jobId, "factChecks", result);
     const bucket = admin.storage().bucket();
-    await bucket.file(resultPath).save(
-      JSON.stringify(result),
-      { metadata: { contentType: "application/json" } }
-    );
-
-    const factCheckUrl = `gs://${bucket.name}/${resultPath}`;
+    const factCheckUrl = `gs://${bucket.name}/${latestPath}`;
 
     const finalTrustScore = (result.trustScore === null || isNaN(result.trustScore as any)) ? 0 : result.trustScore as number;
     const finalVideoRating = result.videoRating ?? (isNaN(finalTrustScore) ? 0 : Number((finalTrustScore / 10).toFixed(1)));
@@ -1015,22 +1087,16 @@ export class CredibilityEngine {
       updatedAt: Date.now(),
     });
 
-    // Write lightweight summary document to factChecks collection to trigger channel reputation sync and support governance
-    await db().collection("factChecks").doc(jobId).set({
-      jobId,
-      userId,
-      trustScore: finalTrustScore,
-      videoRating: isNaN(finalVideoRating) ? 0 : finalVideoRating,
-      trustLabel: result.trustLabel || "Low Reliability",
-      claimSummary: result.claims?.map(c => ({ claim: c.claim, status: c.status, severity: c.severity || "low" })) || [],
-      fullResultPath: resultPath,
-      factCheckUrl: factCheckUrl,
-      isAppealed: false,
-      appealStatus: 'none',
-      status: 'completed',
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
+    // Skip Firestore factChecks write to comply with storage-only verification results policy
+    logger.info("[Credibility] Skipped Firestore factChecks write, result saved to Storage only", { jobId });
+
+    // Directly update channel reputation and propagate to linked videos
+    try {
+      const { updateChannelReputationAndVideos } = await import("../../channels/reputation_triggers.js");
+      await updateChannelReputationAndVideos(jobId, isNaN(finalVideoRating) ? 0 : finalVideoRating);
+    } catch (err) {
+      logger.error("[Credibility] Failed to propagate reputation updates", { jobId, err });
+    }
 
     // Note: Propagation to video collection is now handled centrally by AggregationLayer.onStageComplete
     // which is called immediately after this method returns in runCredibilityPipeline.
@@ -1079,5 +1145,153 @@ export class CredibilityEngine {
       priors[id] = await this.speakerReputation.getReputation(id);
     }
     return priors;
+  }
+
+  private async enqueueBackgroundRefresh(
+    jobId: string,
+    staleClaims: VerifiedClaim[],
+    domain: string
+  ): Promise<void> {
+    const claimIdsToRefresh: string[] = [];
+    const cacheKeysToRefresh: string[] = [];
+
+    // Bypassed lock acquisition: SWR locks disabled as Firestore fact-checking caching is removed.
+    for (const claim of staleClaims) {
+      const claimHash = this.performanceLayer["hashClaim"](claim.text);
+      claimIdsToRefresh.push(claim.claimId || claimHash);
+      cacheKeysToRefresh.push(claimHash);
+    }
+
+    if (claimIdsToRefresh.length === 0) {
+      logger.info("[SWR] All stale claims already locked for refresh. Skipping enqueue.", { jobId });
+      return;
+    }
+
+    const queueName = this.getQueueNameForDomain(domain);
+    const payload = {
+      jobId,
+      claimIds: claimIdsToRefresh,
+      cacheKeys: cacheKeysToRefresh,
+      domainContext: domain
+    };
+
+    try {
+      const { getFunctions } = await import("firebase-admin/functions");
+      const queue = getFunctions().taskQueue(queueName);
+      await queue.enqueue(payload);
+      logger.info(`[SWR] Enqueued background refresh to queue ${queueName}`, { jobId, payload });
+      logger.info(`[TELEMETRY] SWR Enqueued: queue=${queueName}, claimCount=${claimIdsToRefresh.length}`);
+    } catch (err) {
+      logger.error("[SWR] Failed to enqueue background refresh task", { jobId, queueName, err });
+    }
+  }
+
+  private getQueueNameForDomain(domain: string): string {
+    const dom = domain.toLowerCase();
+    if (dom.includes("breaking") || dom.includes("election") || dom.includes("disaster") || dom.includes("politics")) {
+      return "refreshHighQueue";
+    }
+    if (dom.includes("finance") || dom.includes("medical") || dom.includes("health") || dom.includes("economic")) {
+      return "refreshMediumQueue";
+    }
+    if (dom.includes("science") || dom.includes("history") || dom.includes("educational")) {
+      return "refreshLowQueue";
+    }
+    return "refreshBackgroundQueue";
+  }
+
+  /**
+   * Background task handler to refresh stale claim and citation caches.
+   */
+  async refreshCacheForClaims(payload: {
+    jobId: string;
+    claimIds: string[];
+    cacheKeys: string[];
+    domainContext: string;
+  }): Promise<void> {
+    const { jobId, claimIds, cacheKeys, domainContext } = payload;
+    logger.info("[SWR Worker] Starting background cache refresh", { jobId, claimIds, cacheKeys, domainContext });
+    logger.info(`[TELEMETRY] SWR Refresh Started: count=${claimIds.length}`);
+
+    // Load full claims from video_jobs/transcripts since we only enqueued IDs
+    const claimsToVerify: FilteredClaim[] = [];
+    try {
+      const transcriptDoc = await db().collection("transcripts").doc(jobId).get();
+      if (transcriptDoc.exists) {
+        const claimsList = transcriptDoc.data()?.claims || [];
+        for (const claim of claimsList) {
+          const claimHash = this.performanceLayer["hashClaim"](claim.text);
+          if (cacheKeys.includes(claimHash)) {
+            claimsToVerify.push({
+              ...claim,
+              claimId: claim.claimId || claimHash
+            });
+          }
+        }
+      }
+      
+      if (claimsToVerify.length < cacheKeys.length) {
+        const jobDoc = await db().collection("video_jobs").doc(jobId).get();
+        if (jobDoc.exists) {
+          const claimsList = jobDoc.data()?.claims || [];
+          for (const claim of claimsList) {
+            const claimHash = this.performanceLayer["hashClaim"](claim.text);
+            const alreadyAdded = claimsToVerify.some(c => this.performanceLayer["hashClaim"](c.text) === claimHash);
+            if (cacheKeys.includes(claimHash) && !alreadyAdded) {
+              claimsToVerify.push({
+                ...claim,
+                claimId: claim.claimId || claimHash
+              });
+            }
+          }
+        }
+      }
+    } catch (err) {
+      logger.error("[SWR Worker] Failed to load claims from Firestore", { jobId, err });
+      return;
+    }
+
+    if (claimsToVerify.length === 0) {
+      logger.warn("[SWR Worker] No matching claims found in job/transcript for refresh", { jobId, cacheKeys });
+      return;
+    }
+
+    logger.info(`[SWR Worker] Resolved ${claimsToVerify.length} claims to re-verify`, { jobId });
+
+    try {
+      const isSensitiveTopic = ["health", "politics", "finance"].some(t => domainContext.toLowerCase().includes(t));
+      const deepResearchOptions = {
+        jobId: jobId,
+        groundingMode: isSensitiveTopic ? "always" as const : "sensitive_only" as const,
+        forcePro: false,
+        minSourcesRequired: 2,
+        sourceDiversityRequired: true,
+        isDiscoverySensitive: isSensitiveTopic
+      };
+
+      const verificationResult = await this.verificationService.verifyClaims(
+        claimsToVerify,
+        claimsToVerify.length,
+        1,
+        domainContext,
+        deepResearchOptions
+      );
+
+      for (const claim of verificationResult.claims) {
+        const category = this.categoriseClaim(claim.text);
+        const ttl = CLAIM_TTL[category] ?? CLAIM_TTL.default;
+        await this.performanceLayer.cacheVerifiedClaim(claim, ttl);
+        
+        const claimHash = this.performanceLayer["hashClaim"](claim.text);
+        await db().collection("refresh_locks").doc(claimHash).delete().catch(() => {});
+      }
+
+      logger.info("[SWR Worker] Successfully completed background cache refresh", { jobId, count: verificationResult.claims.length });
+      logger.info(`[TELEMETRY] SWR Refresh Completed: count=${verificationResult.claims.length}`);
+      recordSuccess();
+    } catch (err) {
+      logger.error("[SWR Worker] Verification failed during cache refresh", { jobId, err });
+      recordFailure();
+    }
   }
 }

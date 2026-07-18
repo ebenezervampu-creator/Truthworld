@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -464,8 +463,6 @@ class ChannelScreen extends StatelessWidget {
           );
         }),
         const SizedBox(height: 24),
-        _buildCategoryMultiSelect(controller, isDarkMode),
-        const SizedBox(height: 24),
         _buildModernTextField(
           controller: controller.description,
           labelText: "Description",
@@ -514,6 +511,76 @@ class ChannelScreen extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _buildBannerPicker(controller, isDarkMode),
+        Obx(() {
+          if (controller.bannerStatus.value == "PENDING" &&
+              controller.bannerUrl.value.isNotEmpty) {
+            return Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Banner verification pending",
+                    style: GoogleFonts.roboto(
+                      color: const Color(0xFF3B82F6),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          } else if (controller.bannerStatus.value == "REJECTED") {
+            return Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_rounded, color: Color(0xFFEF4444), size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Banner rejected: ${controller.bannerStatusReason.value}",
+                      style: GoogleFonts.roboto(
+                        color: const Color(0xFFEF4444),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          } else if (controller.bannerStatus.value == "FLAGGED") {
+            return Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_rounded, color: Color(0xFFF59E0B), size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Banner review needed: ${controller.bannerStatusReason.value}",
+                      style: GoogleFonts.roboto(
+                        color: const Color(0xFFF59E0B),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+          return const SizedBox.shrink();
+        }),
         const SizedBox(height: 32),
         Text(
           "Channel Avatar (1:1)",
@@ -525,6 +592,76 @@ class ChannelScreen extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _buildAvatarPicker(controller, isDarkMode),
+        Obx(() {
+          if (controller.avatarStatus.value == "PENDING" &&
+              controller.avatarUrl.value.isNotEmpty) {
+            return Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Avatar verification pending",
+                    style: GoogleFonts.roboto(
+                      color: const Color(0xFF3B82F6),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          } else if (controller.avatarStatus.value == "REJECTED") {
+            return Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_rounded, color: Color(0xFFEF4444), size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Avatar rejected: ${controller.avatarStatusReason.value}",
+                      style: GoogleFonts.roboto(
+                        color: const Color(0xFFEF4444),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          } else if (controller.avatarStatus.value == "FLAGGED") {
+            return Padding(
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning_rounded, color: Color(0xFFF59E0B), size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Avatar review needed: ${controller.avatarStatusReason.value}",
+                      style: GoogleFonts.roboto(
+                        color: const Color(0xFFF59E0B),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+          return const SizedBox.shrink();
+        }),
       ],
     );
   }
@@ -1072,7 +1209,7 @@ class ChannelScreen extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      BackSymbol(color: isDarkMode
+                      Icon(Icons.arrow_back, color: isDarkMode
                             ? Colors.white
                             : const Color(0xFF2D3748),
                       ),
@@ -1194,8 +1331,7 @@ class ChannelScreen extends StatelessWidget {
       case 0: // Identity
         return controller.channelName.text.trim().length >= 3 &&
             controller.customUrl.text.trim().length >= ChannelController.minCustomUrlLength &&
-            controller.description.text.trim().isNotEmpty &&
-            controller.selectedCategories.isNotEmpty;
+            controller.description.text.trim().isNotEmpty;
 
       case 1: // Customization
         return true; // Optional
@@ -1237,8 +1373,7 @@ class ChannelScreen extends StatelessWidget {
       final canProceed =
           controller.channelName.text.trim().length >= 3 &&
           controller.customUrl.text.trim().length >= ChannelController.minCustomUrlLength &&
-          controller.description.text.trim().isNotEmpty &&
-          controller.selectedCategories.isNotEmpty;
+          controller.description.text.trim().isNotEmpty;
 
       if (!canProceed) return const SizedBox.shrink();
 

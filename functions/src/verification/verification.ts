@@ -38,10 +38,7 @@ import { onRequest }          from "firebase-functions/v2/https";
 import { onSchedule }         from "firebase-functions/v2/scheduler";
 import * as admin             from "firebase-admin";
 import * as logger            from "firebase-functions/logger";
-import { ImageAnnotatorClient } from "@google-cloud/vision";
-import { PubSub }               from "@google-cloud/pubsub";
 import * as crypto              from "crypto";
-import sharp                  from "sharp";
 import { requireAdmin } from "../utils/auth";
 
 if (!admin.apps.length) {
@@ -308,18 +305,24 @@ const CONCURRENCY_CONFIG = {
 // LAZY CLIENTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-let _visionClient: ImageAnnotatorClient | null = null;
-let _pubSubClient:  PubSub | null = null;
+let _visionClient: any = null;
+let _pubSubClient: any = null;
 
-function visionClient(): ImageAnnotatorClient {
+function visionClient(): any {
   const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT_ID || undefined;
-  if (!_visionClient) _visionClient = new ImageAnnotatorClient({ projectId });
+  if (!_visionClient) {
+    const { ImageAnnotatorClient } = require("@google-cloud/vision");
+    _visionClient = new ImageAnnotatorClient({ projectId });
+  }
   return _visionClient;
 }
 
-function pubSubClient(): PubSub {
+function pubSubClient(): any {
   const projectId = process.env.GCLOUD_PROJECT || process.env.GCP_PROJECT_ID || undefined;
-  if (!_pubSubClient) _pubSubClient = new PubSub({ projectId });
+  if (!_pubSubClient) {
+    const { PubSub } = require("@google-cloud/pubsub");
+    _pubSubClient = new PubSub({ projectId });
+  }
   return _pubSubClient;
 }
 
@@ -740,6 +743,7 @@ async function computePerceptualHash(bucket: GCSBucket, filePath: string): Promi
         .on("end", async () => {
           try {
             const buffer = Buffer.concat(chunks);
+            const sharp = require("sharp");
             const result = await sharp(buffer).greyscale().resize(8, 8, { fit: "fill", withoutEnlargement: true }).raw().toBuffer();
             resolve(result);
           } catch (err) { reject(err); }

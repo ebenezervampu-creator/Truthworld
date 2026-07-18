@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 
 // ==========================================================================
 // RESPONSIVE UTILITIES
@@ -129,13 +130,28 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
                             ),
                           ),
                         )
-                      : Text(
-                          'Downloads',
-                          style: GoogleFonts.roboto(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
+                      : Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.arrow_back, color: Colors.white),
+                              onPressed: () {
+                                if (widget.isDashboard) {
+                                  Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexLibrary;
+                                } else {
+                                  Get.back();
+                                }
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Downloads',
+                              style: GoogleFonts.roboto(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ],
                         ),
                 ),
                 Row(

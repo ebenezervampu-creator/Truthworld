@@ -759,9 +759,18 @@ class UploadControllerV2 extends GetxController {
     ).toMap();
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // FINAL VIDEO UPLOAD & PUBLISH
-  // ═══════════════════════════════════════════════════════════════════════════
+  List<String> _generateKeywords(String title) {
+    final cleanTitle = title.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '');
+    final words = cleanTitle.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+    final Set<String> keywords = {};
+    for (final word in words) {
+      keywords.add(word);
+      for (int i = 1; i <= word.length; i++) {
+        keywords.add(word.substring(0, i));
+      }
+    }
+    return keywords.toList();
+  }
 
   Future<void> publishVideo({
     required String title,
@@ -808,6 +817,7 @@ class UploadControllerV2 extends GetxController {
       final updateData = {
         'title': title.trim(),
         'description': description.trim(),
+        'keywords': _generateKeywords(title.trim()),
         'videoUrl': videoUrl.value,
         'thumbnailUrl': thumbnailUrl.value.isNotEmpty
             ? thumbnailUrl.value

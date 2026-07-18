@@ -57,7 +57,7 @@ class MainControls extends StatelessWidget {
           const Spacer(),
 
           // Centre controls — play / prev / next
-          RepaintBoundary(child: CenterRow(ctrl: ctrl)),
+          RepaintBoundary(child: CenterRow(ctrl: ctrl, maxControlsWidth: maxControlsWidth)),
 
           const Spacer(),
 
@@ -323,10 +323,16 @@ class PlayerTopBar extends StatelessWidget {
 // ── Centre row ────────────────────────────────────────────────────────────────
 class CenterRow extends StatelessWidget {
   final TowerPlayerController ctrl;
-  const CenterRow({super.key, required this.ctrl});
+  final double maxControlsWidth;
+  const CenterRow({super.key, required this.ctrl, required this.maxControlsWidth});
 
   @override
   Widget build(BuildContext context) {
+    final bool isMobile = maxControlsWidth < 600;
+    final double playSize = isMobile ? 48.0 : 68.0;
+    final double skipSize = isMobile ? 32.0 : 44.0;
+    final double spacing = isMobile ? 24.0 : 40.0;
+
     // Absorb taps so the outer player GestureDetector (togglePlayPause) doesn't fire
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -340,23 +346,25 @@ class CenterRow extends StatelessWidget {
               child: CenterBtn(
                 icon: Icons.skip_previous_rounded,
                 onTap: ctrl.hasPreviousVideo ? ctrl.playPrevious : null,
+                size: skipSize,
               ),
             ),
-            const SizedBox(width: 40),
+            SizedBox(width: spacing),
             CenterBtn(
               icon: ctrl.vv.isPlaying
                   ? Icons.pause_rounded
                   : Icons.play_arrow_rounded,
               onTap: ctrl.togglePlayPause,
-              size: 68,
+              size: playSize,
               isPrimary: true,
             ),
-            const SizedBox(width: 40),
+            SizedBox(width: spacing),
             Opacity(
               opacity: ctrl.hasNextVideo ? 1.0 : 0.3,
               child: CenterBtn(
                 icon: Icons.skip_next_rounded,
                 onTap: ctrl.hasNextVideo ? ctrl.playNext : null,
+                size: skipSize,
               ),
             ),
           ],
@@ -760,7 +768,7 @@ class TimeDisplay extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class IconBtn extends StatelessWidget {
-  final dynamic icon;
+  final IconData icon;
   final VoidCallback? onTap;
   final double size;
   const IconBtn({super.key, required this.icon, this.onTap, this.size = 26});
@@ -776,9 +784,7 @@ class IconBtn extends StatelessWidget {
         highlightColor: PT.primary.withValues(alpha: 0.1),
         child: Padding(
           padding: const EdgeInsets.all(8),
-          child: icon is Widget
-              ? icon as Widget
-              : Icon(icon as IconData, color: Colors.white, size: size),
+          child: Icon(icon, color: Colors.white, size: size),
         ),
       ),
     );

@@ -5,26 +5,13 @@ import { logger } from "firebase-functions/v2";
 const db = admin.firestore();
 
 /**
- * 📊 TRIGGER: ON FACT CHECK COMPLETED
- * Updates the channel's rolling reputation and manages Recovery Mode streaks.
+ * 📊 Update channel rolling reputation and propagate ratings to linked videos
  */
-export const onFactCheckCompleted = onDocumentCreated(
-  {
-    document: "factChecks/{jobId}",
-    region: "asia-south1",
-    maxInstances: 2,
-  },
-  async (event) => {
-  const data = event.data?.data();
-  if (!data || data.status === "failed") return;
-
-  const jobId = event.params.jobId;
-  const videoRating = data.videoRating ?? data.trustIndex ?? 0;
-  const trustIndex = videoRating; // legacy compatibility mapping
+export async function updateChannelReputationAndVideos(jobId: string, videoRating: number): Promise<void> {
+  const trustIndex = videoRating;
 
   try {
     // 1. Find the channel(s) associated with this video/job
-    // A job might be linked to multiple videos if it's a deduplicated upload
     const jobDoc = await db.collection("video_jobs").doc(jobId).get();
     const jobData = jobDoc.data();
     const channelId = jobData?.channelId;
@@ -56,7 +43,6 @@ export const onFactCheckCompleted = onDocumentCreated(
       const newAvg = (oldRating * (1 - alpha)) + (videoRating * alpha);
 
       // B. Update Recovery Streak
-      // Recovery condition: TI >= 9.0
       let recoveryStreak = reputation.recoveryStreak || 0;
       if (trustIndex >= 9.0) {
         recoveryStreak += 1;
@@ -68,16 +54,16 @@ export const onFactCheckCompleted = onDocumentCreated(
       const trend30d = newAvg - oldRating;
 
       tx.update(channelRef, {
-        "reputation.channelRating": parseFloat(newAvg.toFixed(2)), // v4.2 Public score
-        "reputation.avgTrustIndex": parseFloat(newAvg.toFixed(2)), // Legacy
+        "reputation.channelRating": parseFloat(newAvg.toFixed(2)),
+        "reputation.avgTrustIndex": parseFloat(newAvg.toFixed(2)),
         "reputation.totalVideos": totalVideos,
         "reputation.factCheckedVideos": (reputation.factCheckedVideos || 0) + 1,
         "reputation.videosThisMonth": (reputation.videosThisMonth || 0) + 1,
         "reputation.recoveryStreak": recoveryStreak,
         "reputation.trend30d": parseFloat(trend30d.toFixed(2)),
         "reputation.lastUpdatedAt": Date.now(),
-        "stats.channelRating": parseFloat(newAvg.toFixed(2)),      // v4.2 Public score
-        "stats.avgTrustIndex": parseFloat(newAvg.toFixed(2)),      // Legacy
+        "stats.channelRating": parseFloat(newAvg.toFixed(2)),
+        "stats.avgTrustIndex": parseFloat(newAvg.toFixed(2)),
         "updatedAt": admin.firestore.FieldValue.serverTimestamp(),
       });
 
@@ -101,4 +87,24 @@ export const onFactCheckCompleted = onDocumentCreated(
   } catch (err) {
     logger.error(`[Reputation] Error updating channel for job ${jobId}:`, err);
   }
-});
+}
+
+/**
+ * 📊 TRIGGER: ON FACT CHECK COMPLETED (Legacy Firestore listener fallback)
+ */
+export const onFactCheckCompleted = onDocumentCreated(
+  {
+    document: "factChecks/{jobId}",
+    region: "asia-south1",
+    maxInstances: 2,
+  },
+  async (event) => {
+    const data = event.data?.data();
+    if (!data || data.status === "failed") return;
+
+    const jobId = event.params.jobId;
+    const videoRating = data.videoRating ?? data.trustIndex ?? 0;
+
+    await updateChannelReputationAndVideos(jobId, videoRating);
+  }
+);

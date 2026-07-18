@@ -7,8 +7,8 @@ import 'package:flutter/material.dart';
 class TWColors extends ThemeExtension<TWColors> {
   // ── Brand
   final Color brand;
-  final Color brandMuted;
   final Color brandContainer;
+  final Color brandVariant;
 
   // ── Text
   final Color textPrimary;
@@ -19,8 +19,11 @@ class TWColors extends ThemeExtension<TWColors> {
   // ── Surface / Background
   final Color background;
   final Color surface;
-  final Color surfaceElevated;
   final Color surfaceContainer;
+  final Color surfaceContainerHigh;
+  final Color surfaceContainerHighest;
+  final Color surfaceInput;
+  final Color appBarSurface;
   final Color divider;
 
   // ── Status
@@ -41,16 +44,19 @@ class TWColors extends ThemeExtension<TWColors> {
 
   const TWColors({
     required this.brand,
-    required this.brandMuted,
     required this.brandContainer,
+    required this.brandVariant,
     required this.textPrimary,
     required this.textSecondary,
     required this.textTertiary,
     required this.textDisabled,
     required this.background,
     required this.surface,
-    required this.surfaceElevated,
     required this.surfaceContainer,
+    required this.surfaceContainerHigh,
+    required this.surfaceContainerHighest,
+    required this.surfaceInput,
+    required this.appBarSurface,
     required this.divider,
     required this.success,
     required this.warning,
@@ -69,16 +75,19 @@ class TWColors extends ThemeExtension<TWColors> {
   @override
   ThemeExtension<TWColors> copyWith({
     Color? brand,
-    Color? brandMuted,
     Color? brandContainer,
+    Color? brandVariant,
     Color? textPrimary,
     Color? textSecondary,
     Color? textTertiary,
     Color? textDisabled,
     Color? background,
     Color? surface,
-    Color? surfaceElevated,
     Color? surfaceContainer,
+    Color? surfaceContainerHigh,
+    Color? surfaceContainerHighest,
+    Color? surfaceInput,
+    Color? appBarSurface,
     Color? divider,
     Color? success,
     Color? warning,
@@ -95,16 +104,19 @@ class TWColors extends ThemeExtension<TWColors> {
   }) {
     return TWColors(
       brand: brand ?? this.brand,
-      brandMuted: brandMuted ?? this.brandMuted,
       brandContainer: brandContainer ?? this.brandContainer,
+      brandVariant: brandVariant ?? this.brandVariant,
       textPrimary: textPrimary ?? this.textPrimary,
       textSecondary: textSecondary ?? this.textSecondary,
       textTertiary: textTertiary ?? this.textTertiary,
       textDisabled: textDisabled ?? this.textDisabled,
       background: background ?? this.background,
       surface: surface ?? this.surface,
-      surfaceElevated: surfaceElevated ?? this.surfaceElevated,
       surfaceContainer: surfaceContainer ?? this.surfaceContainer,
+      surfaceContainerHigh: surfaceContainerHigh ?? this.surfaceContainerHigh,
+      surfaceContainerHighest: surfaceContainerHighest ?? this.surfaceContainerHighest,
+      surfaceInput: surfaceInput ?? this.surfaceInput,
+      appBarSurface: appBarSurface ?? this.appBarSurface,
       divider: divider ?? this.divider,
       success: success ?? this.success,
       warning: warning ?? this.warning,
@@ -126,16 +138,19 @@ class TWColors extends ThemeExtension<TWColors> {
     if (other is! TWColors) return this;
     return TWColors(
       brand: Color.lerp(brand, other.brand, t)!,
-      brandMuted: Color.lerp(brandMuted, other.brandMuted, t)!,
       brandContainer: Color.lerp(brandContainer, other.brandContainer, t)!,
+      brandVariant: Color.lerp(brandVariant, other.brandVariant, t)!,
       textPrimary: Color.lerp(textPrimary, other.textPrimary, t)!,
       textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
       textTertiary: Color.lerp(textTertiary, other.textTertiary, t)!,
       textDisabled: Color.lerp(textDisabled, other.textDisabled, t)!,
       background: Color.lerp(background, other.background, t)!,
       surface: Color.lerp(surface, other.surface, t)!,
-      surfaceElevated: Color.lerp(surfaceElevated, other.surfaceElevated, t)!,
       surfaceContainer: Color.lerp(surfaceContainer, other.surfaceContainer, t)!,
+      surfaceContainerHigh: Color.lerp(surfaceContainerHigh, other.surfaceContainerHigh, t)!,
+      surfaceContainerHighest: Color.lerp(surfaceContainerHighest, other.surfaceContainerHighest, t)!,
+      surfaceInput: Color.lerp(surfaceInput, other.surfaceInput, t)!,
+      appBarSurface: Color.lerp(appBarSurface, other.appBarSurface, t)!,
       divider: Color.lerp(divider, other.divider, t)!,
       success: Color.lerp(success, other.success, t)!,
       warning: Color.lerp(warning, other.warning, t)!,

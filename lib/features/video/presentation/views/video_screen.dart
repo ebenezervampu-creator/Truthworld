@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 import 'package:chewie/chewie.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -80,9 +79,9 @@ class VideoScreen extends GetView<VideoController> {
           ),
           body: SafeArea(
             top: false,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final bool isDesktop = constraints.maxWidth > 1050;
+            child: ResponsiveBuilder(
+              builder: (context, device) {
+                final bool isDesktop = device.isDesktop || device.isLargeDesktop || device.isUltraWide;
                 return isDesktop
                     ? _buildDesktopLayout(context)
                     : _buildMobileLayout(context);
@@ -178,7 +177,7 @@ class VideoScreen extends GetView<VideoController> {
   // ==========================================================================
 
   PreferredSizeWidget _buildAppBar(BuildContext context) {
-    final bool isDesktop = MediaQuery.of(context).size.width > 1050;
+    final bool isDesktop = context.isDesktop || context.isLargeDesktop || context.isUltraWide;
     // Check if user came from home screen
     final previousRoute = Get.previousRoute;
     final isFromHome =
@@ -210,7 +209,7 @@ class VideoScreen extends GetView<VideoController> {
             color: AppColors.bgSurface.withValues(alpha: 0.7),
             shape: BoxShape.circle,
           ),
-          child: BackSymbol(size: 18, color: textPrimary),
+          child: Icon(Icons.arrow_back, size: 18, color: textPrimary),
         ),
         onPressed: () => Get.back(),
         tooltip: 'Back',
@@ -398,10 +397,48 @@ class VideoScreen extends GetView<VideoController> {
     // Normal mode - show video with aspect ratio. Always keep the video player
     // mounted in the widget tree so Chewie can transition to and from fullscreen smoothly.
     return SliverToBoxAdapter(
-      child: AspectRatio(
-        aspectRatio: 16 / 9,
-        child: Container(color: background, child: _buildVideoPlayer()),
-      ),
+      child: Obx(() {
+        final vpc = controller.videoPlayerController;
+        double ratio = controller.video.isShort ? 9 / 16 : 16 / 9;
+        if (vpc != null && vpc.value.isInitialized) {
+          ratio = vpc.value.aspectRatio;
+        }
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final mediaQuery = MediaQuery.of(context);
+            final screenHeight = mediaQuery.size.height;
+            final maxWidth = constraints.maxWidth;
+            
+            // Calculate height for this aspect ratio
+            double height = maxWidth / ratio;
+            
+            // Define max height constraints
+            // On desktop, cap to 65% of screen height.
+            // On mobile, cap to 55% of screen height to keep controls and comments visible.
+            final bool isDesktop = mediaQuery.size.width > 1050;
+            final double maxHeight = isDesktop 
+                ? screenHeight * 0.65 
+                : screenHeight * 0.55;
+            
+            double finalHeight = height;
+            double finalRatio = ratio;
+            
+            if (height > maxHeight) {
+              finalHeight = maxHeight;
+              finalRatio = maxWidth / finalHeight;
+            }
+            
+            return AspectRatio(
+              aspectRatio: finalRatio.isFinite && finalRatio > 0 ? finalRatio : 16 / 9,
+              child: Container(
+                color: Colors.black,
+                child: _buildVideoPlayer(),
+              ),
+            );
+          },
+        );
+      }),
     );
   }
 
@@ -693,38 +730,42 @@ class VideoScreen extends GetView<VideoController> {
                 color: Colors.black54,
                 child: Center(
                   child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.error_outline,
-                          color: Colors.white,
-                          size: 48,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          controller.errorMessage.value.isNotEmpty
-                              ? controller.errorMessage.value
-                              : 'This video is currently unavailable',
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.roboto(
+                    padding: const EdgeInsets.all(16.0),
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
                             color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
+                            size: 40,
                           ),
-                        ),
-                        const SizedBox(height: 20),
-                        ElevatedButton.icon(
-                          onPressed: () => controller.initializeVideoPlayer(),
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Retry'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.brand,
-                            foregroundColor: Colors.white,
+                          const SizedBox(height: 12),
+                          Text(
+                            controller.errorMessage.value.isNotEmpty
+                                ? controller.errorMessage.value
+                                : 'This video is currently unavailable',
+                            textAlign: TextAlign.center,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.roboto(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: () => controller.initializeVideoPlayer(),
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Retry'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.brand,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -934,7 +975,7 @@ class VideoScreen extends GetView<VideoController> {
                 children: [
                   if (currentStep.value == 2)
                     IconButton(
-                      icon: const BackSymbol(color: AppColors.textPrimary),
+                      icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
                       onPressed: () {
                         currentStep.value = 1;
                       },
@@ -2441,12 +2482,22 @@ class VideoScreen extends GetView<VideoController> {
                       videoId: controller.video.id,
                       onSubmit: (text, postAsChannel, channelId) async {
                         try {
+                          final authService = AuthService.to;
+                          final hasChannel = authService.hasChannel.value;
+                          final channel = authService.userChannel;
+
+                          final bool shouldPostAsChannel = postAsChannel || hasChannel;
+                          final String? targetChannelId = shouldPostAsChannel ? (channelId ?? channel?.id) : null;
+                          final String? targetChannelName = shouldPostAsChannel ? (channel?.handle.isNotEmpty == true ? channel?.handle : channel?.name) : null;
+                          final String? targetChannelAvatar = shouldPostAsChannel ? channel?.avatarUrl : null;
+                          final String targetUserAvatar = shouldPostAsChannel ? (channel?.avatarUrl ?? '') : (currentUser.photoURL ?? '');
+
                           await commentsController.submitComment(
                             text: text,
-                            channelId: postAsChannel ? channelId : null,
-                            channelName: postAsChannel ? 'Current Channel' : null,
-                            channelProfilePicUrl: null,
-                            userProfilePicUrl: currentUser.photoURL ?? '',
+                            channelId: targetChannelId,
+                            channelName: targetChannelName,
+                            channelProfilePicUrl: targetChannelAvatar,
+                            userProfilePicUrl: targetUserAvatar,
                           );
                           if (Get.context != null) {
                             Get.snackbar(
@@ -2691,10 +2742,22 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
       final tag = 'video_${widget.videoId}';
       final commentsController = Get.find<CommentsController>(tag: tag);
 
+      final authService = AuthService.to;
+      final hasChannel = authService.hasChannel.value;
+      final channel = authService.userChannel;
+
+      final String? targetChannelId = hasChannel ? channel?.id : null;
+      final String? targetChannelName = hasChannel ? (channel?.handle.isNotEmpty == true ? channel?.handle : channel?.name) : null;
+      final String? targetChannelAvatar = hasChannel ? channel?.avatarUrl : null;
+      final String targetUserAvatar = hasChannel ? (channel?.avatarUrl ?? '') : (user.photoURL ?? '');
+
       await commentsController.submitReply(
         commentId: commentId,
         text: text,
-        userProfilePicUrl: user.photoURL ?? '',
+        channelId: targetChannelId,
+        channelName: targetChannelName,
+        channelProfilePicUrl: targetChannelAvatar,
+        userProfilePicUrl: targetUserAvatar,
         commentAuthorId: widget.comment.userId,
       );
 
@@ -3139,14 +3202,7 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Padding(
-            padding: EdgeInsets.only(left: 52, top: 8),
-            child: SizedBox(
-              height: 20,
-              width: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          );
+          return const SizedBox.shrink();
         }
 
         final replies = snapshot.data ?? [];

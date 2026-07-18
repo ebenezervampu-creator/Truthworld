@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'dart:ui';
 import 'package:truthworld/features/topics/presentation/widgets/topic_card_widget.dart';
 
@@ -274,13 +274,17 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
                   )
                 : Row(
                     children: [
-                      if (!widget.isDashboard) ...[
-                        IconButton(
-                          icon: const BackSymbol(color: Colors.white),
-                          onPressed: () => Get.back(),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        onPressed: () {
+                          if (widget.isDashboard) {
+                            Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexLibrary;
+                          } else {
+                            Get.back();
+                          }
+                        },
+                      ),
+                      const SizedBox(width: 8),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [

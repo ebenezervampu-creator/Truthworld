@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 
@@ -8,6 +9,24 @@ class AuthGuard extends GetMiddleware {
   int? get priority => 9; // High priority to execute early
 
   final AuthService _authService = Get.find<AuthService>();
+
+  @override
+  RouteSettings? redirect(String? route) {
+    if (kIsWeb) {
+      final host = Uri.base.host.toLowerCase();
+      final uriStr = Uri.base.toString().toLowerCase();
+      final isStudio = host.startsWith('studio') ||
+          uriStr.contains('studio') ||
+          Uri.base.queryParameters.containsKey('studio');
+
+      if (isStudio) {
+        if (route == '/studio' || route == '/studio/auth' || route == '/dashboard' || (route != null && route.contains('studio/auth'))) {
+          return const RouteSettings(name: '/');
+        }
+      }
+    }
+    return null;
+  }
 
   /// List of routes that require authentication
   static const List<String> protectedRoutes = [

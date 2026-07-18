@@ -1,4 +1,4 @@
-// No logger needed here yet
+import * as admin from "firebase-admin";
 
 export type SourceTier = "A" | "B" | "C" | "D" | "E";
 
@@ -18,6 +18,11 @@ export interface SourceReputation {
  * blogs, social media, or general press.
  */
 export class SourceTrustService {
+  private dbRegistry: Record<string, SourceReputation> = {};
+  private dbPublishers: any[] = [];
+  private lastFetched = 0;
+  private FETCH_INTERVAL_MS = 600_000; // 10 minutes cache
+
   private static readonly TRUST_GRAPH: Record<string, SourceReputation> = {
     // Tier A: Global Institutional / Scientific Bodies
     "who.int": { domain: "who.int", tier: "A", reputationScore: 1.0, verticals: ["health"], isOfficial: true },
@@ -55,12 +60,159 @@ export class SourceTrustService {
     "guardian.com": { domain: "guardian.com", tier: "D", reputationScore: 0.85, verticals: ["news", "politics"], isOfficial: false },
   };
 
+  private static readonly PUBLISHERS = [
+    {
+      name: "WHO",
+      defaultTier: "A" as SourceTier,
+      domains: ["who.int", "who.org"],
+      socialHandles: [
+        "youtube.com/@who",
+        "youtube.com/c/worldhealthorganization",
+        "youtube.com/user/who",
+        "x.com/who",
+        "twitter.com/who"
+      ]
+    },
+    {
+      name: "NASA",
+      defaultTier: "A" as SourceTier,
+      domains: ["nasa.gov"],
+      socialHandles: [
+        "youtube.com/@nasa",
+        "youtube.com/nasatelevision",
+        "x.com/nasa",
+        "twitter.com/nasa"
+      ]
+    },
+    {
+      name: "CDC",
+      defaultTier: "A" as SourceTier,
+      domains: ["cdc.gov"],
+      socialHandles: [
+        "youtube.com/@cdc",
+        "youtube.com/user/cdcstreaminghealth",
+        "x.com/cdcgov",
+        "twitter.com/cdcgov"
+      ]
+    },
+    {
+      name: "NIH",
+      defaultTier: "A" as SourceTier,
+      domains: ["nih.gov"],
+      socialHandles: [
+        "youtube.com/@nih",
+        "x.com/nih",
+        "twitter.com/nih"
+      ]
+    },
+    {
+      name: "Stanford University",
+      defaultTier: "B" as SourceTier,
+      domains: ["stanford.edu"],
+      socialHandles: [
+        "youtube.com/@stanford",
+        "x.com/stanford",
+        "twitter.com/stanford"
+      ]
+    },
+    {
+      name: "Harvard University",
+      defaultTier: "B" as SourceTier,
+      domains: ["harvard.edu"],
+      socialHandles: [
+        "youtube.com/@harvard",
+        "x.com/harvard",
+        "twitter.com/harvard"
+      ]
+    },
+    {
+      name: "MIT",
+      defaultTier: "B" as SourceTier,
+      domains: ["mit.edu"],
+      socialHandles: [
+        "youtube.com/@mit",
+        "x.com/mit",
+        "twitter.com/mit"
+      ]
+    },
+    {
+      name: "Google",
+      defaultTier: "B" as SourceTier,
+      domains: ["google.com", "blog.google"],
+      socialHandles: [
+        "youtube.com/@google",
+        "x.com/google",
+        "twitter.com/google"
+      ]
+    },
+    {
+      name: "Apple",
+      defaultTier: "B" as SourceTier,
+      domains: ["apple.com"],
+      socialHandles: [
+        "youtube.com/@apple",
+        "x.com/apple",
+        "twitter.com/apple"
+      ]
+    }
+  ];
+
+  /**
+   * Dynamic Loader for Database-Backed Registry
+   */
+  async loadRegistry(): Promise<void> {
+    const now = Date.now();
+    if (now - this.lastFetched < this.FETCH_INTERVAL_MS) {
+      return;
+    }
+    try {
+      const snap = await admin.firestore().collection("source_registry").get();
+      if (!snap.empty) {
+        const newRegistry: Record<string, SourceReputation> = {};
+        const newPublishers: any[] = [];
+
+        snap.forEach(doc => {
+          const data = doc.data();
+          if (data.type === "reputation") {
+            newRegistry[doc.id] = {
+              domain: data.domain || doc.id,
+              tier: data.tier || "E",
+              reputationScore: data.reputationScore ?? 0.4,
+              verticals: data.verticals || [],
+              isOfficial: !!data.isOfficial
+            };
+          } else if (data.type === "publisher") {
+            newPublishers.push({
+              name: data.name || doc.id,
+              defaultTier: data.defaultTier || "E",
+              domains: data.domains || [],
+              socialHandles: data.socialHandles || []
+            });
+          }
+        });
+
+        if (Object.keys(newRegistry).length > 0) {
+          this.dbRegistry = newRegistry;
+        }
+        if (newPublishers.length > 0) {
+          this.dbPublishers = newPublishers;
+        }
+        this.lastFetched = now;
+        console.log(`[SourceTrustService] Loaded ${Object.keys(this.dbRegistry).length} trust domains from dynamic database registry`);
+      }
+    } catch (err) {
+      console.warn("[SourceTrustService] Failed to load source_registry from Firestore, falling back to static registry", err);
+    }
+  }
+
   /**
    * Resolves the reputation and tier of a source URL.
    */
   resolveSourceTrust(url: string, vertical?: string): SourceReputation {
     const domain = this.extractDomain(url).toLowerCase();
-    const rep = SourceTrustService.TRUST_GRAPH[domain];
+    
+    // Check dynamic registry first, fall back to static
+    const rep = this.dbRegistry[domain] || SourceTrustService.TRUST_GRAPH[domain];
 
     if (rep) {
       // Apply vertical boost if the source is an expert in this field
@@ -153,6 +305,48 @@ export class SourceTrustService {
   getTierWeight(tier: SourceTier): number {
     const weights = { "A": 1.0, "B": 0.85, "C": 0.7, "D": 0.5, "E": 0.3 };
     return weights[tier];
+  }
+
+  /**
+   * Resolves official publishers from URLs and handles UGC filtering.
+   */
+  resolvePublisher(url: string): { publisher?: string; tier?: SourceTier; isSecondary?: boolean; isRejectedUgc?: boolean } {
+    const urlLower = url.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "");
+    
+    // Check if UGC domain
+    const ugcDomains = ["youtube.com", "reddit.com", "x.com", "twitter.com"];
+    const isUgc = ugcDomains.some(d => urlLower.startsWith(d));
+
+    const allPublishers = [...this.dbPublishers, ...SourceTrustService.PUBLISHERS];
+
+    if (isUgc) {
+      // Find matching official social handle
+      for (const pub of allPublishers) {
+        for (const handle of pub.socialHandles) {
+          if (urlLower.startsWith(handle) || urlLower.includes("/" + handle.split("/")[1])) {
+            return {
+              publisher: pub.name,
+              tier: pub.defaultTier,
+              isSecondary: true
+            };
+          }
+        }
+      }
+      return { isRejectedUgc: true };
+    }
+
+    // Non-UGC: Find matching official domain
+    const domain = this.extractDomain(url).toLowerCase();
+    for (const pub of allPublishers) {
+      if (pub.domains.includes(domain)) {
+        return {
+          publisher: pub.name,
+          tier: pub.defaultTier
+        };
+      }
+    }
+
+    return {};
   }
 }
 

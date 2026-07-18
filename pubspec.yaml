@@ -79,8 +79,7 @@ dependencies:
   path_provider: ^2.1.5
 
   # Auth & Search
-  algoliasearch: ^1.41.0
-  algolia_helper_flutter: ^1.5.0
+  speech_to_text: ^7.3.0
 
   # Charts & Visualization
   syncfusion_flutter_charts: ^33.2.4

@@ -17,54 +17,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.3.59"
-  algolia_client_core:
-    dependency: transitive
-    description:
-      name: algolia_client_core
-      sha256: "154b27bcef8839516cb87740973c47ac2ea4b92ee9a7ead97deceb3d41d63503"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.48.0"
-  algolia_client_insights:
-    dependency: transitive
-    description:
-      name: algolia_client_insights
-      sha256: "6689649ef3da8584638cf8208b4ae67bcdd33a6ce8f1e6e5328e758c5b3809ff"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.48.0"
-  algolia_client_search:
-    dependency: transitive
-    description:
-      name: algolia_client_search
-      sha256: e7f4d9cdb9e48d97ac8dcad0d93d9a4caa53d46c41dc66143b77bbacc6c3f45b
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.48.0"
-  algolia_helper_flutter:
-    dependency: "direct main"
-    description:
-      name: algolia_helper_flutter
-      sha256: "4add0a73f476bbac3204ae1ffbb5e66f73cdaf6ae6496038256d9c56d970a7d9"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.6.0"
-  algolia_insights:
-    dependency: transitive
-    description:
-      name: algolia_insights
-      sha256: "2d94aecfee207e8c0cb403ec9cdcf98baacdfa89054d5f2a26fbca87f358e0b4"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.4"
-  algoliasearch:
-    dependency: "direct main"
-    description:
-      name: algoliasearch
-      sha256: "18b3487da7bd1551e7f70ac0eaea4600cf423aed2b8435a9280ed2d7feafdd53"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.48.0"
   analyzer:
     dependency: transitive
     description:
@@ -377,22 +329,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "7.0.3"
-  dio:
-    dependency: transitive
-    description:
-      name: dio
-      sha256: aff32c08f92787a557dd5c0145ac91536481831a01b4648136373cddb0e64f8c
-      url: "https://pub.dev"
-    source: hosted
-    version: "5.9.2"
-  dio_web_adapter:
-    dependency: transitive
-    description:
-      name: dio_web_adapter
-      sha256: "2f9e64323a7c3c7ef69567d5c800424a11f8337b8b228bad02524c9fb3c1f340"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.1.2"
   email_validator:
     dependency: transitive
     description:
@@ -832,14 +768,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.3"
-  hive:
-    dependency: transitive
-    description:
-      name: hive
-      sha256: "8dcf6db979d7933da8217edcec84e9df1bdb4e4edc7fc77dbd5aa74356d6d941"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.2.3"
   hooks:
     dependency: transitive
     description:
@@ -1501,6 +1429,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.10.2"
+  speech_to_text:
+    dependency: "direct main"
+    description:
+      name: speech_to_text
+      sha256: "75587f7400f485fdf166beacd471549d98fe5d58e634f708916bb65dec05d6a4"
+      url: "https://pub.dev"
+    source: hosted
+    version: "7.4.0"
+  speech_to_text_platform_interface:
+    dependency: transitive
+    description:
+      name: speech_to_text_platform_interface
+      sha256: a7e16e02853853ed7534ac2bde9a1c4f39c8879970a7974ac6ff832d4bdaa4b0
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.4.0"
+  speech_to_text_windows:
+    dependency: transitive
+    description:
+      name: speech_to_text_windows
+      sha256: "2d1d10565b23262386b453b33656299608dc7a66784453735d6c1318f13f44d7"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.1"
   sqflite:
     dependency: transitive
     description:

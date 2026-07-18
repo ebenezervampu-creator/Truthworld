@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -41,12 +42,23 @@ class TopicController extends GetxController {
   final RxString errorMessage = ''.obs;
   final RxBool hasMoreVideos = true.obs;
 
+  /// Search & View state
+  final RxString searchQuery = ''.obs;
+  final RxBool isSearchVisible = false.obs;
+  final RxString selectedView = 'Grid'.obs; // 'Grid', 'List'
+
+  /// Active video filter tab
+  final RxString selectedTab = 'Trending'.obs;
+
+  /// User subscribed channel IDs
+  final RxList<String> subscribedChannelIds = <String>[].obs;
+
   /// Pagination
   DocumentSnapshot? _lastVideoDoc;
   static const int _videosPerPage = 12;
 
   /// Sorting options
-  final RxString sortBy = 'uploadedAt'.obs; // 'uploadedAt', 'views', 'rating'
+  final RxString sortBy = 'views'.obs; // Default to 'views' for 'Trending'
 
   // ==========================================================================
   // GETTERS
@@ -54,7 +66,96 @@ class TopicController extends GetxController {
 
   String get topicSlug => topic.value?.slug ?? '';
   String get topicTitle => topic.value?.title ?? 'Topic';
-  bool get isEmpty => videos.isEmpty && !isLoading.value;
+  bool get isEmpty => filteredVideos.isEmpty && !isLoading.value;
+
+  bool get hasFactCheckedVideos {
+    return videos.any((v) => v.factCheckUrl.isNotEmpty);
+  }
+
+  List<Video> get filteredVideos {
+    List<Video> list = List<Video>.from(videos);
+
+    // 1. Filter by search query if any
+    final query = searchQuery.value.trim().toLowerCase();
+    if (query.isNotEmpty) {
+      list = list.where((v) =>
+        v.title.toLowerCase().contains(query) ||
+        v.channelName.toLowerCase().contains(query)
+      ).toList();
+    }
+
+    // 2. Apply active tab filter
+    if (selectedTab.value == 'From Subscribed channels') {
+      list = list.where((v) => subscribedChannelIds.contains(v.channelId)).toList();
+    } else if (selectedTab.value == 'Fact checked') {
+      list = list.where((v) => v.factCheckUrl.isNotEmpty).toList();
+    }
+
+    return list;
+  }
+
+  List<Map<String, String>> get topicChannels {
+    final Map<String, Map<String, String>> channelMap = {};
+    for (var video in videos) {
+      if (video.channelId.isNotEmpty) {
+        channelMap[video.channelId] = {
+          'id': video.channelId,
+          'name': video.channelName,
+          'avatarUrl': video.channelAvatarUrl,
+        };
+      }
+    }
+    for (var video in featuredVideos) {
+      if (video.channelId.isNotEmpty) {
+        channelMap[video.channelId] = {
+          'id': video.channelId,
+          'name': video.channelName,
+          'avatarUrl': video.channelAvatarUrl,
+        };
+      }
+    }
+    return channelMap.values.toList();
+  }
+
+  void clearSearch() {
+    searchQuery.value = '';
+    isSearchVisible.value = false;
+  }
+
+  /// Change active tab and reload videos
+  void selectTab(String tab) {
+    if (selectedTab.value == tab) return;
+    selectedTab.value = tab;
+
+    // Reset scroll & state, and trigger loading
+    if (tab == 'Trending' || tab == 'Popular') {
+      sortBy.value = 'views';
+    } else {
+      sortBy.value = 'uploadedAt';
+    }
+    _loadVideos(reset: true);
+  }
+
+  /// Fetch user's subscribed channel IDs
+  Future<void> loadUserSubscriptions() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      subscribedChannelIds.clear();
+      return;
+    }
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('subscriptions')
+          .where('userId', isEqualTo: uid)
+          .get();
+      subscribedChannelIds.value = snapshot.docs
+          .map((doc) => doc.data()['channelId']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
+    } catch (e) {
+      debugPrint('Error loading user subscriptions in TopicController: $e');
+    }
+  }
 
   // ==========================================================================
   // INITIALIZATION
@@ -63,6 +164,7 @@ class TopicController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    loadUserSubscriptions();
     final args = Get.arguments;
     if (args != null && args is Map && args.containsKey('slug')) {
       loadTopic(args['slug'] as String);
@@ -176,7 +278,6 @@ class TopicController extends GetxController {
         final snapshot = await FirebaseFirestore.instance
             .collection('videos')
             .where('topics', arrayContains: topicSlug)
-            .where('visibility', isEqualTo: 'Public')
             .orderBy(sortBy.value, descending: true)
             .startAfter([newVideos.last.toMap()[sortBy.value]])
             .limit(1)

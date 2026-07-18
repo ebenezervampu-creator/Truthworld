@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -694,7 +693,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         child: Row(
                           children: [
                             IconButton(
-                              icon: const BackSymbol(color: Colors.white,
+                              icon: const Icon(Icons.arrow_back, color: Colors.white,
                               ),
                               onPressed: () {
                                 controller.selectedAdForSubtitles.value = null;
@@ -1344,7 +1343,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         child: Row(
                           children: [
                             IconButton(
-                              icon: const BackSymbol(color: Colors.white,
+                              icon: const Icon(Icons.arrow_back, color: Colors.white,
                               ),
                               onPressed: () {
                                 controller.selectedAdForAudio.value = null;
@@ -2456,7 +2455,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF0F0F0F),
         elevation: 0,
         leading: IconButton(
-          icon: const BackSymbol(color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Get.back(),
         ),
         actions: [

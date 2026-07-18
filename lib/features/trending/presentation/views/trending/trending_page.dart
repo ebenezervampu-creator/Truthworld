@@ -15,7 +15,8 @@ class TrendingVideosPage extends GetView<TrendingController> {
     Get.put(TrendingController());
     
     return ResponsiveBuilder(
-      builder: (context, deviceType) {
+      builder: (context, device) {
+        final deviceType = device.type;
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           appBar: !isDashboard ? _buildAppBar(context, deviceType) : null,

@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 import 'package:truthworld/features/notifications/data/services/user_notification_service.dart';
 
+import 'package:truthworld/core/services/auth_service.dart';
+
 class MentionsHelper {
   static final RegExp _mentionRegExp = RegExp(r'@([a-zA-Z0-9_-]+)');
 
@@ -30,8 +32,11 @@ class MentionsHelper {
 
     final currentUser = FirebaseAuth.instance.currentUser;
     final currentUserId = currentUser?.uid ?? '';
-    final currentUserName = currentUser?.displayName ?? 'Someone';
-    final currentUserAvatar = currentUser?.photoURL ?? '';
+    final rawName = currentUser?.displayName ?? 'Someone';
+    final currentUserName = rawName.startsWith('@') ? rawName.substring(1) : rawName;
+    final currentUserAvatar = (AuthService.to.hasChannel.value && AuthService.to.userChannel != null)
+        ? AuthService.to.userChannel!.avatarUrl
+        : (AuthService.to.hasChannel.value ? '' : (currentUser?.photoURL ?? ''));
 
     final notificationService = UserNotificationService();
 

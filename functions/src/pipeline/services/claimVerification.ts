@@ -14,6 +14,7 @@ import {
   SourceTier,
   VerifiedClaim,
   VerificationMethod,
+  EvidenceSummary,
 } from "../types";
 import { containsVerifiablePredicate } from "./contentIntentDetector";
 import { withAiRetry } from "../utils/ai-utils";
@@ -430,7 +431,8 @@ RETURN JSON:
         {
           "title": "Source Name",
           "url": "https://real-source-url.com/path",
-          "snippet": "Key evidence excerpt from this source"
+          "snippet": "Key evidence excerpt from this source",
+          "publishedAt": "YYYY-MM-DD or approx date if known"
         }
       ]
     }
@@ -566,7 +568,7 @@ RETURN JSON:
             };
           }
 
-          // v11.5: Determine verification method and evidence level
+          // v11.5: Determine verification method
           const hasRichSources = !!groundingSupports.length;
           const skippedGrounding = !enableGrounding;
           
@@ -574,25 +576,31 @@ RETURN JSON:
           if (hasRichSources) {
             verificationMethod = 'grounded';
           } else if (skippedGrounding) {
-            verificationMethod = 'deterministic'; // Verified via internal training data as a "known constant"
+            verificationMethod = 'deterministic';
           }
 
-          // v11.0: Claim-level source attribution via groundingSupports
-          // Each grounding support has a text segment + indices into groundingChunks.
-          // We match supports to this specific claim by checking text overlap.
           const claimRichSources: RichSource[] = [];
           const claimTextLower = claim.text.toLowerCase();
 
-          // v18.0: First, collect Gemini's inline per-claim sources (highest quality)
+          // v18.0: First, collect Gemini's inline per-claim sources
           if (verification.sources && Array.isArray(verification.sources)) {
             verification.sources.forEach((src: any) => {
               if (src.url && src.url.length > 5 && !src.url.startsWith('http://example')) {
-                claimRichSources.push({
-                  title: src.title || 'Reference Source',
-                  url: src.url,
-                  tier: this.getSourceTier(src.url, domainContext),
-                  snippet: src.snippet || '',
-                });
+                const validated = this.validateSource(src.url, src.title || '');
+                if (validated.isValid) {
+                  claimRichSources.push({
+                    title: src.title || 'Reference Source',
+                    url: src.url,
+                    domain: validated.domain,
+                    publisher: validated.publisher,
+                    type: validated.isSecondary ? 'secondary' : 'primary',
+                    tier: validated.tier || this.getSourceTier(src.url, domainContext),
+                    snippet: src.snippet || '',
+                    retrievalMethod: 'google_grounding',
+                    lastVerified: new Date().toISOString(),
+                    lastPublished: src.publishedAt
+                  });
+                }
               }
             });
           }
@@ -601,7 +609,6 @@ RETURN JSON:
           if (groundingSupports.length > 0) {
             groundingSupports.forEach((support: any) => {
               const supportText = (support.segment?.text || '').toLowerCase();
-              // Check if this grounding support is relevant to this claim
               const isRelevant = supportText.length > 10 && (
                 claimTextLower.includes(supportText.substring(0, Math.min(40, supportText.length))) ||
                 supportText.includes(claimTextLower.substring(0, Math.min(40, claimTextLower.length)))
@@ -610,12 +617,20 @@ RETURN JSON:
                 support.groundingChunkIndices.forEach((idx: number) => {
                   const chunk = groundingChunks[idx];
                   if (chunk?.web?.uri) {
-                    claimRichSources.push({
-                      title: chunk.web.title || "Reference Source",
-                      url: chunk.web.uri,
-                      tier: this.getSourceTierFromGroundingChunk(chunk, domainContext),
-                      snippet: support.segment?.text || '',
-                    });
+                    const validated = this.validateSource(chunk.web.uri, chunk.web.title || '');
+                    if (validated.isValid) {
+                      claimRichSources.push({
+                        title: chunk.web.title || "Reference Source",
+                        url: chunk.web.uri,
+                        domain: validated.domain,
+                        publisher: validated.publisher,
+                        type: validated.isSecondary ? 'secondary' : 'primary',
+                        tier: validated.tier || this.getSourceTierFromGroundingChunk(chunk, domainContext),
+                        snippet: support.segment?.text || '',
+                        retrievalMethod: 'google_grounding',
+                        lastVerified: new Date().toISOString()
+                      });
+                    }
                   }
                 });
               }
@@ -623,31 +638,58 @@ RETURN JSON:
           }
 
           // Fallback: if no claim-specific attribution found, use all grounding chunks
-          const richSources: RichSource[] = claimRichSources.length > 0
-            ? claimRichSources
-            : groundingChunks
-              .filter((chunk: any) => chunk.web?.uri)
-              .map((chunk: any) => ({
-                title: chunk.web.title || "Reference Source",
-                url: chunk.web.uri,
-                tier: this.getSourceTierFromGroundingChunk(chunk, domainContext),
-                snippet: "",
-              }));
+          let richSources: RichSource[] = claimRichSources;
+          if (richSources.length === 0) {
+            groundingChunks.forEach((chunk: any) => {
+              if (chunk.web?.uri) {
+                const validated = this.validateSource(chunk.web.uri, chunk.web.title || '');
+                if (validated.isValid) {
+                  richSources.push({
+                    title: chunk.web.title || "Reference Source",
+                    url: chunk.web.uri,
+                    domain: validated.domain,
+                    publisher: validated.publisher,
+                    type: validated.isSecondary ? 'secondary' : 'primary',
+                    tier: validated.tier || this.getSourceTierFromGroundingChunk(chunk, domainContext),
+                    snippet: "",
+                    retrievalMethod: 'google_grounding',
+                    lastVerified: new Date().toISOString()
+                  });
+                }
+              }
+            });
+          }
+
+          // Deduplicate by URL
+          const uniqueSources: RichSource[] = [];
+          const seenUrls = new Set<string>();
+          for (const s of richSources) {
+            const urlLower = s.url.toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "");
+            if (!seenUrls.has(urlLower)) {
+              seenUrls.add(urlLower);
+              uniqueSources.push(s);
+            }
+          }
+
+          // Apply domain diversity filtering if requested
+          const finalSources = options.sourceDiversityRequired
+            ? this.enforceSourceDiversity(uniqueSources)
+            : uniqueSources;
+
+          const isFactual = claim.nature === ClaimNature.VERIFIABLE_FACT;
+          const { level: computedEvLevel, status: evStatus, summary: evSummary } = isFactual
+            ? this.calculateEvidenceLevel(finalSources)
+            : { level: EvidenceLevel.NONE, status: 'complete' as const, summary: { independentPublishers: 0, tierA: 0, tierB: 0, secondarySources: 0 } };
 
           const status = this.mapLabelToStatus(verification.label);
 
-          // Apply source diversity enforcement (v10.5)
-          const rawSources = richSources.map(rs => ({ ...rs, tier: this.getSourceTier(rs.url, domainContext) }));
-          const diverseSources = this.enforceSourceDiversity(rawSources);
-
-          let evidenceLevel = verification.evidenceLevel as any;
+          // Apply source diversity enforcement if required
           let finalStatus = status;
           let publicNote = verification.publicNote;
 
-          if (options.sourceDiversityRequired && diverseSources.length < options.minSourcesRequired) {
-            evidenceLevel = "INSUFFICIENT";
+          if (isFactual && options.sourceDiversityRequired && evSummary.independentPublishers < options.minSourcesRequired) {
             finalStatus = 'inconclusive';
-            publicNote = `Only ${diverseSources.length} unique source(s) found. Minimum ${options.minSourcesRequired} required for verification.`;
+            publicNote = `Only ${evSummary.independentPublishers} unique source(s) found. Minimum ${options.minSourcesRequired} required for verification.`;
           }
 
           return {
@@ -655,15 +697,16 @@ RETURN JSON:
             status: finalStatus,
             verificationConfidence: verification.confidence,
             reasoning: verification.summary,
-            sources: verification.verifiedFacts,
-            richSources: diverseSources,
-            isGrounded: options.groundingMode === 'always' &&
-              diverseSources.some(s => s.tier === 'A' || s.tier === 'B' || s.tier === 'C') &&
-              diverseSources.length >= options.minSourcesRequired,
+            sources: finalSources.map(s => s.title),
+            richSources: finalSources,
+            sourceStatus: evStatus,
+            evidenceLevel: computedEvLevel,
+            evidenceSummary: evSummary,
+            isGrounded: evStatus === 'complete',
             trueAsOf: verification.freshness,
-            verificationMethod, // v11.5: deterministic | grounded | llm_training
+            verificationMethod,
+            evidenceSchemaVersion: "v1",
 
-            // v5.2: Live Grounding Engine Fields
             claimType: verification.claimType,
             rating: verification.rating,
             freshness: verification.freshness,
@@ -674,9 +717,11 @@ RETURN JSON:
             riskLevel: verification.riskLevel,
             publicNote: publicNote,
             recommendedAction: verification.recommendedAction,
-            evidenceLevel: evidenceLevel,
-            ontology: (verification.claimType as any) || claim.nature, // Use nature if claimType missing
-            freshnessScore: verification.rating / 10 // Map 0-10 rating to 0-1 score
+            ontology: (verification.claimType as any) || claim.nature,
+            freshnessScore: verification.rating / 10,
+            processingMetadata: {
+              recoveryMethod: verificationMethod === 'llm_training' ? 'llm_training' : undefined
+            }
           };
         });
       }, chain, { maxAttempts: maxAttemptsOverride ?? 1, instanceId, signal });
@@ -993,6 +1038,63 @@ RETURN JSON:
           claim.publicNote = 'Evidence Inconclusive';
         }
       }
+      // ── Citation Retrieval Retry Pass ──
+      const claimsNeedingCitations = allVerified.filter(
+        c => c.nature === ClaimNature.VERIFIABLE_FACT &&
+             c.sourceStatus === 'missing' &&
+             c.status !== 'verification_timeout'
+      );
+
+      if (claimsNeedingCitations.length > 0) {
+        logger.info(`[ClaimVerification] Found ${claimsNeedingCitations.length} claims needing citation retrieval retry`);
+        
+        const retrievedCitations = await this.retrieveCitationsForFailedClaims(
+          claimsNeedingCitations,
+          domainContext
+        );
+
+        for (const claim of allVerified) {
+          const citations = retrievedCitations.get(claim.claimId);
+          if (citations && citations.length > 0) {
+            const validatedList: RichSource[] = [];
+            citations.forEach(cit => {
+              const validated = this.validateSource(cit.url, cit.title || '');
+              if (validated.isValid) {
+                validatedList.push({
+                  ...cit,
+                  domain: validated.domain,
+                  publisher: validated.publisher,
+                  type: validated.isSecondary ? 'secondary' : 'primary',
+                  tier: validated.tier || cit.tier,
+                  retrievalMethod: 'google_grounding',
+                  lastVerified: new Date().toISOString()
+                });
+              }
+            });
+
+            if (validatedList.length > 0) {
+              const { level: computedEvLevel, status: evStatus, summary: evSummary } = this.calculateEvidenceLevel(validatedList);
+              claim.richSources = validatedList;
+              claim.sourceStatus = evStatus;
+              claim.evidenceLevel = computedEvLevel;
+              claim.evidenceSummary = evSummary;
+              claim.isGrounded = evStatus === 'complete';
+              logger.info(`[ClaimVerification] Successfully recovered ${validatedList.length} citations for claim ${claim.claimId}`);
+            }
+          }
+        }
+      }
+
+      for (const claim of allVerified) {
+        if (claim.nature === ClaimNature.VERIFIABLE_FACT && claim.sourceStatus === 'missing') {
+          claim.processingMetadata = {
+            ...(claim.processingMetadata || {}),
+            requiresCitationRetry: true
+          };
+        } else if (claim.processingMetadata) {
+          delete claim.processingMetadata.requiresCitationRetry;
+        }
+      }
     }
 
     let finalClaims = allVerified;
@@ -1214,13 +1316,230 @@ Return ONLY JSON.`;
           status: v ? this.mapLabelToStatus(v.status) : ("inconclusive" as ClaimStatus),
           verificationConfidence: v ? v.confidence : 0.4,
           reasoning: v ? `[RECOVERY PASS] ${v.reasoning}` : "Recovery pass failed to provide verdict.",
-          sources: ["Internal Knowledge Recovery"],
+          sources: [],
           richSources: [],
-          evidenceLevel: EvidenceLevel.WEAK,
+          sourceStatus: 'missing',
+          evidenceLevel: EvidenceLevel.NONE,
+          evidenceSchemaVersion: "v1",
           importance: c.importance || 0.5,
-          verificationMethod: 'llm_training'
-        };
+          verificationMethod: 'llm_training',
+          processingMetadata: {
+            recoveryMethod: 'llm_training',
+            requiresCitationRetry: true
+          }
+        } as any;
       });
     }, recoveryChain, { maxAttempts: 2, instanceId: "FastKnowledgeRecovery" });
+  }
+
+  validateSource(url: string, title: string): { isValid: boolean; isSecondary: boolean; publisher?: string; tier?: SourceTier; domain?: string } {
+    if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+      return { isValid: false, isSecondary: false };
+    }
+    
+    const urlLower = url.toLowerCase();
+    if (urlLower.includes('example.com') || urlLower.includes('localhost') || urlLower.includes('placeholder') || urlLower.includes('google.com/search') || urlLower.includes('bing.com/search')) {
+      return { isValid: false, isSecondary: false };
+    }
+
+    const pubInfo = sourceTrustService.resolvePublisher(url);
+    if (pubInfo.isRejectedUgc) {
+      return { isValid: false, isSecondary: false };
+    }
+
+    const domain = urlLower.replace(/^(https?:\/\/)?(www\.)?/, "").split("/")[0];
+
+    if (pubInfo.publisher) {
+      return {
+        isValid: true,
+        isSecondary: !!pubInfo.isSecondary,
+        publisher: pubInfo.publisher,
+        tier: pubInfo.tier,
+        domain
+      };
+    }
+
+    const rep = sourceTrustService.resolveSourceTrust(url);
+    if (rep.tier === 'E' && (domain.includes("blog") || domain.includes("wordpress") || domain.includes("tumblr"))) {
+      return { isValid: false, isSecondary: false };
+    }
+
+    return {
+      isValid: true,
+      isSecondary: false,
+      publisher: rep.domain,
+      tier: rep.tier,
+      domain
+    };
+  }
+
+  calculateEvidenceLevel(sources: RichSource[]): {
+    level: EvidenceLevel;
+    summary: EvidenceSummary;
+    status: 'complete' | 'partial' | 'missing';
+  } {
+    if (!sources || sources.length === 0) {
+      return {
+        level: EvidenceLevel.NONE,
+        status: 'missing',
+        summary: { independentPublishers: 0, tierA: 0, tierB: 0, secondarySources: 0 }
+      };
+    }
+
+    const uniquePublishers = new Map<string, RichSource>();
+    let secondarySourcesCount = 0;
+
+    for (const src of sources) {
+      const pubKey = (src.publisher || src.domain || src.url).toLowerCase();
+      
+      const isSec = src.url && (src.url.includes("youtube.com") || src.url.includes("reddit.com") || src.url.includes("x.com") || src.url.includes("twitter.com"));
+      if (isSec) {
+        secondarySourcesCount++;
+      }
+
+      const existing = uniquePublishers.get(pubKey);
+      if (!existing) {
+        uniquePublishers.set(pubKey, src);
+      } else {
+        const tierRank: Record<SourceTier, number> = { 'A': 5, 'B': 4, 'C': 3, 'D': 2, 'E': 1 };
+        if (tierRank[src.tier] > tierRank[existing.tier]) {
+          uniquePublishers.set(pubKey, src);
+        }
+      }
+    }
+
+    let tierACount = 0;
+    let tierBCount = 0;
+    let tierCCount = 0;
+    let tierDCount = 0;
+    let tierECount = 0;
+
+    for (const src of uniquePublishers.values()) {
+      if (src.tier === 'A') tierACount++;
+      else if (src.tier === 'B') tierBCount++;
+      else if (src.tier === 'C') tierCCount++;
+      else if (src.tier === 'D') tierDCount++;
+      else if (src.tier === 'E') tierECount++;
+    }
+
+    const independentPublishers = uniquePublishers.size;
+
+    let level: EvidenceLevel = EvidenceLevel.NONE;
+    let status: 'complete' | 'partial' | 'missing' = 'missing';
+
+    if (tierACount >= 1 && independentPublishers >= 3) {
+      level = EvidenceLevel.VERY_STRONG;
+      status = 'complete';
+    } else if ((tierACount >= 2) || (tierACount >= 1 && tierBCount >= 1) || (tierBCount >= 2)) {
+      level = EvidenceLevel.STRONG;
+      status = 'complete';
+    } else if (tierACount >= 1 || tierBCount >= 1 || (tierCCount + tierDCount) >= 2) {
+      level = EvidenceLevel.MODERATE;
+      status = 'partial';
+    } else if (independentPublishers > 0) {
+      level = EvidenceLevel.LIMITED;
+      status = 'partial';
+    }
+
+    return {
+      level,
+      status,
+      summary: {
+        independentPublishers,
+        tierA: tierACount,
+        tierB: tierBCount,
+        secondarySources: secondarySourcesCount
+      }
+    };
+  }
+
+  async retrieveCitationsForFailedClaims(
+    failedClaims: VerifiedClaim[],
+    domainContext: string,
+    signal?: AbortSignal
+  ): Promise<Map<string, RichSource[]>> {
+    if (failedClaims.length === 0) return new Map();
+
+    logger.info(`[ClaimVerification] Running Citation Retrieval Retry Pass for ${failedClaims.length} claims`);
+
+    const prompt = `ROLE: TruthWorld Citation Finder.
+OBJECTIVE: Find authoritative, high-quality sources/citations to verify the following claims.
+For each claim, use Google Search to find 2-3 real, verifiable URL sources (e.g. government, academic, or reputable news websites).
+
+Claims to Verify:
+${failedClaims.map(c => `[ID: ${c.claimId}] Claim: "${c.text}"`).join('\n')}
+
+Output JSON format:
+{
+  "citations": [
+    {
+      "claimId": "string",
+      "sources": [
+        {
+          "title": "Source Page Title",
+          "url": "https://example.com/actual-page",
+          "snippet": "Short supporting sentence from the page."
+        }
+      ]
+    }
+  ]
+}`;
+
+    const chain = {
+      primary: "gemini-2.5-flash",
+      fallback: null,
+      forcePrimary: true
+    };
+
+    const resultsMap = new Map<string, RichSource[]>();
+
+    try {
+      const response = await withAiRetry(async (modelId: string) => {
+        const activeModel = this.genAI.getGenerativeModel({
+          model: modelId,
+          tools: [{ googleSearch: {} } as any],
+          safetySettings: [
+            { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          ],
+        });
+
+        const res = await activeModel.generateContent(prompt);
+        const text = res.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) throw new Error("No JSON in citation finder response");
+
+        const parsed = JSON.parse(sanitizeJSON(jsonMatch[0]));
+
+        if (parsed.citations && Array.isArray(parsed.citations)) {
+          parsed.citations.forEach((cit: any) => {
+            const sourcesList: RichSource[] = [];
+            if (cit.sources && Array.isArray(cit.sources)) {
+              cit.sources.forEach((s: any) => {
+                if (s.url && s.url.length > 5 && !s.url.startsWith('http://example')) {
+                  sourcesList.push({
+                    title: s.title || "Reference Source",
+                    url: s.url,
+                    tier: this.getSourceTier(s.url, domainContext),
+                    snippet: s.snippet || "",
+                    retrievalMethod: 'google_grounding',
+                    lastVerified: new Date().toISOString()
+                  });
+                }
+              });
+            }
+            resultsMap.set(cit.claimId, sourcesList);
+          });
+        }
+        return resultsMap;
+      }, chain, { maxAttempts: 2, instanceId: "CitationRetrievalRetry", signal });
+
+      return response;
+    } catch (err) {
+      logger.error("[ClaimVerification] Citation Retrieval Retry Pass failed", { err });
+      return new Map();
+    }
   }
 }

@@ -1,7 +1,6 @@
 import * as admin from "firebase-admin";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { logger } from "firebase-functions/v2";
-import { VertexAI } from "@google-cloud/vertexai";
 
 const db = () => admin.firestore();
 
@@ -141,6 +140,7 @@ export const onTopicWritten = onDocumentWritten(
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       try {
+        const { VertexAI } = require("@google-cloud/vertexai");
         const genAI = new VertexAI({ project: "truthworld-1", location: "asia-south1" });
         const model = genAI.getGenerativeModel({
           model: "gemini-2.5-flash",

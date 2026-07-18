@@ -1,11 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:timeago/timeago.dart' as timeago;
+
 import 'package:truthworld/theme/app_theme.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/data/models/topic_categories.dart';
 import 'package:truthworld/features/topics/presentation/controllers/explore_topics_controller.dart';
-import 'package:truthworld/features/topics/presentation/widgets/topic_card_widget.dart';
+import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/topic_management_screen.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/components/ui/share_bottom_sheet.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/utils/format_utils.dart';
 
 class ExploreTopicsPage extends StatefulWidget {
   final bool isDashboard;
@@ -18,22 +28,40 @@ class ExploreTopicsPage extends StatefulWidget {
 class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   final ExploreTopicsController controller =
       Get.isRegistered<ExploreTopicsController>()
-      ? Get.find<ExploreTopicsController>()
-      : Get.put(ExploreTopicsController());
+          ? Get.find<ExploreTopicsController>()
+          : Get.put(ExploreTopicsController());
+
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
+  late PageController _pageController;
+  final RxInt _currentTopicIndex = 0.obs;
+  late Worker _topicsWorker;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(() {
-      if (_scrollController.position.pixels >=
-          _scrollController.position.maxScrollExtent - 400) {
-        controller.loadMoreTopics();
+    _pageController = PageController();
+
+    _pageController.addListener(() {
+      if (_pageController.hasClients) {
+        final page = _pageController.page ?? 0.0;
+        final int index = page.round();
+        if (_currentTopicIndex.value != index) {
+          _currentTopicIndex.value = index;
+        }
+        if (page >= controller.topics.length - 2) {
+          controller.loadMoreTopics();
+        }
       }
     });
 
-    // Synchronize text changes
+    _topicsWorker = ever(controller.topics, (_) {
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(0);
+        _currentTopicIndex.value = 0;
+      }
+    });
+
     _searchController.addListener(() {
       controller.updateSearchQuery(_searchController.text);
     });
@@ -41,275 +69,791 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
 
   @override
   void dispose() {
+    _topicsWorker.dispose();
     _scrollController.dispose();
     _searchController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final Size size = MediaQuery.of(context).size;
-    final bool isDesktop = size.width >= 1024;
-    final bool isTablet = size.width >= 600 && size.width < 1024;
+    return ResponsiveBuilder(
+      builder: (context, deviceType) {
+        final backgroundColor = AppColors.bgPage;
+        final textColor = AppColors.textPrimary;
 
-    return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      body: CustomScrollView(
-        controller: _scrollController,
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          // 1. App Bar
-          _buildSliverAppBar(isDesktop),
-
-          // 2. Search & Headers
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildExploreHeader(),
-                  const SizedBox(height: 16),
-                  _buildSearchBar(),
-                ],
-              ),
-            ),
-          ),
-
-          // 3. Categories Scroller (2-row horizontal picker)
-          SliverToBoxAdapter(child: _buildCategoriesScroller(isTablet)),
-
-          // 6. Topics Grid
-          Obx(() {
-            if (controller.isLoading.value && controller.topics.isEmpty) {
-              return SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                sliver: _buildShimmerGrid(isDesktop, isTablet),
-              );
-            }
-
-            if (controller.errorMessage.isNotEmpty &&
-                controller.topics.isEmpty) {
-              return SliverFillRemaining(
-                hasScrollBody: false,
-                child: _buildErrorState(),
-              );
-            }
-
-            if (controller.topics.isEmpty) {
-              return SliverFillRemaining(
-                hasScrollBody: false,
-                child: _buildEmptyState(),
-              );
-            }
-
-            return SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
-              sliver: _buildTopicsGrid(isDesktop, isTablet),
-            );
-          }),
-
-          Obx(() {
-            if (controller.isLoadingMore.value) {
-              final bool isMobile = !isDesktop && !isTablet;
-              final int crossAxisCount = isMobile ? 1 : 2;
-              final double childAspectRatio = isMobile ? 1.4 : (isTablet ? 1.6 : 1.8);
-              return SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
-                sliver: SliverGrid(
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: childAspectRatio,
+        return Scaffold(
+          backgroundColor: backgroundColor,
+          appBar: (context.isMobile && !widget.isDashboard)
+              ? AppBar(
+                  title: Text(
+                    'Explore Topics',
+                    style: GoogleFonts.roboto(
+                      color: textColor,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) => const _TopicShimmerWidget(),
-                    childCount: crossAxisCount,
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back, color: Colors.white),
+                    onPressed: () => Get.back(),
+                  ),
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                      onPressed: () => controller.initialFetch(),
+                    ),
+                    const SizedBox(width: 16),
+                  ],
+                )
+              : null,
+          body: Padding(
+            padding: EdgeInsets.all(context.layoutSpacing),
+            child: CustomScrollView(
+              controller: _scrollController,
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                if (!context.isMobile || widget.isDashboard)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      child: Row(
+                        children: [
+                          Text(
+                            'Explore Topics',
+                            style: GoogleFonts.roboto(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: textColor,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                            onPressed: () => controller.initialFetch(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // Search Bar
+                SliverToBoxAdapter(
+                  child: _buildSearchBar(),
+                ),
+
+                // Categories (Grid when 'all', selected header otherwise)
+                Obx(() => controller.selectedCategory.value.toLowerCase() == 'all'
+                    ? _buildCategoryGrid(context)
+                    : _buildSelectedCategoryHeader(context)),
+
+                // Filters Bar
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: _buildFilterBar(context),
                   ),
                 ),
-              );
-            }
-            return const SliverToBoxAdapter(child: SizedBox.shrink());
-          }),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildSliverAppBar(bool isDesktop) {
-    return SliverAppBar(
-      backgroundColor: AppColors.bgPage,
-      elevation: 0,
-      floating: true,
-      pinned: false,
-      snap: true,
-      leading: widget.isDashboard
-          ? null
-          : IconButton(
-              icon: const BackSymbol(color: Colors.white),
-              onPressed: () => Get.back(),
+                // Topics horizontal PageView (one-by-one) or states
+                Obx(() {
+                  if (controller.isLoading.value && controller.topics.isEmpty) {
+                    return SliverToBoxAdapter(
+                      child: Container(
+                        height: context.isMobile ? 360 : 540,
+                        alignment: Alignment.center,
+                        child: const _TopicPageViewShimmerWidget(),
+                      ),
+                    );
+                  }
+
+                  if (controller.errorMessage.isNotEmpty && controller.topics.isEmpty) {
+                    return SliverToBoxAdapter(
+                      child: Container(
+                        height: 300,
+                        alignment: Alignment.center,
+                        child: _buildErrorState(),
+                      ),
+                    );
+                  }
+
+                  if (controller.topics.isEmpty) {
+                    return SliverToBoxAdapter(
+                      child: Container(
+                        height: 300,
+                        alignment: Alignment.center,
+                        child: _buildEmptyState(),
+                      ),
+                    );
+                  }
+
+                  return SliverToBoxAdapter(
+                    child: _buildTopicsPageView(context),
+                  );
+                }),
+              ],
             ),
-      title: null,
-      actions: [
-        IconButton(
-          icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-          onPressed: () => controller.initialFetch(),
-        ),
-        const SizedBox(width: 16),
-      ],
-    );
-  }
-
-  Widget _buildExploreHeader() {
-    return Text(
-      'Explore Topics',
-      style: AppTextStyles.displaySmall.copyWith(
-        fontWeight: FontWeight.bold,
-      ),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildSearchBar() {
-    return Container(
-      height: 52,
-      decoration: BoxDecoration(
-        color: AppColors.bgSurface,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: AppColors.searchBorder, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
       child: TextField(
         controller: _searchController,
-        style: AppTextStyles.inputText.copyWith(color: AppColors.textPrimary),
+        style: const TextStyle(color: AppColors.textPrimary),
         decoration: InputDecoration(
-          hintText: 'Search dynamic topics...',
-          hintStyle: AppTextStyles.inputHint.copyWith(
-            color: AppColors.textTertiary,
-          ),
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          filled: false,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
-          prefixIcon: const Icon(
-            Icons.search_rounded,
-            color: AppColors.iconDefault,
-            size: 22,
-          ),
-          suffixIcon: Obx(() {
-            if (controller.searchQuery.value.isEmpty) {
-              return const SizedBox.shrink();
-            }
-            return IconButton(
-              icon: const Icon(
-                Icons.clear_rounded,
-                color: AppColors.iconDefault,
-                size: 20,
-              ),
-              onPressed: () {
-                _searchController.clear();
-                controller.clearSearch();
-              },
-            );
-          }),
+          hintText: 'Search topics by name...',
+          prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+          suffixIcon: Obx(() => controller.searchQuery.value.isNotEmpty
+              ? IconButton(
+                  icon: const Icon(Icons.clear, color: AppColors.textSecondary),
+                  onPressed: () {
+                    _searchController.clear();
+                    controller.clearSearch();
+                  },
+                )
+              : const SizedBox.shrink()),
         ),
       ),
     );
   }
 
-  Widget _buildCategoriesScroller(bool isTablet) {
-    final spacing = context.layoutSpacing;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: EdgeInsets.fromLTRB(spacing, 24, spacing, 8),
-          child: Row(
-            children: [
-              Icon(Icons.grid_view_rounded, color: AppColors.brand, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'Browse Categories',
-                style: AppTextStyles.titleMedium.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+  Widget _buildCategoryGrid(BuildContext context) {
+    final categories = TopicCategoriesConfig.categories.skip(1).toList();
+    return SliverGrid(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: context.isMobile ? 2 : (ResponsiveContext(context).isTablet ? 3 : 4),
+        childAspectRatio: 1.6,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          final category = categories[index];
+          return _buildCategoryCard(context, category);
+        },
+        childCount: categories.length,
+      ),
+    );
+  }
+
+  Widget _buildCategoryCard(BuildContext context, TopicCategory category) {
+    return InkWell(
+      onTap: () => controller.selectCategory(category.title),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          image: DecorationImage(
+            image: CachedNetworkImageProvider(category.imageUrl),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(
+              Colors.black.withValues(alpha: 0.45),
+              BlendMode.darken,
+            ),
+          ),
+        ),
+        alignment: Alignment.bottomLeft,
+        padding: const EdgeInsets.all(16),
+        child: Text(
+          category.title,
+          style: GoogleFonts.roboto(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            shadows: [
+              Shadow(
+                color: Colors.black.withValues(alpha: 0.8),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
         ),
-        Container(
-          height: 340,
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          child: GridView.builder(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(horizontal: spacing),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: spacing,
-              mainAxisSpacing: spacing,
-              childAspectRatio: 0.52,
+      ),
+    );
+  }
+
+  Widget _buildSelectedCategoryHeader(BuildContext context) {
+    return SliverToBoxAdapter(
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+            onPressed: () => controller.selectCategory('All'),
+          ),
+          Text(
+            controller.selectedCategory.value,
+            style: GoogleFonts.roboto(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
             ),
-            itemCount: TopicCategoriesConfig.categories.length,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterBar(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: ExploreMode.values.map((mode) {
+          return Obx(() {
+            final isSelected = controller.exploreMode.value == mode;
+            final label = mode.name.capitalizeFirst ?? mode.name;
+            return Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: ChoiceChip(
+                label: Text(label),
+                selected: isSelected,
+                onSelected: (selected) {
+                  if (selected) controller.setExploreMode(mode);
+                },
+                backgroundColor: AppColors.bgSurface,
+                selectedColor: AppColors.brand,
+                labelStyle: TextStyle(
+                  color: isSelected ? Colors.white : AppColors.textSecondary,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              ),
+            );
+          });
+        }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildTopicsPageView(BuildContext context) {
+    final bool isMobile = context.isMobile;
+    final double bannerHeight = isMobile ? 360 : 540;
+    final int itemsCount = controller.topics.length;
+    final int totalPages = itemsCount + (controller.isLoadingMore.value ? 1 : 0);
+
+    return Container(
+      height: bannerHeight,
+      margin: const EdgeInsets.symmetric(vertical: 16),
+      child: Stack(
+        children: [
+          PageView.builder(
+            controller: _pageController,
+            itemCount: totalPages,
             itemBuilder: (context, index) {
-              final category = TopicCategoriesConfig.categories[index];
-              return Obx(() {
-                final isSelected =
-                    controller.selectedCategory.value.toLowerCase() ==
-                    category.title.toLowerCase();
-                return _CategoryCardWidget(
-                  category: category,
-                  isSelected: isSelected,
-                  onTap: () => controller.selectCategory(category.title),
-                );
-              });
+              if (index == itemsCount) {
+                return const _TopicPageViewShimmerWidget();
+              }
+
+              final topic = controller.topics[index];
+              return AnimatedBuilder(
+                animation: _pageController,
+                builder: (context, child) {
+                  double pageOffset = 0.0;
+                  if (_pageController.hasClients) {
+                    try {
+                      pageOffset = _pageController.page! - index;
+                    } catch (_) {
+                      pageOffset = 0.0;
+                    }
+                  }
+
+                  // Awesome transition effects
+                  final double scale = (1 - (pageOffset.abs() * 0.12)).clamp(0.88, 1.0);
+                  final double opacity = (1 - (pageOffset.abs() * 0.4)).clamp(0.0, 1.0);
+
+                  return Opacity(
+                    opacity: opacity,
+                    child: Transform.scale(
+                      scale: scale,
+                      child: _buildTopicCardItem(context, topic, pageOffset),
+                    ),
+                  );
+                },
+              );
             },
           ),
+
+          // Navigation Buttons (Desktop only or large tablets)
+          if (!isMobile && itemsCount > 1) ...[
+            _buildNavButton(
+              isLeft: true,
+              onTap: () {
+                if (_pageController.hasClients) {
+                  _pageController.previousPage(
+                    duration: const Duration(milliseconds: 600),
+                    curve: Curves.easeInOutCubic,
+                  );
+                }
+              },
+            ),
+            _buildNavButton(
+              isLeft: false,
+              onTap: () {
+                if (_pageController.hasClients) {
+                  _pageController.nextPage(
+                    duration: const Duration(milliseconds: 600),
+                    curve: Curves.easeInOutCubic,
+                  );
+                }
+              },
+            ),
+          ],
+
+          // Page Indicators
+          if (itemsCount > 1)
+            Positioned(
+              bottom: 28,
+              left: 0,
+              right: 0,
+              child: Obx(() {
+                final currentIndex = _currentTopicIndex.value;
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(itemsCount, (index) {
+                    final bool isSelected = currentIndex == index;
+                    return AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: isSelected ? 32 : 8,
+                      height: 8,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: isSelected ? Colors.white : Colors.white38,
+                        borderRadius: BorderRadius.circular(4),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: Colors.white.withValues(alpha: 0.5),
+                                  blurRadius: 8,
+                                )
+                              ]
+                            : null,
+                      ),
+                    );
+                  }),
+                );
+              }),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavButton({required bool isLeft, required VoidCallback onTap}) {
+    return Positioned(
+      top: 0,
+      bottom: 0,
+      left: isLeft ? 24 : null,
+      right: isLeft ? null : 24,
+      child: Center(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(30),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.black.withValues(alpha: 0.5),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  width: 1,
+                ),
+              ),
+              child: Icon(
+                isLeft ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
+                color: Colors.white,
+                size: 32,
+              ),
+            ),
+          ),
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildTopicsGrid(bool isDesktop, bool isTablet) {
-    final bool isMobile = !isDesktop && !isTablet;
-    final int crossAxisCount = isMobile ? 1 : 2;
-    final double childAspectRatio = 16 / 9;
-    return SliverGrid(
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: childAspectRatio,
+  Widget _buildTopicCardItem(BuildContext context, Topic topic, double pageOffset) {
+    final bool isMobile = context.isMobile;
+    final followingController = Get.isRegistered<FollowingTopicsController>()
+        ? Get.find<FollowingTopicsController>()
+        : Get.put(FollowingTopicsController());
+
+    final bool isOwner = topic.channelId != null &&
+        Get.isRegistered<AuthService>() &&
+        AuthService.to.userChannel?.id == topic.channelId;
+
+    final String? bgUrl = (topic.coverImage != null && topic.coverImage!.isNotEmpty)
+        ? topic.coverImage
+        : (topic.thumbnailUrl != null && topic.thumbnailUrl!.isNotEmpty)
+            ? topic.thumbnailUrl
+            : null;
+
+    final double btnPaddingH = isMobile ? 12 : 20;
+    final double btnPaddingV = isMobile ? 8 : 12;
+    final double btnFontSize = isMobile ? 13 : 15;
+    final double btnIconSize = isMobile ? 16 : 18;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F0F0F),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.05),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
-      delegate: SliverChildBuilderDelegate((context, index) {
-        final topic = controller.topics[index];
-        return TopicCardWidget(topic: topic, isDashboard: widget.isDashboard);
-      }, childCount: controller.topics.length),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          // Background Image with Parallax
+          Positioned.fill(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: Transform.translate(
+                offset: Offset(pageOffset * 100, 0), // Parallax effect
+                child: bgUrl != null
+                    ? CachedNetworkImage(
+                        imageUrl: bgUrl,
+                        fit: BoxFit.cover,
+                        errorWidget: (context, url, error) => _buildGradientBackground(),
+                      )
+                    : _buildGradientBackground(),
+              ),
+            ),
+          ),
+
+          // Premium Gradient overlay
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: isMobile ? Alignment.topCenter : Alignment.centerRight,
+                  end: isMobile ? Alignment.bottomCenter : Alignment.centerLeft,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: isMobile ? 0.75 : 0.8),
+                    Colors.black.withValues(alpha: isMobile ? 0.95 : 1.0),
+                  ],
+                  stops: const [0.0, 0.6, 1.0],
+                ),
+              ),
+            ),
+          ),
+
+          // Main Click area for exploring the topic
+          Positioned.fill(
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  controller.preloadTopicDetails(topic);
+                  Get.toNamed(
+                    topic.topicRoute,
+                    arguments: {
+                      'slug': topic.slug,
+                      'fromCard': true,
+                      'topic': topic,
+                    },
+                  );
+                },
+                splashColor: Colors.white.withValues(alpha: 0.05),
+                highlightColor: Colors.white.withValues(alpha: 0.02),
+              ),
+            ),
+          ),
+
+          // Content Column
+          Positioned.fill(
+            child: Padding(
+              padding: EdgeInsets.all(isMobile ? 24.0 : 48.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  // TOPIC Badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF9333EA), // Purple accent
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.bookmark_outline_rounded,
+                          size: 14,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'TOPIC',
+                          style: GoogleFonts.roboto(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Title
+                  SizedBox(
+                    width: isMobile ? double.infinity : 700,
+                    child: Text(
+                      topic.title,
+                      style: GoogleFonts.roboto(
+                        fontSize: isMobile ? 24 : 48,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                        height: 1.15,
+                        letterSpacing: -0.5,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Meta Info
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      Text(
+                        '${FormatUtils.formatCount(topic.videoCount)} videos • ${timeago.format(topic.createdAt)}',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white10,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          topic.category,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  if (!isMobile) ...[
+                    const SizedBox(height: 16),
+                    // Description
+                    SizedBox(
+                      width: 550,
+                      child: Text(
+                        topic.description,
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 16,
+                          height: 1.5,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 32),
+
+                  // Buttons
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 8,
+                    children: [
+                      if (widget.isDashboard || isOwner) ...[
+                        // Edit Button for Owners/Dashboard
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            final topicManagementController =
+                                Get.isRegistered<TopicManagementController>()
+                                    ? Get.find<TopicManagementController>()
+                                    : Get.put(TopicManagementController());
+                            Get.dialog(
+                              EditTopicDialog(
+                                topic: topic,
+                                channelId: topic.channelId ?? '',
+                                isDarkMode: true,
+                                controller: topicManagementController,
+                              ),
+                            ).then((_) {
+                              controller.initialFetch();
+                            });
+                          },
+                          icon: Icon(
+                            Icons.edit_rounded,
+                            color: Colors.white,
+                            size: btnIconSize,
+                          ),
+                          label: Text(
+                            "Edit",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                              fontSize: btnFontSize,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFE11D48), // rose-600
+                            foregroundColor: Colors.white,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: btnPaddingH,
+                              vertical: btnPaddingV,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            elevation: 0,
+                          ),
+                        ),
+                      ] else ...[
+                        // Follow / Following Button
+                        Obx(() {
+                          final isFollowed = followingController.isTopicFollowed(topic.id);
+                          return ElevatedButton.icon(
+                            onPressed: () {
+                              followingController.toggleFollowTopic(topic);
+                            },
+                            icon: Icon(
+                              isFollowed
+                                  ? Icons.check_circle_outline_rounded
+                                  : Icons.person_add_alt_1_outlined,
+                              color: isFollowed ? Colors.white : Colors.black,
+                              size: btnIconSize,
+                            ),
+                            label: Text(
+                              isFollowed ? 'Following' : 'Follow',
+                              style: TextStyle(
+                                color: isFollowed ? Colors.white : Colors.black,
+                                fontWeight: FontWeight.w500,
+                                fontSize: btnFontSize,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isFollowed
+                                  ? Colors.white.withValues(alpha: 0.15)
+                                  : Colors.white,
+                              foregroundColor: isFollowed
+                                  ? Colors.white
+                                  : Colors.black,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: btnPaddingH,
+                                vertical: btnPaddingV,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                side: isFollowed
+                                    ? BorderSide(
+                                        color: Colors.white.withValues(alpha: 0.3),
+                                        width: 1,
+                                      )
+                                    : BorderSide.none,
+                              ),
+                              elevation: 0,
+                            ),
+                          );
+                        }),
+                      ],
+
+                      // Share Button
+                      ElevatedButton.icon(
+                        onPressed: () {
+                          final String slug = topic.slug;
+                          final String title = topic.title;
+                          final String? imageUrl = topic.coverImage ?? topic.thumbnailUrl;
+                          final topicUrl = DeepLinkService.topicUrl(slug);
+                          ShareBottomSheet.show(
+                            title: title,
+                            url: topicUrl,
+                            thumbnailUrl: imageUrl,
+                            followerCount: topic.followerCount,
+                            videoCount: topic.videoCount,
+                            handle: slug,
+                            type: 'topic',
+                          );
+                        },
+                        icon: Icon(
+                          Icons.share_rounded,
+                          color: Colors.white,
+                          size: btnIconSize,
+                        ),
+                        label: Text(
+                          'Share',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                            fontSize: btnFontSize,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white.withValues(alpha: 0.12),
+                          foregroundColor: Colors.white,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: btnPaddingH,
+                            vertical: btnPaddingV,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          elevation: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildShimmerGrid(bool isDesktop, bool isTablet) {
-    final bool isMobile = !isDesktop && !isTablet;
-    final int crossAxisCount = isMobile ? 1 : 2;
-    final double childAspectRatio = 16 / 9;
-    return SliverGrid(
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: childAspectRatio,
-      ),
-      delegate: SliverChildBuilderDelegate(
-        (context, index) => const _TopicShimmerWidget(),
-        childCount: 8,
+  Widget _buildGradientBackground() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppColors.brand.withValues(alpha: 0.3),
+            AppColors.brand.withValues(alpha: 0.15),
+            Colors.black,
+          ],
+        ),
       ),
     );
   }
@@ -330,16 +874,12 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
             Text(
               controller.errorMessage.value,
               textAlign: TextAlign.center,
-              style: AppTextStyles.bodyMedium.copyWith(color: Colors.white70),
+              style: const TextStyle(color: Colors.white70, fontSize: 14),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () => controller.initialFetch(),
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand),
-              child: Text(
-                'Try Again',
-                style: AppTextStyles.buttonText.copyWith(color: Colors.black),
-              ),
+              child: const Text('Try Again'),
             ),
           ],
         ),
@@ -363,15 +903,16 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
             isSearch
                 ? 'No topics match "${controller.searchQuery.value}"'
                 : 'No topics available under this Category',
-            style: AppTextStyles.titleMedium.copyWith(
+            style: GoogleFonts.roboto(
               color: Colors.white70,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'Try switching explore modes or explore different categories.',
-            style: AppTextStyles.bodySmall.copyWith(color: Colors.white38),
+            style: TextStyle(color: Colors.white38, fontSize: 13),
           ),
         ],
       ),
@@ -379,203 +920,82 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   }
 }
 
-
-class _CategoryCardWidget extends StatelessWidget {
-  final TopicCategory category;
-  final bool isSelected;
-  final VoidCallback onTap;
-
-  const _CategoryCardWidget({
-    required this.category,
-    required this.isSelected,
-    required this.onTap,
-  });
+class _TopicPageViewShimmerWidget extends StatelessWidget {
+  const _TopicPageViewShimmerWidget();
 
   @override
   Widget build(BuildContext context) {
-    return ObxValue<RxBool>(
-      (isHovered) => MouseRegion(
-        onEnter: (_) => isHovered.value = true,
-        onExit: (_) => isHovered.value = false,
-        child: GestureDetector(
-          onTap: onTap,
-          child: AnimatedScale(
-            scale: isHovered.value ? 1.03 : 1.0,
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOutCubic,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isSelected
-                      ? const Color(0xFF00E5FF)
-                      : (isHovered.value ? Colors.white38 : Colors.transparent),
-                  width: 2.5,
-                ),
-                boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                          color: const Color(0xFF00E5FF).withValues(alpha: 0.4),
-                          blurRadius: 12,
-                          spreadRadius: 1,
-                        ),
-                      ]
-                    : (isHovered.value
-                          ? [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.3),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ]
-                          : [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.15),
-                                blurRadius: 6,
-                                offset: const Offset(0, 2),
-                              ),
-                            ]),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Image.network(
-                    category.imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (ctx, err, stack) =>
-                        Container(color: AppColors.bgSurface),
-                  ),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.black.withValues(alpha: 0.15),
-                          Colors.black.withValues(alpha: 0.85),
-                        ],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    left: 16,
-                    bottom: 16,
-                    right: 16,
-                    child: Text(
-                      category.title,
-                      style: AppTextStyles.videoTitleMedium.copyWith(
-                        color: isSelected
-                            ? const Color(0xFF00E5FF)
-                            : Colors.white,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
-                        shadows: [
-                          Shadow(
-                            color: Colors.black.withValues(alpha: 0.8),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-      false.obs,
-    );
-  }
-}
-
-class _TopicShimmerWidget extends StatelessWidget {
-  const _TopicShimmerWidget();
-
-  @override
-  Widget build(BuildContext context) {
-    final Size size = MediaQuery.of(context).size;
-    final bool isMobile = size.width < 600;
-    final double padding = isMobile ? 12.0 : 16.0;
-    final double buttonHeight = isMobile ? 32.0 : 36.0;
-
+    final bool isMobile = MediaQuery.of(context).size.width < 600;
     return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
       decoration: BoxDecoration(
         color: const Color(0xFF0F0F0F),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Shimmer.fromColors(
-        baseColor: const Color(0xFF1F1F1F),
-        highlightColor: const Color(0xFF2F2F2F),
+        baseColor: const Color(0xFF161618),
+        highlightColor: const Color(0xFF28282C),
         child: Padding(
-          padding: EdgeInsets.all(padding),
+          padding: EdgeInsets.all(isMobile ? 24.0 : 48.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    width: isMobile ? 60 : 80,
-                    height: isMobile ? 16 : 20,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                  ),
-                  Container(
-                    width: isMobile ? 80 : 100,
-                    height: isMobile ? 16 : 20,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ],
+              Container(
+                width: 100,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
               const Spacer(),
               Container(
+                width: isMobile ? 200 : 400,
+                height: isMobile ? 28 : 40,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
                 width: 150,
-                height: isMobile ? 20 : 24,
-                color: Colors.white,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
-              SizedBox(height: isMobile ? 4 : 8),
-              Container(
-                width: 120,
-                height: isMobile ? 12 : 16,
-                color: Colors.white,
-              ),
-              SizedBox(height: isMobile ? 4 : 8),
-              Container(
-                width: 250,
-                height: isMobile ? 11 : 14,
-                color: Colors.white,
-              ),
-              SizedBox(height: isMobile ? 10 : 16),
+              if (!isMobile) ...[
+                const SizedBox(height: 16),
+                Container(
+                  width: 300,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
               Row(
                 children: [
-                  Expanded(
-                    child: Container(
-                      height: buttonHeight,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(18),
-                      ),
+                  Container(
+                    width: 100,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
                     ),
                   ),
-                  SizedBox(width: isMobile ? 6 : 8),
-                  Expanded(
-                    child: Container(
-                      height: buttonHeight,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(18),
-                      ),
+                  const SizedBox(width: 12),
+                  Container(
+                    width: 100,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
                     ),
                   ),
                 ],

@@ -12,6 +12,7 @@ import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/player_settings_panels.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 
 class CommentsOverlay extends StatelessWidget {
   final TowerPlayerController ctrl;
@@ -327,9 +328,22 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
       if (currentUser == null) {
         throw Exception('Please sign in to comment');
       }
+      final authService = AuthService.to;
+      final hasChannel = authService.hasChannel.value;
+      final channel = authService.userChannel;
+
+      final bool shouldPostAsChannel = hasChannel;
+      final String? targetChannelId = shouldPostAsChannel ? channel?.id : null;
+      final String? targetChannelName = shouldPostAsChannel ? (channel?.handle.isNotEmpty == true ? channel?.handle : channel?.name) : null;
+      final String? targetChannelAvatar = shouldPostAsChannel ? channel?.avatarUrl : null;
+      final String targetUserAvatar = shouldPostAsChannel ? (channel?.avatarUrl ?? '') : (currentUser.photoURL ?? '');
+
       await widget.commentsController.submitComment(
         text: text,
-        userProfilePicUrl: currentUser.photoURL ?? '',
+        channelId: targetChannelId,
+        channelName: targetChannelName,
+        channelProfilePicUrl: targetChannelAvatar,
+        userProfilePicUrl: targetUserAvatar,
       );
       _textCtrl.clear();
       _focusNode.unfocus();
@@ -360,83 +374,91 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.3),
-        border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-        ),
-      ),
-      child: Row(
-        children: [
-          ClipOval(
-            child:
-                currentUser.photoURL != null && currentUser.photoURL!.isNotEmpty
-                ? CachedNetworkImage(
-                    imageUrl: currentUser.photoURL!,
-                    width: 28,
-                    height: 28,
-                    fit: BoxFit.cover,
-                  )
-                : Container(
-                    width: 28,
-                    height: 28,
-                    color: Colors.grey[800],
-                    child: const Icon(
-                      Icons.person,
-                      size: 16,
-                      color: Colors.white,
-                    ),
-                  ),
+    return Obx(() {
+      final authService = AuthService.to;
+      final hasChannel = authService.hasChannel.value;
+      final channel = authService.userChannel;
+
+      final String? photoUrl = hasChannel ? channel?.avatarUrl : currentUser.photoURL;
+
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.3),
+          border: Border(
+            top: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: _textCtrl,
-              focusNode: _focusNode,
-              style: const TextStyle(color: Colors.white, fontSize: 13),
-              maxLines: null,
-              decoration: InputDecoration(
-                hintText: 'Add a comment...',
-                hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 6),
+        ),
+        child: Row(
+          children: [
+            ClipOval(
+              child:
+                  photoUrl != null && photoUrl.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: photoUrl,
+                      width: 28,
+                      height: 28,
+                      fit: BoxFit.cover,
+                    )
+                  : Container(
+                      width: 28,
+                      height: 28,
+                      color: Colors.grey[800],
+                      child: const Icon(
+                        Icons.person,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _textCtrl,
+                focusNode: _focusNode,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                maxLines: null,
+                decoration: InputDecoration(
+                  hintText: 'Add a comment...',
+                  hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                  border: InputBorder.none,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Obx(() {
-            if (_isSubmitting.value) {
-              return SizedBox(
-                width: 20,
-                height: 20,
-                child: Shimmer.fromColors(
-                  baseColor: PT.primary.withValues(alpha: 0.3),
-                  highlightColor: PT.primary,
-                  child: const Icon(
+            const SizedBox(width: 8),
+            Obx(() {
+              if (_isSubmitting.value) {
+                return SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: Shimmer.fromColors(
+                    baseColor: PT.primary.withValues(alpha: 0.3),
+                    highlightColor: PT.primary,
+                    child: const Icon(
+                      Icons.send_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                );
+              } else {
+                return IconButton(
+                  icon: const Icon(
                     Icons.send_rounded,
-                    color: Colors.white,
+                    color: PT.primary,
                     size: 20,
                   ),
-                ),
-              );
-            } else {
-              return IconButton(
-                icon: const Icon(
-                  Icons.send_rounded,
-                  color: PT.primary,
-                  size: 20,
-                ),
-                onPressed: _submit,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-              );
-            }
-          }),
-        ],
-      ),
-    );
+                  onPressed: _submit,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                );
+              }
+            }),
+          ],
+        ),
+      );
+    });
   }
 }

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart'; // For defaultTargetPlatform
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
@@ -86,7 +85,6 @@ class SearchController extends GetxController {
   final RxBool showSuggestions = false.obs;
   final RxString selectedFilter = 'All'.obs;
   final RxSet<String> watchedVideoIds = <String>{}.obs;
-
   /// Cache statistics (for debugging)
   final RxMap<String, dynamic> cacheStats = <String, dynamic>{}.obs;
 
@@ -96,40 +94,48 @@ class SearchController extends GetxController {
   final RxBool isLoadingMore = false.obs;
 
   // ══════════════════════════════════════════════════════════════
-  // PROBLEM 1 & 7: REQUEST CANCELLATION & MOBILE-ADAPTIVE DEBOUNCE
+  // REQUEST CANCELLATION & SNAPPY DEBOUNCE
   // ══════════════════════════════════════════════════════════════
 
-  /// Timer for debouncing user input (adaptive)
+  /// Timer for debouncing user input
   Timer? _debounceTimer;
 
-  /// Debounce duration (350ms is optimal, but adaptive for mobile)
-  late Duration debounceDelay;
+  /// Snappy 250ms debounce delay
+  final Duration debounceDelay = const Duration(milliseconds: 250);
 
   /// Request cancellation token
   bool _shouldCancelRequest = false;
 
+  /// Counter to prevent out-of-order async updates on search results
+  int _searchToken = 0;
+
+  /// Counter to prevent out-of-order async updates on suggestions
+  int _suggestionToken = 0;
+
+  /// Track the last executed search query to avoid duplicate requests
+  String _lastSearchQuery = '';
+
+  /// Track the last executed suggestion query to avoid duplicate requests
+  String _lastSuggestionQuery = '';
+
   /// ══════════════════════════════════════════════════════════════
-  /// PROBLEM 2: RATE LIMITING
+  /// RATE LIMITING
   /// ══════════════════════════════════════════════════════════════
 
   /// Maximum queries per minute to avoid API abuse
-  static const int maxQueriesPerMinute = 30;
+  static const int maxQueriesPerMinute = 35;
   int _queryCount = 0;
   DateTime _queryWindowStart = DateTime.now();
 
-  /// Cost tracking (for optimization)
-  final RxDouble estimatedMonthlyCost = 0.0.obs;
-  int _firestoreReadsCount = 0;
-
   // ══════════════════════════════════════════════════════════════
-  // PROBLEM 3: PERSISTENT DISK CACHE
+  // PERSISTENT DISK CACHE
   // ══════════════════════════════════════════════════════════════
 
   static const String _cacheStorageKey = 'search_cache_persistent';
   static const String _recentSearchesKey = 'search_recent_history';
 
   // ══════════════════════════════════════════════════════════════
-  // PROBLEM 4: PAGINATION
+  // PAGINATION
   // ══════════════════════════════════════════════════════════════
 
   /// Results per page
@@ -148,7 +154,6 @@ class SearchController extends GetxController {
 
   /// Initialize filters
   void _initializeFilters() {
-    // Placeholder for filter initialization
     debugPrint('🎯 [Search] Filters initialized');
   }
 
@@ -156,32 +161,10 @@ class SearchController extends GetxController {
   void onInit() {
     super.onInit();
     _initializeFilters();
-    _initializeAdaptiveDebounce();
     _loadPersistentCache();
     _loadRecentSearches();
     fetchTrendingSuggestions();
     _fetchWatchedVideoIds();
-  }
-
-  // ══════════════════════════════════════════════════════════════
-  // PROBLEM 7: MOBILE-ADAPTIVE DEBOUNCE
-  // ══════════════════════════════════════════════════════════════
-
-  /// Initialize adaptive debounce based on device
-  void _initializeAdaptiveDebounce() {
-    // Adaptive debounce for mobile vs desktop
-    final isMobile =
-        defaultTargetPlatform == TargetPlatform.android ||
-        defaultTargetPlatform == TargetPlatform.iOS;
-
-    debounceDelay = isMobile
-        ? Duration(milliseconds: 450) // Slower for mobile (less powerful)
-        : Duration(milliseconds: 350); // Faster for desktop
-
-    debugPrint(
-      '⏱️ [Search] Debounce set to ${debounceDelay.inMilliseconds}ms '
-      '(Platform: ${isMobile ? "mobile" : "desktop"})',
-    );
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -244,64 +227,20 @@ class SearchController extends GetxController {
   ///
   /// Returns: (isValid, sanitizedQuery, errorMessage)
   (bool, String, String) _validateQuery(String query) {
-    final trimmed = query.trim();
+    // Normalization & trimming
+    var trimmed = query.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+
+    // Cap query length if needed to avoid pathological searches
+    if (trimmed.length > maxSearchQueryLength) {
+      trimmed = trimmed.substring(0, maxSearchQueryLength);
+    }
 
     // Empty check
     if (trimmed.isEmpty) {
       return (false, '', 'Query cannot be empty');
     }
 
-    // Length validation
-    if (trimmed.length < minSearchQueryLength) {
-      return (
-        false,
-        '',
-        'Query must be at least $minSearchQueryLength character',
-      );
-    }
-
-    if (trimmed.length > maxSearchQueryLength) {
-      return (
-        false,
-        '',
-        'Query cannot exceed $maxSearchQueryLength characters',
-      );
-    }
-
-    // Sanitize: Remove special characters, extra spaces
-    final sanitized = trimmed
-        .replaceAll(RegExp(r"""[<>"']"""), '') // Remove quotes/brackets
-        .replaceAll(RegExp(r'\s+'), ' ') // Normalize spaces
-        .toLowerCase();
-
-    // Prevent SQL injection / NoSQL injection patterns
-    if (_hasInjectionPatterns(sanitized)) {
-      return (
-        false,
-        '',
-        'Invalid characters detected. Please use simple text only.',
-      );
-    }
-
-    return (true, sanitized, '');
-  }
-
-  /// Check for injection patterns
-  bool _hasInjectionPatterns(String query) {
-    final injectionPatterns = [
-      r"""[';"]""", // Quotes (SQL)
-      r'\$where', // MongoDB
-      r'\.constructor', // Prototype pollution
-      r'__proto__', // Prototype pollution
-      r'eval\(', // Code execution
-    ];
-
-    for (final pattern in injectionPatterns) {
-      if (RegExp(pattern).hasMatch(query)) {
-        return true;
-      }
-    }
-    return false;
+    return (true, trimmed, '');
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -332,18 +271,10 @@ class SearchController extends GetxController {
     return false;
   }
 
-  /// Track query for rate limiting & cost
+  /// Track query for rate limiting
   void _recordQuery() {
     _queryCount++;
-    _firestoreReadsCount++;
-
-    // Update cost estimate ($0.06 per 100K reads)
-    estimatedMonthlyCost.value = (_firestoreReadsCount * 0.06) / 100000;
-
-    debugPrint(
-      '💰 [Search] Query recorded ($_queryCount/min) | '
-      'Est. cost: \$${estimatedMonthlyCost.value.toStringAsFixed(4)}/month',
-    );
+    debugPrint('💰 [Search] Query recorded ($_queryCount/min)');
   }
 
   // ══════════════════════════════════════════════════════════════
@@ -471,126 +402,127 @@ class SearchController extends GetxController {
     final normalized = query.toLowerCase().trim();
     if (normalized.isEmpty) return;
 
+    // Check if we are querying the exact same input to avoid duplicate execution
+    if (normalized == _lastSuggestionQuery) {
+      return;
+    }
+    _lastSuggestionQuery = normalized;
+
+    // Stale async query token
+    _suggestionToken++;
+    final token = _suggestionToken;
+
+    final List<SearchSuggestion> newSuggestions = [];
+    final Set<String> seenIds = {};
+    final Set<String> seenTexts = {};
+
+    // 1. Add matching recent searches first
+    final recentMatches = recentSearches
+        .where((q) => q.toLowerCase().contains(normalized))
+        .take(3);
+    for (final text in recentMatches) {
+      final key = text.toLowerCase();
+      if (!seenTexts.contains(key)) {
+        seenTexts.add(key);
+        newSuggestions.add(SearchSuggestion(
+          text: text,
+          icon: Icons.history,
+        ));
+      }
+    }
+
+    // 2. Local fallback/addition from HomeController (0 database reads, instant suggestions)
     try {
-      final results = await Future.wait([
-        // 1. Fetch matching channels (Limit 2)
-        FirebaseFirestore.instance
-            .collection('channels')
-            .where('channelName', isGreaterThanOrEqualTo: normalized)
-            .where('channelName', isLessThanOrEqualTo: '$normalized\uf8ff')
-            .limit(2)
-            .get(),
-        // 2. Fetch matching videos (Limit 3)
-        FirebaseFirestore.instance
-            .collection('videos')
-            .where('title', isGreaterThanOrEqualTo: normalized)
-            .where('title', isLessThanOrEqualTo: '$normalized\uf8ff')
-            .where('status', isEqualTo: 'processed')
-            .limit(3)
-            .get(),
-        // 3. Fetch matching topics (Limit 2)
-        FirebaseFirestore.instance
-            .collection('topics')
-            .where('title', isGreaterThanOrEqualTo: normalized)
-            .where('title', isLessThanOrEqualTo: '$normalized\uf8ff')
-            .limit(2)
-            .get(),
-        // 4. Fetch matching playlists (Limit 2)
-        FirebaseFirestore.instance
-            .collection('playlists')
-            .where('title', isGreaterThanOrEqualTo: normalized)
-            .where('title', isLessThanOrEqualTo: '$normalized\uf8ff')
-            .where('visibility', isEqualTo: 'Public')
-            .limit(2)
-            .get(),
-      ]);
-
-      final List<SearchSuggestion> newSuggestions = [];
-
-      // Add matching recent searches first
-      final recentMatches = recentSearches
-          .where((q) => q.toLowerCase().contains(normalized))
-          .take(3)
-          .map((q) => SearchSuggestion(
-                text: q,
-                icon: Icons.history,
-              ));
-      newSuggestions.addAll(recentMatches);
-
-      // Channels
-      for (var doc in results[0].docs) {
-        final data = doc.data();
-        final title = data['channelName'] as String? ?? '';
-        final handle = data['handle'] as String? ?? '';
-        final avatar = data['avatarUrl'] as String? ?? '';
-        newSuggestions.add(SearchSuggestion(
-          text: title,
-          subtitle: handle.isNotEmpty ? handle : null,
-          imageUrl: avatar,
-          isRoundImage: true,
-          icon: Icons.search,
-          matchedResult: SearchResult.fromFirestore(doc, type: ResultType.channel),
-        ));
-      }
-
-      // Videos
-      for (var doc in results[1].docs) {
-        final data = doc.data();
-        final title = data['title'] as String? ?? '';
-        final thumbnail = data['thumbnailUrl'] as String? ?? '';
-        newSuggestions.add(SearchSuggestion(
-          text: title,
-          imageUrl: thumbnail,
-          icon: Icons.search,
-          matchedResult: SearchResult.fromFirestore(doc, type: ResultType.video),
-        ));
-      }
-
-      // Topics
-      for (var doc in results[2].docs) {
-        final data = doc.data();
-        final title = data['title'] as String? ?? '';
-        final slug = data['slug'] as String? ?? '';
-        final thumbnail = data['thumbnailUrl'] as String? ?? '';
-        newSuggestions.add(SearchSuggestion(
-          text: title,
-          subtitle: 'Topic • T/$slug',
-          imageUrl: thumbnail,
-          icon: Icons.search,
-          matchedResult: SearchResult.fromFirestore(doc, type: ResultType.topic),
-        ));
-      }
-
-      // Playlists
-      for (var doc in results[3].docs) {
-        final data = doc.data();
-        final title = data['title'] as String? ?? '';
-        final thumbnail = data['thumbnailUrl'] as String? ?? '';
-        newSuggestions.add(SearchSuggestion(
-          text: title,
-          subtitle: 'Playlist',
-          imageUrl: thumbnail,
-          icon: Icons.search,
-          matchedResult: SearchResult.fromFirestore(doc, type: ResultType.playlist),
-        ));
-      }
-
-      // Fallback: Add mock suggestions if list is sparse
-      if (newSuggestions.length < 5) {
-        final baseTerms = ['tutorial', 'music', 'news', 'vlog', 'live'];
-        for (final term in baseTerms) {
-          if (newSuggestions.length >= 10) break;
-          final customTerm = '$normalized $term';
-          if (!newSuggestions.any((s) => s.text.toLowerCase() == customTerm)) {
-            newSuggestions.add(SearchSuggestion(text: customTerm));
+      if (Get.isRegistered<HomeController>()) {
+        final homeCtrl = Get.find<HomeController>();
+        // Ensure homeCtrl.videos is safe to access
+        final localVideos = homeCtrl.videos;
+        final localMatches = localVideos
+            .where((v) => v.title.toLowerCase().contains(normalized))
+            .take(3);
+        for (var v in localMatches) {
+          final key = v.title.toLowerCase();
+          if (!seenIds.contains(v.id) && !seenTexts.contains(key)) {
+            seenIds.add(v.id);
+            seenTexts.add(key);
+            newSuggestions.add(SearchSuggestion(
+              text: v.title,
+              imageUrl: v.thumbnailUrl,
+              icon: Icons.search,
+              matchedResult: SearchResult(
+                id: v.id,
+                title: v.title,
+                thumbnail: v.thumbnailUrl,
+                views: v.viewCount,
+                channelName: v.channelName,
+                channelImage: v.channelAvatarUrl,
+                createdAt: v.createdAt,
+                type: ResultType.video,
+                durationMs: v.durationValue.inMilliseconds,
+              ),
+            ));
           }
         }
       }
-
-      richSuggestions.value = newSuggestions.take(12).toList();
     } catch (e) {
-      debugPrint('Error fetching rich suggestions: $e');
+      debugPrint('⚠️ [Search] Local suggestion cache lookup failed: $e');
     }
+
+    // 3. Remote Firestore query: Only search if search length is >= 3 chars to save reads
+    if (normalized.length >= 3) {
+      try {
+        final docSnap = await FirebaseFirestore.instance
+            .collection('videos')
+            .where('title', isGreaterThanOrEqualTo: normalized)
+            .where('title', isLessThanOrEqualTo: '$normalized\uf8ff')
+            .where('status', whereIn: const ['processed', 'published'])
+            .limit(5)
+            .get();
+
+        // Stale query check
+        if (token != _suggestionToken) {
+          debugPrint('⏰ [Search] Stale suggestion query ignored');
+          return;
+        }
+
+        for (var doc in docSnap.docs) {
+          final data = doc.data();
+          final title = data['title'] as String? ?? '';
+          final key = title.toLowerCase();
+          if (!seenIds.contains(doc.id) && !seenTexts.contains(key)) {
+            seenIds.add(doc.id);
+            seenTexts.add(key);
+            newSuggestions.add(SearchSuggestion(
+              text: title,
+              imageUrl: data['thumbnailUrl'] as String? ?? '',
+              icon: Icons.search,
+              matchedResult: SearchResult.fromFirestore(doc, type: ResultType.video),
+            ));
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ [Search] Failed to fetch remote suggestions: $e');
+      }
+    }
+
+    // Check stale state before modifying observable list
+    if (token != _suggestionToken) return;
+
+    // Fallback: Add mock suggestions if list is sparse
+    if (newSuggestions.length < 5) {
+      final baseTerms = ['tutorial', 'music', 'news', 'vlog', 'live'];
+      for (final term in baseTerms) {
+        if (newSuggestions.length >= 10) break;
+        final customTerm = '$normalized $term';
+        final key = customTerm.toLowerCase();
+        if (!seenTexts.contains(key)) {
+          seenTexts.add(key);
+          newSuggestions.add(SearchSuggestion(text: customTerm));
+        }
+      }
+    }
+
+    richSuggestions.value = newSuggestions.take(12).toList();
   }
 
   /// Execute search and close suggestions
@@ -671,6 +603,19 @@ class SearchController extends GetxController {
     if (query.isEmpty) return;
 
     final normalized = query.toLowerCase().trim();
+
+    // Avoid duplicate queries if the results are already loaded
+    if (normalized == _lastSearchQuery && searchResults.isNotEmpty) {
+      debugPrint('🔍 [Search] Query is identical to last search; skipping Firestore request');
+      showSuggestions.value = false;
+      return;
+    }
+    _lastSearchQuery = normalized;
+
+    // Stale async query token
+    _searchToken++;
+    final token = _searchToken;
+
     debugPrint('🔍 [Search] Executing search for: "$normalized"');
 
     // Check rate limit (Problem 2)
@@ -681,7 +626,7 @@ class SearchController extends GetxController {
           'Rate Limited',
           'Please wait a moment before searching again',
           snackPosition: SnackPosition.BOTTOM,
-          duration: Duration(seconds: 3),
+          duration: const Duration(seconds: 3),
       );
       return;
     }
@@ -707,6 +652,12 @@ class SearchController extends GetxController {
         initialDelayMs: 100,
       );
 
+      // Stale query check
+      if (token != _searchToken) {
+        debugPrint('⏰ [Search] Stale search query results ignored');
+        return;
+      }
+
       stopwatch.stop();
 
       // Update UI with results
@@ -731,7 +682,7 @@ class SearchController extends GetxController {
         null,
       );
 
-      // Record for rate limiting & cost (Problem 2)
+      // Record for rate limiting (Problem 2)
       _recordQuery();
 
       if (results.isEmpty) {
@@ -741,6 +692,8 @@ class SearchController extends GetxController {
         debugPrint('✅ [Search] Found ${results.length} results');
       }
     } catch (e) {
+      if (token != _searchToken) return;
+
       stopwatch.stop();
 
       isLoading.value = false;

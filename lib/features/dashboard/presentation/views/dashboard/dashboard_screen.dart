@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -354,7 +353,9 @@ class _DashboardScreenState extends State<DashboardScreen>
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        throw Exception('User not authenticated');
+        // Not authenticated -> Trigger sign-in immediately
+        await _handleGoogleSignIn();
+        return;
       }
 
       final snapshot = await FirebaseFirestore.instance
@@ -374,11 +375,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         Get.offAndToNamed("/studio", arguments: args);
       } else {
         isSelectingDefault.value = false;
-        controller = Get.put(DashboardController(channelId: ''));
-        if (!Get.isRegistered<VideoManagementController>()) {
-          Get.put(VideoManagementController());
-        }
-        _startAnimations();
+        // User has no channel -> Navigate to ChannelScreen to create one!
+        Get.offAllNamed('/channelscreen');
       }
     } catch (e) {
       isSelectingDefault.value = false;
@@ -509,6 +507,10 @@ class _DashboardScreenState extends State<DashboardScreen>
   @override
   Widget build(BuildContext context) {
     return Obx(() {
+      if (!AuthService.to.isAuthenticated.value) {
+        return _buildFallbackLoginScreen();
+      }
+
       if (isSelectingDefault.value) {
         return Scaffold(
           body: Center(
@@ -569,7 +571,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            icon: BackSymbol(size: 20,
+            icon: Icon(Icons.arrow_back, size: 20,
               color: isDarkMode ? Colors.white70 : AppColors.textSecondary,
             ),
             onPressed: () => Get.offAllNamed("/home"),
@@ -1141,9 +1143,12 @@ class _DashboardScreenState extends State<DashboardScreen>
           margin: EdgeInsets.all(16),
           borderRadius: 8,
         );
+        await _selectDefaultChannel();
+      } else {
+        isSelectingDefault.value = false;
       }
     } catch (e) {
-      // Error is already logged by AuthService and ExceptionHandler
+      isSelectingDefault.value = false;
       String message = 'Failed to sign in';
       if (e is GoogleSignInException) {
         message = e.getDisplayMessage();
@@ -1771,6 +1776,11 @@ class _DashboardScreenState extends State<DashboardScreen>
             }
             return _buildModerationStatusBanner(isDarkMode, ch);
           }),
+          Obx(() {
+            final ch = controller.currentChannel.value;
+            if (ch == null) return const SizedBox.shrink();
+            return _buildImageVerificationBanner(isDarkMode, ch);
+          }),
           _buildChannelStatsGrid(isDarkMode),
           Obx(() {
             if (controller.copyrightClaimsCount.value > 0) {
@@ -1795,6 +1805,234 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
     );
   }
+
+  Widget _buildImageVerificationBanner(bool isDarkMode, Channel channel) {
+    final List<Widget> banners = [];
+
+    // Avatar status
+    if (channel.avatarStatus == "PENDING") {
+      banners.add(
+        _buildVerificationAlertCard(
+          isDarkMode: isDarkMode,
+          title: "Avatar Verification Pending",
+          subtitle: "Google Vision AI is currently validating your channel avatar image. This will complete in a few moments.",
+          color: const Color(0xFF3B82F6),
+          icon: Icons.sync_rounded,
+          isPending: true,
+          onBypassPressed: () async {
+            try {
+              await FirebaseFirestore.instance.collection('channels').doc(channel.id).update({
+                'avatarStatus': 'APPROVED',
+                'avatarStatusReason': 'Bypassed in local/debug environment.',
+                'updatedAt': DateTime.now().millisecondsSinceEpoch,
+              });
+              if (channel.avatarFileId != null && channel.avatarFileId!.isNotEmpty) {
+                await FirebaseFirestore.instance.collection('image_verification').doc(channel.avatarFileId!).set({
+                  'status': 'APPROVED',
+                  'reason': 'Bypassed in local/debug environment.',
+                  'category': 'avatar',
+                  'processedAt': FieldValue.serverTimestamp(),
+                }, SetOptions(merge: true));
+              }
+              Get.snackbar("Bypassed", "Avatar approved successfully.", backgroundColor: Colors.green, colorText: Colors.white);
+            } catch (e) {
+              Get.snackbar("Error", e.toString(), backgroundColor: Colors.red, colorText: Colors.white);
+            }
+          },
+        ),
+      );
+    } else if (channel.avatarStatus == "REJECTED") {
+      banners.add(
+        _buildVerificationAlertCard(
+          isDarkMode: isDarkMode,
+          title: "Avatar Image Rejected",
+          subtitle: "Your uploaded avatar image did not pass our automated content verification guidelines. Please go to Customization to upload a new one.",
+          color: const Color(0xFFEF4444),
+          icon: Icons.error_outline_rounded,
+          showCustomizationButton: true,
+        ),
+      );
+    } else if (channel.avatarStatus == "FLAGGED") {
+      banners.add(
+        _buildVerificationAlertCard(
+          isDarkMode: isDarkMode,
+          title: "Avatar Review Needed",
+          subtitle: "Your avatar image was flagged for potential guidelines violations. It is currently queued for manual review.",
+          color: const Color(0xFFF59E0B),
+          icon: Icons.warning_amber_rounded,
+          showCustomizationButton: true,
+        ),
+      );
+    }
+
+    // Banner status
+    if (channel.bannerStatus == "PENDING") {
+      banners.add(
+        _buildVerificationAlertCard(
+          isDarkMode: isDarkMode,
+          title: "Banner Verification Pending",
+          subtitle: "Google Vision AI is currently validating your channel banner image. This will complete in a few moments.",
+          color: const Color(0xFF3B82F6),
+          icon: Icons.sync_rounded,
+          isPending: true,
+          onBypassPressed: () async {
+            try {
+              await FirebaseFirestore.instance.collection('channels').doc(channel.id).update({
+                'bannerStatus': 'APPROVED',
+                'bannerStatusReason': 'Bypassed in local/debug environment.',
+                'updatedAt': DateTime.now().millisecondsSinceEpoch,
+              });
+              if (channel.bannerFileId != null && channel.bannerFileId!.isNotEmpty) {
+                await FirebaseFirestore.instance.collection('image_verification').doc(channel.bannerFileId!).set({
+                  'status': 'APPROVED',
+                  'reason': 'Bypassed in local/debug environment.',
+                  'category': 'banner',
+                  'processedAt': FieldValue.serverTimestamp(),
+                }, SetOptions(merge: true));
+              }
+              Get.snackbar("Bypassed", "Banner approved successfully.", backgroundColor: Colors.green, colorText: Colors.white);
+            } catch (e) {
+              Get.snackbar("Error", e.toString(), backgroundColor: Colors.red, colorText: Colors.white);
+            }
+          },
+        ),
+      );
+    } else if (channel.bannerStatus == "REJECTED") {
+      banners.add(
+        _buildVerificationAlertCard(
+          isDarkMode: isDarkMode,
+          title: "Banner Image Rejected",
+          subtitle: "Your uploaded banner image did not pass our automated content verification guidelines. Please go to Customization to upload a new one.",
+          color: const Color(0xFFEF4444),
+          icon: Icons.error_outline_rounded,
+          showCustomizationButton: true,
+        ),
+      );
+    } else if (channel.bannerStatus == "FLAGGED") {
+      banners.add(
+        _buildVerificationAlertCard(
+          isDarkMode: isDarkMode,
+          title: "Banner Review Needed",
+          subtitle: "Your banner image was flagged for potential guidelines violations. It is currently queued for manual review.",
+          color: const Color(0xFFF59E0B),
+          icon: Icons.warning_amber_rounded,
+          showCustomizationButton: true,
+        ),
+      );
+    }
+
+    if (banners.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      children: banners,
+    );
+  }
+
+  Widget _buildVerificationAlertCard({
+    required bool isDarkMode,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required IconData icon,
+    bool isPending = false,
+    bool showCustomizationButton = false,
+    VoidCallback? onBypassPressed,
+  }) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (isPending)
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+              ),
+            )
+          else
+            Icon(icon, color: color, size: 28),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.roboto(
+                    color: color,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.roboto(
+                    color: isDarkMode ? Colors.white70 : AppColors.textSecondary,
+                    fontSize: 14,
+                    height: 1.4,
+                  ),
+                ),
+                if (showCustomizationButton) ...[
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      controller.selectedIndex.value = 6; // Channel Customization tab
+                    },
+                    icon: const Icon(Icons.color_lens_outlined, size: 16),
+                    label: const Text('Go to Customization'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: color,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
+                  ),
+                ],
+                if (isPending && onBypassPressed != null) ...[
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: onBypassPressed,
+                    icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
+                    label: const Text('Bypass Verification (Local Dev/Test)'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   Widget _buildChannelViolationsCard(bool isDarkMode) {
     return Container(
@@ -1957,10 +2195,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       bannerColor = const Color(0xFFEF4444); // Red
       icon = Icons.error_outline_rounded;
       title = 'Branding Verification Rejected by Gemini AI';
-      subtitle = 'We created channel according to community guidelines, then channel selected for manual verification. ' +
-          (channel.moderationReason != null && channel.moderationReason!.isNotEmpty
-              ? '\n\nGemini Response: ${channel.moderationReason}'
-              : '');
+      subtitle = 'We created channel according to community guidelines, then channel selected for manual verification. ${channel.moderationReason != null && channel.moderationReason!.isNotEmpty ? '\n\nGemini Response: ${channel.moderationReason}' : ''}';
       showButton = true;
     } else {
       return const SizedBox.shrink();
@@ -3162,6 +3397,62 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   // Placeholder screens for other sections
+
+  Widget _buildFallbackLoginScreen() {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D0014),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.dashboard_rounded,
+                color: Color(0xFF6366F1),
+                size: 80,
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Creator Studio',
+                style: GoogleFonts.roboto(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Please sign in to access your Creator Studio dashboard.',
+                style: GoogleFonts.roboto(
+                  fontSize: 16,
+                  color: Colors.white70,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: () {
+                  isSelectingDefault.value = true;
+                  _handleGoogleSignIn();
+                },
+                icon: const Icon(Icons.login_rounded),
+                label: const Text('Sign In with Google'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF6366F1),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 

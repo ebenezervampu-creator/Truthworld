@@ -2,46 +2,55 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 /// Semantic corner-radius tokens for rounded borders and shapes.
+///
+/// `sm`, `md`, `lg`, `xl` return [BorderRadius] objects for direct use in
+/// `borderRadius:` parameters. Use `smValue`, `mdValue`, `lgValue`, `xlValue`
+/// for the raw [double] values when needed (e.g. `BorderRadius.only(...)`).
 class TWRadius extends ThemeExtension<TWRadius> {
-  final double sm;
-  final double md;
-  final double lg;
-  final double xl;
+  final double smValue;
+  final double mdValue;
+  final double lgValue;
+  final double xlValue;
 
   const TWRadius({
-    required this.sm,
-    required this.md,
-    required this.lg,
-    required this.xl,
+    required this.smValue,
+    required this.mdValue,
+    required this.lgValue,
+    required this.xlValue,
   });
 
   factory TWRadius.defaults() {
     return const TWRadius(
-      sm: 4.0,
-      md: 8.0,
-      lg: 12.0,
-      xl: 24.0,
+      smValue: 4.0,
+      mdValue: 8.0,
+      lgValue: 12.0,
+      xlValue: 24.0,
     );
   }
 
-  // Helper properties to avoid wrapping BorderRadius.circular manually in UI code
-  BorderRadius get circularSm => BorderRadius.circular(sm);
-  BorderRadius get circularMd => BorderRadius.circular(md);
-  BorderRadius get circularLg => BorderRadius.circular(lg);
-  BorderRadius get circularXl => BorderRadius.circular(xl);
+  // Convenience getters returning BorderRadius for direct widget use
+  BorderRadius get sm => BorderRadius.circular(smValue);
+  BorderRadius get md => BorderRadius.circular(mdValue);
+  BorderRadius get lg => BorderRadius.circular(lgValue);
+  BorderRadius get xl => BorderRadius.circular(xlValue);
+
+  BorderRadius get circularSm => sm;
+  BorderRadius get circularMd => md;
+  BorderRadius get circularLg => lg;
+  BorderRadius get circularXl => xl;
 
   @override
   ThemeExtension<TWRadius> copyWith({
-    double? sm,
-    double? md,
-    double? lg,
-    double? xl,
+    double? smValue,
+    double? mdValue,
+    double? lgValue,
+    double? xlValue,
   }) {
     return TWRadius(
-      sm: sm ?? this.sm,
-      md: md ?? this.md,
-      lg: lg ?? this.lg,
-      xl: xl ?? this.xl,
+      smValue: smValue ?? this.smValue,
+      mdValue: mdValue ?? this.mdValue,
+      lgValue: lgValue ?? this.lgValue,
+      xlValue: xlValue ?? this.xlValue,
     );
   }
 
@@ -49,10 +58,10 @@ class TWRadius extends ThemeExtension<TWRadius> {
   ThemeExtension<TWRadius> lerp(ThemeExtension<TWRadius>? other, double t) {
     if (other is! TWRadius) return this;
     return TWRadius(
-      sm: lerpDouble(sm, other.sm, t)!,
-      md: lerpDouble(md, other.md, t)!,
-      lg: lerpDouble(lg, other.lg, t)!,
-      xl: lerpDouble(xl, other.xl, t)!,
+      smValue: lerpDouble(smValue, other.smValue, t)!,
+      mdValue: lerpDouble(mdValue, other.mdValue, t)!,
+      lgValue: lerpDouble(lgValue, other.lgValue, t)!,
+      xlValue: lerpDouble(xlValue, other.xlValue, t)!,
     );
   }
 }

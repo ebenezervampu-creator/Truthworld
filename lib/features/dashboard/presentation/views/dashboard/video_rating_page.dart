@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
@@ -235,7 +234,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
             children: [
               IconButton(
                 onPressed: () => controller.clearSelection(),
-                icon: const BackSymbol(),
+                icon: const Icon(Icons.arrow_back),
                 color: AppColors.textPrimary,
               ),
               const SizedBox(width: 8),

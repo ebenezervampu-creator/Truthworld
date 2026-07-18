@@ -8,6 +8,28 @@ class MainActivity : FlutterActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Create high-importance notification channel for Android 8.0+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val channelId = "truthworld_notifications"
+            val channelName = "Truthworld Notifications"
+            val channelDescription = "High importance notifications from Truthworld"
+            val importance = android.app.NotificationManager.IMPORTANCE_HIGH
+            val channel = android.app.NotificationChannel(channelId, channelName, importance).apply {
+                description = channelDescription
+                enableLights(true)
+                lightColor = android.graphics.Color.RED
+                enableVibration(true)
+                setShowBadge(true)
+                val audioAttributes = android.media.AudioAttributes.Builder()
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+                    .build()
+                setSound(android.provider.Settings.System.DEFAULT_NOTIFICATION_URI, audioAttributes)
+            }
+            val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+
         // Check if the application is running in debug/development mode
         val isDebug = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
         if (isDebug) {

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart' hide SearchController, SearchBar;
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart';
 import 'package:truthworld/features/search/presentation/widgets/search_widgets.dart';
@@ -49,7 +48,7 @@ class _SearchPageState extends State<SearchPage> {
         backgroundColor: Colors.black,
         elevation: 0,
         leading: IconButton(
-          icon: const BackSymbol(color: Colors.white),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () {
             if (_searchCtrl.showSuggestions.value) {
               _searchCtrl.showSuggestions.value = false;
@@ -399,7 +398,18 @@ class _SearchPageState extends State<SearchPage> {
 
   /// Build recommended video card for horizontal slider
   Widget _buildRecommendedCard(SearchResult video) {
-    final mockDuration = '${(video.id.hashCode % 12) + 2}:${(video.id.hashCode % 50 + 10).toString().padLeft(2, '0')}';
+    final seconds = video.duration;
+    String? durationStr;
+    if (seconds != null && seconds > 0) {
+      final h = seconds ~/ 3600;
+      final m = (seconds % 3600) ~/ 60;
+      final s = seconds % 60;
+      if (h > 0) {
+        durationStr = '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+      } else {
+        durationStr = '$m:${s.toString().padLeft(2, '0')}';
+      }
+    }
     return InkWell(
       onTap: () {
         _searchCtrl.onResultTapped(video);
@@ -429,21 +439,22 @@ class _SearchPageState extends State<SearchPage> {
                           ),
                   ),
                 ),
-                Positioned(
-                  bottom: 6,
-                  right: 6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      mockDuration,
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                if (durationStr != null)
+                  Positioned(
+                    bottom: 6,
+                    right: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        durationStr,
+                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
             Padding(

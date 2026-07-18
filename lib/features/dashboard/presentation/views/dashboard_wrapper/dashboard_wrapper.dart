@@ -1,5 +1,4 @@
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -237,7 +236,7 @@ class _DashboardWrapperState extends State<DashboardWrapper>
             ),
           ),
           leading: IconButton(
-            icon: const BackSymbol(color: Color(0xFFB8B8B8)),
+            icon: const Icon(Icons.arrow_back, color: Color(0xFFB8B8B8)),
             onPressed: () => Get.back(),
           ),
           bottom: TabBar(

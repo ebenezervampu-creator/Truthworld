@@ -758,25 +758,13 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                       child: RotationTransition(turns: animation, child: child),
                     );
                   },
-                  child: isSubmitting
-                      ? SizedBox(
-                          width: iconSize - 4,
-                          height: iconSize - 4,
-                          child: CircularProgressIndicator(
-                            key: const ValueKey('loading'),
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              hasText ? Colors.white : theme.colorScheme.primary,
-                            ),
-                          ),
+                  child: hasText
+                      ? Icon(
+                          Icons.send_rounded,
+                          key: const ValueKey('send'),
+                          color: Colors.white,
+                          size: iconSize,
                         )
-                      : hasText
-                          ? Icon(
-                              Icons.send_rounded,
-                              key: const ValueKey('send'),
-                              color: Colors.white,
-                              size: iconSize,
-                            )
                           : Icon(
                               Icons.emoji_emotions_outlined,
                               key: const ValueKey('emoji'),

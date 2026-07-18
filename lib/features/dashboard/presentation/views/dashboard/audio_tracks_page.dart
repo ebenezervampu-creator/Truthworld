@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/components/ui/back_symbol.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -448,7 +447,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                   child: Row(
                     children: [
                       IconButton(
-                        icon: const BackSymbol(size: 18),
+                        icon: const Icon(Icons.arrow_back, size: 18),
                         onPressed: () => controller.selectVideo(null),
                       ),
                       Expanded(
@@ -546,7 +545,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
               color: Colors.white.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
-            child: BackSymbol(size: 48,
+            child: Icon(Icons.arrow_back, size: 48,
               color: textSecondaryColor,
             ),
           ),

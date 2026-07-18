@@ -152,8 +152,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
       bannerColor = const Color(0xFFEF4444); // Red
       icon = Icons.error_outline_rounded;
       title = 'Branding Verification Rejected by Gemini AI';
-      subtitle = 'We created channel according to community guidelines, then channel selected for manual verification. ' +
-          (reason.isNotEmpty ? '\n\nGemini Response: $reason' : '');
+      subtitle = 'We created channel according to community guidelines, then channel selected for manual verification. ${reason.isNotEmpty ? '\n\nGemini Response: $reason' : ''}';
     } else {
       return const SizedBox.shrink();
     }
@@ -231,6 +230,11 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                 onTap: () => controller.pickImage(false),
                 height: 200,
               )),
+          Obx(() => _buildImageStatusNotice(
+                status: controller.bannerStatus.value,
+                reason: controller.bannerStatusReason.value,
+                isBanner: true,
+              )),
           const SizedBox(height: 32),
           _buildSectionTitle('Channel Avatar'),
           const SizedBox(height: 8),
@@ -240,13 +244,127 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
           ),
           const SizedBox(height: 16),
           Center(
-            child: Obx(() => _buildImagePicker(
-                  currentUrl: controller.avatarUrl.value,
-                  newBytes: controller.newAvatarBytes.value,
-                  onTap: () => controller.pickImage(true),
-                  height: 150,
-                  isCircular: true,
-                )),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Obx(() => _buildImagePicker(
+                      currentUrl: controller.avatarUrl.value,
+                      newBytes: controller.newAvatarBytes.value,
+                      onTap: () => controller.pickImage(true),
+                      height: 150,
+                      isCircular: true,
+                    )),
+                Obx(() => _buildImageStatusNotice(
+                      status: controller.avatarStatus.value,
+                      reason: controller.avatarStatusReason.value,
+                      isBanner: false,
+                    )),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageStatusNotice({
+    required String status,
+    required String reason,
+    required bool isBanner,
+  }) {
+    if (status == 'APPROVED' || status.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    Color color;
+    IconData icon;
+    String title;
+    String subtitle;
+    bool isPending = false;
+
+    if (status == 'PENDING') {
+      color = const Color(0xFF3B82F6); // Blue
+      icon = Icons.sync_rounded;
+      title = '${isBanner ? "Banner" : "Avatar"} Verification Pending';
+      subtitle = 'Google Vision AI is validating this image. Feel free to save changes; verification will complete in the background.';
+      isPending = true;
+    } else if (status == 'REJECTED') {
+      color = const Color(0xFFEF4444); // Red
+      icon = Icons.error_outline_rounded;
+      title = '${isBanner ? "Banner" : "Avatar"} Rejected';
+      subtitle = reason.isNotEmpty ? reason : 'This image does not comply with our safety and community guidelines. Please upload a different image.';
+    } else if (status == 'FLAGGED') {
+      color = const Color(0xFFF59E0B); // Amber
+      icon = Icons.warning_amber_rounded;
+      title = '${isBanner ? "Banner" : "Avatar"} Review Needed';
+      subtitle = reason.isNotEmpty ? reason : 'This image has been flagged for manual review. You can upload a different image if you wish.';
+    } else {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (isPending)
+            const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+              ),
+            )
+          else
+            Icon(icon, color: color, size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: GoogleFonts.roboto(
+                    color: color,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: GoogleFonts.roboto(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    height: 1.3,
+                  ),
+                ),
+                if (isPending) ...[
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: () => controller.bypassVerification(isBanner),
+                    icon: const Icon(Icons.check_circle_outline_rounded, size: 14, color: Colors.white70),
+                    label: const Text(
+                      'Bypass Verification (Local Dev/Test)',
+                      style: TextStyle(color: Colors.white70, fontSize: 11, decoration: TextDecoration.underline),
+                    ),
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),

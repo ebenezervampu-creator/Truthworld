@@ -13,7 +13,7 @@ const STALE_THRESHOLD_MS = 15_000; // 15 seconds
 export const onActiveViewerWrite = onValueWritten(
   {
     ref: "/activeViewers/{videoId}/{sessionId}",
-    region: "us-central1", // RTDB v2 triggers often require us-central1 or match the RTDB location
+    region: REGION,
     memory: "256MiB",
   },
   async (event) => {

@@ -10,6 +10,8 @@ import 'package:truthworld/features/notifications/data/models/user_notification.
 import 'package:truthworld/features/notifications/data/services/user_notification_service.dart';
 import 'package:truthworld/core/utils/mentions_helper.dart';
 
+import 'package:truthworld/core/services/auth_service.dart';
+
 /// Premium Comments Controller with GetX - handles all comment-related logic
 /// 100% GetX reactive with optimized Firestore queries for low latency
 class CommentsController extends BaseController {
@@ -45,8 +47,17 @@ class CommentsController extends BaseController {
 
   // Current user info
   String get currentUserId => _auth.currentUser?.uid ?? '';
-  String get currentUserName =>
-      _auth.currentUser?.displayName ?? 'Anonymous User';
+  String get currentUserName {
+    final authService = AuthService.to;
+    if (authService.hasChannel.value && authService.userChannel != null) {
+      final handle = authService.userChannel!.handle;
+      if (handle.isNotEmpty) {
+        return handle.startsWith('@') ? handle.substring(1) : handle;
+      }
+      return authService.userChannel!.name;
+    }
+    return _auth.currentUser?.displayName ?? 'Anonymous User';
+  }
 
   CommentsController({this.video, this.isOffline = false});
 
@@ -273,9 +284,26 @@ class CommentsController extends BaseController {
       };
     }
 
+    final isVideoCreator = video != null && currentUserId == video!.ownerId;
+    final creatorName = video?.channelName.isNotEmpty == true ? video!.channelName : 'Creator';
+    bool newIsHeartedByCreator = comment.isHeartedByCreator;
+    String? newCreatorHeartName = comment.creatorHeartName;
+
+    if (isVideoCreator) {
+      if (wasLiked) {
+        newIsHeartedByCreator = false;
+        newCreatorHeartName = null;
+      } else {
+        newIsHeartedByCreator = true;
+        newCreatorHeartName = creatorName;
+      }
+    }
+
     comments[index] = comment.copyWith(
       likeCount: newLikeCount,
       dislikeCount: newDislikeCount,
+      isHeartedByCreator: newIsHeartedByCreator,
+      creatorHeartName: newCreatorHeartName,
     );
     comments.refresh();
 
@@ -286,6 +314,7 @@ class CommentsController extends BaseController {
           videoId: video!.id,
           commentId: commentId,
           userId: userId,
+          isVideoCreator: isVideoCreator,
         );
       } else {
         _triggerLikeNotification(comment);
@@ -294,6 +323,8 @@ class CommentsController extends BaseController {
           commentId: commentId,
           userId: userId,
           asChannel: likeAsChannel,
+          isVideoCreator: isVideoCreator,
+          creatorName: creatorName,
         );
       }
     } catch (e) {
@@ -346,9 +377,20 @@ class CommentsController extends BaseController {
       };
     }
 
+    final isVideoCreator = video != null && currentUserId == video!.ownerId;
+    bool newIsHeartedByCreator = comment.isHeartedByCreator;
+    String? newCreatorHeartName = comment.creatorHeartName;
+
+    if (isVideoCreator) {
+      newIsHeartedByCreator = false;
+      newCreatorHeartName = null;
+    }
+
     comments[index] = comment.copyWith(
       likeCount: newLikeCount,
       dislikeCount: newDislikeCount,
+      isHeartedByCreator: newIsHeartedByCreator,
+      creatorHeartName: newCreatorHeartName,
     );
     comments.refresh();
 
@@ -359,6 +401,7 @@ class CommentsController extends BaseController {
           videoId: video!.id,
           commentId: commentId,
           userId: userId,
+          isVideoCreator: isVideoCreator,
         );
       } else {
         await _commentService.dislikeComment(
@@ -366,6 +409,7 @@ class CommentsController extends BaseController {
           commentId: commentId,
           userId: userId,
           asChannel: dislikeAsChannel,
+          isVideoCreator: isVideoCreator,
         );
       }
     } catch (e) {
@@ -461,7 +505,7 @@ class CommentsController extends BaseController {
           type: 'comment_reply',
           severity: NotificationSeverity.info,
           title: 'New Reply',
-          message: '@$currentUserName replied to your comment: "${text.trim()}"',
+          message: '${currentUserName.startsWith('@') ? '' : '@'}$currentUserName replied to your comment: "${text.trim()}"',
           actionUrl: '/watch?v=${video!.id}',
           metadata: {
             'videoId': video!.id,
@@ -469,7 +513,9 @@ class CommentsController extends BaseController {
             'replyId': replyId,
             'thumbnailUrl': video!.thumbnailUrl,
             'channelId': video!.channelId,
-            'userAvatar': _auth.currentUser?.photoURL ?? '',
+            'userAvatar': (AuthService.to.hasChannel.value && AuthService.to.userChannel != null)
+                ? AuthService.to.userChannel!.avatarUrl
+                : (AuthService.to.hasChannel.value ? '' : (_auth.currentUser?.photoURL ?? '')),
           },
         );
       }
@@ -647,14 +693,16 @@ class CommentsController extends BaseController {
       type: 'comment_like',
       severity: NotificationSeverity.info,
       title: 'Comment Liked',
-      message: '@$currentUserName liked your comment: "${comment.text}"',
+      message: '${currentUserName.startsWith('@') ? '' : '@'}$currentUserName liked your comment: "${comment.text}"',
       actionUrl: '/watch?v=${video!.id}',
       metadata: {
         'videoId': video!.id,
         'commentId': comment.id,
         'thumbnailUrl': video!.thumbnailUrl,
         'channelId': video!.channelId,
-        'userAvatar': _auth.currentUser?.photoURL ?? '',
+        'userAvatar': (AuthService.to.hasChannel.value && AuthService.to.userChannel != null)
+            ? AuthService.to.userChannel!.avatarUrl
+            : (AuthService.to.hasChannel.value ? '' : (_auth.currentUser?.photoURL ?? '')),
       },
     );
   }
@@ -668,7 +716,7 @@ class CommentsController extends BaseController {
       type: 'reply_like',
       severity: NotificationSeverity.info,
       title: 'Reply Liked',
-      message: '@$currentUserName liked your reply: "${replyText ?? ''}"',
+      message: '${currentUserName.startsWith('@') ? '' : '@'}$currentUserName liked your reply: "${replyText ?? ''}"',
       actionUrl: '/watch?v=${video!.id}',
       metadata: {
         'videoId': video!.id,
@@ -676,7 +724,9 @@ class CommentsController extends BaseController {
         'replyId': replyId,
         'thumbnailUrl': video!.thumbnailUrl,
         'channelId': video!.channelId,
-        'userAvatar': _auth.currentUser?.photoURL ?? '',
+        'userAvatar': (AuthService.to.hasChannel.value && AuthService.to.userChannel != null)
+            ? AuthService.to.userChannel!.avatarUrl
+            : (AuthService.to.hasChannel.value ? '' : (_auth.currentUser?.photoURL ?? '')),
       },
     );
   }
