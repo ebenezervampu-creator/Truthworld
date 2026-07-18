@@ -201,6 +201,11 @@ class TowerPlayerController extends GetxController {
   final RxBool isLooping = false.obs;
   final RxBool isAutoplay = true.obs;
 
+  // ── End Screen ─────────────────────────────────────────────
+  final RxBool showEndScreen = false.obs;
+  final RxInt autoplayCountdown = 5.obs;
+  Timer? _autoplayTimer;
+
   void toggleAutoplay() {
     isAutoplay.toggle();
     try {
@@ -620,6 +625,7 @@ class TowerPlayerController extends GetxController {
       chewieController?.dispose();
     } catch (_) {}
     _activePlayers.remove(this);
+    _autoplayTimer?.cancel();
     _timers.cancelAll();
     _webFullscreenSub?.cancel();
     // Restore system UI if still in fullscreen when controller is disposed
@@ -972,7 +978,49 @@ class TowerPlayerController extends GetxController {
   void _onTrackEnded() {
     _trackAnalytics(PlayerEvent('ended'));
     if (isLooping.value) return; // Looping is handled by VideoPlayerController
-    if (isAutoplay.value) playNext();
+    
+    // Show End Screen overlay
+    showEndScreen.value = true;
+    
+    if (isAutoplay.value) {
+      startAutoplayCountdown();
+    }
+  }
+
+  void startAutoplayCountdown() {
+    _autoplayTimer?.cancel();
+    autoplayCountdown.value = 5;
+    _autoplayTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (autoplayCountdown.value <= 1) {
+        timer.cancel();
+        playNextImmediately();
+      } else {
+        autoplayCountdown.value--;
+      }
+    });
+  }
+
+  void cancelAutoplayCountdown() {
+    _autoplayTimer?.cancel();
+    _autoplayTimer = null;
+    autoplayCountdown.value = 0;
+  }
+
+  void playNextImmediately() {
+    _autoplayTimer?.cancel();
+    _autoplayTimer = null;
+    showEndScreen.value = false;
+    playNext();
+  }
+
+  void replayVideo() {
+    _autoplayTimer?.cancel();
+    _autoplayTimer = null;
+    showEndScreen.value = false;
+    _hasEnded = false;
+    seekTo(Duration.zero);
+    videoPlayerController.play();
+  }
   }
 
   // ─── Volume ──────────────────────────────────────────────
