@@ -19,6 +19,7 @@ import 'controls/fullscreen_actions_bar.dart';
 import 'panels/player_settings_panels.dart';
 import 'overlays/ad_overlay.dart';
 import 'overlays/real_time_fact_overlay.dart';
+import 'overlays/end_screen_overlay.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 
 class TowerCustomPlayer extends StatelessWidget {
@@ -454,6 +455,9 @@ class TowerCustomPlayer extends StatelessWidget {
 
                       // ── Layer 8.5: Ad Overlay ──────────────────────────────
                       AdOverlay(ctrl: c),
+
+                      // ── Layer 8.6: End Screen Overlay ───────────────────────
+                      EndScreenOverlay(ctrl: c),
 
                       // ── Layer 9: Stats for Nerds ───────────────────────────
                       RepaintBoundary(child: StatsForNerdsOverlay(ctrl: c)),
