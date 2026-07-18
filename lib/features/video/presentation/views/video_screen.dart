@@ -1,3 +1,4 @@
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:get/get.dart';
@@ -429,12 +430,53 @@ class VideoScreen extends GetView<VideoController> {
               finalRatio = maxWidth / finalHeight;
             }
             
-            return AspectRatio(
-              aspectRatio: finalRatio.isFinite && finalRatio > 0 ? finalRatio : 16 / 9,
-              child: Container(
-                color: Colors.black,
-                child: _buildVideoPlayer(),
-              ),
+            final double finalWidth = finalHeight * finalRatio;
+
+            return Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.center,
+              children: [
+                // YouTube Ambient Mode Glow (glow matches video thumbnail and is 30% wider/taller)
+                if (!controller.isFullScreen.value && controller.video.thumbnailUrl.isNotEmpty)
+                  Positioned(
+                    width: finalWidth * 1.3,
+                    height: finalHeight * 1.3,
+                    child: IgnorePointer(
+                      child: AnimatedOpacity(
+                        duration: const Duration(milliseconds: 1000),
+                        opacity: controller.showThumbnail.value ? 0.12 : 0.32,
+                        child: Container(
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.rectangle,
+                          ),
+                          child: ClipRect(
+                            child: ImageFiltered(
+                              imageFilter: ui.ImageFilter.blur(
+                                sigmaX: 65,
+                                sigmaY: 65,
+                                tileMode: TileMode.decal,
+                              ),
+                              child: CachedNetworkImage(
+                                imageUrl: controller.video.thumbnailUrl.replaceAll(' ', '%20'),
+                                fit: BoxFit.cover,
+                                errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // Video Player Container
+                AspectRatio(
+                  aspectRatio: finalRatio.isFinite && finalRatio > 0 ? finalRatio : 16 / 9,
+                  child: Container(
+                    color: Colors.black,
+                    child: _buildVideoPlayer(),
+                  ),
+                ),
+              ],
             );
           },
         );
