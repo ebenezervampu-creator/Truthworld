@@ -226,9 +226,14 @@ export enum ErrorState {
 
 export enum ClaimNature {
   VERIFIABLE_FACT = 'VERIFIABLE_FACT',   // Bucket 1: Empirical/Historical
+  HISTORICAL_FACT = 'HISTORICAL_FACT',
+  RELIGIOUS_CLAIM = 'RELIGIOUS_CLAIM',
+  SUPERNATURAL_CLAIM = 'SUPERNATURAL_CLAIM',
+  SCIENTIFIC_CLAIM = 'SCIENTIFIC_CLAIM',
   OPINION = 'OPINION',                   // Bucket 2: Subjective preference
   BELIEF = 'BELIEF',                     // Bucket 3: Faith/Scripture/Miracle
   ESTIMATION = 'ESTIMATION',             // Bucket 4: Projection/Prediction
+  PREDICTION = 'PREDICTION',
   SATIRE = 'SATIRE'
 }
 
@@ -321,6 +326,7 @@ export interface RichSource {
   lastPublished?: string;
   lastVerified?: string;
   retrievalMethod?: string;
+  retrievalProvider?: string;
 }
 
 export type ClaimType = string;
@@ -359,7 +365,9 @@ export type ClaimStatus =
   | "historical_tradition"
   | "opinion"
   | "satire"
-  | "unverifiable";
+  | "unverifiable"
+  | "faith_based_claim"
+  | "not_historically_verifiable";
 
 export interface VerifiedClaim extends FilteredClaim {
   status: ClaimStatus; // Pipeline state
@@ -404,6 +412,18 @@ export interface VerifiedClaim extends FilteredClaim {
     requiresCitationRetry?: boolean;
     cacheSource?: string;
     [key: string]: any;
+  };
+  classificationConfidence?: number;
+  historicalEvidenceConfidence?: number;
+  evidenceDetails?: {
+    scriptural: string;
+    historical: string;
+    scientific: string;
+  };
+  consensusDetails?: {
+    theology: string;
+    historical: string;
+    scientific: string;
   };
 }
 
@@ -931,6 +951,7 @@ export const GeminiVerificationSchema = z.object({
     claimId: z.string(),
     claim: z.string(),
     claimType: z.string(), // Relaxed: Gemini may return values outside the predefined enum
+    nature: z.string().optional(),
     label: z.string(),
     evidenceLevel: z.string(), // STRONG | MODERATE | WEAK | NONE | CONTRADICTED
     rating: z.number(),
@@ -949,6 +970,29 @@ export const GeminiVerificationSchema = z.object({
       url: z.string().optional().default(''),
       snippet: z.string().optional().default(''),
     })).optional().default([]),
+    classificationConfidence: z.number().optional(),
+    historicalEvidenceConfidence: z.number().optional(),
+    evidenceDetails: z.object({
+      scriptural: z.string(),
+      historical: z.string(),
+      scientific: z.string()
+    }).optional(),
+    consensusDetails: z.object({
+      theology: z.string(),
+      historical: z.string(),
+      scientific: z.string()
+    }).optional(),
+    claimDomain: z.string().optional(),
+    claimNature: z.string().optional(),
+    verdictBasis: z.array(z.string()).optional(),
+    evidence: z.array(z.object({
+      type: z.string(),
+      strength: z.string()
+    })).optional(),
+    consensus: z.array(z.object({
+      domain: z.string(),
+      level: z.string()
+    })).optional(),
   }))
 });
 

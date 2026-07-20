@@ -14,6 +14,11 @@ import 'package:video_player/video_player.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/components/ui/video_options_sheet.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 /// Reusable Modern Avatar Widget matching the homescreen design
 class _ModernAvatar extends StatelessWidget {
@@ -76,6 +81,52 @@ class _ModernAvatar extends StatelessWidget {
   }
 }
 
+class HoverPreviewCoordinator {
+  static final RxBool globalMute = true.obs;
+  static _VideoCardState? _activeCardState;
+  static bool _hasInitializedListener = false;
+
+  static void setActiveCard(_VideoCardState cardState) {
+    if (!_hasInitializedListener) {
+      _hasInitializedListener = true;
+      ever(globalMute, (bool isMuted) {
+        if (!isMuted) {
+          pauseAllMainPlayers();
+        }
+      });
+    }
+    if (_activeCardState != null && _activeCardState != cardState) {
+      _activeCardState!._handleHoverExit();
+    }
+    _activeCardState = cardState;
+  }
+
+  static void clearActiveCard(_VideoCardState cardState) {
+    if (_activeCardState == cardState) {
+      _activeCardState = null;
+    }
+  }
+
+  static void pauseAllMainPlayers() {
+    try {
+      if (Get.isRegistered<MiniplayerController>(tag: 'miniplayer')) {
+        final mini = Get.find<MiniplayerController>(tag: 'miniplayer');
+        if (mini.isPlaying.value) {
+          mini.videoPlayerController?.pause();
+          mini.isPlaying.value = false;
+        }
+      }
+    } catch (e) {
+      debugPrint('[HoverPreviewCoordinator] Error pausing miniplayer: $e');
+    }
+    try {
+      TowerPlayerController.pauseAllActivePlayers();
+    } catch (e) {
+      debugPrint('[HoverPreviewCoordinator] Error pausing active tower players: $e');
+    }
+  }
+}
+
 @immutable
 class VideoCard extends StatefulWidget {
   final Video video;
@@ -100,8 +151,49 @@ class _VideoCardState extends State<VideoCard> {
   Timer? _hoverTimer;
   final Rxn<VideoPlayerController> _videoPlayerController = Rxn<VideoPlayerController>();
   final RxBool _isControllerInitialized = false.obs;
-  final RxBool _isMuted = true.obs;
   final RxBool _isLoadingVideo = false.obs;
+  late final Worker _muteWorker;
+
+  final RxString _realChannelAvatarUrl = ''.obs;
+  final RxString _realChannelName = ''.obs;
+
+  @override
+  void initState() {
+    super.initState();
+    _realChannelAvatarUrl.value = widget.video.channelAvatarUrl;
+    _realChannelName.value = widget.video.channelName;
+    _loadRealChannelData();
+    _muteWorker = ever(HoverPreviewCoordinator.globalMute, (bool isMuted) {
+      if (_videoPlayerController.value != null && _isControllerInitialized.value) {
+        _videoPlayerController.value!.setVolume(isMuted ? 0.0 : 1.0);
+      }
+    });
+  }
+
+  Future<void> _loadRealChannelData() async {
+    if (widget.video.channelId.isEmpty) return;
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('channels')
+          .doc(widget.video.channelId)
+          .get();
+      if (doc.exists && mounted) {
+        final data = doc.data();
+        if (data != null) {
+          final avatar = data['avatarUrl'] as String?;
+          final name = data['name'] as String?;
+          if (avatar != null && avatar.isNotEmpty) {
+            _realChannelAvatarUrl.value = avatar;
+          }
+          if (name != null && name.isNotEmpty) {
+            _realChannelName.value = name;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading real channel data for video card: $e');
+    }
+  }
 
   String _formatViews(int views) {
     if (views < 1000) return views.toString();
@@ -125,7 +217,9 @@ class _VideoCardState extends State<VideoCard> {
 
   @override
   void dispose() {
+    _muteWorker.dispose();
     _hoverTimer?.cancel();
+    HoverPreviewCoordinator.clearActiveCard(this);
     _disposePreviewPlayer();
     super.dispose();
   }
@@ -150,9 +244,9 @@ class _VideoCardState extends State<VideoCard> {
     String previewUrl = widget.video.animatedPreviewUrl;
     if (previewUrl.isEmpty || previewUrl.startsWith('gs://')) {
       if (widget.video.adaptiveResolutions.isNotEmpty) {
-        // Cost-effective: find lowest bitrate resolution with a playable URL
+        // Cost-effective: find lowest bitrate resolution
         final playable = widget.video.adaptiveResolutions
-            .where((r) => r.url.isNotEmpty && !r.url.startsWith('gs://'))
+            .where((r) => r.url.isNotEmpty)
             .toList();
         if (playable.isNotEmpty) {
           final lowest = playable.reduce(
@@ -161,17 +255,31 @@ class _VideoCardState extends State<VideoCard> {
           previewUrl = lowest.url;
         }
       }
-      // Skip gs:// originalUrl — it's a storage reference, not a playable URL
-      if ((previewUrl.isEmpty || previewUrl.startsWith('gs://')) &&
-          widget.video.originalUrl.isNotEmpty &&
-          !widget.video.originalUrl.startsWith('gs://')) {
-        previewUrl = widget.video.originalUrl;
+      if (previewUrl.isEmpty || previewUrl.startsWith('gs://')) {
+        if (widget.video.originalUrl.isNotEmpty) {
+          previewUrl = widget.video.originalUrl;
+        }
       }
     }
 
-    if (previewUrl.isEmpty || previewUrl.startsWith('gs://')) {
+    if (previewUrl.isEmpty) {
       _isLoadingVideo.value = false;
       return;
+    }
+
+    // Resolve gs:// storage references to HTTPS download URLs
+    if (previewUrl.startsWith('gs://')) {
+      try {
+        previewUrl = await FirebaseStorage.instance
+            .refFromURL(previewUrl)
+            .getDownloadURL();
+      } catch (e) {
+        debugPrint("Error resolving gs:// preview URL: $e");
+        if (mounted) {
+          _isLoadingVideo.value = false;
+        }
+        return;
+      }
     }
 
     try {
@@ -184,7 +292,8 @@ class _VideoCardState extends State<VideoCard> {
       await controller.initialize();
 
       if (mounted && _isHovered.value && _videoPlayerController.value == controller) {
-        await controller.setVolume(_isMuted.value ? 0.0 : 1.0);
+        HoverPreviewCoordinator.setActiveCard(this);
+        await controller.setVolume(HoverPreviewCoordinator.globalMute.value ? 0.0 : 1.0);
         await controller.setLooping(true);
         await controller.play();
         _isControllerInitialized.value = true;
@@ -214,75 +323,112 @@ class _VideoCardState extends State<VideoCard> {
     _hoverTimer?.cancel();
     _hoverTimer = null;
     _isHovered.value = false;
+    HoverPreviewCoordinator.clearActiveCard(this);
     _disposePreviewPlayer();
+  }
+
+  void _handleVisibilityChanged(double visibleFraction) {
+    // Only apply visibility-based preview on mobile platforms (Android/iOS)
+    final isMobile = Theme.of(context).platform == TargetPlatform.android ||
+                     Theme.of(context).platform == TargetPlatform.iOS;
+    if (!isMobile) return;
+
+    if (visibleFraction >= 0.8) {
+      if (!_isHovered.value) {
+        _handleHoverEnter();
+      }
+    } else {
+      if (_isHovered.value) {
+        _handleHoverExit();
+      }
+    }
+  }
+
+  void _handleTap(BuildContext context) {
+    // Register controller in handoff if initialized to prevent re-buffering
+    final controller = _videoPlayerController.value;
+    if (controller != null && _isControllerInitialized.value) {
+      VideoPlaybackHandoff.registerActiveController(widget.video.id, controller);
+      // Clear references to prevent disposal on exit
+      _videoPlayerController.value = null;
+      _isControllerInitialized.value = false;
+      _isLoadingVideo.value = false;
+    }
+
+    if (widget.onTap != null) {
+      widget.onTap!();
+    } else {
+      MiniplayerNavigationHelper.navigateToVideoScreen(
+        video: widget.video,
+        routeArguments: {
+          'video': widget.video,
+          'heroTag': '${widget.heroPrefix}_${widget.video.id}',
+        },
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return MouseRegion(
-      onEnter: (_) => _handleHoverEnter(),
-      onExit: (_) => _handleHoverExit(),
-      child: Semantics(
-        button: true,
-        enabled: true,
-        label: 'Video: ${widget.video.title} by ${widget.video.channelName}',
-        onTap: widget.onTap ??
-            () => MiniplayerNavigationHelper.navigateToVideoScreen(
-                  video: widget.video,
-                  routeArguments: {
-                    'video': widget.video,
-                    'heroTag': '${widget.heroPrefix}_${widget.video.id}',
-                  },
-                ),
-        child: Obx(() {
-          final hovered = _isHovered.value;
-          return AnimatedScale(
-            scale: hovered ? 1.04 : 1.0,
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOutCubic,
-            child: AnimatedContainer(
+    return VisibilityDetector(
+      key: Key('video_card_${widget.video.id}_${widget.heroPrefix}'),
+      onVisibilityChanged: (info) => _handleVisibilityChanged(info.visibleFraction),
+      child: MouseRegion(
+        onEnter: (_) => _handleHoverEnter(),
+        onExit: (_) => _handleHoverExit(),
+        child: Semantics(
+          button: true,
+          enabled: true,
+          label: 'Video: ${widget.video.title} by ${widget.video.channelName}',
+          onTap: () => _handleTap(context),
+          child: Obx(() {
+            final hovered = _isHovered.value;
+            return AnimatedScale(
+              scale: hovered ? 1.02 : 1.0,
               duration: const Duration(milliseconds: 200),
-              margin: widget.isGrid
-                  ? EdgeInsets.zero
-                  : EdgeInsets.only(bottom: AppTheme.spacing.md),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: theme.colorScheme.outline.withValues(alpha: 0.1),
-                  width: 1,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: hovered ? 0.25 : 0.1),
-                    blurRadius: hovered ? 16 : 8,
-                    offset: Offset(0, hovered ? 8 : 4),
-                  ),
-                ],
-              ),
-              child: Material(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(16),
-                child: InkWell(
-                  onTap: widget.onTap ??
-                      () => MiniplayerNavigationHelper.navigateToVideoScreen(
-                            video: widget.video,
-                            routeArguments: {
-                              'video': widget.video,
-                              'heroTag': '${widget.heroPrefix}_${widget.video.id}',
-                            },
+              curve: Curves.easeOutCubic,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: widget.isGrid
+                    ? EdgeInsets.zero
+                    : EdgeInsets.only(bottom: AppTheme.spacing.md),
+                decoration: widget.isGrid
+                    ? BoxDecoration(
+                        color: theme.colorScheme.surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: theme.colorScheme.outline.withValues(
+                            alpha: 0.1,
                           ),
-                  borderRadius: BorderRadius.circular(16),
-                  child: widget.isGrid
-                      ? _buildGridContent(context, theme)
-                      : _buildListContent(context, theme),
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      )
+                    : const BoxDecoration(
+                        color: Colors.transparent,
+                      ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _handleTap(context),
+                    borderRadius: widget.isGrid ? BorderRadius.circular(16) : null,
+                    child: widget.isGrid
+                        ? _buildGridContent(context, theme)
+                        : _buildListContent(context, theme),
+                  ),
                 ),
               ),
-            ),
-          );
-        }),
+            );
+          }),
+        ),
       ),
     );
   }
@@ -308,7 +454,7 @@ class _VideoCardState extends State<VideoCard> {
             width: AppTheme.sizes.thumbnailMediumWidth,
             child: AspectRatio(
               aspectRatio: 16 / 9,
-              child: _buildGridVideoThumbnail(context, theme, isTopRoundedOnly: false),
+              child: _buildGridVideoThumbnail(context, theme, borderRadius: BorderRadius.circular(8)),
             ),
           ),
           const SizedBox(width: 12),
@@ -345,21 +491,19 @@ class _VideoCardState extends State<VideoCard> {
     );
   }
 
-  Widget _buildGridVideoThumbnail(BuildContext context, ThemeData theme, {bool isTopRoundedOnly = true}) {
-    final borderRadius = isTopRoundedOnly
-        ? const BorderRadius.vertical(top: Radius.circular(16))
-        : BorderRadius.circular(12);
+  Widget _buildGridVideoThumbnail(BuildContext context, ThemeData theme, {BorderRadius? borderRadius}) {
+    final effectiveBorderRadius = borderRadius ?? const BorderRadius.vertical(top: Radius.circular(16));
 
     return Hero(
       tag: '${widget.heroPrefix}_${widget.video.id}',
       child: ClipRRect(
-        borderRadius: borderRadius,
+        borderRadius: effectiveBorderRadius,
         child: AspectRatio(
           aspectRatio: 16 / 9,
           child: Obx(() {
             final isInitialized = _isControllerInitialized.value;
             final controller = _videoPlayerController.value;
-            final isMutedVal = _isMuted.value;
+            final isMutedVal = HoverPreviewCoordinator.globalMute.value;
             final hovered = _isHovered.value;
 
             return Stack(
@@ -383,8 +527,6 @@ class _VideoCardState extends State<VideoCard> {
                     : CachedNetworkImage(
                         imageUrl: widget.video.thumbnailUrl,
                         fit: BoxFit.cover,
-                        memCacheWidth: AppTheme.sizes.imageCacheMediumWidth,
-                        memCacheHeight: AppTheme.sizes.imageCacheMediumHeight,
                         placeholder: (context, url) => _buildThumbnailShimmer(theme),
                         errorWidget: (context, url, error) => _buildThumbnailError(theme),
                       ),
@@ -454,16 +596,16 @@ class _VideoCardState extends State<VideoCard> {
                     bottom: 8,
                     right: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         widget.video.duration,
-                        style: const TextStyle(
+                        style: GoogleFonts.roboto(
                           color: Colors.white,
-                          fontSize: 11,
+                          fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -475,13 +617,8 @@ class _VideoCardState extends State<VideoCard> {
                     bottom: 8,
                     left: 8,
                     child: GestureDetector(
-                      onTap: () async {
-                        final currentController = _videoPlayerController.value;
-                        if (currentController != null) {
-                          final newMute = !isMutedVal;
-                          await currentController.setVolume(newMute ? 0.0 : 1.0);
-                          _isMuted.value = newMute;
-                        }
+                      onTap: () {
+                        HoverPreviewCoordinator.globalMute.value = !isMutedVal;
                       },
                       child: Container(
                         padding: const EdgeInsets.all(6),
@@ -577,16 +714,16 @@ class _VideoCardState extends State<VideoCard> {
 
   Widget _buildGridVideoInfo(BuildContext context, ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      padding: const EdgeInsets.only(left: 12, right: 12, top: 12, bottom: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _ModernAvatar(
-            imageUrl: widget.video.channelImage,
+            imageUrl: _realChannelAvatarUrl.value,
             radius: 18,
-            placeholderText: widget.video.channelName.isEmpty
+            placeholderText: _realChannelName.value.isEmpty
                 ? '?'
-                : widget.video.channelName.substring(0, 1).toUpperCase(),
+                : _realChannelName.value.substring(0, 1).toUpperCase(),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -605,17 +742,7 @@ class _VideoCardState extends State<VideoCard> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  widget.video.channelName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  '${_formatViews(widget.video.views)} views • ${_formatTimestamp(widget.video.uploadedAt)}',
+                  '${_realChannelName.value} · ${_formatViews(widget.video.views)} views · ${_formatTimestamp(widget.video.uploadedAt)}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -639,7 +766,7 @@ class _VideoCardState extends State<VideoCard> {
       ),
     );
   }
-
+ 
   Widget _buildListVideoInfo(BuildContext context, ThemeData theme) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
@@ -664,16 +791,16 @@ class _VideoCardState extends State<VideoCard> {
                 Row(
                   children: [
                     _ModernAvatar(
-                      imageUrl: widget.video.channelImage,
+                      imageUrl: _realChannelAvatarUrl.value,
                       radius: 10,
-                      placeholderText: widget.video.channelName.isEmpty
+                      placeholderText: _realChannelName.value.isEmpty
                           ? '?'
-                          : widget.video.channelName.substring(0, 1).toUpperCase(),
+                          : _realChannelName.value.substring(0, 1).toUpperCase(),
                     ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        widget.video.channelName,
+                        _realChannelName.value,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(
@@ -686,7 +813,7 @@ class _VideoCardState extends State<VideoCard> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${_formatViews(widget.video.views)} views • ${_formatTimestamp(widget.video.uploadedAt)}',
+                  '${_formatViews(widget.video.views)} views · ${_formatTimestamp(widget.video.uploadedAt)}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

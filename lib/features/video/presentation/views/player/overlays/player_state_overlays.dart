@@ -344,6 +344,25 @@ class SeekPreviewTooltip extends StatelessWidget {
     return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
 
+  Color _getVerdictColor(String verdict) {
+    switch (verdict.toLowerCase()) {
+      case 'verified_true':
+      case 'mostly_true':
+        return Colors.greenAccent;
+      case 'false_claim':
+      case 'misleading':
+      case 'disputed':
+        return Colors.redAccent;
+      case 'unproven':
+      case 'inconclusive':
+      case 'limited_support':
+      case 'verification_timeout':
+        return Colors.amberAccent;
+      default:
+        return Colors.blueAccent;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Obx(() {
@@ -373,25 +392,6 @@ class SeekPreviewTooltip extends StatelessWidget {
         }
       }
 
-      Color getVerdictColor(String verdict) {
-        switch (verdict.toLowerCase()) {
-          case 'verified_true':
-          case 'mostly_true':
-            return Colors.greenAccent;
-          case 'false_claim':
-          case 'misleading':
-          case 'disputed':
-            return Colors.redAccent;
-          case 'unproven':
-          case 'inconclusive':
-          case 'limited_support':
-          case 'verification_timeout':
-            return Colors.amberAccent;
-          default:
-            return Colors.blueAccent;
-        }
-      }
-
       return Positioned(
         bottom: 100,
         left: 0,
@@ -404,65 +404,122 @@ class SeekPreviewTooltip extends StatelessWidget {
               children: [
                 Positioned(
                   left: hoveredClaim != null
-                      ? (xPx - 150).clamp(16.0, c.maxWidth - 316.0)
-                      : xPx - 52,
+                      ? (xPx - 160).clamp(16.0, c.maxWidth - 336.0)
+                      : (xPx - 80).clamp(16.0, c.maxWidth - 176.0),
                   bottom: 0,
                   child: Container(
-                    width: hoveredClaim != null ? 300 : 104,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
+                    width: hoveredClaim != null ? 320 : 160,
+                    padding: const EdgeInsets.all(8.0),
                     decoration: BoxDecoration(
                       color: PT.surface,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: PT.border),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.6),
-                          blurRadius: 12,
+                          color: Colors.black.withValues(alpha: 0.65),
+                          blurRadius: 16,
+                          spreadRadius: 2,
                         ),
                       ],
                     ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _fmt(pos),
-                          textAlign: TextAlign.center,
-                          style: TS.time,
+                    child: Builder(builder: (context) {
+                      final thumbUrl = ctrl.videoController?.video.thumbnailUrl;
+                      final Widget thumbWidget = Container(
+                        width: hoveredClaim != null ? 120 : 144,
+                        height: hoveredClaim != null ? 68 : 81,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white12),
+                          color: Colors.black45,
                         ),
-                        if (hoveredClaim != null) ...[
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: thumbUrl != null && thumbUrl.isNotEmpty
+                              ? Image.network(
+                                  thumbUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => const Center(
+                                    child: Icon(Icons.movie_creation_rounded, color: Colors.white30, size: 24),
+                                  ),
+                                )
+                              : const Center(
+                                  child: Icon(Icons.movie_creation_rounded, color: Colors.white30, size: 24),
+                                ),
+                        ),
+                      );
+
+                      if (hoveredClaim != null) {
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                thumbWidget,
+                                const SizedBox(height: 6),
+                                Text(
+                                  _fmt(pos),
+                                  style: TS.time.copyWith(fontSize: 12),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    hoveredClaim.text,
+                                    maxLines: 3,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontFamily: 'Roboto',
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: _getVerdictColor(hoveredClaim.verdict).withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(color: _getVerdictColor(hoveredClaim.verdict).withValues(alpha: 0.4)),
+                                    ),
+                                    child: Text(
+                                      hoveredClaim.verdict.toUpperCase().replaceAll('_', ' '),
+                                      style: TextStyle(
+                                        fontFamily: 'Roboto',
+                                        color: _getVerdictColor(hoveredClaim.verdict),
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+
+                      // Default (no claim hovered)
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          thumbWidget,
                           const SizedBox(height: 6),
                           Text(
-                            hoveredClaim.text,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontFamily: 'Roboto',
-                              color: Colors.white,
-                              fontSize: 11,
-                              height: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            hoveredClaim.verdict.toUpperCase().replaceAll(
-                              '_',
-                              ' ',
-                            ),
-                            style: TextStyle(
-                              fontFamily: 'Roboto',
-                              color: getVerdictColor(hoveredClaim.verdict),
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
-                            ),
+                            _fmt(pos),
+                            style: TS.time,
                           ),
                         ],
-                      ],
-                    ),
+                      );
+                    }),
                   ),
                 ),
               ],

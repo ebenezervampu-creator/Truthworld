@@ -200,19 +200,19 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
-                                AppColors.brand.withValues(alpha: 0.2),
-                                kPrimaryDark.withValues(alpha: 0.1),
+                                kPrimaryDark.withValues(alpha: 0.2),
+                                kSecondaryDark.withValues(alpha: 0.1),
                               ],
                             ),
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: AppColors.brand.withValues(alpha: 0.3),
+                              color: kPrimaryDark.withValues(alpha: 0.3),
                               width: 1,
                             ),
                           ),
                           child: Icon(
                             Icons.playlist_add_rounded,
-                            color: AppColors.brand,
+                            color: kPrimaryDark,
                             size: 24,
                           ),
                         ),
@@ -298,7 +298,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(20),
                             borderSide: BorderSide(
-                              color: AppColors.brand,
+                              color: kPrimaryDark,
                               width: 2,
                             ),
                           ),
@@ -370,14 +370,14 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                       children: [
                                         CircleAvatar(
                                           radius: 16,
-                                          backgroundColor: AppColors.brand
+                                          backgroundColor: kPrimaryDark
                                               .withValues(alpha: 0.2),
                                           child: Text(
                                             channel.channelName
                                                 .substring(0, 1)
                                                 .toUpperCase(),
                                             style: GoogleFonts.roboto(
-                                              color: AppColors.brand,
+                                              color: kPrimaryDark,
                                               fontWeight: FontWeight.w500,
                                               fontSize: 12,
                                             ),
@@ -412,7 +412,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                           height: 24,
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
-                              colors: [AppColors.brand, kPrimaryDark],
+                              colors: [Color(0xFFE50914), kPrimaryDark],
                             ),
                             borderRadius: BorderRadius.circular(2),
                           ),
@@ -434,10 +434,10 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                             vertical: 6,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.brand.withValues(alpha: 0.1),
+                            color: kPrimaryDark.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: AppColors.brand.withValues(alpha: 0.3),
+                              color: kPrimaryDark.withValues(alpha: 0.3),
                             ),
                           ),
                           child: Text(
@@ -445,7 +445,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                             style: GoogleFonts.roboto(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
-                              color: AppColors.brand,
+                              color: kPrimaryDark,
                             ),
                           ),
                         ),
@@ -474,13 +474,13 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                   Container(
                                     padding: EdgeInsets.all(16),
                                     decoration: BoxDecoration(
-                                      color: AppColors.brand.withValues(
+                                      color: kPrimaryDark.withValues(
                                         alpha: 0.1,
                                       ),
                                       borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: const CircularProgressIndicator(
-                                      color: AppColors.brand,
+                                      color: kPrimaryDark,
                                       strokeWidth: 3,
                                     ),
                                   ),
@@ -591,7 +591,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                         gradient: isSelected
                                             ? LinearGradient(
                                                 colors: [
-                                                  AppColors.brand.withValues(
+                                                  kPrimaryDark.withValues(
                                                     alpha: 0.1,
                                                   ),
                                                   kPrimaryDark.withValues(
@@ -605,7 +605,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                             : null,
                                         border: Border.all(
                                           color: isSelected
-                                              ? AppColors.brand
+                                              ? kPrimaryDark
                                               : Colors.white.withValues(
                                                   alpha: 0.2,
                                                 ),
@@ -615,7 +615,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                         boxShadow: isSelected
                                             ? [
                                                 BoxShadow(
-                                                  color: AppColors.brand
+                                                  color: kPrimaryDark
                                                       .withValues(alpha: 0.2),
                                                   blurRadius: 8,
                                                   offset: const Offset(0, 2),
@@ -654,7 +654,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                                             ? 80
                                                             : 70,
                                                         decoration: BoxDecoration(
-                                                          color: kDarkSurface,
+                                                          color: kPrimaryDark,
                                                           borderRadius:
                                                               BorderRadius.circular(
                                                                 12,
@@ -677,7 +677,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                                   child: Container(
                                                     padding: EdgeInsets.all(4),
                                                     decoration: BoxDecoration(
-                                                      color: AppColors.brand,
+                                                      color: kPrimaryDark,
                                                       borderRadius:
                                                           BorderRadius.circular(
                                                             12,
@@ -842,13 +842,13 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(20),
                         gradient: const LinearGradient(
-                          colors: [AppColors.brand, kPrimaryDark],
+                          colors: [Color(0xFFE50914), kPrimaryDark],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.brand.withValues(alpha: 0.3),
+                            color: kPrimaryDark.withValues(alpha: 0.3),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),
@@ -932,7 +932,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                             "Success",
                             "Playlist created successfully!",
                             snackPosition: SnackPosition.TOP,
-                            backgroundColor: AppColors.brand,
+                            backgroundColor: kPrimaryDark,
                             colorText: Colors.white,
                             borderRadius: 12,
                             margin: EdgeInsets.all(16),
@@ -1017,7 +1017,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                   delegate: _SliverAppBarDelegate(
                     TabBar(
                       controller: _tabController,
-                      indicatorColor: AppColors.brand,
+                      indicatorColor: kPrimaryDark,
                       labelColor: Colors.white,
                       unselectedLabelColor: Colors.white.withValues(alpha: 0.5),
                       labelStyle: GoogleFonts.roboto(fontWeight: FontWeight.bold),
@@ -1033,7 +1033,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
             SliverFillRemaining(
               child: RefreshIndicator(
                 key: ValueKey(refreshTick),
-                color: AppColors.brand,
+                color: kPrimaryDark,
                 backgroundColor: colorScheme.surface,
                 onRefresh: _refreshPlaylists,
                 child: TabBarView(
@@ -1112,7 +1112,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
           scale: _fabScaleAnimation,
           child: FloatingActionButton.extended(
             onPressed: showCreatePlaylistModal,
-            backgroundColor: AppColors.brand,
+            backgroundColor: kPrimaryDark,
             foregroundColor: Colors.white,
             elevation: 8,
             icon: const Icon(Icons.add_rounded),
@@ -1252,11 +1252,11 @@ class _PlaylistScreenState extends State<PlaylistScreen>
         margin: EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppColors.brand.withValues(alpha: 0.1)
+              ? kPrimaryDark.withValues(alpha: 0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: isSelected
-              ? Border.all(color: AppColors.brand, width: 1)
+              ? Border.all(color: kPrimaryDark, width: 1)
               : null,
         ),
         child: Row(
@@ -1264,7 +1264,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
             Icon(
               icon,
               color: isSelected
-                  ? AppColors.brand
+                  ? kPrimaryDark
                   : Colors.white.withValues(alpha: 0.6),
               size: 20,
             ),
@@ -1272,7 +1272,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
             Text(
               label,
               style: GoogleFonts.roboto(
-                color: isSelected ? AppColors.brand : Colors.white,
+                color: isSelected ? kPrimaryDark : Colors.white,
                 fontWeight: isSelected ? FontWeight.w500 : FontWeight.w500,
                 fontSize: 16,
               ),
@@ -1283,7 +1283,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                 _playlistController.isAscending.value
                     ? Icons.arrow_upward_rounded
                     : Icons.arrow_downward_rounded,
-                color: AppColors.brand,
+                color: kPrimaryDark,
                 size: 18,
               ),
           ],
@@ -1496,8 +1496,8 @@ class _PlaylistScreenState extends State<PlaylistScreen>
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    AppColors.brand.withValues(alpha: 0.2),
-                    kPrimaryDark.withValues(alpha: 0.1),
+                    kPrimaryDark.withValues(alpha: 0.25),
+                    kSecondaryDark.withValues(alpha: 0.15),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(60),
@@ -1507,7 +1507,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                     ? Icons.public_off_rounded
                     : Icons.playlist_add_rounded,
                 size: 60,
-                color: AppColors.brand,
+                color: kPrimaryDark,
               ),
             ),
             const SizedBox(height: 24),
@@ -2035,8 +2035,8 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: [
-                AppColors.brand.withValues(alpha: 0.8),
-                kPrimaryDark.withValues(alpha: 0.6),
+                kPrimaryDark.withValues(alpha: 0.8),
+                kSecondaryDark.withValues(alpha: 0.6),
               ],
             ),
             borderRadius: BorderRadius.circular(16),
@@ -2296,7 +2296,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                             "Success",
                             "Video added to '${widget.playlist.playlistName}'",
                             snackPosition: SnackPosition.BOTTOM,
-                            backgroundColor: AppColors.brand,
+                            backgroundColor: kPrimaryDark,
                             colorText: Colors.white,
                             margin: EdgeInsets.all(20),
                             borderRadius: 16,
@@ -2381,7 +2381,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                       future: playlistController.fetchVideos(widget.playlist.videoIds),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting) {
-                          return Center(child: CircularProgressIndicator(color: AppColors.brand));
+                          return Center(child: CircularProgressIndicator(color: kPrimaryDark));
                         }
                         if (snapshot.hasError) {
                           return Center(child: Text("Error loading videos", style: GoogleFonts.roboto(color: Colors.white)));
@@ -2428,7 +2428,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                                     "Removed",
                                     "Video removed from playlist",
                                     snackPosition: SnackPosition.BOTTOM,
-                                    backgroundColor: AppColors.brand,
+                                    backgroundColor: kPrimaryDark,
                                     colorText: Colors.white,
                                   );
                                 },
@@ -2485,7 +2485,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: AppColors.brand, width: 2),
+                borderSide: BorderSide(color: kPrimaryDark, width: 2),
               ),
             ),
             autofocus: true,
@@ -2510,7 +2510,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.brand,
+                backgroundColor: kPrimaryDark,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),

@@ -90,8 +90,8 @@ class _ReplyWidgetState extends State<ReplyWidget> {
         // Avatar
         UserAvatar(
           radius: 14,
-          photoUrl: widget.reply.userProfilePicUrl,
-          displayName: widget.reply.userName,
+          photoUrl: widget.reply.avatarUrl,
+          displayName: widget.reply.displayName,
           backgroundColor: AppTheme.secondaryBackground,
           fontSize: 14,
         ),
@@ -104,7 +104,7 @@ class _ReplyWidgetState extends State<ReplyWidget> {
               Row(
                 children: [
                   Text(
-                    widget.reply.userName,
+                    widget.reply.displayName,
                     style: GoogleFonts.roboto(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,

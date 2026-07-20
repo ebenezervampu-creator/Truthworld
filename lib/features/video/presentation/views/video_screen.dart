@@ -3282,8 +3282,8 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                   ),
                   UserAvatar(
                     radius: 10,
-                    photoUrl: firstReply.userProfilePicUrl,
-                    displayName: firstReply.userName,
+                    photoUrl: firstReply.avatarUrl,
+                    displayName: firstReply.displayName,
                   ),
                   const SizedBox(width: 8),
                   Text(
@@ -3365,8 +3365,8 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                                   cursor: SystemMouseCursors.click,
                                   child: UserAvatar(
                                     radius: 12,
-                                    photoUrl: reply.userProfilePicUrl,
-                                    displayName: reply.userName,
+                                    photoUrl: reply.avatarUrl,
+                                    displayName: reply.displayName,
                                   ),
                                 ),
                               ),
@@ -3392,7 +3392,7 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                                                       mainAxisSize: MainAxisSize.min,
                                                       children: [
                                                         Text(
-                                                          reply.userName.startsWith('@') ? reply.userName : '@${reply.userName}',
+                                                          reply.displayName.startsWith('@') ? reply.displayName : '@${reply.displayName}',
                                                           style: const TextStyle(
                                                             fontWeight: FontWeight.bold,
                                                             fontSize: 11,
@@ -3409,7 +3409,7 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
                                                     ),
                                                   )
                                                 : Text(
-                                                    reply.userName.startsWith('@') ? reply.userName : '@${reply.userName}',
+                                                    reply.displayName.startsWith('@') ? reply.displayName : '@${reply.displayName}',
                                                     style: const TextStyle(
                                                       fontWeight: FontWeight.bold,
                                                       fontSize: 12,

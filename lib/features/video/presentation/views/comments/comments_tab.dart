@@ -993,8 +993,8 @@ class _ModernCommentItemState extends State<ModernCommentItem>
       ),
       child: UserAvatar(
         radius: radius,
-        photoUrl: widget.comment.userProfilePicUrl,
-        displayName: widget.comment.userName,
+        photoUrl: widget.comment.avatarUrl,
+        displayName: widget.comment.displayName,
         backgroundColor: Colors.transparent,
         textColor: widget.theme.colorScheme.primary,
         fontSize: widget.isMobile
@@ -1014,7 +1014,7 @@ class _ModernCommentItemState extends State<ModernCommentItem>
         Row(
           children: [
             Text(
-              widget.comment.userName,
+              widget.comment.displayName,
               style: GoogleFonts.roboto(
                 fontWeight: FontWeight.w500,
                 fontSize: widget.isMobile
@@ -1713,8 +1713,8 @@ class ModernReplyItem extends StatelessWidget {
               ),
               child: UserAvatar(
                 radius: avatarRadius,
-                photoUrl: reply.userProfilePicUrl,
-                displayName: reply.userName,
+                photoUrl: reply.avatarUrl,
+                displayName: reply.displayName,
                 backgroundColor: Colors.transparent,
                 textColor: theme.colorScheme.secondary,
                 fontSize: isMobile
@@ -1739,7 +1739,7 @@ class ModernReplyItem extends StatelessWidget {
                   Row(
                     children: [
                       Text(
-                        reply.userName,
+                        reply.displayName,
                         style: GoogleFonts.roboto(
                           fontWeight: FontWeight.w500,
                           fontSize: isMobile

@@ -314,6 +314,7 @@ class UISource {
   final String type; // 'Primary' | 'Secondary' | 'Supporting'
   final int citationCount;
   final String? snippet;
+  final String? retrievalProvider;
 
   UISource({
     required this.title,
@@ -323,6 +324,7 @@ class UISource {
     required this.type,
     this.citationCount = 0,
     this.snippet,
+    this.retrievalProvider,
   });
 
   factory UISource.fromMap(Map<String, dynamic> map) {
@@ -334,6 +336,7 @@ class UISource {
       type: map['type'] ?? 'Secondary',
       citationCount: (map['citationCount'] as num?)?.toInt() ?? 0,
       snippet: map['snippet'],
+      retrievalProvider: map['retrievalProvider'],
     );
   }
 
@@ -345,6 +348,41 @@ class UISource {
     'type': type,
     'citationCount': citationCount,
     'snippet': snippet,
+    'retrievalProvider': retrievalProvider,
+  };
+}
+
+class UIEvidence {
+  final String type;
+  final String strength;
+
+  UIEvidence({required this.type, required this.strength});
+
+  factory UIEvidence.fromMap(Map<String, dynamic> map) => UIEvidence(
+    type: map['type'] ?? '',
+    strength: map['strength'] ?? '',
+  );
+
+  Map<String, dynamic> toMap() => {
+    'type': type,
+    'strength': strength,
+  };
+}
+
+class UIConsensus {
+  final String domain;
+  final String level;
+
+  UIConsensus({required this.domain, required this.level});
+
+  factory UIConsensus.fromMap(Map<String, dynamic> map) => UIConsensus(
+    domain: map['domain'] ?? '',
+    level: map['level'] ?? '',
+  );
+
+  Map<String, dynamic> toMap() => {
+    'domain': domain,
+    'level': level,
   };
 }
 
@@ -355,6 +393,17 @@ class ClaimResult {
   final double? end;
   final bool? isLowRiskTrivia;
   final List<UISource> effectiveSources;
+  /// Confidence in the categorization of the claim nature (e.g. 1.0 = 100% sure this is a RELIGIOUS_CLAIM).
+  final double? classificationConfidence;
+  /// Confidence in the historical/empirical evidence backing the claim (e.g. 0.9 = 90% sure Siddhartha Gautama existed historically).
+  final double? historicalEvidenceConfidence;
+  final Map<String, String>? evidenceDetails;
+  final Map<String, String>? consensusDetails;
+  final String? claimDomain;
+  final String? claimNature;
+  final List<String>? verdictBasis;
+  final List<UIEvidence>? evidence;
+  final List<UIConsensus>? consensus;
 
   ClaimResult({
     required this.text,
@@ -363,6 +412,15 @@ class ClaimResult {
     this.end,
     this.isLowRiskTrivia,
     this.effectiveSources = const [],
+    this.classificationConfidence,
+    this.historicalEvidenceConfidence,
+    this.evidenceDetails,
+    this.consensusDetails,
+    this.claimDomain,
+    this.claimNature,
+    this.verdictBasis,
+    this.evidence,
+    this.consensus,
   });
 
   factory ClaimResult.fromMap(Map<String, dynamic> map) {
@@ -375,6 +433,25 @@ class ClaimResult {
       effectiveSources: (map['effectiveSources'] as List? ?? [])
           .map((s) => UISource.fromMap(Map<String, dynamic>.from(s)))
           .toList(),
+      classificationConfidence: (map['classificationConfidence'] as num?)?.toDouble(),
+      historicalEvidenceConfidence: (map['historicalEvidenceConfidence'] as num?)?.toDouble(),
+      evidenceDetails: map['evidenceDetails'] != null
+          ? Map<String, String>.from(map['evidenceDetails'])
+          : null,
+      consensusDetails: map['consensusDetails'] != null
+          ? Map<String, String>.from(map['consensusDetails'])
+          : null,
+      claimDomain: map['claimDomain'],
+      claimNature: map['claimNature'],
+      verdictBasis: map['verdictBasis'] != null
+          ? List<String>.from(map['verdictBasis'])
+          : null,
+      evidence: (map['evidence'] as List?)
+          ?.map((e) => UIEvidence.fromMap(Map<String, dynamic>.from(e)))
+          .toList(),
+      consensus: (map['consensus'] as List?)
+          ?.map((c) => UIConsensus.fromMap(Map<String, dynamic>.from(c)))
+          .toList(),
     );
   }
 
@@ -385,6 +462,15 @@ class ClaimResult {
     'end': end,
     'isLowRiskTrivia': isLowRiskTrivia,
     'effectiveSources': effectiveSources.map((s) => s.toMap()).toList(),
+    'classificationConfidence': classificationConfidence,
+    'historicalEvidenceConfidence': historicalEvidenceConfidence,
+    'evidenceDetails': evidenceDetails,
+    'consensusDetails': consensusDetails,
+    'claimDomain': claimDomain,
+    'claimNature': claimNature,
+    'verdictBasis': verdictBasis,
+    'evidence': evidence?.map((e) => e.toMap()).toList(),
+    'consensus': consensus?.map((c) => c.toMap()).toList(),
   };
 }
 

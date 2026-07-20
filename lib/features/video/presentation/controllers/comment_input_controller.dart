@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 
 class CommentInputController extends BaseController {
   final String videoId;
@@ -51,11 +52,16 @@ class CommentInputController extends BaseController {
       isSubmitting.value = true;
       final user = FirebaseAuth.instance.currentUser!;
       
+      final authService = AuthService.to;
+      final hasChannel = authService.hasChannel.value && authService.userChannel != null;
+      final finalUserName = hasChannel ? authService.userChannel!.name : (user.displayName ?? 'Anonymous User');
+      final finalUserProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : (user.photoURL ?? '');
+
       await _mainController.addComment(
         videoId: videoId,
         userId: user.uid,
-        userName: user.displayName ?? 'Anonymous User',
-        userProfilePicUrl: user.photoURL ?? '',
+        userName: finalUserName,
+        userProfilePicUrl: finalUserProfilePicUrl,
         text: commentController.text,
       );
 

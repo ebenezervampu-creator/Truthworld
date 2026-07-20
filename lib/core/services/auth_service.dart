@@ -40,6 +40,29 @@ class AuthService extends GetxService {
   final RxnString premiumPlanId = RxnString();
   StreamSubscription? _userDocSubscription;
 
+  String get activeDisplayName {
+    if (hasChannel.value && userChannel != null) {
+      return userChannel!.name;
+    }
+    return user?.displayName ?? 'User';
+  }
+
+  String get activePhotoUrl {
+    if (hasChannel.value && userChannel != null) {
+      return userChannel!.avatarUrl;
+    }
+    return user?.photoURL ?? '';
+  }
+
+  String get activeHandle {
+    if (hasChannel.value && userChannel != null) {
+      final handle = userChannel!.handle;
+      return handle.startsWith('@') ? handle : '@$handle';
+    }
+    final email = user?.email ?? '';
+    return email.isNotEmpty ? "@${email.split('@')[0]}" : "@user";
+  }
+
 
   /// ✅ SAFE async initialization (no Firebase calls before this)
   Future<AuthService> init() async {

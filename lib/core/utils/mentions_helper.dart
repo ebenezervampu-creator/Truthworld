@@ -51,7 +51,6 @@ class MentionsHelper {
         if (querySnap.docs.isNotEmpty) {
           final channelDoc = querySnap.docs.first;
           final ownerId = channelDoc.data()['ownerId'] as String?;
-          final channelName = channelDoc.data()['name'] as String? ?? handle;
 
           // Don't notify the user themselves
           if (ownerId != null && ownerId.isNotEmpty && ownerId != currentUserId) {

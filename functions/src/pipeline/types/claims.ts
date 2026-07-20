@@ -4,9 +4,14 @@
 
 export enum ClaimNature {
   VERIFIABLE_FACT = 'VERIFIABLE_FACT',
+  HISTORICAL_FACT = 'HISTORICAL_FACT',
+  RELIGIOUS_CLAIM = 'RELIGIOUS_CLAIM',
+  SUPERNATURAL_CLAIM = 'SUPERNATURAL_CLAIM',
+  SCIENTIFIC_CLAIM = 'SCIENTIFIC_CLAIM',
   OPINION = 'OPINION',
   BELIEF = 'BELIEF',
   ESTIMATION = 'ESTIMATION',
+  PREDICTION = 'PREDICTION',
   SATIRE = 'SATIRE'
 }
 
@@ -41,7 +46,34 @@ export type ClaimStatus =
   | "verified_false"
   | "partially_true"
   | "inconclusive"
-  | "opinion_or_prediction";
+  | "opinion_or_prediction"
+  | "mostly_true"
+  | "disputed"
+  | "unproven"
+  | "misleading"
+  | "false_claim"
+  | "religious_belief"
+  | "opinion_claim"
+  | "satire_claim"
+  | "verification_timeout"
+  | "unverified"
+  | "limited_support"
+  | "correct"
+  | "mostly_correct"
+  | "incorrect"
+  | "outdated"
+  | "unsupported"
+  | "needs_context"
+  | "incorrect_citation"
+  | "historical_consensus_denial"
+  | "faith_context"
+  | "tradition_linked"
+  | "historical_tradition"
+  | "opinion"
+  | "satire"
+  | "unverifiable"
+  | "faith_based_claim"
+  | "not_historically_verifiable";
 
 export interface ExtractedClaim {
   text: string;

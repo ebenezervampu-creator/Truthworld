@@ -376,10 +376,8 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
 
     return Obx(() {
       final authService = AuthService.to;
-      final hasChannel = authService.hasChannel.value;
-      final channel = authService.userChannel;
 
-      final String? photoUrl = hasChannel ? channel?.avatarUrl : currentUser.photoURL;
+      final String photoUrl = authService.activePhotoUrl;
 
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -393,7 +391,7 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
           children: [
             ClipOval(
               child:
-                  photoUrl != null && photoUrl.isNotEmpty
+                  photoUrl.isNotEmpty
                   ? CachedNetworkImage(
                       imageUrl: photoUrl,
                       width: 28,

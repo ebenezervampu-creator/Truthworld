@@ -50,10 +50,6 @@ class CommentsController extends BaseController {
   String get currentUserName {
     final authService = AuthService.to;
     if (authService.hasChannel.value && authService.userChannel != null) {
-      final handle = authService.userChannel!.handle;
-      if (handle.isNotEmpty) {
-        return handle.startsWith('@') ? handle.substring(1) : handle;
-      }
       return authService.userChannel!.name;
     }
     return _auth.currentUser?.displayName ?? 'Anonymous User';
@@ -209,14 +205,23 @@ class CommentsController extends BaseController {
       isSubmittingComment.value = true;
       commentError.value = null;
 
+      final authService = AuthService.to;
+      final hasChannel = authService.hasChannel.value && authService.userChannel != null;
+
+      final String finalUserName = hasChannel ? authService.userChannel!.name : currentUserName;
+      final String finalUserProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : userProfilePicUrl;
+      final String? finalChannelId = hasChannel ? authService.userChannel!.id : channelId;
+      final String? finalChannelName = hasChannel ? authService.userChannel!.name : channelName;
+      final String? finalChannelProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : channelProfilePicUrl;
+
       final commentId = await _commentService.addComment(
         videoId: video!.id,
         userId: currentUserId,
-        userName: currentUserName,
-        userProfilePicUrl: userProfilePicUrl,
-        channelId: channelId ?? currentUserId,
-        channelName: channelName,
-        channelProfilePicUrl: channelProfilePicUrl,
+        userName: finalUserName,
+        userProfilePicUrl: finalUserProfilePicUrl,
+        channelId: finalChannelId ?? currentUserId,
+        channelName: finalChannelName,
+        channelProfilePicUrl: finalChannelProfilePicUrl,
         text: text.trim(),
       );
 
@@ -486,26 +491,37 @@ class CommentsController extends BaseController {
       isSubmittingComment.value = true;
       commentError.value = null;
 
+      final authService = AuthService.to;
+      final hasChannel = authService.hasChannel.value && authService.userChannel != null;
+
+      final String finalUserName = hasChannel ? authService.userChannel!.name : currentUserName;
+      final String finalUserProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : userProfilePicUrl;
+      final String? finalChannelId = hasChannel ? authService.userChannel!.id : channelId;
+      final String? finalChannelName = hasChannel ? authService.userChannel!.name : channelName;
+      final String? finalChannelProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : channelProfilePicUrl;
+
       final replyId = await _commentService.addReply(
         videoId: video!.id,
         commentId: commentId,
         userId: currentUserId,
-        userName: currentUserName,
-        userProfilePicUrl: userProfilePicUrl,
-        channelId: channelId ?? currentUserId,
-        channelName: channelName,
-        channelProfilePicUrl: channelProfilePicUrl,
+        userName: finalUserName,
+        userProfilePicUrl: finalUserProfilePicUrl,
+        channelId: finalChannelId ?? currentUserId,
+        channelName: finalChannelName,
+        channelProfilePicUrl: finalChannelProfilePicUrl,
         text: text.trim(),
       );
 
       if (commentAuthorId != null && commentAuthorId.isNotEmpty && commentAuthorId != currentUserId) {
         final notificationService = UserNotificationService();
+        final String displayHandle = hasChannel ? authService.activeHandle : (currentUserName.startsWith('@') ? currentUserName : '@$currentUserName');
+
         notificationService.createNotification(
           userId: commentAuthorId,
           type: 'comment_reply',
           severity: NotificationSeverity.info,
           title: 'New Reply',
-          message: '${currentUserName.startsWith('@') ? '' : '@'}$currentUserName replied to your comment: "${text.trim()}"',
+          message: '$displayHandle replied to your comment: "${text.trim()}"',
           actionUrl: '/watch?v=${video!.id}',
           metadata: {
             'videoId': video!.id,
@@ -513,9 +529,7 @@ class CommentsController extends BaseController {
             'replyId': replyId,
             'thumbnailUrl': video!.thumbnailUrl,
             'channelId': video!.channelId,
-            'userAvatar': (AuthService.to.hasChannel.value && AuthService.to.userChannel != null)
-                ? AuthService.to.userChannel!.avatarUrl
-                : (AuthService.to.hasChannel.value ? '' : (_auth.currentUser?.photoURL ?? '')),
+            'userAvatar': hasChannel ? authService.userChannel!.avatarUrl : (authService.user?.photoURL ?? ''),
           },
         );
       }
@@ -687,22 +701,21 @@ class CommentsController extends BaseController {
   void _triggerLikeNotification(Comment comment) {
     if (video == null || currentUserId.isEmpty || currentUserId == comment.userId) return;
     
+    final authService = AuthService.to;
     final notificationService = UserNotificationService();
     notificationService.createNotification(
       userId: comment.userId,
       type: 'comment_like',
       severity: NotificationSeverity.info,
       title: 'Comment Liked',
-      message: '${currentUserName.startsWith('@') ? '' : '@'}$currentUserName liked your comment: "${comment.text}"',
+      message: '${authService.activeHandle} liked your comment: "${comment.text}"',
       actionUrl: '/watch?v=${video!.id}',
       metadata: {
         'videoId': video!.id,
         'commentId': comment.id,
         'thumbnailUrl': video!.thumbnailUrl,
         'channelId': video!.channelId,
-        'userAvatar': (AuthService.to.hasChannel.value && AuthService.to.userChannel != null)
-            ? AuthService.to.userChannel!.avatarUrl
-            : (AuthService.to.hasChannel.value ? '' : (_auth.currentUser?.photoURL ?? '')),
+        'userAvatar': authService.activePhotoUrl,
       },
     );
   }
@@ -710,13 +723,14 @@ class CommentsController extends BaseController {
   void _triggerReplyLikeNotification(String commentId, String replyId, String? replyAuthorId, String? replyText) {
     if (video == null || currentUserId.isEmpty || replyAuthorId == null || replyAuthorId.isEmpty || currentUserId == replyAuthorId) return;
     
+    final authService = AuthService.to;
     final notificationService = UserNotificationService();
     notificationService.createNotification(
       userId: replyAuthorId,
       type: 'reply_like',
       severity: NotificationSeverity.info,
       title: 'Reply Liked',
-      message: '${currentUserName.startsWith('@') ? '' : '@'}$currentUserName liked your reply: "${replyText ?? ''}"',
+      message: '${authService.activeHandle} liked your reply: "${replyText ?? ''}"',
       actionUrl: '/watch?v=${video!.id}',
       metadata: {
         'videoId': video!.id,
@@ -724,9 +738,7 @@ class CommentsController extends BaseController {
         'replyId': replyId,
         'thumbnailUrl': video!.thumbnailUrl,
         'channelId': video!.channelId,
-        'userAvatar': (AuthService.to.hasChannel.value && AuthService.to.userChannel != null)
-            ? AuthService.to.userChannel!.avatarUrl
-            : (AuthService.to.hasChannel.value ? '' : (_auth.currentUser?.photoURL ?? '')),
+        'userAvatar': authService.activePhotoUrl,
       },
     );
   }

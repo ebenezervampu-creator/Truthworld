@@ -43,6 +43,11 @@ class TowerCustomPlayer extends StatelessWidget {
             tag: tag,
           );
 
+    // Register mobile settings bottom sheet callback to display settings at bottom
+    TowerPlayerController.showMobileSettingsCallback = (ctx, controller) {
+      MobileSettingsBottomSheet.show(ctx, controller);
+    };
+
     return GetBuilder<TowerPlayerController>(
       init: ctrl,
       tag: tag,
@@ -113,10 +118,15 @@ class TowerCustomPlayer extends StatelessWidget {
                                 child:
                                     c.vv.isInitialized &&
                                         c.chewieController != null
-                                    ? AspectRatio(
-                                        aspectRatio: c.vv.aspectRatio,
-                                        child: Chewie(
-                                          controller: c.chewieController!,
+                                    ? InteractiveViewer(
+                                        clipBehavior: Clip.hardEdge,
+                                        minScale: 1.0,
+                                        maxScale: 6.0,
+                                        child: AspectRatio(
+                                          aspectRatio: c.vv.aspectRatio,
+                                          child: Chewie(
+                                            controller: c.chewieController!,
+                                          ),
                                         ),
                                       )
                                     : const SizedBox.shrink(),

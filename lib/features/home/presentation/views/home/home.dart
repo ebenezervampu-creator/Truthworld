@@ -1073,25 +1073,25 @@ class Home extends GetView<HomeController> {
               children: [
                 Obx(
                   () => Text(
-                    controller.currentUser.value?.displayName ?? 'User',
+                    AuthService.to.activeDisplayName,
                     style: modernDarkProfessionalTheme.textTheme.titleSmall
                         ?.copyWith(fontWeight: FontWeight.bold),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 Obx(
-                  () => controller.currentUser.value?.email != null
-                      ? Text(
-                          controller.currentUser.value!.email!,
-                          style: modernDarkProfessionalTheme.textTheme.bodySmall
-                              ?.copyWith(
-                                color: modernDarkProfessionalTheme
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                              ),
-                          overflow: TextOverflow.ellipsis,
-                        )
-                      : const SizedBox.shrink(),
+                  () => Text(
+                    AuthService.to.hasChannel.value && AuthService.to.userChannel != null
+                        ? AuthService.to.activeHandle
+                        : (controller.currentUser.value?.email ?? ''),
+                    style: modernDarkProfessionalTheme.textTheme.bodySmall
+                        ?.copyWith(
+                          color: modernDarkProfessionalTheme
+                              .colorScheme
+                              .onSurfaceVariant,
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
@@ -1126,13 +1126,14 @@ class Home extends GetView<HomeController> {
   }
 
   Widget _buildUserAvatar(BuildContext context, {double radius = 18}) {
-    final imageUrl = controller.currentUser.value?.photoURL;
+    final imageUrl = AuthService.to.activePhotoUrl;
+    final displayName = AuthService.to.activeDisplayName;
     return _ModernAvatar(
-      imageUrl: imageUrl,
+      imageUrl: imageUrl.isNotEmpty ? imageUrl : null,
       radius: radius,
-      placeholderText: controller.currentUser.value?.displayName
-          ?.safeSubstring(0, 1)
-          .toUpperCase(),
+      placeholderText: displayName.isNotEmpty
+          ? displayName.safeSubstring(0, 1).toUpperCase()
+          : 'U',
     );
   }
 
@@ -1695,7 +1696,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                   route: '/studio',
                   onTap: () async {
                     final origin = html.window.location.origin;
-                    final String studioUrl = kIsWeb && origin != null && origin.contains('localhost')
+                    final String studioUrl = kIsWeb && origin.contains('localhost')
                         ? '$origin/studio'
                         : 'https://truthworld-1-studio.web.app/';
                     final studioUri = Uri.parse(studioUrl);

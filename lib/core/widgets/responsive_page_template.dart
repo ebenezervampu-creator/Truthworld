@@ -94,12 +94,6 @@ class ResponsivePageTemplate extends StatelessWidget {
     if (context.isDesktop || context.isLargeDesktop || context.isUltraWide) return null;
     return bottomNavigation;
   }
-
-  double _getSideNavWidth(BuildContext context) {
-    if (context.isTabletSmall) return 200;
-    if (context.isTablet) return 240;
-    return 280;
-  }
 }
 
 // ==========================================================================

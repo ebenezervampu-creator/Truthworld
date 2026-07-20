@@ -121,32 +121,40 @@ class SubscriptionsPage extends StatelessWidget {
             final channel = controller.subscribedChannels[index];
             return Padding(
               padding: const EdgeInsets.only(right: 20),
-              child: Column(
-                children: [
-                  UserAvatar(
-                    radius: 30,
-                    photoUrl: channel.avatarUrl,
-                    displayName: channel.name,
-                    backgroundColor: AppColors.bgSurface,
-                    textColor: Colors.white,
-                    fontSize: 24,
-                  ),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: 64,
-                    child: Text(
-                      channel.name,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.roboto(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                        fontWeight: FontWeight.w500,
+              child: GestureDetector(
+                onTap: () {
+                  Get.toNamed(channel.channelRoute, arguments: {'channel': channel});
+                },
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: Column(
+                    children: [
+                      UserAvatar(
+                        radius: 30,
+                        photoUrl: channel.avatarUrl,
+                        displayName: channel.name,
+                        backgroundColor: AppColors.bgSurface,
+                        textColor: Colors.white,
+                        fontSize: 24,
                       ),
-                    ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: 64,
+                        child: Text(
+                          channel.name,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.roboto(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             );
           },

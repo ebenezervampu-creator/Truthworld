@@ -118,7 +118,7 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
             child: ClipRRect(
               borderRadius: BorderRadius.circular(20),
               child: CachedNetworkImage(
-                imageUrl: widget.reply.userProfilePicUrl,
+                imageUrl: widget.reply.avatarUrl,
                 width: 32,
                 height: 32,
                 fit: BoxFit.cover,
@@ -143,7 +143,7 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
               Row(
                 children: [
                   Text(
-                    widget.reply.userName,
+                    widget.reply.displayName,
                     style: GoogleFonts.roboto(
                       fontSize: isMobile ? 12 : 13,
                       fontWeight: FontWeight.w500,

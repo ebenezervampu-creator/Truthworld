@@ -36,6 +36,7 @@ export interface RichSource {
   lastPublished?: string;
   lastVerified?: string;
   retrievalMethod?: string;
+  retrievalProvider?: string;
 }
 
 export interface EvidenceSummary {
@@ -101,6 +102,29 @@ export interface VerifiedClaim extends FilteredClaim {
     cacheSource?: string;
     [key: string]: any;
   };
+  /**
+   * Confidence in the classification/category of the claim nature (e.g. 1.0 = 100% sure this is a RELIGIOUS_CLAIM).
+   */
+  classificationConfidence?: number;
+  /**
+   * Confidence in the historical/empirical evidence backing the claim (e.g. 0.9 = 90% sure Siddhartha Gautama existed historically).
+   */
+  historicalEvidenceConfidence?: number;
+  evidenceDetails?: {
+    scriptural: string;
+    historical: string;
+    scientific: string;
+  };
+  consensusDetails?: {
+    theology: string;
+    historical: string;
+    scientific: string;
+  };
+  claimDomain?: string;
+  claimNature?: string;
+  verdictBasis?: string[];
+  evidence?: { type: string; strength: string }[];
+  consensus?: { domain: string; level: string }[];
 }
 
 // Zod schemas for Gemini response validation
@@ -159,6 +183,7 @@ export const GeminiVerificationSchema = z.object({
     claimId: z.string(),
     claim: z.string(),
     claimType: z.string(), // Relaxed: Gemini may return values outside the predefined enum
+    nature: z.string().optional(),
     label: z.string(), // Relaxed: Gemini may use varied status labels
     evidenceLevel: z.string(), // Relaxed: Gemini may use varied evidence levels
     reasonCategory: z.string().optional().default('insufficient_evidence'), // Relaxed + optional
@@ -174,6 +199,29 @@ export const GeminiVerificationSchema = z.object({
     recommendedAction: z.string(),
     /** v17.0: Per-claim sources returned directly by Gemini */
     sources: z.array(GeminiSourceSchema).optional().default([]),
+    classificationConfidence: z.number().optional(),
+    historicalEvidenceConfidence: z.number().optional(),
+    evidenceDetails: z.object({
+      scriptural: z.string(),
+      historical: z.string(),
+      scientific: z.string()
+    }).optional(),
+    consensusDetails: z.object({
+      theology: z.string(),
+      historical: z.string(),
+      scientific: z.string()
+    }).optional(),
+    claimDomain: z.string().optional(),
+    claimNature: z.string().optional(),
+    verdictBasis: z.array(z.string()).optional(),
+    evidence: z.array(z.object({
+      type: z.string(),
+      strength: z.string()
+    })).optional(),
+    consensus: z.array(z.object({
+      domain: z.string(),
+      level: z.string()
+    })).optional(),
   }))
 });
 

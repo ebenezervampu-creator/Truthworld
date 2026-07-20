@@ -28,6 +28,7 @@ class TopicCardWidget extends StatefulWidget {
   final VoidCallback? onNextTap;
   final int? currentIndex;
   final int? totalItems;
+  final Color? accentColor;
 
   const TopicCardWidget({
     super.key,
@@ -41,6 +42,7 @@ class TopicCardWidget extends StatefulWidget {
     this.onNextTap,
     this.currentIndex,
     this.totalItems,
+    this.accentColor,
   });
 
   @override
@@ -189,14 +191,14 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: isHovered
-                ? AppColors.brand.withValues(alpha: 0.25)
+                ? (widget.accentColor ?? AppColors.brand).withValues(alpha: 0.25)
                 : Colors.white.withValues(alpha: 0.05),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
               color: isHovered
-                  ? AppColors.brand.withValues(alpha: 0.15)
+                  ? (widget.accentColor ?? AppColors.brand).withValues(alpha: 0.15)
                   : Colors.black.withValues(alpha: 0.3),
               blurRadius: isHovered ? 16 : 12,
               offset: Offset(0, isHovered ? 8 : 6),
@@ -299,7 +301,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                       vertical: isMobile ? 4 : 6,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: const Color(
+                                      color: widget.accentColor ?? const Color(
                                         0xFF9333EA,
                                       ), // Purple accent
                                       borderRadius: BorderRadius.circular(6),
@@ -561,7 +563,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                                           .person_add_alt_1_rounded,
                                                 size: isMobile ? 15 : 18,
                                                 color: isFollowed
-                                                    ? AppColors.brand
+                                                    ? (widget.accentColor ?? AppColors.brand)
                                                     : Colors.black,
                                               ),
                                               label: Text(
@@ -778,14 +780,15 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
   }
 
   Widget _buildGradientBackground() {
+    final accent = widget.accentColor ?? AppColors.brand;
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppColors.brand.withValues(alpha: 0.3),
-            AppColors.brand.withValues(alpha: 0.15),
+            accent.withValues(alpha: 0.3),
+            accent.withValues(alpha: 0.15),
             Colors.black,
           ],
         ),

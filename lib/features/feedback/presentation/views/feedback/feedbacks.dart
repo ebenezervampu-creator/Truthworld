@@ -266,38 +266,26 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
                 },
               ),
             ),
-            body: Container(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.topLeft,
-                  radius: 1.5,
-                  colors: [
-                    context.colors.brand.withValues(alpha: 0.1),
-                    context.colors.background,
+            body: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              child: Form(
+                key: controller.formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeader(context),
+                    const SizedBox(height: 32),
+                    _buildTypeSelector(context),
+                    const SizedBox(height: 24),
+                    _buildRatingSection(context),
+                    const SizedBox(height: 24),
+                    _buildMessageInput(context),
+                    const SizedBox(height: 24),
+                    _buildImageUploadSection(context),
+                    const SizedBox(height: 48),
+                    _buildSubmitButton(context),
+                    const SizedBox(height: 40),
                   ],
-                ),
-              ),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                child: Form(
-                  key: controller.formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildHeader(context),
-                      const SizedBox(height: 32),
-                      _buildTypeSelector(context),
-                      const SizedBox(height: 24),
-                      _buildRatingSection(context),
-                      const SizedBox(height: 24),
-                      _buildMessageInput(context),
-                      const SizedBox(height: 24),
-                      _buildImageUploadSection(context),
-                      const SizedBox(height: 48),
-                      _buildSubmitButton(context),
-                      const SizedBox(height: 40),
-                    ],
-                  ),
                 ),
               ),
             ),

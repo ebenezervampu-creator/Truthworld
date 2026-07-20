@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:get/get.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 
 class UserAvatar extends StatelessWidget {
   final String? photoUrl;
@@ -31,8 +34,33 @@ class UserAvatar extends StatelessWidget {
     final effectiveTextColor = textColor ?? theme.colorScheme.primary;
     final effectiveFontSize = fontSize ?? (radius * 0.8);
 
-    final String initial = displayName?.isNotEmpty == true
-        ? displayName![0].toUpperCase()
+    String? effectivePhotoUrl = photoUrl;
+    String? effectiveDisplayName = displayName;
+
+    try {
+      if (Get.isRegistered<AuthService>()) {
+        final authService = AuthService.to;
+        final currentUser = FirebaseAuth.instance.currentUser;
+        if (authService.hasChannel.value && authService.userChannel != null && currentUser != null) {
+          final userPhoto = currentUser.photoURL;
+          final userName = currentUser.displayName;
+
+          final isCurrentUserDetails = (photoUrl == userPhoto) ||
+                                       (displayName == userName) ||
+                                       (displayName == 'User') ||
+                                       (displayName == 'Anonymous User') ||
+                                       (photoUrl == null && displayName == null);
+
+          if (isCurrentUserDetails) {
+            effectivePhotoUrl = authService.userChannel!.avatarUrl;
+            effectiveDisplayName = authService.userChannel!.name;
+          }
+        }
+      }
+    } catch (_) {}
+
+    final String initial = effectiveDisplayName?.isNotEmpty == true
+        ? effectiveDisplayName![0].toUpperCase()
         : 'U';
 
     return Container(
@@ -49,9 +77,9 @@ class UserAvatar extends StatelessWidget {
             : null,
       ),
       child: ClipOval(
-        child: photoUrl != null && photoUrl!.isNotEmpty
+        child: effectivePhotoUrl != null && effectivePhotoUrl.isNotEmpty
             ? CachedNetworkImage(
-                imageUrl: photoUrl!,
+                imageUrl: effectivePhotoUrl,
                 width: radius * 2,
                 height: radius * 2,
                 fit: BoxFit.cover,
@@ -64,6 +92,7 @@ class UserAvatar extends StatelessWidget {
       ),
     );
   }
+
 
   Widget _buildPlaceholder(String initial, Color textColor, double fontSize) {
     return Center(

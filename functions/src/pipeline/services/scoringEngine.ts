@@ -104,6 +104,10 @@ export class ScoringEngine {
           stats.total_verifiable++;
           break;
         case 'religious_belief':
+        case 'faith_based_claim':
+        case 'faith_context':
+        case 'not_historically_verifiable':
+        case 'historical_tradition':
           stats.religious_belief++;
           stats.total_subjective++;
           break;
@@ -390,6 +394,29 @@ export class ScoringEngine {
     const evaluatedCount = stats?.evaluatedClaims ?? 0;
     const totalCount = stats?.extractedClaims ?? 0;
 
+    // Collect and map unique global sources from claims
+    const uiSourcesMap = new Map<string, any>();
+    data.claims?.forEach((c: any) => {
+      c.richSources?.forEach((rs: any) => {
+        const key = rs.url?.toLowerCase() || rs.title.toLowerCase();
+        if (!uiSourcesMap.has(key)) {
+          uiSourcesMap.set(key, {
+            title: rs.title,
+            url: rs.url,
+            domain: rs.domain,
+            trustLevel: rs.tier === 'A' || rs.tier === 'B' ? 'High' : (rs.tier === 'C' ? 'Medium' : 'Low'),
+            type: rs.type === 'primary' ? 'Primary' : 'Secondary',
+            snippet: rs.snippet || "",
+            retrievalProvider: rs.retrievalProvider || (rs.retrievalMethod === 'google_grounding' ? 'Google Grounding' : 'Direct'),
+            citationCount: 1
+          });
+        } else {
+          uiSourcesMap.get(key).citationCount++;
+        }
+      });
+    });
+    const sources = Array.from(uiSourcesMap.values());
+
     return {
       summary: {
         rating: data.compositeRating,
@@ -421,7 +448,7 @@ export class ScoringEngine {
       riskNote: stats?.framing_violations > 0 ? "High risk of framing manipulation detected." : "Low structural risk.",
       positiveDrivers: [],
       negativeDrivers: [],
-      sources: [],
+      sources: sources,
       conclusion: "Verification complete.",
       keyClaims: data.claims?.slice(0, 15).map((c: any) => {
         const intent = data.uiReport?.summary?.contentIntent?.primaryIntent;
@@ -433,6 +460,8 @@ export class ScoringEngine {
           if (c.status === 'inconclusive') displayLabel = "Evidence Inconclusive";
           else if (c.status === 'limited_support') displayLabel = "Popular Claim — Limited Verification";
           else if (c.status === 'unproven') displayLabel = "Inconclusive";
+          else if (c.status === 'faith_based_claim') displayLabel = "Faith-Based Claim";
+          else if (c.status === 'not_historically_verifiable') displayLabel = "Not Historically Verifiable";
         }
 
         return {
@@ -444,7 +473,26 @@ export class ScoringEngine {
           isLowRiskTrivia: isTrivia,
           reasoning: c.reasoning,
           sources: c.sources || [],
-          richSources: c.richSources || []
+          richSources: c.richSources || [],
+          effectiveSources: (c.richSources || []).map((rs: any) => ({
+            title: rs.title,
+            url: rs.url,
+            domain: rs.domain,
+            trustLevel: rs.tier === 'A' || rs.tier === 'B' ? 'High' : (rs.tier === 'C' ? 'Medium' : 'Low'),
+            type: rs.type === 'primary' ? 'Primary' : 'Secondary',
+            snippet: rs.snippet || "",
+            retrievalProvider: rs.retrievalProvider || (rs.retrievalMethod === 'google_grounding' ? 'Google Grounding' : 'Direct'),
+            citationCount: 1
+          })),
+          classificationConfidence: c.classificationConfidence,
+          historicalEvidenceConfidence: c.historicalEvidenceConfidence,
+          evidenceDetails: c.evidenceDetails,
+          consensusDetails: c.consensusDetails,
+          claimDomain: c.claimDomain,
+          claimNature: c.claimNature,
+          verdictBasis: c.verdictBasis,
+          evidence: c.evidence,
+          consensus: c.consensus,
         };
       }) || []
     } as any;

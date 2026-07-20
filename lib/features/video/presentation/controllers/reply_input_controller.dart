@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 
 class ReplyInputController extends BaseController {
   final String videoId;
@@ -66,12 +67,17 @@ class ReplyInputController extends BaseController {
     }
 
     try {
+      final authService = AuthService.to;
+      final hasChannel = authService.hasChannel.value && authService.userChannel != null;
+      final finalUserName = hasChannel ? authService.userChannel!.name : (user.displayName ?? 'Anonymous User');
+      final finalUserProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : (user.photoURL ?? '');
+
       await _mainController.addReply(
         videoId: videoId,
         commentId: commentId,
         userId: user.uid,
-        userName: user.displayName ?? 'Anonymous User',
-        userProfilePicUrl: user.photoURL ?? '',
+        userName: finalUserName,
+        userProfilePicUrl: finalUserProfilePicUrl,
         text: replyText.value.trim(),
       );
       textController.clear();

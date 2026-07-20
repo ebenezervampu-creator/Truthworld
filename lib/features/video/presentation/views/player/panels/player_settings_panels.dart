@@ -1047,3 +1047,389 @@ class ConfigureLanguagesButton extends StatelessWidget {
     );
   }
 }
+
+class MobileSettingsBottomSheet extends StatelessWidget {
+  final TowerPlayerController ctrl;
+  const MobileSettingsBottomSheet({super.key, required this.ctrl});
+
+  static void show(BuildContext context, TowerPlayerController ctrl) {
+    Get.bottomSheet(
+      MobileSettingsBottomSheet(ctrl: ctrl),
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      enterBottomSheetDuration: const Duration(milliseconds: 250),
+      exitBottomSheetDuration: const Duration(milliseconds: 150),
+    ).then((_) {
+      // Reset state when closed
+      ctrl.activePanel.value = '';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Material(
+          color: const Color(0xFF1E1E1E), // Premium dark theme matching screenshot
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.75,
+            ),
+            child: Obx(() {
+              Widget content;
+              switch (ctrl.activePanel.value) {
+                case 'speed':
+                  content = SpeedPanel(ctrl: ctrl);
+                  break;
+                case 'quality':
+                  content = QualityPanel(ctrl: ctrl);
+                  break;
+                case 'subtitles':
+                  content = SizedBox(
+                    height: 450,
+                    child: SubtitlesPanel(ctrl: ctrl),
+                  );
+                  break;
+                case 'language':
+                  content = SizedBox(
+                    height: 450,
+                    child: LanguagePanel(ctrl: ctrl),
+                  );
+                  break;
+                case 'more':
+                  content = MorePanel(ctrl: ctrl);
+                  break;
+                case 'sleep_timer':
+                  content = SleepTimerPanel(ctrl: ctrl);
+                  break;
+                default:
+                  content = MobileMainSettingsMenu(ctrl: ctrl);
+                  break;
+              }
+
+              return AnimatedSize(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeInOut,
+                child: content,
+              );
+            }),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class MobileMainSettingsMenu extends StatelessWidget {
+  final TowerPlayerController ctrl;
+  const MobileMainSettingsMenu({super.key, required this.ctrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Drag handle at top center of bottom sheet
+          Center(
+            child: Container(
+              width: 36,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          Obx(
+            () => MobileSettingsTile(
+              icon: Icons.tune_rounded,
+              title: 'Quality',
+              value: ctrl.abr.isAutoMode.value 
+                  ? 'Auto (${ctrl.currentQualityLabel})' 
+                  : ctrl.currentQualityLabel,
+              onTap: () => ctrl.activePanel.value = 'quality',
+            ),
+          ),
+          Obx(
+            () => MobileSettingsTile(
+              icon: Icons.play_circle_outline_rounded,
+              title: 'Playback speed',
+              value: ctrl.playbackSpeed.value == 1.0
+                  ? 'Normal'
+                  : '${ctrl.playbackSpeed.value}x',
+              onTap: () => ctrl.activePanel.value = 'speed',
+            ),
+          ),
+          Obx(
+            () => MobileSettingsTile(
+              icon: Icons.closed_caption_rounded,
+              title: 'Captions',
+              value: ctrl.subtitlesEnabled.value
+                  ? ctrl.activeSubLang.value
+                  : 'Off',
+              onTap: () => ctrl.activePanel.value = 'subtitles',
+            ),
+          ),
+          Obx(
+            () => MobileSettingsTile(
+              icon: Icons.settings_voice_rounded,
+              title: 'Audio Track',
+              value: ctrl.activeAudioLang.value,
+              onTap: () => ctrl.activePanel.value = 'language',
+            ),
+          ),
+          MobileSettingsTile(
+            icon: Icons.settings_outlined,
+            title: 'More',
+            value: '',
+            onTap: () => ctrl.activePanel.value = 'more',
+          ),
+          const SizedBox(height: 12),
+        ],
+      ),
+    );
+  }
+}
+
+class MobileSettingsTile extends StatelessWidget {
+  final IconData icon;
+  final String title, value;
+  final VoidCallback onTap;
+  const MobileSettingsTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+          child: Row(
+            children: [
+              Icon(icon, color: Colors.white, size: 22),
+              const SizedBox(width: 18),
+              Text(
+                title,
+                style: TS.body.copyWith(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 16,
+                  color: Colors.white,
+                ),
+              ),
+              const Spacer(),
+              if (value.isNotEmpty)
+                Text(
+                  value,
+                  style: TS.bodySm.copyWith(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    fontSize: 14,
+                  ),
+                ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.white.withValues(alpha: 0.6),
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class MobileToggleTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  const MobileToggleTile({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => onChanged(!value),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          child: Row(
+            children: [
+              Icon(icon, color: Colors.white, size: 22),
+              const SizedBox(width: 18),
+              Text(
+                title,
+                style: TS.body.copyWith(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 16,
+                  color: Colors.white,
+                ),
+              ),
+              const Spacer(),
+              Switch(
+                value: value,
+                onChanged: onChanged,
+                activeThumbColor: Colors.white,
+                activeTrackColor: PT.primary,
+                inactiveThumbColor: Colors.white38,
+                inactiveTrackColor: Colors.white12,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class MorePanel extends StatelessWidget {
+  final TowerPlayerController ctrl;
+  const MorePanel({super.key, required this.ctrl});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        PanelHeader(
+          title: 'More',
+          onBack: () => ctrl.activePanel.value = '',
+          onClose: null,
+        ),
+        const PlayerDivider(),
+        Obx(
+          () => MobileToggleTile(
+            icon: Icons.repeat_rounded,
+            title: 'Loop video',
+            value: ctrl.isLooping.value,
+            onChanged: (v) => ctrl.toggleLoop(),
+          ),
+        ),
+        Obx(
+          () => MobileToggleTile(
+            icon: Icons.music_note_rounded,
+            title: 'Audio Only Mode',
+            value: ctrl.isAudioOnly.value,
+            onChanged: (v) => ctrl.toggleAudioOnly(),
+          ),
+        ),
+        Obx(
+          () => MobileToggleTile(
+            icon: Icons.playlist_play_rounded,
+            title: 'Autoplay Next',
+            value: ctrl.isAutoplay.value,
+            onChanged: (v) => ctrl.toggleAutoplay(),
+          ),
+        ),
+        Obx(
+          () => MobileToggleTile(
+            icon: Icons.analytics_outlined,
+            title: 'Stats for Nerds',
+            value: ctrl.showStatsForNerds.value,
+            onChanged: (v) => ctrl.showStatsForNerds.toggle(),
+          ),
+        ),
+        Obx(() {
+          final isActive = ctrl.isSleepTimerActive.value;
+          final rem = ctrl.sleepTimerRemainingSeconds.value;
+          final valueText = isActive ? '${(rem / 60).ceil()} min' : 'Off';
+          return MobileSettingsTile(
+            icon: Icons.nights_stay_rounded,
+            title: 'Sleep timer',
+            value: valueText,
+            onTap: () => ctrl.activePanel.value = 'sleep_timer',
+          );
+        }),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+}
+
+class SleepTimerPanel extends StatelessWidget {
+  final TowerPlayerController ctrl;
+  const SleepTimerPanel({super.key, required this.ctrl});
+
+  @override
+  Widget build(BuildContext context) {
+    final options = [
+      ('Off', const Duration(seconds: 0)),
+      ('End of video', Duration(seconds: (ctrl.vv.duration - ctrl.vv.position).inSeconds)),
+      ('10 minutes', const Duration(minutes: 10)),
+      ('15 minutes', const Duration(minutes: 15)),
+      ('30 minutes', const Duration(minutes: 30)),
+      ('45 minutes', const Duration(minutes: 45)),
+      ('60 minutes', const Duration(minutes: 60)),
+    ];
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        PanelHeader(
+          title: 'Sleep timer',
+          onBack: () => ctrl.activePanel.value = 'more',
+          onClose: null,
+        ),
+        const PlayerDivider(),
+        Obx(() {
+          final isActive = ctrl.isSleepTimerActive.value;
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: options.map((opt) {
+              final label = opt.$1;
+              final duration = opt.$2;
+              
+              bool isSelected = false;
+              if (label == 'Off') {
+                isSelected = !isActive;
+              } else if (isActive) {
+                // Check if duration matches approximately (within 10 seconds)
+                final diff = (ctrl.sleepTimerRemainingSeconds.value - duration.inSeconds).abs();
+                if (label == 'End of video') {
+                  final rem = (ctrl.vv.duration - ctrl.vv.position).inSeconds;
+                  isSelected = (ctrl.sleepTimerRemainingSeconds.value - rem).abs() < 10;
+                } else {
+                  isSelected = diff < 10;
+                }
+              }
+
+              return SelectTile(
+                label: label,
+                selected: isSelected,
+                onTap: () {
+                  if (label == 'Off') {
+                    ctrl.cancelSleepTimer();
+                  } else {
+                    ctrl.setSleepTimer(duration);
+                  }
+                  ctrl.activePanel.value = 'more';
+                },
+              );
+            }).toList(),
+          );
+        }),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+}

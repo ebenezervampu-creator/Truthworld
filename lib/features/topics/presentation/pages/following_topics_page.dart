@@ -9,7 +9,7 @@ import 'dart:ui';
 import 'package:truthworld/features/topics/presentation/widgets/topic_card_widget.dart';
 
 // PlaylistScreen identical visual constants
-const kPrimaryDark = AppColors.brand; // Standardized brand highlight
+const kPrimaryDark = Color(0xFFA50E2D); // Crimson primary accent (non-purple)
 const kSecondaryDark = Color(0xFF7B0A21); // Keep special crimson brand shade
 const kDarkBackground = AppColors.bgPage;
 const kDarkSurface = AppColors.bgSurface;
@@ -85,7 +85,7 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
               height: 400,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.brand.withValues(alpha: 0.08),
+                color: kPrimaryDark.withValues(alpha: 0.08),
               ),
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100),
@@ -219,12 +219,12 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
                         color: Colors.white.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(24),
                         border: Border.all(
-                          color: AppColors.brand.withValues(alpha: 0.3),
+                          color: kPrimaryDark.withValues(alpha: 0.3),
                           width: 1.5,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.brand.withValues(alpha: 0.1),
+                            color: kPrimaryDark.withValues(alpha: 0.1),
                             blurRadius: 10,
                             spreadRadius: 1,
                           ),
@@ -247,7 +247,7 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
                               ),
                               prefixIcon: const Icon(
                                 Icons.search,
-                                color: AppColors.brand,
+                                color: kPrimaryDark,
                                 size: 22,
                               ),
                               suffixIcon: IconButton(
@@ -306,7 +306,7 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
                           Text(
                             'Your curated knowledge base',
                             style: AppTextStyles.labelLarge.copyWith(
-                              color: AppColors.brand.withValues(alpha: 0.8),
+                              color: kPrimaryDark.withValues(alpha: 0.8),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -383,12 +383,12 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
             curve: Curves.easeOutCubic,
             padding: const EdgeInsets.symmetric(vertical: 12),
             decoration: BoxDecoration(
-              color: isSelected ? AppColors.brand : Colors.transparent,
+              color: isSelected ? kPrimaryDark : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
               boxShadow: isSelected
                   ? [
                       BoxShadow(
-                        color: AppColors.brand.withValues(alpha: 0.3),
+                        color: kPrimaryDark.withValues(alpha: 0.3),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -440,7 +440,7 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
                 decoration: BoxDecoration(
                   gradient: isSelected
                       ? const LinearGradient(
-                          colors: [AppColors.brand, Color(0xFF00E5FF)],
+                          colors: [kPrimaryDark, Color(0xFFFF5252)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         )
@@ -457,7 +457,7 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
                   boxShadow: isSelected
                       ? [
                           BoxShadow(
-                            color: AppColors.brand.withValues(alpha: 0.3),
+                            color: kPrimaryDark.withValues(alpha: 0.3),
                             blurRadius: 12,
                             offset: const Offset(0, 4),
                           ),
@@ -479,7 +479,7 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
                       child: Text(
                         cat,
                         style: AppTextStyles.labelLarge.copyWith(
-                          color: isSelected ? Colors.black : Colors.white70,
+                          color: isSelected ? Colors.white : Colors.white70,
                           fontWeight: isSelected
                               ? FontWeight.w700
                               : FontWeight.w500,
@@ -520,6 +520,7 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
           topic: topic,
           isDashboard: isDashboard,
           onFollowToggle: () => controller.toggleFollowTopic(topic),
+          accentColor: kPrimaryDark,
         );
       }, childCount: topics.length),
     );
@@ -540,7 +541,7 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
         ),
         itemCount: 6,
         itemBuilder: (context, index) =>
-            const TopicCardWidget(topic: null, isHero: false),
+            const TopicCardWidget(topic: null, isHero: false, accentColor: kPrimaryDark),
       ),
     );
   }
@@ -598,10 +599,13 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: _refreshFollowingTopics,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kPrimaryDark,
+                foregroundColor: Colors.white,
+              ),
               child: const Text(
                 'Try Again',
-                style: TextStyle(color: Colors.black),
+                style: TextStyle(color: Colors.white),
               ),
             ),
           ],
@@ -646,13 +650,13 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    AppColors.brand.withValues(alpha: 0.2),
-                    kPrimaryDark.withValues(alpha: 0.1),
+                    kPrimaryDark.withValues(alpha: 0.2),
+                    kSecondaryDark.withValues(alpha: 0.15),
                   ],
                 ),
                 borderRadius: BorderRadius.circular(60),
               ),
-              child: Icon(icon, size: 60, color: AppColors.brand),
+              child: Icon(icon, size: 60, color: kPrimaryDark),
             ),
             const SizedBox(height: 24),
             Text(
@@ -676,18 +680,19 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
               onPressed: () => Get.toNamed(routeName),
               icon: Icon(
                 icon == Icons.share_rounded ? Icons.explore_rounded : icon,
-                color: Colors.black,
+                color: Colors.white,
                 size: 18,
               ),
               label: Text(
                 buttonText,
                 style: const TextStyle(
-                  color: Colors.black,
+                  color: Colors.white,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.brand,
+                backgroundColor: kPrimaryDark,
+                foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,
                   vertical: 12,

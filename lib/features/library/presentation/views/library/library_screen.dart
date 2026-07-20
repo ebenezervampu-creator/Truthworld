@@ -945,7 +945,12 @@ class LibraryScreenState extends State<LibraryScreen>
   }
 
   Widget _buildSidebarHeader() {
-    final user = FirebaseAuth.instance.currentUser;
+    final authService = AuthService.to;
+    final displayName = authService.activeDisplayName;
+    final handleOrEmail = authService.hasChannel.value && authService.userChannel != null
+        ? authService.activeHandle
+        : (authService.user?.email ?? '');
+
     return Row(
       children: [
         InkWell(
@@ -954,8 +959,8 @@ class LibraryScreenState extends State<LibraryScreen>
           },
           child: UserAvatar(
             radius: 24,
-            photoUrl: user?.photoURL,
-            displayName: user?.displayName ?? "User",
+            photoUrl: authService.activePhotoUrl,
+            displayName: displayName,
             backgroundColor: buttonBg,
             textColor: Colors.white,
             fontSize: 18,
@@ -967,22 +972,23 @@ class LibraryScreenState extends State<LibraryScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                user?.displayName ?? "User",
+                displayName,
                 style: GoogleFonts.roboto(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: primaryText,
                 ),
               ),
-              Text(
-                user?.email ?? "",
-                style: GoogleFonts.roboto(
-                  fontSize: 12,
-                  color: secondaryText,
+              if (handleOrEmail.isNotEmpty)
+                Text(
+                  handleOrEmail,
+                  style: GoogleFonts.roboto(
+                    fontSize: 12,
+                    color: secondaryText,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
             ],
           ),
         ),

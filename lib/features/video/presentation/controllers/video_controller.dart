@@ -38,6 +38,7 @@ import 'package:truthworld/features/video/presentation/controllers/tower_player_
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/components/ui/video_card.dart';
 
 
 class VideoController extends GetxController with GetTickerProviderStateMixin {
@@ -1779,6 +1780,8 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
       // Add listeners BEFORE initialization to catch all events
       newVpc.addListener(_videoErrorListener);
       newVpc.addListener(videoListener);
+
+      HoverPreviewCoordinator.globalMute.value = true;
 
       if (!wasHandoff) {
         await newVpc.initialize().timeout(

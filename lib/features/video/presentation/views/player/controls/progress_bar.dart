@@ -327,6 +327,10 @@ class ProgressBar extends StatelessWidget {
       case 'limited_support':
       case 'verification_timeout':
         return Colors.amberAccent;
+      case 'faith_based_claim':
+      case 'not_historically_verifiable':
+      case 'historical_tradition':
+        return Colors.purpleAccent;
       default:
         return Colors.blueAccent;
     }

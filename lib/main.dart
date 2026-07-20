@@ -214,7 +214,6 @@ class Truthworld extends StatelessWidget {
         return '/admin/login';
       }
       if (host.startsWith('studio') ||
-          uriStr.contains('studio') ||
           Uri.base.queryParameters.containsKey('studio')) {
         return '/';
       }

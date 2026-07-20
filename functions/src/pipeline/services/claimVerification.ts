@@ -390,16 +390,40 @@ OBJECTIVE: Verify the following batch of claims with world-class source attribut
 
 PROTOCOL:
 1. EVIDENCE: If Google Search tools are enabled, prioritize them. If disabled or search fails, use your internal high-precision training data.
-2. LABELS: VERIFIED TRUE | MOSTLY TRUE | DISPUTED | INCONCLUSIVE | LIMITED SUPPORT | MISLEADING | FALSE | RELIGIOUS BELIEF | OPINION | SATIRE.
-3. BAN ON UNSUPPORTED: You are STRICTLY FORBIDDEN from outputting "UNPROVEN" or "UNSUPPORTED". This applies to ALL categories and ALL videos.
-4. KNOWLEDGE FALLBACK: If search yields no results, evaluate the claim using your internal knowledge. If it is widely accepted as true (e.g. animal trivia, science facts), label it MOSTLY TRUE or LIMITED SUPPORT.
-5. EVIDENCE LEVELS: STRONG | MODERATE | WEAK | NONE | CONTRADICTED. Use NONE for INCONCLUSIVE.
-6. ANTI-HALLUCINATION: Never invent sources. If evidence is truly missing and your internal knowledge is low-confidence, use INCONCLUSIVE.
-7. SOURCE ATTRIBUTION (CRITICAL): For EVERY claim, you MUST provide at least 2-3 real, authoritative sources in the "sources" array. Each source must have a real title, a real URL (not placeholder), and a snippet of evidence. Prioritize:
-   - Tier A: Government (.gov), international bodies (.int), peer-reviewed journals (nature.com, science.org, nih.gov)
-   - Tier B: Gold standard news (reuters.com, apnews.com, bbc.com, bloomberg.com)
-   - Tier C: Encyclopedic (wikipedia.org, britannica.com)
+2. TAXONOMY & CLASSIFICATION (CRITICAL):
+   - Categorize every claim correctly in "claimType" and "nature" (options: VERIFIABLE_FACT, HISTORICAL_FACT, RELIGIOUS_CLAIM, SUPERNATURAL_CLAIM, SCIENTIFIC_CLAIM, OPINION, PREDICTION).
+   - If a claim has religious, supernatural, or faith-based framing (e.g. miracles like walking on water, resurrection, divine interventions), classify it as claimType: "RELIGIOUS_CLAIM" and nature: "SUPERNATURAL_CLAIM". Do NOT classify these as VERIFIABLE_FACT.
+   - For supernatural/religious claims, do NOT force them into verified_true/false_claim. Instead, label them as "faith_based_claim" or "not_historically_verifiable" or "religious_belief".
+3. MULTIDIMENSIONAL ASSESSMENT FOR SUPERNATURAL/RELIGIOUS CLAIMS:
+   - Provide "classificationConfidence" (confidence that the claim is indeed religious/faith-based rather than empirical/verifiable) as a 0-1 number.
+   - Provide "historicalEvidenceConfidence" (confidence that the claim can be historically verified by independent, non-faith sources) as a 0-1 number.
+   - Provide "evidenceDetails" breaking down:
+     * "scriptural": strength of primary scriptures/texts (VERY_STRONG | STRONG | MODERATE | LIMITED | NONE | CONTRADICTED)
+     * "historical": independent historical evidence (VERY_STRONG | STRONG | MODERATE | LIMITED | NONE | CONTRADICTED)
+     * "scientific": scientific testability/evidence (VERY_STRONG | STRONG | MODERATE | LIMITED | NONE | CONTRADICTED)
+   - Provide "consensusDetails" breaking down:
+     * "theology": theological consensus (HIGH | MODERATE | LOW | NONE | NOT_APPLICABLE)
+     * "historical": historical/scholarly consensus (HIGH | MODERATE | LOW | NONE | NOT_APPLICABLE)
+     * "scientific": scientific consensus (HIGH | MODERATE | LOW | NONE | NOT_APPLICABLE)
+4. LABELS: VERIFIED TRUE | MOSTLY TRUE | DISPUTED | INCONCLUSIVE | LIMITED SUPPORT | MISLEADING | FALSE | RELIGIOUS BELIEF | OPINION | SATIRE | FAITH-BASED CLAIM | NOT HISTORICALLY VERIFIABLE | HISTORICAL TRADITION.
+5. BAN ON UNSUPPORTED: You are STRICTLY FORBIDDEN from outputting "UNPROVEN" or "UNSUPPORTED". This applies to ALL categories and ALL videos.
+6. KNOWLEDGE FALLBACK: If search yields no results, evaluate the claim using your internal knowledge. If it is widely accepted as true (e.g. animal trivia, science facts), label it MOSTLY TRUE or LIMITED SUPPORT.
+7. EVIDENCE LEVELS: STRONG | MODERATE | WEAK | NONE | CONTRADICTED. Use NONE for INCONCLUSIVE.
+8. ANTI-HALLUCINATION: Never invent sources. If evidence is truly missing and your internal knowledge is low-confidence, use INCONCLUSIVE.
+9. SOURCE ATTRIBUTION (CRITICAL): For EVERY claim, you MUST provide at least 2-3 real, authoritative sources in the "sources" array. Each source must have a real title, a real URL, and a snippet of evidence.
+   - IMPORTANT: To prevent JSON formatting errors and repetition loops, do NOT copy long Google redirect URLs (containing 'vertexaisearch.cloud.google.com/grounding-api-redirect/...') into the 'url' field. Instead, write ONLY the base domain name (e.g. "wikipedia.org", "timesofindia.indiatimes.com").
+   - Keep the 'snippet' extremely short (maximum 1 sentence, under 120 characters).
+   - Academic, scholarly, and established historical references are the highest priority.
+   - Primary scriptures/texts (e.g. Bible, Quran) are acceptable to cite scriptural/theological claims.
+   - Wikipedia is acceptable for general background, but do NOT rank it above established academic/scholarly references.
+   - GotQuestions and other denominational apologetics/polemical sites are NOT general authoritative sources for evidence; do not treat them as high-tier sources.
+   Prioritize:
+   - Tier A: Peer-reviewed journals, academic history books/presses, government (.gov), international bodies (.int).
+   - Tier B: Gold standard news (reuters.com, apnews.com, bbc.com, bloomberg.com) and established scholarly encyclopedias.
+   - Tier C: General encyclopedic sources (wikipedia.org, britannica.com).
+   - Tier D: Primary scriptures/religious texts (only for religious claims/internal context).
    DO NOT use only one source. Aim for source diversity across different domains.
+10. TIMELESS CLAIMS: For timeless historical, religious, or supernatural claims, you may output "Timeless" in the "freshness" field, and set the rating accordingly without penalizing for lack of recent news.
 ${tier0Injection}
 ### BATCH TO VERIFY:
 ${remainingToVerify.map(c => {
@@ -415,6 +439,7 @@ RETURN JSON:
       "claimId": "string",
       "claim": "string",
       "claimType": "string",
+      "nature": "string",
       "label": "string",
       "evidenceLevel": "STRONG|MODERATE|WEAK|NONE|CONTRADICTED",
       "rating": number (0-10),
@@ -427,6 +452,33 @@ RETURN JSON:
       "riskLevel": "string",
       "publicNote": "string",
       "recommendedAction": "string",
+      "classificationConfidence": number (0-1),
+      "historicalEvidenceConfidence": number (0-1),
+      "claimDomain": "HISTORICAL | RELIGIOUS | SCIENTIFIC | EMPIRICAL | OPINION | PREDICTION",
+      "claimNature": "PHYSICAL_EVENT | SUPERNATURAL | CONCEPTUAL | STATISTICAL",
+      "verdictBasis": ["string"],
+      "evidenceDetails": {
+        "scriptural": "VERY_STRONG|STRONG|MODERATE|LIMITED|NONE|CONTRADICTED",
+        "historical": "VERY_STRONG|STRONG|MODERATE|LIMITED|NONE|CONTRADICTED",
+        "scientific": "VERY_STRONG|STRONG|MODERATE|LIMITED|NONE|CONTRADICTED"
+      },
+      "consensusDetails": {
+        "theology": "HIGH|MODERATE|LOW|NONE|NOT_APPLICABLE",
+        "historical": "HIGH|MODERATE|LOW|NONE|NOT_APPLICABLE",
+        "scientific": "HIGH|MODERATE|LOW|NONE|NOT_APPLICABLE"
+      },
+      "evidence": [
+        {
+          "type": "scriptural|historical|scientific|archaeological|legal|forensic|linguistic|statistical|eyewitness|experimental",
+          "strength": "VERY_STRONG|STRONG|MODERATE|LIMITED|NONE|CONTRADICTED"
+        }
+      ],
+      "consensus": [
+        {
+          "domain": "theology|historical|scientific|legal|archaeological|public",
+          "level": "HIGH|MODERATE|LOW|NONE|NOT_APPLICABLE"
+        }
+      ],
       "sources": [
         {
           "title": "Source Name",
@@ -525,12 +577,22 @@ RETURN JSON:
         try {
           rawParsed = JSON.parse(sanitizedText);
         } catch (e: any) {
-          console.error("[ClaimVerification] JSON parsing failed. Error:", e.message);
-          console.error("--- RAW TEXT MATCHED ---");
-          console.error(jsonMatch[0]);
-          console.error("--- SANITIZED TEXT ---");
-          console.error(sanitizedText);
-          throw e;
+          console.warn("[ClaimVerification] Standard JSON parsing failed. Attempting recovery by stripping sources...");
+          try {
+            // Strip the sources array block completely to recover the rest of the verification JSON
+            const recoveredText = sanitizedText
+              .replace(/"sources"\s*:\s*\[[\s\S]*?\]\s*\,?/g, '')
+              .replace(/,\s*([\]\}])/g, '$1');
+            rawParsed = JSON.parse(recoveredText);
+            console.log("[ClaimVerification] JSON parsed successfully after recovery!");
+          } catch (recoveryErr: any) {
+            console.error("[ClaimVerification] JSON parsing failed and recovery failed. Error:", e.message);
+            console.error("--- RAW TEXT MATCHED ---");
+            console.error(jsonMatch[0]);
+            console.error("--- SANITIZED TEXT ---");
+            console.error(sanitizedText);
+            throw e;
+          }
         }
         const validation = GeminiVerificationSchema.safeParse(rawParsed);
 
@@ -597,6 +659,7 @@ RETURN JSON:
                     tier: validated.tier || this.getSourceTier(src.url, domainContext),
                     snippet: src.snippet || '',
                     retrievalMethod: 'google_grounding',
+                    retrievalProvider: validated.retrievalProvider || 'Direct',
                     lastVerified: new Date().toISOString(),
                     lastPublished: src.publishedAt
                   });
@@ -628,6 +691,7 @@ RETURN JSON:
                         tier: validated.tier || this.getSourceTierFromGroundingChunk(chunk, domainContext),
                         snippet: support.segment?.text || '',
                         retrievalMethod: 'google_grounding',
+                        retrievalProvider: validated.retrievalProvider || 'Google Grounding',
                         lastVerified: new Date().toISOString()
                       });
                     }
@@ -653,6 +717,7 @@ RETURN JSON:
                     tier: validated.tier || this.getSourceTierFromGroundingChunk(chunk, domainContext),
                     snippet: "",
                     retrievalMethod: 'google_grounding',
+                    retrievalProvider: validated.retrievalProvider || 'Google Grounding',
                     lastVerified: new Date().toISOString()
                   });
                 }
@@ -676,7 +741,7 @@ RETURN JSON:
             ? this.enforceSourceDiversity(uniqueSources)
             : uniqueSources;
 
-          const isFactual = claim.nature === ClaimNature.VERIFIABLE_FACT;
+          const isFactual = claim.nature === ClaimNature.VERIFIABLE_FACT || claim.nature === ClaimNature.HISTORICAL_FACT || claim.nature === ClaimNature.SCIENTIFIC_CLAIM;
           const { level: computedEvLevel, status: evStatus, summary: evSummary } = isFactual
             ? this.calculateEvidenceLevel(finalSources)
             : { level: EvidenceLevel.NONE, status: 'complete' as const, summary: { independentPublishers: 0, tierA: 0, tierB: 0, secondarySources: 0 } };
@@ -692,6 +757,9 @@ RETURN JSON:
             publicNote = `Only ${evSummary.independentPublishers} unique source(s) found. Minimum ${options.minSourcesRequired} required for verification.`;
           }
 
+          const resolvedNature = (verification.nature as any) || claim.nature;
+          const isTimeless = resolvedNature === ClaimNature.HISTORICAL_FACT || resolvedNature === ClaimNature.RELIGIOUS_CLAIM || resolvedNature === ClaimNature.SUPERNATURAL_CLAIM;
+
           return {
             ...claim,
             status: finalStatus,
@@ -702,12 +770,13 @@ RETURN JSON:
             sourceStatus: evStatus,
             evidenceLevel: computedEvLevel,
             evidenceSummary: evSummary,
-            isGrounded: evStatus === 'complete',
+            isGrounded: finalSources.length > 0 && (evStatus === 'complete' || evStatus === 'partial'),
             trueAsOf: verification.freshness,
             verificationMethod,
-            evidenceSchemaVersion: "v1",
+            evidenceSchemaVersion: "v2",
 
             claimType: verification.claimType,
+            nature: resolvedNature,
             rating: verification.rating,
             freshness: verification.freshness,
             verificationSummary: verification.summary,
@@ -718,7 +787,16 @@ RETURN JSON:
             publicNote: publicNote,
             recommendedAction: verification.recommendedAction,
             ontology: (verification.claimType as any) || claim.nature,
-            freshnessScore: verification.rating / 10,
+            freshnessScore: isTimeless ? undefined : verification.rating / 10,
+            classificationConfidence: verification.classificationConfidence,
+            historicalEvidenceConfidence: verification.historicalEvidenceConfidence,
+            evidenceDetails: verification.evidenceDetails,
+            consensusDetails: verification.consensusDetails,
+            claimDomain: verification.claimDomain || (verification.claimType ? verification.claimType.replace(/_CLAIM/g, "").replace(/_FACT/g, "") : undefined),
+            claimNature: verification.claimNature || (verification.nature ? verification.nature.replace(/_CLAIM/g, "").replace(/_FACT/g, "") : resolvedNature),
+            verdictBasis: verification.verdictBasis || [],
+            evidence: verification.evidence || (verification.evidenceDetails ? Object.entries(verification.evidenceDetails).map(([type, strength]) => ({ type, strength })) : []),
+            consensus: verification.consensus || (verification.consensusDetails ? Object.entries(verification.consensusDetails).map(([domain, level]) => ({ domain, level })) : []),
             processingMetadata: {
               recoveryMethod: verificationMethod === 'llm_training' ? 'llm_training' : undefined
             }
@@ -1078,7 +1156,7 @@ RETURN JSON:
               claim.sourceStatus = evStatus;
               claim.evidenceLevel = computedEvLevel;
               claim.evidenceSummary = evSummary;
-              claim.isGrounded = evStatus === 'complete';
+              claim.isGrounded = validatedList.length > 0 && (evStatus === 'complete' || evStatus === 'partial');
               logger.info(`[ClaimVerification] Successfully recovered ${validatedList.length} citations for claim ${claim.claimId}`);
             }
           }
@@ -1254,12 +1332,17 @@ RETURN JSON:
 
   private mapLabelToStatus(label: string): ClaimStatus {
     const l = label.toUpperCase();
-    if (l.includes("VERIFIED TRUE")) return "verified_true";
+    if (l.includes("VERIFIED TRUE") || l === "TRUE") return "verified_true";
     if (l.includes("MOSTLY TRUE")) return "mostly_true";
     if (l.includes("DISPUTED")) return "disputed";
     if (l.includes("UNPROVEN") || l.includes("UNSUPPORTED")) return "inconclusive";
-    if (l.includes("FALSE CLAIM")) return "false_claim";
+    if (l.includes("FALSE CLAIM") || l === "FALSE" || l.includes("FALSE")) return "false_claim";
     if (l.includes("MISLEADING")) return "misleading";
+    if (l.includes("RELIGIOUS BELIEF") || l.includes("FAITH-BASED CLAIM") || l.includes("FAITH_BASED_CLAIM") || l.includes("FAITH BASED CLAIM")) return "faith_based_claim";
+    if (l.includes("NOT HISTORICALLY VERIFIABLE") || l.includes("NOT_HISTORICALLY_VERIFIABLE")) return "not_historically_verifiable";
+    if (l.includes("HISTORICAL TRADITION") || l.includes("HISTORICAL_TRADITION")) return "historical_tradition";
+    if (l.includes("OPINION")) return "opinion_claim";
+    if (l.includes("SATIRE")) return "satire_claim";
     return "inconclusive";
   }
 
@@ -1332,7 +1415,7 @@ Return ONLY JSON.`;
     }, recoveryChain, { maxAttempts: 2, instanceId: "FastKnowledgeRecovery" });
   }
 
-  validateSource(url: string, title: string): { isValid: boolean; isSecondary: boolean; publisher?: string; tier?: SourceTier; domain?: string } {
+  validateSource(url: string, title: string): { isValid: boolean; isSecondary: boolean; publisher?: string; tier?: SourceTier; domain?: string; retrievalProvider?: string } {
     if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
       return { isValid: false, isSecondary: false };
     }
@@ -1347,29 +1430,53 @@ Return ONLY JSON.`;
       return { isValid: false, isSecondary: false };
     }
 
-    const domain = urlLower.replace(/^(https?:\/\/)?(www\.)?/, "").split("/")[0];
+    let domain = urlLower.replace(/^(https?:\/\/)?(www\.)?/, "").split("/")[0];
+    let publisher = pubInfo.publisher || domain;
+    let tier = pubInfo.tier;
+    let isSecondary = !!pubInfo.isSecondary;
+    const isGoogleRedirect = domain.includes('google.com') && urlLower.includes('grounding-api-redirect');
 
-    if (pubInfo.publisher) {
-      return {
-        isValid: true,
-        isSecondary: !!pubInfo.isSecondary,
-        publisher: pubInfo.publisher,
-        tier: pubInfo.tier,
-        domain
-      };
+    if (isGoogleRedirect) {
+      // Try to extract publisher from title (typically at the end after " - " or " | ")
+      const parts = title.split(/\s+[-|–—|]\s+/);
+      if (parts.length > 1) {
+        const potentialPublisher = parts[parts.length - 1].trim();
+        if (potentialPublisher && potentialPublisher.toLowerCase() !== 'google') {
+          publisher = potentialPublisher;
+          domain = potentialPublisher.toLowerCase().replace(/[^a-z0-9]/g, "") + ".com";
+          
+          // Re-evaluate publisher trust registry with the normalized publisher name
+          const repInfo = sourceTrustService.resolvePublisher("https://" + domain);
+          if (repInfo && repInfo.publisher) {
+            publisher = repInfo.publisher;
+            tier = repInfo.tier;
+            isSecondary = !!repInfo.isSecondary;
+          } else {
+            const rep = sourceTrustService.resolveSourceTrust("https://" + domain);
+            tier = rep.tier;
+          }
+        }
+      }
     }
 
-    const rep = sourceTrustService.resolveSourceTrust(url);
-    if (rep.tier === 'E' && (domain.includes("blog") || domain.includes("wordpress") || domain.includes("tumblr"))) {
-      return { isValid: false, isSecondary: false };
+    if (!pubInfo.publisher) {
+      const rep = sourceTrustService.resolveSourceTrust(url);
+      if (rep.tier === 'E' && (domain.includes("blog") || domain.includes("wordpress") || domain.includes("tumblr"))) {
+        return { isValid: false, isSecondary: false };
+      }
+      if (!isGoogleRedirect) {
+        publisher = rep.domain;
+        tier = rep.tier;
+      }
     }
 
     return {
       isValid: true,
-      isSecondary: false,
-      publisher: rep.domain,
-      tier: rep.tier,
-      domain
+      isSecondary,
+      publisher,
+      tier,
+      domain,
+      retrievalProvider: isGoogleRedirect ? "Google Grounding" : "Direct"
     };
   }
 

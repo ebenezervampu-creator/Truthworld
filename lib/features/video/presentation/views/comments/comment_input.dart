@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 
 /// Modern, responsive, and adaptive CommentInput with enhanced UI/UX
@@ -184,12 +185,17 @@ class _ModernCommentInputState extends State<ModernCommentInput>
       // Add haptic feedback
       HapticFeedback.mediumImpact();
 
+      final authService = AuthService.to;
+      final hasChannel = authService.hasChannel.value && authService.userChannel != null;
+      final finalUserName = hasChannel ? authService.userChannel!.name : (user.displayName ?? 'Anonymous User');
+      final finalUserProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : (user.photoURL ?? '');
+
       // Submit comment (preserved original functionality)
       await _mainController.addComment(
         videoId: widget.videoId,
         userId: user.uid,
-        userName: user.displayName ?? 'Anonymous User',
-        userProfilePicUrl: user.photoURL ?? '',
+        userName: finalUserName,
+        userProfilePicUrl: finalUserProfilePicUrl,
         text: _commentController.text,
       );
 

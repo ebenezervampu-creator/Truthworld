@@ -163,36 +163,8 @@ class ClipsPage extends StatelessWidget {
                 },
               ),
             ),
-            body: Container(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: Alignment.topLeft,
-                  radius: 1.5,
-                  colors: [
-                    context.colors.brand.withValues(alpha: 0.1),
-                    context.colors.background,
-                  ],
-                ),
-              ),
-              child: Obx(() {
-                if (controller.isLoading.value) {
-                  return GridView.builder(
-                    padding: const EdgeInsets.all(24),
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 350,
-                      mainAxisSpacing: 24,
-                      crossAxisSpacing: 24,
-                      childAspectRatio: 0.85,
-                    ),
-                    itemCount: 6,
-                    itemBuilder: (context, index) => const ShimmerVideoGridCard(),
-                  );
-                }
-
-                if (controller.clips.isEmpty) {
-                  return _buildEmptyState(context);
-                }
-
+            body: Obx(() {
+              if (controller.isLoading.value) {
                 return GridView.builder(
                   padding: const EdgeInsets.all(24),
                   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
@@ -201,14 +173,30 @@ class ClipsPage extends StatelessWidget {
                     crossAxisSpacing: 24,
                     childAspectRatio: 0.85,
                   ),
-                  itemCount: controller.clips.length,
-                  itemBuilder: (context, index) {
-                    final clip = controller.clips[index];
-                    return _buildClipCard(context, clip);
-                  },
+                  itemCount: 6,
+                  itemBuilder: (context, index) => const ShimmerVideoGridCard(),
                 );
-              }),
-            ),
+              }
+
+              if (controller.clips.isEmpty) {
+                return _buildEmptyState(context);
+              }
+
+              return GridView.builder(
+                padding: const EdgeInsets.all(24),
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 350,
+                  mainAxisSpacing: 24,
+                  crossAxisSpacing: 24,
+                  childAspectRatio: 0.85,
+                ),
+                itemCount: controller.clips.length,
+                itemBuilder: (context, index) {
+                  final clip = controller.clips[index];
+                  return _buildClipCard(context, clip);
+                },
+              );
+            }),
           );
         }
       ),

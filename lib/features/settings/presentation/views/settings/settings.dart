@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -486,30 +485,37 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Widget _buildUserInfoTile(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    return ListTile(
-      leading: UserAvatar(
-        radius: 20,
-        photoUrl: user?.photoURL,
-        displayName: user?.displayName,
-      ),
-      title: Text(
-        user?.displayName ?? 'User',
-        style: context.typography.body.copyWith(
-          color: context.colors.textPrimary,
+    final authService = AuthService.to;
+    return Obx(() {
+      final displayName = authService.activeDisplayName;
+      final handleOrEmail = authService.hasChannel.value && authService.userChannel != null
+          ? authService.activeHandle
+          : (authService.user?.email ?? '');
+
+      return ListTile(
+        leading: UserAvatar(
+          radius: 20,
+          photoUrl: authService.activePhotoUrl,
+          displayName: displayName,
         ),
-      ),
-      subtitle: Text(
-        user?.email ?? '',
-        style: context.typography.bodySmall.copyWith(
-          color: context.colors.textSecondary,
+        title: Text(
+          displayName,
+          style: context.typography.body.copyWith(
+            color: context.colors.textPrimary,
+          ),
         ),
-      ),
-      trailing: Icon(Icons.chevron_right, color: context.colors.textPrimary),
-      onTap: () {
-        // Navigate to profile
-      },
-    );
+        subtitle: Text(
+          handleOrEmail,
+          style: context.typography.bodySmall.copyWith(
+            color: context.colors.textSecondary,
+          ),
+        ),
+        trailing: Icon(Icons.chevron_right, color: context.colors.textPrimary),
+        onTap: () {
+          // Navigate to profile
+        },
+      );
+    });
   }
 
   Widget _buildWatchHistoryTile(BuildContext context) {

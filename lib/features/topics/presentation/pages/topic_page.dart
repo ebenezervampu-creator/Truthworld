@@ -5,6 +5,8 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
 import 'package:truthworld/features/topics/presentation/widgets/related_topics_widget.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_comments_section.dart';
@@ -520,13 +522,15 @@ class _TopicPageState extends State<TopicPage> {
     final height = isDesktop ? 400.0 : (isTablet ? 300.0 : 220.0);
 
     return InkWell(
-      onTap: () => Get.toNamed(
-        '/watch?v=${video.id}',
-        arguments: {
-          'video': video,
-          'heroTag': controller.getHeroTag(video.id),
-        },
-      ),
+      onTap: () {
+        MiniplayerNavigationHelper.navigateToVideoScreen(
+          video: video as Video,
+          routeArguments: {
+            'video': video,
+            'heroTag': controller.getHeroTag(video.id),
+          },
+        );
+      },
       child: Hero(
         tag: controller.getHeroTag(video.id),
         child: Container(

@@ -36,23 +36,77 @@ class MainControls extends StatelessWidget {
       final bool isNarrow = maxControlsWidth < 550;
       final bool isMedium = maxControlsWidth >= 550 && maxControlsWidth < 800;
 
+      final bool isMobileDevice = Theme.of(context).platform == TargetPlatform.android ||
+                                  Theme.of(context).platform == TargetPlatform.iOS;
+
       return Column(
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Top bar — network badge when fullscreen
-          ctrl.isFullScreen.value
-              ? Center(
-                  child: SizedBox(
-                    width: maxControlsWidth,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () {}, // Absorb taps
-                      child: PlayerTopBar(ctrl: ctrl),
-                    ),
+          // Top controls
+          isMobileDevice
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      IconBtn(
+                        icon: Icons.keyboard_arrow_down_rounded,
+                        size: 30,
+                        onTap: () {
+                          if (ctrl.isFullScreen.value) {
+                            ctrl.toggleFullscreen();
+                          } else {
+                            Get.back();
+                          }
+                        },
+                      ),
+                      const Spacer(),
+                      // Autoplay pill switch in top-center
+                      Obx(
+                        () => MobileAutoplaySwitch(
+                          value: ctrl.isAutoplay.value,
+                          onChanged: (v) => ctrl.toggleAutoplay(),
+                        ),
+                      ),
+                      const Spacer(),
+                      // CC / Subtitles (always present, taps toggle or toast if empty)
+                      Obx(
+                        () => IconBtn(
+                          icon: ctrl.subtitlesEnabled.value
+                              ? Icons.closed_caption_rounded
+                              : Icons.closed_caption_outlined,
+                          onTap: () {
+                            if (ctrl.subtitleTracks.isEmpty) {
+                              ctrl.showToast('No captions available for this video');
+                              return;
+                            }
+                            if (ctrl.subtitlesEnabled.value) {
+                              ctrl.setSubtitles(enabled: false);
+                            } else {
+                              ctrl.setSubtitles(
+                                enabled: true,
+                                track: ctrl.subtitleTracks.first,
+                              );
+                            }
+                          },
+                          size: 24,
+                        ),
+                      ),
+                    ],
                   ),
                 )
-              : const SizedBox.shrink(),
+              : (ctrl.isFullScreen.value
+                  ? Center(
+                      child: SizedBox(
+                        width: maxControlsWidth,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {}, // Absorb taps
+                          child: PlayerTopBar(ctrl: ctrl),
+                        ),
+                      ),
+                    )
+                  : const SizedBox.shrink()),
 
           const Spacer(),
 
@@ -328,6 +382,7 @@ class CenterRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+
     final bool isMobile = maxControlsWidth < 600;
     final double playSize = isMobile ? 48.0 : 68.0;
     final double skipSize = isMobile ? 32.0 : 44.0;
@@ -433,6 +488,36 @@ class ControlRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isMobileDevice = Theme.of(context).platform == TargetPlatform.android ||
+                                Theme.of(context).platform == TargetPlatform.iOS;
+
+    if (isMobileDevice) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          // Settings and Fullscreen together at the end
+          Tooltip(
+            message: 'Settings',
+            child: IconBtn(
+              icon: Icons.settings_outlined,
+              onTap: () => ctrl.openSettings(context),
+            ),
+          ),
+          Obx(
+            () => Tooltip(
+              message: ctrl.isFullScreen.value ? 'Exit full screen (f)' : 'Full screen (f)',
+              child: IconBtn(
+                icon: ctrl.isFullScreen.value
+                    ? Icons.fullscreen_exit_rounded
+                    : Icons.fullscreen_rounded,
+                onTap: ctrl.toggleFullscreen,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     return Row(
       children: [
         // Left cluster — hide on narrow
@@ -865,6 +950,50 @@ class PremiumButton extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class MobileAutoplaySwitch extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  const MobileAutoplaySwitch({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 46,
+        height: 24,
+        padding: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: value ? Colors.white : Colors.white24,
+        ),
+        child: AnimatedAlign(
+          duration: const Duration(milliseconds: 200),
+          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+          child: Container(
+            width: 20,
+            height: 20,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: value ? const Color(0xFF1E1E1E) : Colors.white70,
+            ),
+            child: Icon(
+              value ? Icons.play_arrow_rounded : Icons.pause_rounded,
+              size: 14,
+              color: value ? Colors.white : const Color(0xFF1E1E1E),
+            ),
           ),
         ),
       ),

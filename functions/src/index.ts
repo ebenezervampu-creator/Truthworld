@@ -1195,7 +1195,12 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
           title: `New Video in Topic: ${topicTitle}`,
           message: `A new video was added to ${topicTitle}: ${title}`,
           actionUrl: `/video/${videoId}`,
-          metadata: { topicId: topicDoc.id, videoId, thumbnailUrl: video.thumbnailUrl }
+          metadata: { 
+            topicId: topicDoc.id, 
+            videoId, 
+            thumbnailUrl: video.thumbnailUrl,
+            avatarUrl: video.channelImage || ""
+          }
         }));
       await Promise.allSettled(topicNotifs);
     }

@@ -55,9 +55,7 @@ class AppPages {
       page: () {
         if (kIsWeb) {
           final host = Uri.base.host.toLowerCase();
-          final uriStr = Uri.base.toString().toLowerCase();
           if (host.startsWith('studio') ||
-              uriStr.contains('studio') ||
               Uri.base.queryParameters.containsKey('studio')) {
             return DeferredWidget(
               loader: dashboard.loadLibrary,

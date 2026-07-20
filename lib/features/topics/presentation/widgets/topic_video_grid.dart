@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -73,13 +72,6 @@ class TopicVideoGrid extends StatelessWidget {
             video: video,
             isGrid: false,
             heroPrefix: heroPrefix,
-            onTap: () => Get.toNamed(
-              '/watch?v=${video.id}',
-              arguments: {
-                'video': video,
-                'heroTag': '${heroPrefix}_${video.id}',
-              },
-            ),
           ),
         );
       },
@@ -122,13 +114,6 @@ class TopicVideoGrid extends StatelessWidget {
             video: video,
             isGrid: true,
             heroPrefix: heroPrefix,
-            onTap: () => Get.toNamed(
-              '/watch?v=${video.id}',
-              arguments: {
-                'video': video,
-                'heroTag': '${heroPrefix}_${video.id}',
-              },
-            ),
           ),
         );
       },

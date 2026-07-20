@@ -228,7 +228,7 @@ class SubscriptionController extends GetxController {
             .collection('videos')
             .where('channelId', whereIn: batch)
             .where('visibility', isEqualTo: 'Public')
-            .orderBy('createdAt', descending: true)
+            .orderBy('uploadedAt', descending: true)
             .limit(50)
             .get();
         videos.addAll(snapshot.docs.map((doc) => Video.fromDocumentSnapshot(doc)));
@@ -238,7 +238,7 @@ class SubscriptionController extends GetxController {
           .collection('videos')
           .where('channelId', whereIn: channelIds)
           .where('visibility', isEqualTo: 'Public')
-          .orderBy('createdAt', descending: true)
+          .orderBy('uploadedAt', descending: true)
           .limit(50)
           .get();
       videos.addAll(snapshot.docs.map((doc) => Video.fromDocumentSnapshot(doc)));
@@ -259,7 +259,7 @@ class SubscriptionController extends GetxController {
         final snapshot = await _firestore
             .collection('playlists')
             .where('channelId', whereIn: batch)
-            .where('isPublic', isEqualTo: true)
+            .where('visibility', isEqualTo: 'public')
             .orderBy('createdAt', descending: true)
             .limit(30)
             .get();
@@ -269,7 +269,7 @@ class SubscriptionController extends GetxController {
       final snapshot = await _firestore
           .collection('playlists')
           .where('channelId', whereIn: channelIds)
-          .where('isPublic', isEqualTo: true)
+          .where('visibility', isEqualTo: 'public')
           .orderBy('createdAt', descending: true)
           .limit(30)
           .get();
@@ -292,7 +292,7 @@ class SubscriptionController extends GetxController {
             .collection('Community')
             .where('channelId', whereIn: batch)
             .where('visibility', isEqualTo: 'Public')
-            .orderBy('timestamp', descending: true)
+            .orderBy('uploadedAt', descending: true)
             .limit(30)
             .get();
         posts.addAll(snapshot.docs.map((doc) => CommunityPostModel.fromMap(doc.data())));
@@ -302,7 +302,7 @@ class SubscriptionController extends GetxController {
           .collection('Community')
           .where('channelId', whereIn: channelIds)
           .where('visibility', isEqualTo: 'Public')
-          .orderBy('timestamp', descending: true)
+          .orderBy('uploadedAt', descending: true)
           .limit(30)
           .get();
       posts.addAll(snapshot.docs.map((doc) => CommunityPostModel.fromMap(doc.data())));

@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:truthworld/theme/app_theme.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -140,8 +141,8 @@ class _ModernReplyInputState extends State<ModernReplyInput>
                 children: [
                   UserAvatar(
                     radius: 20,
-                    photoUrl: FirebaseAuth.instance.currentUser?.photoURL,
-                    displayName: FirebaseAuth.instance.currentUser?.displayName,
+                    photoUrl: AuthService.to.activePhotoUrl,
+                    displayName: AuthService.to.activeDisplayName,
                   ),
                   const SizedBox(width: 12),
                   Expanded(

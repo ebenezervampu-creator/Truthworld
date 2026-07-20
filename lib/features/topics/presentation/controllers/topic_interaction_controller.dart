@@ -34,8 +34,8 @@ class TopicInteractionController extends GetxController {
       <String, Map<String, bool>>{}.obs;
 
   String get currentUserId => AuthService.to.uid;
-  String get currentUserName => AuthService.to.user?.displayName ?? 'User';
-  String get currentUserProfilePicUrl => AuthService.to.user?.photoURL ?? '';
+  String get currentUserName => AuthService.to.activeDisplayName;
+  String get currentUserProfilePicUrl => AuthService.to.activePhotoUrl;
 
   Topic? _topic;
 
@@ -288,7 +288,6 @@ class TopicInteractionController extends GetxController {
       String? channelId;
       String? channelName;
       String? channelProfilePicUrl;
-      String? channelHandle;
 
       if (AuthService.to.hasChannel.value &&
           AuthService.to.userChannel != null) {
@@ -296,7 +295,6 @@ class TopicInteractionController extends GetxController {
         channelId = channel.id;
         channelName = channel.name;
         channelProfilePicUrl = channel.avatarUrl;
-        channelHandle = channel.handle;
       }
 
       final commentObj = Comment(
@@ -383,7 +381,6 @@ class TopicInteractionController extends GetxController {
       String? channelId;
       String? channelName;
       String? channelProfilePicUrl;
-      String? channelHandle;
 
       if (AuthService.to.hasChannel.value &&
           AuthService.to.userChannel != null) {
@@ -391,7 +388,6 @@ class TopicInteractionController extends GetxController {
         channelId = channel.id;
         channelName = channel.name;
         channelProfilePicUrl = channel.avatarUrl;
-        channelHandle = channel.handle;
       }
 
       final replyObj = Reply(
@@ -897,6 +893,76 @@ class TopicInteractionController extends GetxController {
         repliesMap.refresh();
       }
       debugPrint('Error toggling reply dislike: $e');
+    }
+  }
+
+  Future<void> deleteComment(String topicId, String commentId) async {
+    try {
+      await _firestore
+          .collection('topics')
+          .doc(topicId)
+          .collection('comments')
+          .doc(commentId)
+          .delete();
+
+      await _firestore.collection('topics').doc(topicId).update({
+        'commentCount': FieldValue.increment(-1),
+      });
+
+      commentCount.value = (commentCount.value - 1).clamp(0, 999999);
+      comments.removeWhere((c) => c.id == commentId);
+      comments.refresh();
+      AppSnackbar.show(
+        'Success',
+        'Comment deleted successfully.',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      debugPrint('Error deleting comment: $e');
+      AppSnackbar.show(
+        'Error',
+        'Failed to delete comment: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  Future<void> deleteReply(String topicId, String commentId, String replyId) async {
+    try {
+      await _firestore
+          .collection('topics')
+          .doc(topicId)
+          .collection('comments')
+          .doc(commentId)
+          .collection('replies')
+          .doc(replyId)
+          .delete();
+
+      await _firestore.collection('topics').doc(topicId).update({
+        'commentCount': FieldValue.increment(-1),
+      });
+
+      commentCount.value = (commentCount.value - 1).clamp(0, 999999);
+      if (repliesMap[commentId] != null) {
+        repliesMap[commentId]!.removeWhere((r) => r.id == replyId);
+      }
+      repliesMap.refresh();
+      AppSnackbar.show(
+        'Success',
+        'Reply deleted successfully.',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      debugPrint('Error deleting reply: $e');
+      AppSnackbar.show(
+        'Error',
+        'Failed to delete reply: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
     }
   }
 

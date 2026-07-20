@@ -14,6 +14,7 @@ import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
+import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import '../../../../../core/utils/route_redirect_middleware.dart';
 
@@ -252,6 +253,7 @@ class MiniplayerController extends GetxController
       }
 
       // Explicitly start playback so the miniplayer plays when appearing
+      HoverPreviewCoordinator.globalMute.value = true;
       await vpc.play();
 
       _startPositionTimer();
@@ -395,7 +397,12 @@ class MiniplayerController extends GetxController
   void togglePlayPause() {
     final vpc = _vpc;
     if (vpc == null) return;
-    vpc.value.isPlaying ? vpc.pause() : vpc.play();
+    if (vpc.value.isPlaying) {
+      vpc.pause();
+    } else {
+      HoverPreviewCoordinator.globalMute.value = true;
+      vpc.play();
+    }
   }
 
   void seekForward({int seconds = 10}) {

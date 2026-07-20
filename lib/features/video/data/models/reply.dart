@@ -20,6 +20,9 @@ class Reply {
   final bool isLikedByCurrentUser;
   final bool isDislikedByCurrentUser;
 
+  String get displayName => (channelName != null && channelName!.isNotEmpty) ? channelName! : userName;
+  String get avatarUrl => (channelProfilePicUrl != null && channelProfilePicUrl!.isNotEmpty) ? channelProfilePicUrl! : userProfilePicUrl;
+
   Reply({
     required this.id,
     required this.commentId,

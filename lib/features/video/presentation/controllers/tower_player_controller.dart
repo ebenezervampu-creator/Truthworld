@@ -23,6 +23,7 @@ import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/ad_service.dart';
+import 'package:truthworld/components/ui/video_card.dart';
 
 class TowerPlayerController extends GetxController {
   // ── Global registry ───────────────────────────────────────
@@ -55,6 +56,8 @@ class TowerPlayerController extends GetxController {
       _box.read('pref_global_quality_preference') ?? 'Auto';
   static set globalQualityPreference(String? value) =>
       _box.write('pref_global_quality_preference', value);
+
+  static void Function(BuildContext context, TowerPlayerController ctrl)? showMobileSettingsCallback;
 
   static void pauseAllActivePlayers({TowerPlayerController? except}) {
     for (final p in _activePlayers) {
@@ -203,6 +206,7 @@ class TowerPlayerController extends GetxController {
 
   // ── End Screen ─────────────────────────────────────────────
   final RxBool showEndScreen = false.obs;
+  final RxBool isEndScreenOverlayHidden = false.obs;
   final RxInt autoplayCountdown = 5.obs;
   Timer? _autoplayTimer;
 
@@ -866,6 +870,7 @@ class TowerPlayerController extends GetxController {
           await _audioTrackController?.seekTo(Duration.zero);
         }
         pauseAllActivePlayers(except: this);
+        HoverPreviewCoordinator.globalMute.value = true;
         await videoPlayerController.play();
         await _audioTrackController?.play();
         _startWatchTimer();
@@ -975,10 +980,19 @@ class TowerPlayerController extends GetxController {
     });
   }
 
+  void navigateToVideo(Video video) {
+    final vc = videoController;
+    if (vc != null) {
+      _navigateToVideo(video, vc);
+    }
+  }
+
   void _onTrackEnded() {
     _trackAnalytics(PlayerEvent('ended'));
     if (isLooping.value) return; // Looping is handled by VideoPlayerController
     
+    // Reset overlay hidden state so it shows initially
+    isEndScreenOverlayHidden.value = false;
     // Show End Screen overlay
     showEndScreen.value = true;
     
@@ -1010,6 +1024,7 @@ class TowerPlayerController extends GetxController {
     _autoplayTimer?.cancel();
     _autoplayTimer = null;
     showEndScreen.value = false;
+    isEndScreenOverlayHidden.value = false;
     playNext();
   }
 
@@ -1017,10 +1032,10 @@ class TowerPlayerController extends GetxController {
     _autoplayTimer?.cancel();
     _autoplayTimer = null;
     showEndScreen.value = false;
+    isEndScreenOverlayHidden.value = false;
     _hasEnded = false;
     seekTo(Duration.zero);
     videoPlayerController.play();
-  }
   }
 
   // ─── Volume ──────────────────────────────────────────────
@@ -1323,14 +1338,25 @@ class TowerPlayerController extends GetxController {
 
   // ─── Settings ────────────────────────────────────────────
 
-  void openSettings() {
-    settingsOpen.value = true;
+  void openSettings([BuildContext? context]) {
+    final ctx = context ?? Get.context;
+    final bool isMobile = ctx != null ? (MediaQuery.of(ctx).size.width < 600) : false;
+
     activePanel.value = '';
     controlsVisible.value = true;
     _timers.cancel('hide');
+
+    if (isMobile && showMobileSettingsCallback != null) {
+      showMobileSettingsCallback!(ctx, this);
+    } else {
+      settingsOpen.value = true;
+    }
   }
 
   void closeSettings() {
+    if (Get.isBottomSheetOpen == true) {
+      Get.back();
+    }
     settingsOpen.value = false;
     activePanel.value = '';
     startHideTimer();

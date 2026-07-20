@@ -82,8 +82,8 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
         // Avatar
         UserAvatar(
           radius: 18,
-          photoUrl: widget.comment.userProfilePicUrl,
-          displayName: widget.comment.userName,
+          photoUrl: widget.comment.avatarUrl,
+          displayName: widget.comment.displayName,
           fontSize: 18,
         ),
         const SizedBox(width: 12),
@@ -95,7 +95,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
               Row(
                 children: [
                   Text(
-                    widget.comment.userName,
+                    widget.comment.displayName,
                     style: GoogleFonts.roboto(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,

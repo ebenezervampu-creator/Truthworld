@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -53,6 +54,9 @@ class TopicController extends GetxController {
   /// User subscribed channel IDs
   final RxList<String> subscribedChannelIds = <String>[].obs;
 
+  /// Cached real channel data from Firestore
+  final RxMap<String, Channel> cachedChannels = <String, Channel>{}.obs;
+
   /// Pagination
   DocumentSnapshot? _lastVideoDoc;
   static const int _videosPerPage = 12;
@@ -98,19 +102,21 @@ class TopicController extends GetxController {
     final Map<String, Map<String, String>> channelMap = {};
     for (var video in videos) {
       if (video.channelId.isNotEmpty) {
+        final cached = cachedChannels[video.channelId];
         channelMap[video.channelId] = {
           'id': video.channelId,
-          'name': video.channelName,
-          'avatarUrl': video.channelAvatarUrl,
+          'name': cached?.name ?? video.channelName,
+          'avatarUrl': (cached?.avatarUrl.isNotEmpty ?? false) ? cached!.avatarUrl : video.channelAvatarUrl,
         };
       }
     }
     for (var video in featuredVideos) {
       if (video.channelId.isNotEmpty) {
+        final cached = cachedChannels[video.channelId];
         channelMap[video.channelId] = {
           'id': video.channelId,
-          'name': video.channelName,
-          'avatarUrl': video.channelAvatarUrl,
+          'name': cached?.name ?? video.channelName,
+          'avatarUrl': (cached?.avatarUrl.isNotEmpty ?? false) ? cached!.avatarUrl : video.channelAvatarUrl,
         };
       }
     }
@@ -120,6 +126,40 @@ class TopicController extends GetxController {
   void clearSearch() {
     searchQuery.value = '';
     isSearchVisible.value = false;
+  }
+
+  Future<void> _fetchChannelsForVideos(List<Video> videoList) async {
+    final List<String> channelIds = videoList
+        .map((v) => v.channelId)
+        .where((id) => id.isNotEmpty && !cachedChannels.containsKey(id))
+        .toSet()
+        .toList();
+
+    if (channelIds.isEmpty) return;
+
+    try {
+      for (var i = 0; i < channelIds.length; i += 30) {
+        final chunk = channelIds.sublist(
+          i,
+          i + 30 > channelIds.length ? channelIds.length : i + 30,
+        );
+        final snapshot = await FirebaseFirestore.instance
+            .collection('channels')
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
+
+        for (var doc in snapshot.docs) {
+          try {
+            final channel = Channel.fromDocumentSnapshot(doc);
+            cachedChannels[channel.id] = channel;
+          } catch (e) {
+            debugPrint('Error parsing channel document ${doc.id}: $e');
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching channels for videos: $e');
+    }
   }
 
   /// Change active tab and reload videos
@@ -210,6 +250,7 @@ class TopicController extends GetxController {
       if (topicData.featuredVideoIds.isNotEmpty) {
         featuredVideos.value =
             await _repository.getFeaturedVideos(topicData.featuredVideoIds);
+        _fetchChannelsForVideos(featuredVideos);
       }
 
       // Load related topics
@@ -272,6 +313,7 @@ class TopicController extends GetxController {
         hasMoreVideos.value = false;
       } else {
         videos.addAll(newVideos);
+        _fetchChannelsForVideos(newVideos);
 
         // Store last document for next pagination
         // Note: We need to fetch the raw snapshot to get the DocumentSnapshot

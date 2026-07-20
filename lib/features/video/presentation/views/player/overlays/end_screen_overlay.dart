@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -35,342 +34,567 @@ class EndScreenOverlay extends StatelessWidget {
         }
       } catch (_) {}
 
-      return Positioned.fill(
-        child: ClipRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: Container(
-              color: Colors.black.withValues(alpha: 0.75),
-              padding: const EdgeInsets.all(24),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 350),
-                child: isCountdownActive && nextVideo != null
-                    ? _buildAutoplayCountdown(context, nextVideo)
-                    : _buildRecommendationsGrid(context, recommendations),
+      // If autoplay countdown is running and next video is available
+      final showAutoplayBanner = isCountdownActive && nextVideo != null;
+      final isHidden = ctrl.isEndScreenOverlayHidden.value;
+
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          // 1. Dimming background & cards layout (Only if NOT hidden)
+          if (!isHidden)
+            Positioned.fill(
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.25),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final double width = constraints.maxWidth;
+                    final double height = constraints.maxHeight;
+                    final bool isCompact = width < 600 || height < 320;
+
+                    if (isCompact) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 60, bottom: 60),
+                        child: _buildCompactLayout(context, recommendations),
+                      );
+                    }
+
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // Left Column: Square card (top) + circular logo (bottom)
+                        Positioned(
+                          left: 40,
+                          top: 40,
+                          bottom: 40,
+                          width: 180,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              // Left top card
+                              if (recommendations.length >= 3)
+                                _buildSquareCard(context, recommendations[2])
+                              else if (recommendations.isNotEmpty)
+                                _buildSquareCard(context, recommendations.first)
+                              else
+                                const SizedBox.shrink(),
+                              
+                              // Left bottom circular logo
+                              _buildChannelLogo(context),
+                            ],
+                          ),
+                        ),
+                        
+                        // Right Column: Two vertical 16:9 cards
+                        Positioned(
+                          right: 40,
+                          top: 40,
+                          bottom: 40,
+                          width: 320,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (recommendations.isNotEmpty)
+                                _buildRightCard(context, recommendations[0]),
+                              if (recommendations.length >= 2) ...[
+                                const SizedBox(height: 16),
+                                _buildRightCard(context, recommendations[1]),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
+
+          // 2. Hide/Show Toggle Button (Always visible at top-right, clickable)
+          Positioned(
+            top: 16,
+            right: 16,
+            child: _buildHideShowButton(),
           ),
-        ),
+
+          // 3. Autoplay Countdown Banner
+          if (showAutoplayBanner)
+            _buildAutoplayCountdownBanner(context, nextVideo),
+        ],
       );
     });
   }
 
-  Widget _buildAutoplayCountdown(BuildContext context, Video next) {
-    return Column(
-      key: const ValueKey('autoplay_countdown'),
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          'Up Next',
-          style: GoogleFonts.outfit(
-            color: Colors.white70,
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          next.title,
-          maxLines: 2,
-          textAlign: TextAlign.center,
-          overflow: TextOverflow.ellipsis,
-          style: GoogleFonts.outfit(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        Text(
-          next.channelName,
-          style: GoogleFonts.roboto(
-            color: Colors.white54,
-            fontSize: 14,
-          ),
-        ),
-        const SizedBox(height: 32),
-        
-        // Circular progress countdown
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            SizedBox(
-              width: 80,
-              height: 80,
-              child: Obx(() {
-                final double progress = ctrl.autoplayCountdown.value / 5.0;
-                return CircularProgressIndicator(
-                  value: progress,
-                  strokeWidth: 4,
-                  backgroundColor: Colors.white12,
-                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.brand),
-                );
-              }),
+  Widget _buildHideShowButton() {
+    return GestureDetector(
+      onTap: () => ctrl.isEndScreenOverlayHidden.toggle(),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 4,
+              offset: Offset(0, 2),
             ),
-            Obx(() => Text(
-              '${ctrl.autoplayCountdown.value}',
-              style: GoogleFonts.outfit(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-              ),
-            )),
           ],
         ),
-        
-        const SizedBox(height: 36),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              ctrl.isEndScreenOverlayHidden.value
+                  ? Icons.visibility
+                  : Icons.visibility_off,
+              color: Colors.black,
+              size: 15,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              ctrl.isEndScreenOverlayHidden.value ? 'Show' : 'Hide',
+              style: GoogleFonts.outfit(
+                color: Colors.black,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSquareCard(BuildContext context, Video video) {
+    return AspectRatio(
+      aspectRatio: 1.15,
+      child: InkWell(
+        onTap: () {
+          ctrl.showEndScreen.value = false;
+          ctrl.isEndScreenOverlayHidden.value = false;
+          ctrl.navigateToVideo(video);
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6.5),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CachedNetworkImage(
+                  imageUrl: video.thumbnailUrl.replaceAll(' ', '%20'),
+                  fit: BoxFit.cover,
+                  placeholder: (_, _) => Container(color: Colors.black54),
+                  errorWidget: (_, _, _) => Container(
+                    color: Colors.black54,
+                    child: const Icon(Icons.link, color: Colors.white30, size: 30),
+                  ),
+                ),
+                // Open in new badge at bottom right
+                Positioned(
+                  bottom: 6,
+                  right: 6,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.75),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Icon(
+                      Icons.open_in_new,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChannelLogo(BuildContext context) {
+    final vc = ctrl.videoController;
+    final avatarUrl = vc?.video.channelAvatarUrl ?? vc?.video.channelImage ?? '';
+    final channelName = vc?.video.channelName ?? '';
+    
+    return GestureDetector(
+      onTap: () {
+        if (vc != null && vc.video.channelId.isNotEmpty) {
+          ctrl.showEndScreen.value = false;
+          ctrl.isEndScreenOverlayHidden.value = false;
+          Get.toNamed('/channel/${vc.video.channelId}');
+        }
+      },
+      child: Container(
+        width: 130,
+        height: 130,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.4),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: avatarUrl.isNotEmpty
+              ? CachedNetworkImage(
+                  imageUrl: avatarUrl,
+                  fit: BoxFit.cover,
+                  placeholder: (_, _) => Container(
+                    color: Colors.white.withValues(alpha: 0.1),
+                    child: Center(
+                      child: Text(
+                        channelName.isNotEmpty ? channelName[0].toUpperCase() : '?',
+                        style: GoogleFonts.outfit(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                  errorWidget: (_, _, _) => Container(
+                    color: Colors.white.withValues(alpha: 0.1),
+                    child: Center(
+                      child: Text(
+                        channelName.isNotEmpty ? channelName[0].toUpperCase() : '?',
+                        style: GoogleFonts.outfit(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                )
+              : Container(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  child: Center(
+                    child: Text(
+                      channelName.isNotEmpty ? channelName[0].toUpperCase() : '?',
+                      style: GoogleFonts.outfit(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRightCard(BuildContext context, Video video) {
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: InkWell(
+        onTap: () {
+          ctrl.showEndScreen.value = false;
+          ctrl.isEndScreenOverlayHidden.value = false;
+          ctrl.navigateToVideo(video);
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(10.5),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                CachedNetworkImage(
+                  imageUrl: video.thumbnailUrl.replaceAll(' ', '%20'),
+                  fit: BoxFit.cover,
+                  placeholder: (_, _) => Container(color: Colors.black54),
+                  errorWidget: (_, _, _) => Container(
+                    color: Colors.black54,
+                    child: const Icon(Icons.video_library_outlined, color: Colors.white30, size: 40),
+                  ),
+                ),
+                // Scrim
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.65),
+                        Colors.transparent,
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: 0.65),
+                      ],
+                      stops: const [0.0, 0.35, 0.65, 1.0],
+                    ),
+                  ),
+                ),
+                // Title (top left)
+                Positioned(
+                  top: 10,
+                  left: 10,
+                  right: 10,
+                  child: Text(
+                    video.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.outfit(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      height: 1.2,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black.withValues(alpha: 0.8),
+                          offset: const Offset(1, 1),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Channel Name (bottom left)
+                Positioned(
+                  bottom: 10,
+                  left: 10,
+                  right: 60,
+                  child: Text(
+                    video.channelName.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.roboto(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.5,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black.withValues(alpha: 0.8),
+                          offset: const Offset(1, 1),
+                          blurRadius: 2,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Duration Badge (bottom right)
+                Positioned(
+                  bottom: 10,
+                  right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      _formatDuration(video.durationValue),
+                      style: GoogleFonts.roboto(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactLayout(BuildContext context, List<Video> videos) {
+    final list = videos.where((v) => v.id != ctrl.videoController?.video.id).take(3).toList();
+    if (list.isEmpty) {
+      return Center(
+        child: FloatingActionButton(
+          onPressed: ctrl.replayVideo,
+          backgroundColor: AppColors.brand,
+          child: const Icon(Icons.replay_rounded, color: Colors.white),
+        ),
+      );
+    }
+    
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Cancel Button
-            OutlinedButton(
-              onPressed: ctrl.cancelAutoplayCountdown,
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.white38),
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+            IconButton(
+              icon: const Icon(Icons.replay_rounded, color: Colors.white, size: 24),
+              onPressed: ctrl.replayVideo,
+            ),
+            Text(
+              'Replay',
+              style: GoogleFonts.outfit(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: ListView.separated(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            itemCount: list.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final video = list[index];
+              return InkWell(
+                onTap: () {
+                  ctrl.showEndScreen.value = false;
+                  ctrl.isEndScreenOverlayHidden.value = false;
+                  ctrl.navigateToVideo(video);
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white10),
+                  ),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: AspectRatio(
+                          aspectRatio: 16 / 9,
+                          child: CachedNetworkImage(
+                            imageUrl: video.thumbnailUrl.replaceAll(' ', '%20'),
+                            fit: BoxFit.cover,
+                            placeholder: (_, _) => Container(color: Colors.black26),
+                            errorWidget: (_, _, _) => const Icon(Icons.video_library_outlined, color: Colors.white24),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              video.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.outfit(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              video.channelName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.roboto(
+                                color: Colors.white54,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAutoplayCountdownBanner(BuildContext context, Video nextVideo) {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Up Next: ',
+              style: GoogleFonts.outfit(
+                color: Colors.white54,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
               ),
+            ),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 200),
+              child: Text(
+                nextVideo.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.outfit(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'in ${ctrl.autoplayCountdown.value}s',
+              style: GoogleFonts.outfit(
+                color: AppColors.brand,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(width: 12),
+            GestureDetector(
+              onTap: ctrl.cancelAutoplayCountdown,
               child: Text(
                 'CANCEL',
                 style: GoogleFonts.outfit(
                   color: Colors.white,
+                  fontSize: 11,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 1.0,
+                  letterSpacing: 0.5,
                 ),
               ),
             ),
-            const SizedBox(width: 16),
-            // Play Now Button
-            ElevatedButton(
-              onPressed: ctrl.playNextImmediately,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.brand,
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                elevation: 4,
-                shadowColor: AppColors.brand.withValues(alpha: 0.4),
-              ),
+            const SizedBox(width: 12),
+            GestureDetector(
+              onTap: ctrl.playNextImmediately,
               child: Text(
                 'PLAY NOW',
                 style: GoogleFonts.outfit(
-                  color: Colors.white,
+                  color: AppColors.brand,
+                  fontSize: 11,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 1.0,
+                  letterSpacing: 0.5,
                 ),
               ),
             ),
           ],
         ),
-      ],
-    );
-  }
-
-  Widget _buildRecommendationsGrid(BuildContext context, List<Video> videos) {
-    // Filter out current video
-    final list = videos.where((v) => v.id != ctrl.videoController?.video.id).take(3).toList();
-
-    return Column(
-      key: const ValueKey('recommendations_grid'),
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.replay_rounded, color: Colors.white, size: 28),
-              onPressed: ctrl.replayVideo,
-              tooltip: 'Replay Video',
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'Replay',
-              style: GoogleFonts.outfit(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const Spacer(),
-            if (list.isNotEmpty)
-              Text(
-                'More Videos',
-                style: GoogleFonts.outfit(
-                  color: Colors.white70,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Expanded(
-          child: list.isEmpty
-              ? Center(
-                  child: FloatingActionButton.large(
-                    onPressed: ctrl.replayVideo,
-                    backgroundColor: AppColors.brand,
-                    child: const Icon(Icons.replay_rounded, color: Colors.white, size: 40),
-                  ),
-                )
-              : LayoutBuilder(
-                  builder: (context, constraints) {
-                    final bool isCompact = constraints.maxWidth < 600;
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: isCompact ? 1 : list.length,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                        childAspectRatio: isCompact ? 3.0 : 1.2,
-                      ),
-                      itemCount: list.length,
-                      itemBuilder: (context, index) {
-                        final video = list[index];
-                        return _buildRecommendationCard(context, video, isCompact);
-                      },
-                    );
-                  },
-                ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildRecommendationCard(BuildContext context, Video video, bool isCompact) {
-    if (isCompact) {
-      // Horizontal compact card
-      return InkWell(
-        onTap: () {
-          ctrl.showEndScreen.value = false;
-          if (ctrl.videoController != null) {
-            ctrl.videoController!.loadVideo(video);
-          }
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white10),
-          ),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: CachedNetworkImage(
-                    imageUrl: video.thumbnailUrl.replaceAll(' ', '%20'),
-                    fit: BoxFit.cover,
-                    placeholder: (_, __) => Container(color: Colors.black26),
-                    errorWidget: (_, __, ___) => const Icon(Icons.video_library_outlined, color: Colors.white24),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      video.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.outfit(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      video.channelName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.roboto(
-                        color: Colors.white54,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Vertical card
-    return InkWell(
-      onTap: () {
-        ctrl.showEndScreen.value = false;
-        if (ctrl.videoController != null) {
-          ctrl.videoController!.loadVideo(video);
-        }
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    CachedNetworkImage(
-                      imageUrl: video.thumbnailUrl.replaceAll(' ', '%20'),
-                      fit: BoxFit.cover,
-                      placeholder: (_, __) => Container(color: Colors.black26),
-                      errorWidget: (_, __, ___) => const Icon(Icons.video_library_outlined, color: Colors.white24),
-                    ),
-                    Positioned(
-                      bottom: 8,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.black85,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          _formatDuration(video.durationValue),
-                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            video.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.outfit(
-              color: Colors.white,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            video.channelName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.roboto(
-              color: Colors.white54,
-              fontSize: 11,
-            ),
-          ),
-        ],
       ),
     );
   }

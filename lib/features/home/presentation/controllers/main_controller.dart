@@ -12,6 +12,7 @@ import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:idb_shim/idb_browser.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 
 import 'package:truthworld/core/base/base_controller.dart';
@@ -884,17 +885,26 @@ class MainController extends BaseController {
           .collection(_commentsSubcollection)
           .doc();
 
+      final authService = AuthService.to;
+      final hasChannel = authService.hasChannel.value && authService.userChannel != null;
+
+      final finalUserName = hasChannel ? authService.userChannel!.name : userName;
+      final finalUserProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : userProfilePicUrl;
+      final finalChannelId = hasChannel ? authService.userChannel!.id : userId;
+      final finalChannelName = hasChannel ? authService.userChannel!.name : userName;
+      final finalChannelProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : userProfilePicUrl;
+
       final comment = Comment(
         id: docRef.id,
         videoId: videoId,
         userId: userId,
-        userName: userName,
+        userName: finalUserName,
         text: text.trim(),
-        userProfilePicUrl: userProfilePicUrl,
+        userProfilePicUrl: finalUserProfilePicUrl,
         createdAt: Timestamp.now(),
-        channelId: userId,
-        channelName: userName,
-        channelProfilePicUrl: userProfilePicUrl,
+        channelId: finalChannelId,
+        channelName: finalChannelName,
+        channelProfilePicUrl: finalChannelProfilePicUrl,
         likeCount: 0,
         dislikeCount: 0,
         reportCount: 0,
@@ -970,18 +980,27 @@ class MainController extends BaseController {
           .collection(_repliesSubcollection)
           .doc();
 
+      final authService = AuthService.to;
+      final hasChannel = authService.hasChannel.value && authService.userChannel != null;
+
+      final finalUserName = hasChannel ? authService.userChannel!.name : userName;
+      final finalUserProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : userProfilePicUrl;
+      final finalChannelId = hasChannel ? authService.userChannel!.id : userId;
+      final finalChannelName = hasChannel ? authService.userChannel!.name : userName;
+      final finalChannelProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : userProfilePicUrl;
+
       final reply = Reply(
         id: docRef.id,
         videoId: videoId,
         userId: userId,
         commentId: commentId,
-        userName: userName,
+        userName: finalUserName,
         text: text.trim(),
         createdAt: Timestamp.now(),
-        userProfilePicUrl: userProfilePicUrl,
-        channelId: userId,
-        channelName: userName,
-        channelProfilePicUrl: userProfilePicUrl,
+        userProfilePicUrl: finalUserProfilePicUrl,
+        channelId: finalChannelId,
+        channelName: finalChannelName,
+        channelProfilePicUrl: finalChannelProfilePicUrl,
         likeCount: 0,
         dislikeCount: 0,
         reportCount: 0,

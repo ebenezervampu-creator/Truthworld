@@ -3160,8 +3160,6 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
               color: const Color(0xFF10B981),
             ),
             const SizedBox(height: 32),
-            _buildVideoTypeSelection(isDark),
-            const SizedBox(height: 24),
             _buildEnhancedTextField(
               controller: _titleController,
               label: 'Title',
@@ -3994,119 +3992,6 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
     );
   }
 
-  Widget _buildVideoTypeSelection(bool isDark) {
-    return Obx(() {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Content Type',
-            style: GoogleFonts.roboto(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: isDark ? Colors.white : const Color(0xFF111827),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildTypeCard(
-                  title: 'Regular Video',
-                  subtitle: 'Long-form content',
-                  icon: Icons.play_circle_outline_rounded,
-                  isSelected: !_uploadController.isShort.value,
-                  onTap: () => _uploadController.isShort.value = false,
-                  isDark: isDark,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildTypeCard(
-                  title: 'Short Video',
-                  subtitle: 'Quick content',
-                  icon: Icons.flash_on_rounded,
-                  isSelected: _uploadController.isShort.value,
-                  onTap: () => _uploadController.isShort.value = true,
-                  isDark: isDark,
-                ),
-              ),
-            ],
-          ),
-        ],
-      );
-    });
-  }
-
-  Widget _buildTypeCard({
-    required String title,
-    required String subtitle,
-    required IconData icon,
-    required bool isSelected,
-    required VoidCallback onTap,
-    required bool isDark,
-  }) {
-    return InkWell(
-      onTap: () {
-        onTap();
-        HapticFeedback.lightImpact();
-      },
-      child: Container(
-        padding: EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? const Color(0xFF3B82F6).withValues(alpha: 0.1)
-              : isDark
-              ? const Color(0xFF161B22)
-              : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected
-                ? const Color(0xFF3B82F6)
-                : isDark
-                ? const Color(0xFF30363D)
-                : const Color(0xFFE5E7EB),
-            width: 2,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              size: 32,
-              color: isSelected
-                  ? const Color(0xFF3B82F6)
-                  : isDark
-                  ? Colors.white60
-                  : const Color(0xFF6B7280),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: GoogleFonts.roboto(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: isSelected
-                    ? const Color(0xFF3B82F6)
-                    : isDark
-                    ? Colors.white
-                    : const Color(0xFF111827),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              subtitle,
-              style: GoogleFonts.roboto(
-                fontSize: 12,
-                color: isDark ? Colors.white60 : const Color(0xFF6B7280),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildEnhancedTextField({
     required TextEditingController controller,
     required String label,
@@ -4211,85 +4096,7 @@ class _EnhancedUploadScreenState extends State<EnhancedUploadScreen>
     );
   }
 
-  Widget _buildCategorySelection(bool isDark) {
-    return Obx(() {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Category',
-            style: GoogleFonts.roboto(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Container(
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF161B22) : const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: isDark
-                    ? const Color(0xFF30363D)
-                    : const Color(0xFFE5E7EB),
-                width: 1.5,
-              ),
-            ),
-            child: DropdownButtonFormField<String>(
-              initialValue: _uploadController.selectedCategory.value.isNotEmpty
-                  ? _uploadController.selectedCategory.value
-                  : null,
-              decoration: InputDecoration(
-                hintText: 'Select category',
-                hintStyle: GoogleFonts.roboto(
-                  fontSize: 14,
-                  color: isDark ? Colors.white38 : const Color(0xFF9CA3AF),
-                ),
-                prefixIcon: Icon(
-                  Icons.category_rounded,
-                  size: 20,
-                  color: isDark
-                      ? const Color(0xFF8B5CF6)
-                      : const Color(0xFF6366F1),
-                ),
-                filled: false,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-              ),
-              dropdownColor: isDark ? const Color(0xFF1C2128) : Colors.white,
-              style: GoogleFonts.roboto(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: isDark ? Colors.white : const Color(0xFF0F172A),
-              ),
-              icon: Icon(
-                Icons.keyboard_arrow_down_rounded,
-                color: isDark ? Colors.white54 : AppColors.textSecondary,
-              ),
-              items: _uploadController.videoCategories.map((category) {
-                return DropdownMenuItem<String>(
-                  value: category,
-                  child: Text(category),
-                );
-              }).toList(),
-              onChanged: (String? value) {
-                if (value != null) {
-                  _uploadController.selectCategory(value);
-                  HapticFeedback.lightImpact();
-                }
-              },
-            ),
-          ),
-        ],
-      );
-    });
-  }
+
 
   Widget _buildVisibilitySettings(bool isDark) {
     return Obx(() {

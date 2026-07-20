@@ -14,9 +14,7 @@ class AuthGuard extends GetMiddleware {
   RouteSettings? redirect(String? route) {
     if (kIsWeb) {
       final host = Uri.base.host.toLowerCase();
-      final uriStr = Uri.base.toString().toLowerCase();
       final isStudio = host.startsWith('studio') ||
-          uriStr.contains('studio') ||
           Uri.base.queryParameters.containsKey('studio');
 
       if (isStudio) {

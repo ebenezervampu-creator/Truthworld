@@ -30,7 +30,6 @@ import 'package:truthworld/core/services/verification_cache_service.dart';
 class UploadController extends GetxController with ContentValidationMixin {
   final _imageVerificationService = ImageVerificationService();
   final _cacheService = VerificationCacheService();
-  final _performanceMonitor = VerificationPerformanceMonitor();
   StreamSubscription? _thumbnailModerationSubscription;
   StreamSubscription? _communityImageModerationSubscription;
   /// Returns the upload progress as a formatted percentage string (e.g., '42%')
@@ -551,6 +550,13 @@ class UploadController extends GetxController with ContentValidationMixin {
 
     await videoPlayerController!.initialize();
     videoPlayerController!.setLooping(true);
+
+    // Auto-detect if video is a Short (duration <= 60 seconds and vertical aspect ratio)
+    final size = videoPlayerController!.value.size;
+    final duration = videoPlayerController!.value.duration;
+    isShort.value = size.height > size.width && duration.inSeconds <= 60;
+    debugPrint('🎥 Auto-detected isShort: ${isShort.value} (size: $size, duration: ${duration.inSeconds}s)');
+
     update();
   }
 
@@ -1718,6 +1724,7 @@ class UploadController extends GetxController with ContentValidationMixin {
     imageUploadProgress.value = 0.0;
     uploadProgress.value = 0.0;
     isCommunityPostUploading.value = false;
+    isShort.value = false;
     _videoUploadTask = null;
     _currentUploadTaskVideo = null;
     _currentUploadTaskCommunity = null;
