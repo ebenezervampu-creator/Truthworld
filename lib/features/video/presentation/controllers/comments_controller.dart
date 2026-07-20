@@ -208,11 +208,11 @@ class CommentsController extends BaseController {
       final authService = AuthService.to;
       final hasChannel = authService.hasChannel.value && authService.userChannel != null;
 
-      final String finalUserName = hasChannel ? authService.userChannel!.name : currentUserName;
-      final String finalUserProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : userProfilePicUrl;
+      final String finalUserName = authService.activeDisplayName;
+      final String finalUserProfilePicUrl = authService.activePhotoUrl;
       final String? finalChannelId = hasChannel ? authService.userChannel!.id : channelId;
-      final String? finalChannelName = hasChannel ? authService.userChannel!.name : channelName;
-      final String? finalChannelProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : channelProfilePicUrl;
+      final String? finalChannelName = authService.activeDisplayName;
+      final String? finalChannelProfilePicUrl = authService.activePhotoUrl;
 
       final commentId = await _commentService.addComment(
         videoId: video!.id,
@@ -494,11 +494,11 @@ class CommentsController extends BaseController {
       final authService = AuthService.to;
       final hasChannel = authService.hasChannel.value && authService.userChannel != null;
 
-      final String finalUserName = hasChannel ? authService.userChannel!.name : currentUserName;
-      final String finalUserProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : userProfilePicUrl;
+      final String finalUserName = authService.activeDisplayName;
+      final String finalUserProfilePicUrl = authService.activePhotoUrl;
       final String? finalChannelId = hasChannel ? authService.userChannel!.id : channelId;
-      final String? finalChannelName = hasChannel ? authService.userChannel!.name : channelName;
-      final String? finalChannelProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : channelProfilePicUrl;
+      final String? finalChannelName = authService.activeDisplayName;
+      final String? finalChannelProfilePicUrl = authService.activePhotoUrl;
 
       final replyId = await _commentService.addReply(
         videoId: video!.id,
@@ -529,7 +529,7 @@ class CommentsController extends BaseController {
             'replyId': replyId,
             'thumbnailUrl': video!.thumbnailUrl,
             'channelId': video!.channelId,
-            'userAvatar': hasChannel ? authService.userChannel!.avatarUrl : (authService.user?.photoURL ?? ''),
+            'userAvatar': authService.activePhotoUrl,
           },
         );
       }

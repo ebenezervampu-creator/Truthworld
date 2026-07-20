@@ -47,9 +47,13 @@ service cloud.firestore {
       allow create: if isAuthenticated() && 
                        request.resource.data.ownerId == request.auth.uid;
       
-      // Allow owners or admins to update their channels
+      // Allow owners or admins to update their channels, or any authenticated user to toggle subscription
       allow update: if isAuthenticated() && 
-                       (resource.data.ownerId == request.auth.uid || isAdmin());
+                       (resource.data.ownerId == request.auth.uid || 
+                        isAdmin() ||
+                        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['subscriberCount', 'lastActiveAt']) &&
+                         (request.resource.data.subscriberCount == resource.data.subscriberCount + 1 ||
+                          request.resource.data.subscriberCount == resource.data.subscriberCount - 1)));
       
       // Allow owners or admins to delete their channels
       allow delete: if isAuthenticated() && 
@@ -582,10 +586,46 @@ service cloud.firestore {
       allow write: if false; // Cloud Function only
     }
 
-    // Copyrights Collection
-    match /copyrights/{copyrightId} {
+    // Copyright Assets Collection
+    match /copyright_assets/{assetId} {
       allow read: if isAuthenticated();
-      allow write: if false; // Only backend or system can write
+      allow write: if false; // Only backend can write
+    }
+
+    // Copyright Chunks Collection
+    match /copyright_chunks/{chunkId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only backend can write
+    }
+
+    // Copyright Matches Collection
+    match /copyright_matches/{matchId} {
+      allow read: if isAuthenticated() && (
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.uploaderId == request.auth.uid ||
+        isAdmin()
+      );
+      allow write: if false; // Only backend can write
+    }
+
+    // Copyright Claims Collection
+    match /copyright_claims/{claimId} {
+      allow read: if isAuthenticated() && (
+        resource.data.claimantId == request.auth.uid ||
+        resource.data.respondentId == request.auth.uid ||
+        isAdmin()
+      );
+      allow write: if false; // Only backend can write
+    }
+
+    // Copyright Appeals Collection
+    match /copyright_appeals/{appealId} {
+      allow read: if isAuthenticated() && (
+        resource.data.claimantId == request.auth.uid ||
+        resource.data.respondentId == request.auth.uid ||
+        isAdmin()
+      );
+      allow write: if false; // Only backend can write
     }
 
     // Content Verifications Collection

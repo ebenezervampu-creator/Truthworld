@@ -454,12 +454,28 @@ class UploadController extends GetxController with ContentValidationMixin {
         withData: true,
       );
       if (result != null && result.files.isNotEmpty) {
-        if (forCommunity) {
-          pickedCommunityImage.value = result.files.first;
-        } else {
-          pickedImage.value = result.files.first;
+        final pickedFile = result.files.first;
+        final extension = pickedFile.extension?.toLowerCase();
+        const allowedExtensions = {'jpg', 'jpeg', 'png', 'gif'};
+        if (extension == null || !allowedExtensions.contains(extension)) {
+          Get.snackbar("Error", "Unsupported image format. Allowed formats: JPG, JPEG, PNG, GIF.");
+          return;
         }
-        await _startImageUpload(result.files.first, forCommunity: forCommunity);
+
+        // Validate size (2MB limit for video thumbnails, 10MB limit for community posts)
+        final maxSize = forCommunity ? 10 * 1024 * 1024 : 2 * 1024 * 1024;
+        if (pickedFile.size > maxSize) {
+          final sizeLimitMB = forCommunity ? "10MB" : "2MB";
+          Get.snackbar("Error", "Selected image exceeds the $sizeLimitMB limit.");
+          return;
+        }
+
+        if (forCommunity) {
+          pickedCommunityImage.value = pickedFile;
+        } else {
+          pickedImage.value = pickedFile;
+        }
+        await _startImageUpload(pickedFile, forCommunity: forCommunity);
       } else {
         Get.snackbar("Info", "No image selected.");
       }
@@ -485,8 +501,11 @@ class UploadController extends GetxController with ContentValidationMixin {
         }
 
         final extension = pickedFile.extension?.toLowerCase();
-        if (extension != 'mp4' && extension != 'mov') {
-          Get.snackbar("Error", "Only MP4/MOV videos allowed.");
+        const allowedExtensions = {
+          'mp4', 'mov', 'avi', 'wmv', 'webm', 'flv', '3gpp', '3gp', 'mpeg', 'mpg', 'mkv', 'mpegps', 'm4v', 'dnxhr', 'prores', 'cineform', 'hevc'
+        };
+        if (extension == null || !allowedExtensions.contains(extension)) {
+          Get.snackbar("Error", "Unsupported video format. YouTube allowed formats are supported.");
           return;
         }
 

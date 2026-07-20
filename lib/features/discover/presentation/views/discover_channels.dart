@@ -31,96 +31,98 @@ class DiscoverChannelsPage extends StatelessWidget {
                   elevation: 0,
                 )
               : null,
-          body: Padding(
-            padding: EdgeInsets.all(context.layoutSpacing),
-            child: CustomScrollView(
-              slivers: [
-                if (!context.isMobile || isDashboard)
+          body: SafeArea(
+            child: Padding(
+              padding: EdgeInsets.all(context.layoutSpacing),
+              child: CustomScrollView(
+                slivers: [
+                  if (!context.isMobile || isDashboard)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 24),
+                        child: Text(
+                          'Discover Channels',
+                          style: GoogleFonts.roboto(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: textColor,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                  // Search Bar
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: 24),
-                      child: Text(
-                        'Discover Channels',
-                        style: GoogleFonts.roboto(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: textColor,
+                      child: TextField(
+                        controller: controller.searchController,
+                        onChanged: controller.onSearchChanged,
+                        style: const TextStyle(color: AppColors.textPrimary),
+                        decoration: InputDecoration(
+                          hintText: 'Search channels by name...',
+                          prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
+                          suffixIcon: Obx(() => controller.searchQuery.value.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear, color: AppColors.textSecondary),
+                                  onPressed: controller.clearSearch,
+                                )
+                              : const SizedBox.shrink()),
                         ),
                       ),
                     ),
                   ),
 
-                // Search Bar
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 24),
-                    child: TextField(
-                      controller: controller.searchController,
-                      onChanged: controller.onSearchChanged,
-                      style: const TextStyle(color: AppColors.textPrimary),
-                      decoration: InputDecoration(
-                        hintText: 'Search channels by name...',
-                        prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
-                        suffixIcon: Obx(() => controller.searchQuery.value.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear, color: AppColors.textSecondary),
-                                onPressed: controller.clearSearch,
-                              )
-                            : const SizedBox.shrink()),
-                      ),
+                  // Categories Horizontal List or Grid
+                  Obx(() => controller.selectedCategory.value == 'All'
+                    ? _buildCategoryGrid(context)
+                    : _buildSelectedCategoryHeader(context)),
+
+                  // Filters Bar
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: _buildFilterBar(context),
                     ),
                   ),
-                ),
-                
-                // Categories Horizontal List or Grid
-                Obx(() => controller.selectedCategory.value == 'All' 
-                  ? _buildCategoryGrid(context)
-                  : _buildSelectedCategoryHeader(context)),
 
-                // Filters Bar
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: _buildFilterBar(context),
-                  ),
-                ),
+                  // Channels List
+                  Obx(() {
+                    if (controller.isLoading.value) {
+                      return const SliverFillRemaining(
+                        child: Center(child: CircularProgressIndicator(color: AppColors.brand)),
+                      );
+                    }
 
-                // Channels List
-                Obx(() {
-                  if (controller.isLoading.value) {
-                    return const SliverFillRemaining(
-                      child: Center(child: CircularProgressIndicator(color: AppColors.brand)),
-                    );
-                  }
-                  
-                  if (controller.channels.isEmpty) {
-                    return SliverFillRemaining(
-                      child: Center(
-                        child: Text(
-                          'No channels found in this category',
-                          style: TextStyle(color: AppColors.textSecondary),
+                    if (controller.channels.isEmpty) {
+                      return SliverFillRemaining(
+                        child: Center(
+                          child: Text(
+                            'No channels found in this category',
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
                         ),
+                      );
+                    }
+
+                    return SliverGrid(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: _getCrossAxisCount(context),
+                        childAspectRatio: 0.8,
+                        crossAxisSpacing: 16,
+                        mainAxisSpacing: 16,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final channel = controller.channels[index];
+                          return _buildChannelCard(context, channel);
+                        },
+                        childCount: controller.channels.length,
                       ),
                     );
-                  }
-
-                  return SliverGrid(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: _getCrossAxisCount(context),
-                      childAspectRatio: 0.8,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final channel = controller.channels[index];
-                        return _buildChannelCard(context, channel);
-                      },
-                      childCount: controller.channels.length,
-                    ),
-                  );
-                }),
-              ],
+                  }),
+                ],
+              ),
             ),
           ),
         );

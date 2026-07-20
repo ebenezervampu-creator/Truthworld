@@ -513,7 +513,7 @@ class _VideoProgressBar extends StatelessWidget {
           minHeight: 3,
           backgroundColor: Colors.white.withValues(alpha: 0.18),
           valueColor:
-              const AlwaysStoppedAnimation<Color>(MiniplayerWidget._brand),
+              const AlwaysStoppedAnimation<Color>(Colors.red),
         ),
       );
     });
@@ -841,12 +841,12 @@ class _ExpandedDetails extends StatelessWidget {
                     const RoundSliderThumbShape(enabledThumbRadius: 6),
                 overlayShape:
                     const RoundSliderOverlayShape(overlayRadius: 14),
-                activeTrackColor: MiniplayerWidget._brand,
+                activeTrackColor: Colors.red,
                 inactiveTrackColor:
                     MiniplayerWidget._border.withValues(alpha: 0.3),
-                thumbColor: MiniplayerWidget._brand,
+                thumbColor: Colors.red,
                 overlayColor:
-                    MiniplayerWidget._brand.withValues(alpha: 0.15),
+                    Colors.red.withValues(alpha: 0.15),
               ),
               child: Slider(
                 value: durMs > 0 ? posMs.clamp(0.0, durMs) : 0.0,

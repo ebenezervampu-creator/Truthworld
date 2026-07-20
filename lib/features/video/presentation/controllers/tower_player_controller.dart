@@ -15,6 +15,7 @@ import 'audio_only_service.dart';
 import 'video_controller.dart';
 import '../../data/models/video.dart';
 import '../../data/models/video_chapter.dart';
+import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import '../widgets/language_request_dialog.dart';
 import '../views/player/models/player_models.dart';
 import 'package:get_storage/get_storage.dart';
@@ -28,6 +29,7 @@ import 'package:truthworld/components/ui/video_card.dart';
 class TowerPlayerController extends GetxController {
   // ── Global registry ───────────────────────────────────────
   static final List<TowerPlayerController> _activePlayers = [];
+  static const MethodChannel _pipChannel = MethodChannel('com.example.truthworld/pip');
 
   // Persistent media preferences
   static final _box = GetStorage();
@@ -124,6 +126,11 @@ class TowerPlayerController extends GetxController {
 
   TowerPlayerController({required this.videoPlayerController, this.tag}) {
     _rxValue = videoPlayerController.value.obs;
+    isInitialized.value = videoPlayerController.value.isInitialized;
+    aspectRatio.value = videoPlayerController.value.aspectRatio;
+    isPlaying.value = videoPlayerController.value.isPlaying;
+    hasError.value = videoPlayerController.value.hasError;
+    errorDescription.value = videoPlayerController.value.errorDescription ?? '';
   }
 
   VideoController? get videoController {
@@ -139,6 +146,14 @@ class TowerPlayerController extends GetxController {
   // ── Reactive video state ──────────────────────────────────
   late Rx<VideoPlayerValue> _rxValue;
   VideoPlayerValue get vv => _rxValue.value;
+
+  // Optimized selective reactive properties to decouple UI from raw ticks
+  final RxBool isInitialized = false.obs;
+  final RxDouble aspectRatio = 1.777.obs;
+  final RxBool isPlaying = false.obs;
+  final RxBool hasError = false.obs;
+  final RxString errorDescription = ''.obs;
+  final Rxn<ClaimResult> activeClaim = Rxn<ClaimResult>();
 
   // ── UI ────────────────────────────────────────────────────
   final RxBool controlsVisible = true.obs;
@@ -186,8 +201,14 @@ class TowerPlayerController extends GetxController {
   double _preLongPressSpeed = 1.0;
 
   // ── Sleep timer ───────────────────────────────────────────
-  final RxInt sleepTimerRemainingSeconds = 0.obs;
-  final RxBool isSleepTimerActive = false.obs;
+  static final RxInt globalSleepTimerRemainingSeconds = 0.obs;
+  static final RxBool globalIsSleepTimerActive = false.obs;
+  static final RxBool globalIsSleepTimerAtEndOfVideo = false.obs;
+  static Timer? globalSleepTimer;
+
+  RxInt get sleepTimerRemainingSeconds => globalSleepTimerRemainingSeconds;
+  RxBool get isSleepTimerActive => globalIsSleepTimerActive;
+  RxBool get isSleepTimerAtEndOfVideo => globalIsSleepTimerAtEndOfVideo;
 
   // ── Swipe gesture HUD ─────────────────────────────────────
   final RxDouble brightness = 1.0.obs;
@@ -378,8 +399,39 @@ class TowerPlayerController extends GetxController {
 
     _initChewieController();
 
+    if (kIsWeb) {
+      _webFullscreenSub = html.document.onFullscreenChange.listen((_) {
+        final isFs = html.document.fullscreenElement != null;
+        if (isFullScreen.value != isFs) {
+          isFullScreen.value = isFs;
+          try {
+            final vc = videoController;
+            if (vc != null) {
+              vc.isFullScreen.value = isFs;
+            }
+          } catch (_) {}
+          onInteraction();
+        }
+      });
+    }
+
     if (!Get.isRegistered<TowerPlayerController>(tag: tag)) {
       Get.put<TowerPlayerController>(this, tag: tag, permanent: false);
+    }
+
+    if (!kIsWeb) {
+      _pipChannel.setMethodCallHandler((call) async {
+        if (call.method == 'onPipModeChanged') {
+          final bool isInPip = call.arguments as bool;
+          for (final player in _activePlayers) {
+            player.isPiP.value = isInPip;
+            if (isInPip) {
+              player.controlsVisible.value = false;
+              player.settingsOpen.value = false;
+            }
+          }
+        }
+      });
     }
   }
 
@@ -467,6 +519,25 @@ class TowerPlayerController extends GetxController {
       isBuffering.value = val.isBuffering;
       playbackSpeed.value = val.playbackSpeed;
       if (isLooping.value != val.isLooping) isLooping.value = val.isLooping;
+
+      // Update selective reactive properties
+      if (isInitialized.value != val.isInitialized) {
+        isInitialized.value = val.isInitialized;
+      }
+      if (aspectRatio.value != val.aspectRatio) {
+        aspectRatio.value = val.aspectRatio;
+        _updateAutoPip(isPlaying.value);
+      }
+      if (isPlaying.value != val.isPlaying) {
+        isPlaying.value = val.isPlaying;
+        _updateAutoPip(val.isPlaying);
+      }
+      if (hasError.value != val.hasError) {
+        hasError.value = val.hasError;
+      }
+      if (errorDescription.value != (val.errorDescription ?? '')) {
+        errorDescription.value = val.errorDescription ?? '';
+      }
 
       // Sync alternate audio player
       final audioCtrl = _audioTrackController;
@@ -556,6 +627,29 @@ class TowerPlayerController extends GetxController {
         currentChapter.value = null;
       }
 
+      // Real-time claim calculation
+      ClaimResult? nextActiveClaim;
+      try {
+        if (Get.isRegistered<VideoController>(tag: tag)) {
+          final vc = Get.find<VideoController>(tag: tag);
+          final uiReport = vc.video.uiReport;
+          if (uiReport != null && uiReport.keyClaims.isNotEmpty) {
+            final posSec = val.position.inMilliseconds / 1000.0;
+            for (final claim in uiReport.keyClaims) {
+              if (claim.start != null && claim.end != null) {
+                if (posSec >= claim.start! && posSec <= claim.end!) {
+                  nextActiveClaim = claim;
+                  break;
+                }
+              }
+            }
+          }
+        }
+      } catch (_) {}
+      if (activeClaim.value != nextActiveClaim) {
+        activeClaim.value = nextActiveClaim;
+      }
+
       // Throttled track sync — max once per 2 s
       final now = DateTime.now();
       if (now.difference(_lastTrackSync).inSeconds >= 2) {
@@ -565,6 +659,12 @@ class TowerPlayerController extends GetxController {
 
       // Error → retry
       if (val.hasError && _retryCount < _maxRetries) _scheduleRetry();
+
+      // Update sleep timer remaining seconds if it is set to "End of video"
+      if (globalIsSleepTimerActive.value && globalIsSleepTimerAtEndOfVideo.value) {
+        final rem = (val.duration - val.position).inSeconds;
+        globalSleepTimerRemainingSeconds.value = rem.clamp(0, double.maxFinite.toInt());
+      }
 
       // Ended → autoplay (guarded to fire exactly once)
       if (val.position >= val.duration &&
@@ -654,6 +754,9 @@ class TowerPlayerController extends GetxController {
     if (Get.isRegistered<TowerPlayerController>(tag: tag)) {
       Get.delete<TowerPlayerController>(tag: tag);
     }
+    if (!kIsWeb) {
+      _pipChannel.setMethodCallHandler(null);
+    }
     super.onClose();
   }
 
@@ -666,6 +769,13 @@ class TowerPlayerController extends GetxController {
     } catch (_) {}
     videoPlayerController = vpc;
     _rxValue.value = vpc.value;
+
+    isInitialized.value = vpc.value.isInitialized;
+    aspectRatio.value = vpc.value.aspectRatio;
+    isPlaying.value = vpc.value.isPlaying;
+    hasError.value = vpc.value.hasError;
+    errorDescription.value = vpc.value.errorDescription ?? '';
+
     videoPlayerController.addListener(_onVpcUpdate);
     abr.attachVideoController(videoPlayerController);
     _initChewieController();
@@ -989,6 +1099,13 @@ class TowerPlayerController extends GetxController {
 
   void _onTrackEnded() {
     _trackAnalytics(PlayerEvent('ended'));
+
+    if (globalIsSleepTimerActive.value && globalIsSleepTimerAtEndOfVideo.value) {
+      globalCancelSleepTimer();
+      _triggerGlobalSleepPause();
+      return;
+    }
+
     if (isLooping.value) return; // Looping is handled by VideoPlayerController
     
     // Reset overlay hidden state so it shows initially
@@ -1366,17 +1483,54 @@ class TowerPlayerController extends GetxController {
 
   void toggleFullscreen() async {
     focusNode.requestFocus();
+    final nextState = !isFullScreen.value;
+    isFullScreen.value = nextState;
+    
+    // Sync with videoController if registered
     try {
       final vc = videoController;
-      final outerChewie = vc?.chewieController;
-      if (outerChewie != null) {
-        outerChewie.toggleFullScreen();
-      } else {
-        chewieController?.toggleFullScreen();
+      if (vc != null) {
+        vc.isFullScreen.value = nextState;
       }
-    } catch (e) {
-      debugPrint('[TowerPlayer] Fullscreen toggle error: $e');
+    } catch (_) {}
+
+    // Handle platform-specific fullscreen window state
+    if (kIsWeb) {
+      try {
+        if (nextState) {
+          if (html.document.fullscreenElement == null) {
+            html.document.documentElement?.requestFullscreen();
+          }
+        } else {
+          if (html.document.fullscreenElement != null) {
+            html.document.exitFullscreen();
+          }
+        }
+      } catch (e) {
+        debugPrint('[TowerPlayer] Web Fullscreen error: $e');
+      }
+    } else {
+      // Non-web platforms (Desktop/Mobile)
+      try {
+        if (nextState) {
+          SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+          if (aspectRatio.value > 1.0) {
+            SystemChrome.setPreferredOrientations([
+              DeviceOrientation.landscapeLeft,
+              DeviceOrientation.landscapeRight,
+            ]);
+          }
+        } else {
+          SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+          SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+        }
+      } catch (e) {
+        debugPrint('[TowerPlayer] Native Fullscreen error: $e');
+      }
     }
+    
+    onInteraction();
+    _trackAnalytics(PlayerEvent(nextState ? 'fullscreen_enter' : 'fullscreen_exit'));
   }
 
   void _setupChewieListeners() {
@@ -1392,64 +1546,59 @@ class TowerPlayerController extends GetxController {
       if (vc != null && vc.chewieController != null) {
         vc.chewieController!.removeListener(_onOuterChewieChanged);
         vc.chewieController!.addListener(_onOuterChewieChanged);
-        isFullScreen.value = vc.chewieController!.isFullScreen;
-        vc.isFullScreen.value = vc.chewieController!.isFullScreen;
-      } else {
-        if (chewieController != null) {
-          isFullScreen.value = chewieController!.isFullScreen;
-        }
       }
     } catch (_) {}
   }
 
   void _onInternalChewieChanged() {
-    if (chewieController == null) return;
-    final isFs = chewieController!.isFullScreen;
-    if (isFullScreen.value != isFs) {
-      isFullScreen.value = isFs;
-      try {
-        final vc = videoController;
-        if (vc != null) {
-          vc.isFullScreen.value = isFs;
-        }
-      } catch (_) {}
-      onInteraction();
-      _trackAnalytics(PlayerEvent(isFs ? 'fullscreen_enter' : 'fullscreen_exit'));
-    }
+    // Handled custom fullscreen inline, no sync from Chewie needed
   }
 
   void _onOuterChewieChanged() {
-    final vc = videoController;
-    if (vc != null && vc.chewieController != null) {
-      final isFs = vc.chewieController!.isFullScreen;
-      if (isFullScreen.value != isFs) {
-        isFullScreen.value = isFs;
-        vc.isFullScreen.value = isFs;
-        onInteraction();
-        _trackAnalytics(PlayerEvent(isFs ? 'fullscreen_enter' : 'fullscreen_exit'));
+    // Handled custom fullscreen inline, no sync from Chewie needed
+  }
+
+  void togglePiP() async {
+    if (kIsWeb) {
+      try {
+        final video = html.document.querySelector('video') as html.VideoElement?;
+        if (video == null) return;
+        final docJs = js.JsObject.fromBrowserObject(html.document);
+        if (docJs['pictureInPictureElement'] == null) {
+          js.JsObject.fromBrowserObject(
+            video,
+          ).callMethod('requestPictureInPicture', []);
+          isPiP.value = true;
+        } else {
+          docJs.callMethod('exitPictureInPicture', []);
+          isPiP.value = false;
+        }
+      } catch (e) {
+        debugPrint('[TowerPlayer] PiP error: $e');
+      }
+    } else {
+      try {
+        double ratio = aspectRatio.value;
+        if (ratio < 0.418) ratio = 0.418;
+        if (ratio > 2.39) ratio = 2.39;
+        await _pipChannel.invokeMethod('enterPip', {
+          'aspectRatio': ratio,
+        });
+      } catch (e) {
+        debugPrint('[TowerPlayer] Native PiP error: $e');
       }
     }
   }
 
-  // ─── PiP ─────────────────────────────────────────────────
-
-  void togglePiP() {
-    if (!kIsWeb) return;
-    try {
-      final video = html.document.querySelector('video') as html.VideoElement?;
-      if (video == null) return;
-      final docJs = js.JsObject.fromBrowserObject(html.document);
-      if (docJs['pictureInPictureElement'] == null) {
-        js.JsObject.fromBrowserObject(
-          video,
-        ).callMethod('requestPictureInPicture', []);
-        isPiP.value = true;
-      } else {
-        docJs.callMethod('exitPictureInPicture', []);
-        isPiP.value = false;
-      }
-    } catch (e) {
-      debugPrint('[TowerPlayer] PiP error: $e');
+  void _updateAutoPip(bool isPlaying) {
+    if (!kIsWeb) {
+      double ratio = aspectRatio.value;
+      if (ratio < 0.418) ratio = 0.418;
+      if (ratio > 2.39) ratio = 2.39;
+      _pipChannel.invokeMethod('setAutoEnterPip', {
+        'enabled': isPlaying,
+        'aspectRatio': ratio,
+      });
     }
   }
 
@@ -1594,37 +1743,68 @@ class TowerPlayerController extends GetxController {
 
   // ─── Sleep timer ─────────────────────────────────────────
 
-  void setSleepTimer(Duration duration) {
+  void setSleepTimer(Duration duration, {bool isEndOfVideo = false}) {
     cancelSleepTimer();
     if (duration == Duration.zero) return;
-    isSleepTimerActive.value = true;
-    sleepTimerRemainingSeconds.value = duration.inSeconds;
-    _timers.setPeriodic('sleep', const Duration(seconds: 1), (t) {
-      if (sleepTimerRemainingSeconds.value <= 1) {
-        cancelSleepTimer();
-        _triggerSleepPause();
-      } else {
-        sleepTimerRemainingSeconds.value--;
-      }
-    });
-    showToast('Sleep timer: ${duration.inMinutes} min');
+    
+    globalIsSleepTimerActive.value = true;
+    
+    if (isEndOfVideo) {
+      globalIsSleepTimerAtEndOfVideo.value = true;
+      globalSleepTimerRemainingSeconds.value = duration.inSeconds;
+      showToast('Sleep timer: End of video');
+    } else {
+      globalIsSleepTimerAtEndOfVideo.value = false;
+      globalSleepTimerRemainingSeconds.value = duration.inSeconds;
+      globalSleepTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+        if (globalSleepTimerRemainingSeconds.value <= 1) {
+          globalCancelSleepTimer();
+          _triggerGlobalSleepPause();
+        } else {
+          globalSleepTimerRemainingSeconds.value--;
+        }
+      });
+      showToast('Sleep timer: ${duration.inMinutes} min');
+    }
   }
 
   void cancelSleepTimer() {
-    _timers.cancel('sleep');
-    isSleepTimerActive.value = false;
-    sleepTimerRemainingSeconds.value = 0;
+    globalCancelSleepTimer();
   }
 
-  Future<void> _triggerSleepPause() async {
-    final origVol = volume.value;
-    for (int i = 10; i >= 0; i--) {
-      setVolume(origVol * (i / 10));
-      await Future.delayed(const Duration(milliseconds: 100));
+  static void globalCancelSleepTimer() {
+    globalSleepTimer?.cancel();
+    globalSleepTimer = null;
+    globalIsSleepTimerActive.value = false;
+    globalIsSleepTimerAtEndOfVideo.value = false;
+    globalSleepTimerRemainingSeconds.value = 0;
+  }
+
+  static Future<void> _triggerGlobalSleepPause() async {
+    final playersToPause = _activePlayers.where((p) => p.isPlaying.value).toList();
+    if (playersToPause.isEmpty) {
+      playersToPause.addAll(_activePlayers.where((p) => p.isInitialized.value));
     }
-    await videoPlayerController.pause();
-    setVolume(origVol);
-    showToast('Sleep timer paused playback');
+    
+    if (playersToPause.isNotEmpty) {
+      final Map<TowerPlayerController, double> originalVolumes = {};
+      for (final p in playersToPause) {
+        originalVolumes[p] = p.volume.value;
+      }
+      
+      for (int i = 10; i >= 0; i--) {
+        for (final p in playersToPause) {
+          p.setVolume(originalVolumes[p]! * (i / 10));
+        }
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      
+      for (final p in playersToPause) {
+        await p.videoPlayerController.pause();
+        p.setVolume(originalVolumes[p]!);
+        p.showToast('Sleep timer paused playback');
+      }
+    }
   }
 
   // ─── Swipe gestures (Fullscreen) ─────────────────────────

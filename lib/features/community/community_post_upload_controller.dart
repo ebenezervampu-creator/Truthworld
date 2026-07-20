@@ -263,6 +263,28 @@ class CommunityPostUploadController extends GetxController
           return;
         }
 
+        // Validate format and size of each file
+        for (final file in result.files) {
+          final extension = file.extension?.toLowerCase();
+          const allowedExtensions = {'jpg', 'jpeg', 'png', 'gif'};
+          if (extension == null || !allowedExtensions.contains(extension)) {
+            AppSnackbar.show(
+              'Error',
+              'Unsupported image format. Allowed formats: JPG, JPEG, PNG, GIF.',
+              snackPosition: SnackPosition.BOTTOM,
+            );
+            return;
+          }
+          if (file.size > maxImageSizeBytes) {
+            AppSnackbar.show(
+              'Error',
+              'Selected image exceeds the 20MB limit.',
+              snackPosition: SnackPosition.BOTTOM,
+            );
+            return;
+          }
+        }
+
         final startIndex = pickedImages.length;
         pickedImages.addAll(result.files);
 

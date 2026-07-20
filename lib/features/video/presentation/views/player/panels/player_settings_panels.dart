@@ -1351,8 +1351,16 @@ class MorePanel extends StatelessWidget {
         ),
         Obx(() {
           final isActive = ctrl.isSleepTimerActive.value;
+          final isAtEnd = ctrl.isSleepTimerAtEndOfVideo.value;
           final rem = ctrl.sleepTimerRemainingSeconds.value;
-          final valueText = isActive ? '${(rem / 60).ceil()} min' : 'Off';
+          String valueText = 'Off';
+          if (isActive) {
+            if (isAtEnd) {
+              valueText = 'End of video';
+            } else {
+              valueText = '${(rem / 60).ceil()} min';
+            }
+          }
           return MobileSettingsTile(
             icon: Icons.nights_stay_rounded,
             title: 'Sleep timer',
@@ -1393,6 +1401,7 @@ class SleepTimerPanel extends StatelessWidget {
         const PlayerDivider(),
         Obx(() {
           final isActive = ctrl.isSleepTimerActive.value;
+          final isAtEnd = ctrl.isSleepTimerAtEndOfVideo.value;
           return Column(
             mainAxisSize: MainAxisSize.min,
             children: options.map((opt) {
@@ -1403,12 +1412,11 @@ class SleepTimerPanel extends StatelessWidget {
               if (label == 'Off') {
                 isSelected = !isActive;
               } else if (isActive) {
-                // Check if duration matches approximately (within 10 seconds)
-                final diff = (ctrl.sleepTimerRemainingSeconds.value - duration.inSeconds).abs();
                 if (label == 'End of video') {
-                  final rem = (ctrl.vv.duration - ctrl.vv.position).inSeconds;
-                  isSelected = (ctrl.sleepTimerRemainingSeconds.value - rem).abs() < 10;
-                } else {
+                  isSelected = isAtEnd;
+                } else if (!isAtEnd) {
+                  // Check if duration matches approximately (within 10 seconds)
+                  final diff = (ctrl.sleepTimerRemainingSeconds.value - duration.inSeconds).abs();
                   isSelected = diff < 10;
                 }
               }
@@ -1420,7 +1428,7 @@ class SleepTimerPanel extends StatelessWidget {
                   if (label == 'Off') {
                     ctrl.cancelSleepTimer();
                   } else {
-                    ctrl.setSleepTimer(duration);
+                    ctrl.setSleepTimer(duration, isEndOfVideo: label == 'End of video');
                   }
                   ctrl.activePanel.value = 'more';
                 },

@@ -37,6 +37,8 @@ const TOPICS: Record<EventType, string> = {
   "dubbing-complete":       "dubbing.completed",
   "aggregation-ready":      "aggregation.ready",
   "resolution-requested":   "resolution.requested",
+  "copyright-processing":   "copyright.requested",
+  "copyright-complete":     "copyright.completed",
 };
 
 const DLQ_TOPIC = "pipeline.dead-letter";

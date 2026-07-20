@@ -60,7 +60,7 @@ class PremiumCommentInput extends StatelessWidget {
       final hasChannel = authService.hasChannel.value;
       final channel = authService.userChannel;
 
-      final String? photoUrl = hasChannel ? channel?.avatarUrl : user?.photoURL;
+      final String photoUrl = authService.activePhotoUrl;
       final String initial = hasChannel
           ? (channel?.name.isNotEmpty == true ? channel!.name.substring(0, 1).toUpperCase() : 'C')
           : (user?.email?.isNotEmpty == true

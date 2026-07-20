@@ -207,9 +207,20 @@ export class TranscriptionLayer {
       // 5. Atomic completion & Fan-out check
       await aggregationLayer.onStageComplete(jobId, "transcription", userId, executionPlan);
 
-      // 6. Fan-out immediately (Fact-checking only)
-      // Path 2 (Dubbing) is now reactive via index.ts (onVideoPublished trigger)
+      // 6. Fan-out immediately (Fact-checking, Dubbing, and Copyright)
       const fanoutTasks: Promise<any>[] = [];
+      
+      // Fan-out to copyright check (always required)
+      fanoutTasks.push(this.distribution.publish("copyright-processing" as any, {
+        eventId: `copy_${jobId}`,
+        eventType: "copyright-processing" as any,
+        jobId, userId,
+        timestamp: Date.now(),
+        data: { videoUrl, executionPlan },
+        retryCount: 0,
+        source: "transcription-polling"
+      }));
+
       if (executionPlan.enablePath1) {
         fanoutTasks.push(this.distribution.publish("fact-processing", {
           eventId: `fact_${jobId}`,

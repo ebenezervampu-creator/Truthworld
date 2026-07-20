@@ -923,9 +923,8 @@ class AdService extends GetxService {
       return;
     }
 
-    final user = AuthService.to.user;
-    final userName = user?.displayName ?? 'Anonymous';
-    final userProfilePicUrl = user?.photoURL ?? '';
+    final userName = AuthService.to.activeDisplayName.isNotEmpty ? AuthService.to.activeDisplayName : 'Anonymous';
+    final userProfilePicUrl = AuthService.to.activePhotoUrl;
 
     final ref = FirebaseFirestore.instance.collection('ad_comments').doc();
     await ref.set({

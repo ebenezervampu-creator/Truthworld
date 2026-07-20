@@ -26,75 +26,77 @@ class SubscriptionsPage extends StatelessWidget {
 
         return Scaffold(
           backgroundColor: AppColors.bgPage,
-          body: RefreshIndicator(
-            onRefresh: () => controller.refresh(),
-            color: AppColors.brand,
-            backgroundColor: AppColors.bgSurface,
-            child: CustomScrollView(
-              slivers: [
-                // ── Dashboard Title (Desktop/Tablet Only) ──
-                if (!isMobile || isDashboard)
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(spacing, spacing, spacing, spacing / 2),
-                      child: Text(
-                        'Subscriptions',
-                        style: GoogleFonts.robotoCondensed(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
+          body: SafeArea(
+            child: RefreshIndicator(
+              onRefresh: () => controller.refresh(),
+              color: AppColors.brand,
+              backgroundColor: AppColors.bgSurface,
+              child: CustomScrollView(
+                slivers: [
+                  // ── Dashboard Title (Desktop/Tablet Only) ──
+                  if (!isMobile || isDashboard)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(spacing, spacing, spacing, spacing / 2),
+                        child: Text(
+                          'Subscriptions',
+                          style: GoogleFonts.robotoCondensed(
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
                         ),
                       ),
                     ),
+
+                  // ── Subscribed Channels Horizontal Bar ──
+                  SliverToBoxAdapter(
+                    child: _buildChannelAvatars(context),
                   ),
 
-                // ── Subscribed Channels Horizontal Bar ──
-                SliverToBoxAdapter(
-                  child: _buildChannelAvatars(context),
-                ),
-
-                // ── Industry Standard Filters Bar ──
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _SliverFilterBarDelegate(
-                    child: _buildFilterBar(context),
-                  ),
-                ),
-
-                // ── Content Grid / List ──
-                Obx(() {
-                  if (controller.isLoading.value && controller.allContent.isEmpty) {
-                    return _buildLoadingState(context);
-                  }
-
-                  if (controller.hasError.value && controller.allContent.isEmpty) {
-                    return _buildErrorState();
-                  }
-
-                  if (controller.filteredContent.isEmpty) {
-                    return _buildEmptyState();
-                  }
-
-                  return SliverPadding(
-                    padding: EdgeInsets.all(spacing),
-                    sliver: SliverGrid(
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: _getCrossAxisCount(context),
-                        childAspectRatio: _getChildAspectRatio(context),
-                        crossAxisSpacing: spacing,
-                        mainAxisSpacing: spacing,
-                      ),
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final item = controller.filteredContent[index];
-                          return _buildContentCard(item);
-                        },
-                        childCount: controller.filteredContent.length,
-                      ),
+                  // ── Industry Standard Filters Bar ──
+                  SliverPersistentHeader(
+                    pinned: true,
+                    delegate: _SliverFilterBarDelegate(
+                      child: _buildFilterBar(context),
                     ),
-                  );
-                }),
-              ],
+                  ),
+
+                  // ── Content Grid / List ──
+                  Obx(() {
+                    if (controller.isLoading.value && controller.allContent.isEmpty) {
+                      return _buildLoadingState(context);
+                    }
+
+                    if (controller.hasError.value && controller.allContent.isEmpty) {
+                      return _buildErrorState();
+                    }
+
+                    if (controller.filteredContent.isEmpty) {
+                      return _buildEmptyState();
+                    }
+
+                    return SliverPadding(
+                      padding: EdgeInsets.all(spacing),
+                      sliver: SliverGrid(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: _getCrossAxisCount(context),
+                          childAspectRatio: _getChildAspectRatio(context),
+                          crossAxisSpacing: spacing,
+                          mainAxisSpacing: spacing,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final item = controller.filteredContent[index];
+                            return _buildContentCard(item);
+                          },
+                          childCount: controller.filteredContent.length,
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
             ),
           ),
         );

@@ -238,10 +238,25 @@ function chunkTranscript(
 }
 
 /**
+ * Normalize text to be robust against trivial edits, casing, punctuation,
+ * unicode differences, and whitespace variants.
+ */
+export function normalizeTranscript(text: string): string {
+  if (!text) return "";
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Strip Unicode accents
+    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?"']/g, "") // Strip punctuation
+    .replace(/\s+/g, " ") // Collapse whitespace
+    .trim();
+}
+
+/**
  * Compute MD5 hash of normalized transcript for fast pre-filtering.
  */
 function hashTranscript(text: string): string {
-  const normalized = text.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
+  const normalized = normalizeTranscript(text);
   const crypto = require("crypto");
   return crypto.createHash("md5").update(normalized).digest("hex");
 }
@@ -313,6 +328,14 @@ export class FingerprintService {
       protectionLevel: params.protectionLevel || "standard",
       allowFairUse: params.allowFairUse ?? true,
       claimPolicy: params.claimPolicy || "track_only",
+      policy: {
+        action: params.claimPolicy || "track_only",
+        allowFairUse: params.allowFairUse ?? true,
+        allowCommentary: true,
+        allowEducation: true,
+        minMatchScore: params.protectionLevel === "strict" ? 0.85 : params.protectionLevel === "lenient" ? 0.95 : 0.90,
+        clipThresholdSeconds: params.protectionLevel === "strict" ? 15 : 30,
+      },
       chunkCount: chunks.length,
       registeredAt: Date.now(),
       updatedAt: Date.now(),
@@ -341,6 +364,8 @@ export class FingerprintService {
         startTime: chunk.startTime,
         endTime: chunk.endTime,
         transcriptText: chunk.text,
+        chunkText: chunk.text,
+        chunkSummary: chunk.text.slice(0, 150) + (chunk.text.length > 150 ? "..." : ""),
         chunkEmbedding: chunkEmbeddings[i],
         registeredAt: Date.now(),
       };

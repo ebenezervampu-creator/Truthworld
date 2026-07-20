@@ -20,7 +20,7 @@ class TrendingVideosPage extends GetView<TrendingController> {
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           appBar: !isDashboard ? _buildAppBar(context, deviceType) : null,
-          body: Obx(() => _buildBody(context, deviceType)),
+          body: SafeArea(child: Obx(() => _buildBody(context, deviceType))),
         );
       },
     );

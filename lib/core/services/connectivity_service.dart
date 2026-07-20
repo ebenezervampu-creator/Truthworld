@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 class ConnectivityService extends GetxService {
   final Connectivity _connectivity = Connectivity();
   final Rx<ConnectivityResult> _connectionStatus = ConnectivityResult.none.obs;
+  bool _isInitial = true;
 
   ConnectivityResult get connectionStatus => _connectionStatus.value;
   bool get isConnected => _connectionStatus.value != ConnectivityResult.none;
@@ -16,12 +17,18 @@ class ConnectivityService extends GetxService {
 
   Future<ConnectivityService> init() async {
     final results = await _connectivity.checkConnectivity();
-    _connectionStatus.value = _getFirstResult(results);
+    final initialResult = _getFirstResult(results);
+    _connectionStatus.value = initialResult;
+
+    // If we start offline, we want to know so the next 'online' event shows the snackbar
+    _isInitial = initialResult != ConnectivityResult.none;
 
     _subscription = _connectivity.onConnectivityChanged.listen((List<ConnectivityResult> results) {
       final result = _getFirstResult(results);
+      final previousStatus = _connectionStatus.value;
       _connectionStatus.value = result;
-      _handleStatusChange(result);
+
+      _handleStatusChange(result, previousStatus);
     });
 
     return this;
@@ -32,7 +39,7 @@ class ConnectivityService extends GetxService {
     return results.first;
   }
 
-  void _handleStatusChange(ConnectivityResult result) {
+  void _handleStatusChange(ConnectivityResult result, ConnectivityResult previousStatus) {
     if (result == ConnectivityResult.none) {
       Get.snackbar(
         'Offline',
@@ -42,7 +49,7 @@ class ConnectivityService extends GetxService {
         colorText: Get.theme.colorScheme.onErrorContainer,
         duration: const Duration(seconds: 5),
       );
-    } else {
+    } else if (previousStatus == ConnectivityResult.none && !_isInitial) {
       if (Get.isSnackbarOpen) Get.back();
       Get.snackbar(
         'Online',
@@ -53,6 +60,9 @@ class ConnectivityService extends GetxService {
         duration: const Duration(seconds: 2),
       );
     }
+
+    // After first check/event, we are no longer in initial state
+    _isInitial = false;
   }
 
   @override

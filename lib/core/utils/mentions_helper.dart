@@ -32,11 +32,9 @@ class MentionsHelper {
 
     final currentUser = FirebaseAuth.instance.currentUser;
     final currentUserId = currentUser?.uid ?? '';
-    final rawName = currentUser?.displayName ?? 'Someone';
+    final rawName = AuthService.to.activeDisplayName.isNotEmpty ? AuthService.to.activeDisplayName : 'Someone';
     final currentUserName = rawName.startsWith('@') ? rawName.substring(1) : rawName;
-    final currentUserAvatar = (AuthService.to.hasChannel.value && AuthService.to.userChannel != null)
-        ? AuthService.to.userChannel!.avatarUrl
-        : (AuthService.to.hasChannel.value ? '' : (currentUser?.photoURL ?? ''));
+    final currentUserAvatar = AuthService.to.activePhotoUrl;
 
     final notificationService = UserNotificationService();
 

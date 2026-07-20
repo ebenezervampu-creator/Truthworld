@@ -63,6 +63,7 @@ class MainController extends BaseController {
   // ========================================================================
 
   final videoLikes = <String, int>{}.obs;
+  final videoDislikes = <String, int>{}.obs;
   final isReporting = false.obs;
 
   // Client-side guard for rapid tapping (race condition prevention)
@@ -888,11 +889,11 @@ class MainController extends BaseController {
       final authService = AuthService.to;
       final hasChannel = authService.hasChannel.value && authService.userChannel != null;
 
-      final finalUserName = hasChannel ? authService.userChannel!.name : userName;
-      final finalUserProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : userProfilePicUrl;
+      final finalUserName = authService.activeDisplayName;
+      final finalUserProfilePicUrl = authService.activePhotoUrl;
       final finalChannelId = hasChannel ? authService.userChannel!.id : userId;
-      final finalChannelName = hasChannel ? authService.userChannel!.name : userName;
-      final finalChannelProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : userProfilePicUrl;
+      final finalChannelName = authService.activeDisplayName;
+      final finalChannelProfilePicUrl = authService.activePhotoUrl;
 
       final comment = Comment(
         id: docRef.id,
@@ -983,11 +984,11 @@ class MainController extends BaseController {
       final authService = AuthService.to;
       final hasChannel = authService.hasChannel.value && authService.userChannel != null;
 
-      final finalUserName = hasChannel ? authService.userChannel!.name : userName;
-      final finalUserProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : userProfilePicUrl;
+      final finalUserName = authService.activeDisplayName;
+      final finalUserProfilePicUrl = authService.activePhotoUrl;
       final finalChannelId = hasChannel ? authService.userChannel!.id : userId;
-      final finalChannelName = hasChannel ? authService.userChannel!.name : userName;
-      final finalChannelProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : userProfilePicUrl;
+      final finalChannelName = authService.activeDisplayName;
+      final finalChannelProfilePicUrl = authService.activePhotoUrl;
 
       final reply = Reply(
         id: docRef.id,

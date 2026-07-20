@@ -69,160 +69,185 @@ class _SearchPageState extends State<SearchPage> {
           },
         ),
       ),
-      body: Stack(
-        children: [
-          // Bottom Layer: Results and chips
-          Column(
-            children: [
-              // Scrollable Filter Chips row
-              Obx(() {
-                final query = _searchCtrl.searchQuery.value;
-                final hasResults = _searchCtrl.searchResults.isNotEmpty;
-                if (query.isEmpty || !hasResults) {
-                  return const SizedBox.shrink();
-                }
-                
-                final filters = ['All', 'Watched', 'Unwatched', 'Videos', 'Channels', 'Playlists', 'Topics', 'Recently uploaded', 'Live'];
-                return Container(
-                  height: 48,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: filters.length,
-                    itemBuilder: (context, index) {
-                      final filter = filters[index];
-                      final isSelected = _searchCtrl.selectedFilter.value == filter;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: FilterChip(
-                          label: Text(
-                            filter,
-                            style: TextStyle(
-                              color: isSelected ? Colors.black : Colors.white,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                              fontSize: 13,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            // Bottom Layer: Results and chips
+            Column(
+              children: [
+                // Scrollable Filter Chips row
+                Obx(() {
+                  final query = _searchCtrl.searchQuery.value;
+                  final hasResults = _searchCtrl.searchResults.isNotEmpty;
+                  if (query.isEmpty || !hasResults) {
+                    return const SizedBox.shrink();
+                  }
+
+                  final filters = [
+                    'All',
+                    'Watched',
+                    'Unwatched',
+                    'Videos',
+                    'Channels',
+                    'Playlists',
+                    'Topics',
+                    'Recently uploaded',
+                    'Live',
+                  ];
+                  return Container(
+                    height: 48,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: filters.length,
+                      itemBuilder: (context, index) {
+                        final filter = filters[index];
+                        final isSelected =
+                            _searchCtrl.selectedFilter.value == filter;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: FilterChip(
+                            label: Text(
+                              filter,
+                              style: TextStyle(
+                                color: isSelected ? Colors.black : Colors.white,
+                                fontWeight: isSelected
+                                    ? FontWeight.bold
+                                    : FontWeight.normal,
+                                fontSize: 13,
+                              ),
+                            ),
+                            selected: isSelected,
+                            selectedColor: Colors.white,
+                            backgroundColor: const Color(0xFF212121),
+                            checkmarkColor: Colors.black,
+                            showCheckmark: false,
+                            onSelected: (selected) {
+                              if (selected) {
+                                _searchCtrl.setFilter(filter);
+                              }
+                            },
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: BorderSide(
+                                color: isSelected
+                                    ? Colors.white
+                                    : const Color(0xFF3F3F3F),
+                              ),
                             ),
                           ),
-                          selected: isSelected,
-                          selectedColor: Colors.white,
-                          backgroundColor: const Color(0xFF212121),
-                          checkmarkColor: Colors.black,
-                          showCheckmark: false,
-                          onSelected: (selected) {
-                            if (selected) {
-                              _searchCtrl.setFilter(filter);
-                            }
-                          },
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            side: BorderSide(
-                              color: isSelected ? Colors.white : const Color(0xFF3F3F3F),
+                        );
+                      },
+                    ),
+                  );
+                }),
+
+                // Main content area
+                Expanded(
+                  child: Obx(() {
+                    final query = _searchCtrl.searchQuery.value;
+                    final results = _searchCtrl.searchResults;
+                    final isLoading = _searchCtrl.isLoading.value;
+                    final isLoadingMore = _searchCtrl.isLoadingMore.value;
+                    final errorMsg = _searchCtrl.errorMessage.value;
+
+                    // CASE 1: Empty search state
+                    if (query.isEmpty) {
+                      return _buildEmptyState();
+                    }
+
+                    // CASE 2: Loading state
+                    if (isLoading) {
+                      return const SearchResultSkeleton(count: 5);
+                    }
+
+                    // CASE 3: Error state
+                    if (errorMsg.isNotEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              size: 48,
+                              color: Colors.red[300],
                             ),
-                          ),
+                            const SizedBox(height: 16),
+                            Text(
+                              errorMsg,
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: _searchCtrl.clearSearch,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white10,
+                                foregroundColor: Colors.white,
+                              ),
+                              child: const Text('Clear'),
+                            ),
+                          ],
                         ),
                       );
-                    },
-                  ),
-                );
-              }),
+                    }
 
-              // Main content area
-              Expanded(
-                child: Obx(() {
-                  final query = _searchCtrl.searchQuery.value;
-                  final results = _searchCtrl.searchResults;
-                  final isLoading = _searchCtrl.isLoading.value;
-                  final isLoadingMore = _searchCtrl.isLoadingMore.value;
-                  final errorMsg = _searchCtrl.errorMessage.value;
-
-                  // CASE 1: Empty search state
-                  if (query.isEmpty) {
-                    return _buildEmptyState();
-                  }
-
-                  // CASE 2: Loading state
-                  if (isLoading) {
-                    return const SearchResultSkeleton(count: 5);
-                  }
-
-                  // CASE 3: Error state
-                  if (errorMsg.isNotEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.error_outline, size: 48, color: Colors.red[300]),
-                          const SizedBox(height: 16),
-                          Text(errorMsg, style: const TextStyle(color: Colors.white70)),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: _searchCtrl.clearSearch,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white10,
-                              foregroundColor: Colors.white,
-                            ),
-                            child: const Text('Clear'),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-
-                  // CASE 4: No results
-                  if (results.isEmpty) {
-                    return EmptySearchState(
-                      query: query,
-                      onClearSearch: _searchCtrl.clearSearch,
-                    );
-                  }
-
-                  // CASE 5: Results List
-                  return _buildResultsList(results, isLoadingMore);
-                }),
-              ),
-            ],
-          ),
-
-          // Top Layer: Suggestions overlay (active while typing)
-          Obx(() {
-            final showSug = _searchCtrl.showSuggestions.value;
-            final suggestionsList = _searchCtrl.richSuggestions;
-            if (!showSug || suggestionsList.isEmpty) {
-              return const SizedBox.shrink();
-            }
-
-            return Container(
-              color: Colors.black,
-              width: double.infinity,
-              height: double.infinity,
-              child: ListView.builder(
-                itemCount: suggestionsList.length,
-                itemBuilder: (context, index) {
-                  final sug = suggestionsList[index];
-                  return SearchSuggestionTile(
-                    suggestion: sug,
-                    onTap: () {
-                      _searchController.text = sug.text;
-                      if (sug.matchedResult != null) {
-                        _searchCtrl.onResultTapped(sug.matchedResult!);
-                      } else {
-                        _searchCtrl.performSearch(sug.text);
-                      }
-                    },
-                    onCopy: () {
-                      _searchController.text = sug.text;
-                      _searchController.selection = TextSelection.fromPosition(
-                        TextPosition(offset: sug.text.length),
+                    // CASE 4: No results
+                    if (results.isEmpty) {
+                      return EmptySearchState(
+                        query: query,
+                        onClearSearch: _searchCtrl.clearSearch,
                       );
-                      _searchCtrl.onSearchChanged(sug.text);
-                    },
-                  );
-                },
-              ),
-            );
-          }),
-        ],
+                    }
+
+                    // CASE 5: Results List
+                    return _buildResultsList(results, isLoadingMore);
+                  }),
+                ),
+              ],
+            ),
+
+            // Top Layer: Suggestions overlay (active while typing)
+            Obx(() {
+              final showSug = _searchCtrl.showSuggestions.value;
+              final suggestionsList = _searchCtrl.richSuggestions;
+              if (!showSug || suggestionsList.isEmpty) {
+                return const SizedBox.shrink();
+              }
+
+              return Container(
+                color: Colors.black,
+                width: double.infinity,
+                height: double.infinity,
+                child: ListView.builder(
+                  itemCount: suggestionsList.length,
+                  itemBuilder: (context, index) {
+                    final sug = suggestionsList[index];
+                    return SearchSuggestionTile(
+                      suggestion: sug,
+                      onTap: () {
+                        _searchController.text = sug.text;
+                        if (sug.matchedResult != null) {
+                          _searchCtrl.onResultTapped(sug.matchedResult!);
+                        } else {
+                          _searchCtrl.performSearch(sug.text);
+                        }
+                      },
+                      onCopy: () {
+                        _searchController.text = sug.text;
+                        _searchController.selection =
+                            TextSelection.fromPosition(
+                              TextPosition(offset: sug.text.length),
+                            );
+                        _searchCtrl.onSearchChanged(sug.text);
+                      },
+                    );
+                  },
+                ),
+              );
+            }),
+          ],
+        ),
       ),
     );
   }
@@ -278,9 +303,12 @@ class _SearchPageState extends State<SearchPage> {
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             itemCount: _searchCtrl.recommendedResults.length,
                             itemBuilder: (context, index) {
-                              final video = _searchCtrl.recommendedResults[index];
+                              final video =
+                                  _searchCtrl.recommendedResults[index];
                               return Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
                                 child: _buildRecommendedCard(video),
                               );
                             },
@@ -296,7 +324,10 @@ class _SearchPageState extends State<SearchPage> {
           Obx(
             () => _searchCtrl.suggestions.isNotEmpty
                 ? Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -315,7 +346,10 @@ class _SearchPageState extends State<SearchPage> {
                           children: _searchCtrl.suggestions
                               .map(
                                 (suggestion) => ActionChip(
-                                  label: Text(suggestion, style: const TextStyle(color: Colors.white)),
+                                  label: Text(
+                                    suggestion,
+                                    style: const TextStyle(color: Colors.white),
+                                  ),
                                   backgroundColor: Colors.white10,
                                   onPressed: () {
                                     _searchController.text = suggestion;
@@ -323,7 +357,9 @@ class _SearchPageState extends State<SearchPage> {
                                   },
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(16),
-                                    side: const BorderSide(color: Colors.transparent),
+                                    side: const BorderSide(
+                                      color: Colors.transparent,
+                                    ),
                                   ),
                                 ),
                               )
@@ -351,14 +387,21 @@ class _SearchPageState extends State<SearchPage> {
                 children: [
                   Text(
                     '💡 Search Tips',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                   SizedBox(height: 8),
                   Text(
                     '• Use specific keywords for better results\n'
                     '• Try different search terms if no results\n'
                     '• Filter by channels, playlists, or topics',
-                    style: TextStyle(fontSize: 12, color: Colors.white54, height: 1.5),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white54,
+                      height: 1.5,
+                    ),
                   ),
                 ],
               ),
@@ -405,7 +448,8 @@ class _SearchPageState extends State<SearchPage> {
       final m = (seconds % 3600) ~/ 60;
       final s = seconds % 60;
       if (h > 0) {
-        durationStr = '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+        durationStr =
+            '$h:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
       } else {
         durationStr = '$m:${s.toString().padLeft(2, '0')}';
       }
@@ -430,12 +474,19 @@ class _SearchPageState extends State<SearchPage> {
                         ? CachedNetworkImage(
                             imageUrl: video.thumbnail,
                             fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(color: Colors.white10),
-                            errorWidget: (context, url, error) => const Icon(Icons.play_circle_outline, color: Colors.white38),
+                            placeholder: (context, url) =>
+                                Container(color: Colors.white10),
+                            errorWidget: (context, url, error) => const Icon(
+                              Icons.play_circle_outline,
+                              color: Colors.white38,
+                            ),
                           )
                         : Container(
                             color: Colors.white10,
-                            child: const Icon(Icons.video_library, color: Colors.white38),
+                            child: const Icon(
+                              Icons.video_library,
+                              color: Colors.white38,
+                            ),
                           ),
                   ),
                 ),
@@ -444,14 +495,21 @@ class _SearchPageState extends State<SearchPage> {
                     bottom: 6,
                     right: 6,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.black.withValues(alpha: 0.8),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         durationStr,
-                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),

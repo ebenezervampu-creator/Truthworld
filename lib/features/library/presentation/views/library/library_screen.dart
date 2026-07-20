@@ -166,17 +166,19 @@ class LibraryScreenState extends State<LibraryScreen>
 
     return Scaffold(
       backgroundColor: bgColor,
-      body: Row(
-        children: [
-          // Main Content
-          Expanded(
-            flex: 7,
-            child: _buildMainContent(context, userId, isDesktop: true),
-          ),
-          // Sidebar with Quick Actions
-          if (!widget.isDashboard)
-            Expanded(flex: 3, child: _buildSidebar(context, userId)),
-        ],
+      body: SafeArea(
+        child: Row(
+          children: [
+            // Main Content
+            Expanded(
+              flex: 7,
+              child: _buildMainContent(context, userId, isDesktop: true),
+            ),
+            // Sidebar with Quick Actions
+            if (!widget.isDashboard)
+              Expanded(flex: 3, child: _buildSidebar(context, userId)),
+          ],
+        ),
       ),
     );
   }
@@ -191,7 +193,7 @@ class LibraryScreenState extends State<LibraryScreen>
     return Scaffold(
       backgroundColor: bgColor,
       appBar: !widget.isDashboard ? _buildModernAppBar(context, isTablet: true) : null,
-      body: _buildMainContent(context, userId, isTablet: true),
+      body: SafeArea(child: _buildMainContent(context, userId, isTablet: true)),
     );
   }
 
@@ -204,7 +206,7 @@ class LibraryScreenState extends State<LibraryScreen>
 
     return Scaffold(
       backgroundColor: bgColor,
-      body: _buildMainContent(context, userId),
+      body: SafeArea(child: _buildMainContent(context, userId)),
     );
   }
 
@@ -595,16 +597,9 @@ class LibraryScreenState extends State<LibraryScreen>
       final hasChannel = authService.hasChannel.value;
       final Channel? channel = authService.userChannel;
 
-      final displayName = hasChannel && channel != null
-          ? channel.name
-          : (user?.displayName ?? "User");
-      final email = user?.email ?? "";
-      final handle = hasChannel && channel != null
-          ? (channel.handle.startsWith('@') ? channel.handle : '@${channel.handle}')
-          : (email.isNotEmpty ? "@${email.split('@')[0]}" : "@user");
-      final avatarUrl = hasChannel && channel != null
-          ? channel.avatarUrl
-          : user?.photoURL;
+      final displayName = authService.activeDisplayName;
+      final handle = authService.activeHandle;
+      final avatarUrl = authService.activePhotoUrl;
 
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),

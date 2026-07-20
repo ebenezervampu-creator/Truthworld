@@ -68,9 +68,8 @@ class ReplyInputController extends BaseController {
 
     try {
       final authService = AuthService.to;
-      final hasChannel = authService.hasChannel.value && authService.userChannel != null;
-      final finalUserName = hasChannel ? authService.userChannel!.name : (user.displayName ?? 'Anonymous User');
-      final finalUserProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : (user.photoURL ?? '');
+      final finalUserName = authService.activeDisplayName;
+      final finalUserProfilePicUrl = authService.activePhotoUrl;
 
       await _mainController.addReply(
         videoId: videoId,

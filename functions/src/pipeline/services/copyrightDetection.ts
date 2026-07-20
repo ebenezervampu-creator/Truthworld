@@ -1,26 +1,18 @@
 /**
  * 🔍 COPYRIGHT DETECTION SERVICE — Layered Detection Pipeline
  *
- * Architecture (cost-optimized):
+ * Architecture (cost-optimized, modular retrieval & verification):
  *   1. MD5 check       — 0ms, free, exact duplicates
- *   2. Embedding search — 50ms, ~$0 (Firestore vector query)
- *   3. Transcript sim   — 100ms, ~$0 (chunk comparison)
- *   4. Gemini verify    — ONLY if weighted confidence > 0.80 ($0.001 per call)
- *
- * Gemini runs on <5% of uploads. Total cost per video: ~$0.001-$0.002
- *
- * Key Design Decisions:
- *   - Matches stored in separate `copyright_matches` collection (not arrays)
- *   - 30-second chunk matching detects partial copies
- *   - Weighted confidence: 40% MD5, 30% embedding, 20% transcript, 10% semantic
- *   - Never auto-blocks — only claims, holds, or tracking
- *   - Fair use scored 0-100, not binary
+ *   2. Vector search   — 50ms, ~$0 (abstracted native Vector search with local TTL cache)
+ *   3. Chunk overlaps  — 100ms, ~$0 (precise 30s chunk comparison)
+ *   4. Gemini verify   — ONLY if weighted confidence > 0.80 ($0.001 per call)
  */
 
 import * as admin from "firebase-admin";
 import { VertexAI } from "@google-cloud/vertexai";
 import { logger } from "../utils/logger";
 import { cosineSimilarity } from "./fingerprintService";
+import { vectorRetrievalService } from "./vectorRetrievalService";
 import {
   CopyrightMatch,
   WeightedConfidence,
@@ -30,19 +22,22 @@ import {
   DEFAULT_CONFIDENCE_WEIGHTS,
   FairUseAnalysis,
   EvidenceBundle,
+  MatchScoreSignals,
 } from "./copyrightTypes";
 import { v4 as uuidv4 } from "uuid";
 
 const db = () => admin.firestore();
 
-// ─── Detection Pipeline ──────────────────────────────────────────────────────
+// Detector Versioning metadata constants
+const DETECTOR_VERSION = 2;
+const EMBEDDING_MODEL = "text-embedding-005";
+const GEMINI_MODEL = "gemini-2.5-flash";
+const PIPELINE_VERSION = "2026-07";
 
 export class CopyrightDetectionService {
   /**
    * Run the full layered detection pipeline on a new video.
-   *
-   * Call this AFTER transcription completes — we need the transcript
-   * and summary to generate embeddings for comparison.
+   * Separates candidate retrieval stages from verification/decision.
    */
   async detectCopyright(params: {
     videoId: string;
@@ -73,7 +68,7 @@ export class CopyrightDetectionService {
 
     try {
       // ═══════════════════════════════════════════════════════════════════════
-      // STAGE 1: MD5 Exact Match (0ms, free)
+      // RETRIEVAL STAGE 1: MD5 Exact Match (0ms, free)
       // ═══════════════════════════════════════════════════════════════════════
       const md5Start = Date.now();
       const md5Hits = await this.checkMd5(params.md5Hash, params.videoId);
@@ -84,32 +79,34 @@ export class CopyrightDetectionService {
       };
 
       if (md5Hits.length > 0) {
-        // Exact duplicate — 100% confidence, no need for further stages
+        // Exact duplicate — 100% confidence, exit early
         for (const hit of md5Hits) {
-          const match = this.createMatch(params, hit, "exact_md5", {
+          const confidence: WeightedConfidence = {
             md5Score: 1.0,
             embeddingScore: null,
             transcriptScore: null,
             semanticScore: null,
             weights: DEFAULT_CONFIDENCE_WEIGHTS,
-          }, 1.0, []);
+          };
+          const match = this.createMatch(params, hit, "exact_md5", confidence, 1.0, []);
           result.matches.push(match);
         }
         result.hasMatch = true;
         result.totalDurationMs = Date.now() - t0;
 
-        // Persist matches
         await this.persistMatches(result.matches);
         return result;
       }
 
       // ═══════════════════════════════════════════════════════════════════════
-      // STAGE 2: Embedding Similarity Search (50ms, ~$0)
+      // RETRIEVAL STAGE 2: Embedding Similarity Search via VectorRetrievalService (50ms)
       // ═══════════════════════════════════════════════════════════════════════
       const embStart = Date.now();
-      const candidates = await this.searchByEmbedding(
+      const candidates = await vectorRetrievalService.searchAssets(
         params.summaryEmbedding,
-        params.videoId
+        params.videoId,
+        DETECTION_THRESHOLDS.EMBEDDING_CANDIDATE,
+        DETECTION_THRESHOLDS.MAX_CANDIDATES
       );
       result.pipelineStages.embedding = {
         ran: true,
@@ -119,19 +116,18 @@ export class CopyrightDetectionService {
       result.totalCandidatesScanned = candidates.length;
 
       if (candidates.length === 0) {
-        // No similar content found — exit early
         result.totalDurationMs = Date.now() - t0;
         return result;
       }
 
-      logger.info("[CopyrightDetection] Embedding candidates found", {
+      logger.info("[CopyrightDetection] Candidate assets retrieved", {
         videoId: params.videoId,
         candidateCount: candidates.length,
         topScore: candidates[0]?.similarity.toFixed(3),
       });
 
       // ═══════════════════════════════════════════════════════════════════════
-      // STAGE 3: Chunk-Level Transcript Comparison (100ms)
+      // RETRIEVAL STAGE 3: Chunk-Level Transcript Comparison
       // ═══════════════════════════════════════════════════════════════════════
       const txStart = Date.now();
       const chunkMatches = await this.compareChunks(params, candidates);
@@ -147,23 +143,21 @@ export class CopyrightDetectionService {
       }
 
       // ═══════════════════════════════════════════════════════════════════════
-      // Calculate weighted confidence for each candidate
+      // VERIFICATION STAGE 4: Gemini Verification & Fair Use Checking
       // ═══════════════════════════════════════════════════════════════════════
       for (const chunkMatch of chunkMatches) {
         const confidence: WeightedConfidence = {
           md5Score: 0,
           embeddingScore: chunkMatch.embeddingSimilarity,
           transcriptScore: chunkMatch.avgChunkSimilarity,
-          semanticScore: null, // Will be set by Gemini if it runs
+          semanticScore: null,
           weights: DEFAULT_CONFIDENCE_WEIGHTS,
         };
 
-        const weightedScore = this.calculateWeightedScore(confidence);
+        const initialWeightedScore = this.calculateWeightedScore(confidence);
 
-        // ═════════════════════════════════════════════════════════════════════
-        // STAGE 4: Gemini Verification (ONLY if weighted confidence > 0.80)
-        // ═════════════════════════════════════════════════════════════════════
-        if (weightedScore >= DETECTION_THRESHOLDS.GEMINI_GATE) {
+        // Run Gemini only if the combined retrieval signals cross the threshold gate
+        if (initialWeightedScore >= DETECTION_THRESHOLDS.GEMINI_GATE) {
           const geminiStart = Date.now();
           const semanticScore = await this.geminiVerify(
             params.transcript,
@@ -193,24 +187,15 @@ export class CopyrightDetectionService {
         }
       }
 
-      // Persist all matches
+      // Persist verified matches to the matches collection
       if (result.matches.length > 0) {
         await this.persistMatches(result.matches);
       }
 
       result.totalDurationMs = Date.now() - t0;
-
-      logger.info("[CopyrightDetection] Pipeline complete", {
-        videoId: params.videoId,
-        hasMatch: result.hasMatch,
-        matchCount: result.matches.length,
-        stages: result.pipelineStages,
-        totalMs: result.totalDurationMs,
-      });
-
       return result;
     } catch (error) {
-      logger.error("[CopyrightDetection] Pipeline error", {
+      logger.error("[CopyrightDetection] Pipeline execution failed", {
         videoId: params.videoId,
         error: error instanceof Error ? error.message : String(error),
       });
@@ -219,7 +204,7 @@ export class CopyrightDetectionService {
     }
   }
 
-  // ─── Stage 1: MD5 Check ──────────────────────────────────────────────────
+  // ─── MD5 Verification ────────────────────────────────────────────────────
 
   private async checkMd5(
     md5Hash: string | null,
@@ -242,107 +227,12 @@ export class CopyrightDetectionService {
           similarity: 1.0,
         } as CandidateAsset));
     } catch (err) {
-      logger.warn("[CopyrightDetection] MD5 check failed", { err });
+      logger.warn("[CopyrightDetection] MD5 scan failed", { err });
       return [];
     }
   }
 
-  // ─── Stage 2: Embedding Vector Search ────────────────────────────────────
-
-  private async searchByEmbedding(
-    queryEmbedding: number[],
-    excludeVideoId: string
-  ): Promise<CandidateAsset[]> {
-    try {
-      // Use Firestore's native vector search (findNearest)
-      const collectionRef = db().collection("copyright_assets");
-      const vectorQuery = collectionRef.findNearest({
-        vectorField: "summaryEmbedding",
-        queryVector: admin.firestore.FieldValue.vector(queryEmbedding),
-        limit: DETECTION_THRESHOLDS.MAX_CANDIDATES,
-        distanceMeasure: "COSINE",
-      });
-
-      const snap = await vectorQuery.get();
-
-      const candidates: CandidateAsset[] = [];
-      for (const doc of snap.docs) {
-        if (doc.id === excludeVideoId) continue;
-
-        const data = doc.data();
-        // Firestore COSINE distance = 1 - cosine_similarity
-        // So similarity = 1 - distance
-        // But findNearest doesn't return distance directly,
-        // we compute similarity from the stored embedding
-        const storedEmbedding = data.summaryEmbedding?.toArray?.() || data.summaryEmbedding || [];
-        const similarity = cosineSimilarity(queryEmbedding, storedEmbedding);
-
-        if (similarity >= DETECTION_THRESHOLDS.EMBEDDING_CANDIDATE) {
-          candidates.push({
-            assetId: doc.id,
-            ...data,
-            similarity,
-          } as CandidateAsset);
-        }
-      }
-
-      // Sort by similarity descending
-      candidates.sort((a, b) => b.similarity - a.similarity);
-      return candidates;
-    } catch (err) {
-      // Fallback: brute-force if vector index not yet created
-      logger.warn("[CopyrightDetection] Vector search failed — using brute-force fallback", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      return this.bruteForceEmbeddingSearch(queryEmbedding, excludeVideoId);
-    }
-  }
-
-  /**
-   * Brute-force fallback for when Firestore vector index isn't created yet.
-   * Loads all assets and computes cosine similarity locally.
-   * Fine for < 10K assets. Replace with vector index for scale.
-   */
-  private async bruteForceEmbeddingSearch(
-    queryEmbedding: number[],
-    excludeVideoId: string
-  ): Promise<CandidateAsset[]> {
-    try {
-      // Only load assets registered in the last 365 days to cap query size
-      const oneYearAgo = Date.now() - 365 * 86400 * 1000;
-      const snap = await db()
-        .collection("copyright_assets")
-        .where("registeredAt", ">", oneYearAgo)
-        .limit(5000)
-        .get();
-
-      const candidates: CandidateAsset[] = [];
-      for (const doc of snap.docs) {
-        if (doc.id === excludeVideoId) continue;
-
-        const data = doc.data();
-        const storedEmbedding = data.summaryEmbedding?.toArray?.() || data.summaryEmbedding || [];
-        if (!storedEmbedding || storedEmbedding.length === 0) continue;
-
-        const similarity = cosineSimilarity(queryEmbedding, storedEmbedding);
-        if (similarity >= DETECTION_THRESHOLDS.EMBEDDING_CANDIDATE) {
-          candidates.push({
-            assetId: doc.id,
-            ...data,
-            similarity,
-          } as CandidateAsset);
-        }
-      }
-
-      candidates.sort((a, b) => b.similarity - a.similarity);
-      return candidates.slice(0, DETECTION_THRESHOLDS.MAX_CANDIDATES);
-    } catch (err) {
-      logger.error("[CopyrightDetection] Brute-force search failed", { err });
-      return [];
-    }
-  }
-
-  // ─── Stage 3: Chunk-Level Transcript Comparison ──────────────────────────
+  // ─── Chunk Comparison ────────────────────────────────────────────────────
 
   private async compareChunks(
     newVideo: {
@@ -355,7 +245,6 @@ export class CopyrightDetectionService {
 
     for (const candidate of candidates) {
       try {
-        // Load chunks for this candidate asset
         const chunkSnap = await db()
           .collection("copyright_chunks")
           .where("assetId", "==", candidate.assetId)
@@ -375,7 +264,6 @@ export class CopyrightDetectionService {
           };
         });
 
-        // Compare each new chunk against all original chunks
         const segments: SegmentMatch[] = [];
         let totalSimilarity = 0;
         let comparisonCount = 0;
@@ -409,11 +297,8 @@ export class CopyrightDetectionService {
 
         const avgSimilarity = comparisonCount > 0 ? totalSimilarity / comparisonCount : 0;
 
-        // Need at least 1 matching segment to be a candidate
         if (segments.length > 0) {
-          // Reconstruct original transcript from chunks
           const originalTranscript = originalChunks.map((c) => c.text).join(" ");
-
           results.push({
             assetId: candidate.assetId,
             ownerId: (candidate as any).ownerId || "",
@@ -428,24 +313,19 @@ export class CopyrightDetectionService {
           });
         }
       } catch (err) {
-        logger.warn("[CopyrightDetection] Chunk comparison failed for candidate", {
+        logger.warn("[CopyrightDetection] Chunk overlap search failed", {
           assetId: candidate.assetId,
           err: err instanceof Error ? err.message : String(err),
         });
       }
     }
 
-    // Sort by average chunk similarity
     results.sort((a, b) => b.avgChunkSimilarity - a.avgChunkSimilarity);
     return results;
   }
 
-  // ─── Stage 4: Gemini Semantic Verification ───────────────────────────────
+  // ─── Gemini Semantic Verification ─────────────────────────────────────────
 
-  /**
-   * Gemini runs ONLY when previous stages indicate confidence > 0.80.
-   * Returns a 0-1 semantic similarity score.
-   */
   private async geminiVerify(
     newTranscript: string,
     originalTranscript: string,
@@ -459,7 +339,7 @@ export class CopyrightDetectionService {
       });
 
       const model = vertexAI.getGenerativeModel({
-        model: "gemini-2.5-flash",
+        model: GEMINI_MODEL,
         generationConfig: {
           responseMimeType: "application/json",
           temperature: 0.1,
@@ -501,16 +381,12 @@ Return JSON:
       logger.warn("[CopyrightDetection] Gemini verification failed — skipping", {
         error: error instanceof Error ? error.message : String(error),
       });
-      return 0; // Fail open — don't claim without verification
+      return 0; // Fail open to protect creator upload flow
     }
   }
 
   // ─── Fair Use Analysis ─────────────────────────────────────────────────────
 
-  /**
-   * Run Gemini fair use analysis. Returns a 0-100 score (NOT binary).
-   * Only called when a match is confirmed and a claim is being considered.
-   */
   async analyzeFairUse(
     newTranscript: string,
     originalTranscript: string,
@@ -523,7 +399,7 @@ Return JSON:
       });
 
       const model = vertexAI.getGenerativeModel({
-        model: "gemini-2.5-flash",
+        model: GEMINI_MODEL,
         generationConfig: {
           responseMimeType: "application/json",
           temperature: 0.2,
@@ -595,7 +471,6 @@ Return JSON:
       logger.warn("[CopyrightDetection] Fair use analysis failed", {
         error: error instanceof Error ? error.message : String(error),
       });
-      // Default to moderate fair use — don't punish creator for system failure
       return {
         score: 50,
         factors: {
@@ -612,10 +487,8 @@ Return JSON:
     }
   }
 
-  /**
-   * Generate an evidence bundle for transparency.
-   * Both the uploader and rights holder see the same evidence.
-   */
+  // ─── Evidence Snapshot Generation ─────────────────────────────────────────
+
   generateEvidenceBundle(
     newChunks: { startTime: number; endTime: number; text: string }[],
     originalChunks: { startTime: number; endTime: number; text: string }[],
@@ -624,7 +497,6 @@ Return JSON:
     fairUse: FairUseAnalysis | null,
     geminiExplanation: string | null
   ): EvidenceBundle {
-    // Build matching transcript pairs
     const matchingPairs = segments.map((seg) => {
       const origChunk = originalChunks.find(
         (c) => c.startTime <= seg.originalStart && c.endTime >= seg.originalEnd
@@ -648,7 +520,6 @@ Return JSON:
       };
     });
 
-    // Build similarity timeline (one point per 30s chunk)
     const timeline = newChunks.map((chunk) => {
       const matchingSegment = segments.find(
         (s) => s.infringingStart <= chunk.startTime && s.infringingEnd >= chunk.endTime
@@ -659,17 +530,32 @@ Return JSON:
       };
     });
 
+    // Populate exact matched chunks identifiers (Immutable EvidenceSnapshots)
+    const matchedChunks = segments.map((seg, idx) => `matched_segment_${idx}`);
+
+    // Map confidence scores to the new MatchScoreSignals layout
+    const similarityScores: MatchScoreSignals = {
+      md5: confidence.md5Score,
+      summaryEmbedding: confidence.embeddingScore,
+      chunkEmbedding: confidence.transcriptScore,
+      transcriptOverlap: confidence.transcriptScore,
+      gemini: confidence.semanticScore,
+    };
+
     return {
+      matchedChunks,
       matchingTranscriptPairs: matchingPairs,
       similarityTimeline: timeline,
+      similarityScores,
+      aiReasoning: geminiExplanation || (fairUse ? fairUse.reasoning : null),
+      generatedAt: Date.now(),
       confidenceBreakdown: confidence,
       fairUseAnalysis: fairUse,
       geminiExplanation,
-      generatedAt: Date.now(),
     };
   }
 
-  // ─── Weighted Confidence Scoring ─────────────────────────────────────────
+  // ─── Math Utilities ──────────────────────────────────────────────────────────
 
   private calculateWeightedScore(confidence: WeightedConfidence): number {
     const w = confidence.weights;
@@ -693,11 +579,10 @@ Return JSON:
       totalWeight += w.semantic;
     }
 
-    // Normalize by available weights
     return totalWeight > 0 ? weightedSum / totalWeight : 0;
   }
 
-  // ─── Match Persistence ─────────────────────────────────────────────────────
+  // ─── Match Actions ─────────────────────────────────────────────────────────
 
   private createMatch(
     newVideo: { videoId: string; ownerId: string; channelId: string },
@@ -707,6 +592,14 @@ Return JSON:
     finalConfidence: number,
     segments: SegmentMatch[]
   ): CopyrightMatch {
+    const similarityScores: MatchScoreSignals = {
+      md5: confidence.md5Score,
+      summaryEmbedding: confidence.embeddingScore,
+      chunkEmbedding: confidence.transcriptScore,
+      transcriptOverlap: confidence.transcriptScore,
+      gemini: confidence.semanticScore,
+    };
+
     return {
       matchId: `match_${Date.now()}_${uuidv4().substring(0, 8)}`,
       assetId: candidate.assetId,
@@ -715,8 +608,14 @@ Return JSON:
       matchedChannelId: newVideo.channelId,
       matchType,
       matchedSegments: segments,
+      score: finalConfidence,
+      signals: similarityScores,
       confidenceBreakdown: confidence,
       finalConfidence,
+      detectorVersion: DETECTOR_VERSION,
+      embeddingModel: EMBEDDING_MODEL,
+      geminiModel: GEMINI_MODEL,
+      pipelineVersion: PIPELINE_VERSION,
       status: "detected",
       claimId: null,
       detectedAt: Date.now(),

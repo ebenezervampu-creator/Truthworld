@@ -126,6 +126,7 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
   final RxList<Video> moreFromChannel = <Video>[].obs;
   final RxBool isLoadingRecommendations = true.obs;
   final RxString selectedRecommendationFilter = 'All'.obs;
+  final RxInt recommendationActiveTab = 0.obs;
 
   // Topics and Playlists recommendation tabs state
   final RxList<Topic> videoTopicsList = <Topic>[].obs;
@@ -209,7 +210,7 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
   StreamSubscription<DocumentSnapshot>? _videoSubscription;
 
   bool get isAuthenticated => AuthService.to.isAuthenticated.value;
-  String? get userPhotoUrl => AuthService.to.user?.photoURL;
+  String get userPhotoUrl => AuthService.to.activePhotoUrl;
 
   @override
   void onInit() {
@@ -2038,12 +2039,7 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
   }
 
   void _onChewieEvent() {
-    // Listen for fullscreen changes
-    if (_chewieController?.isFullScreen == true && !isFullScreen.value) {
-      isFullScreen.value = true;
-    } else if (_chewieController?.isFullScreen == false && isFullScreen.value) {
-      isFullScreen.value = false;
-    }
+    // Handled by TowerPlayerController to prevent state conflicts
   }
 
   void disposePlayer() {
@@ -2159,10 +2155,16 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
     isLiked.value = !wasLiked;
     if (isLiked.value) isDisliked.value = false;
 
-    // Update local count for immediate feedback
+    final currentLikes = mainController.videoLikes[video.id] ?? video.likeCount;
+    final currentDislikes = mainController.videoDislikes[video.id] ?? video.dislikeCount;
+
     if (isLiked.value) {
-      // In a real app, Video model views/likes would be reactive.
-      // For now, we update local observable counts if they existed.
+      mainController.videoLikes[video.id] = currentLikes + 1;
+      if (wasDisliked) {
+        mainController.videoDislikes[video.id] = (currentDislikes - 1).clamp(0, 999999999);
+      }
+    } else {
+      mainController.videoLikes[video.id] = (currentLikes - 1).clamp(0, 999999999);
     }
 
     // --- Backend ---
@@ -2172,6 +2174,8 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
       // Revert on error
       isLiked.value = wasLiked;
       isDisliked.value = wasDisliked;
+      mainController.videoLikes[video.id] = currentLikes;
+      mainController.videoDislikes[video.id] = currentDislikes;
     }
   }
 
@@ -2186,6 +2190,18 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
     isDisliked.value = !wasDisliked;
     if (isDisliked.value) isLiked.value = false;
 
+    final currentLikes = mainController.videoLikes[video.id] ?? video.likeCount;
+    final currentDislikes = mainController.videoDislikes[video.id] ?? video.dislikeCount;
+
+    if (isDisliked.value) {
+      mainController.videoDislikes[video.id] = currentDislikes + 1;
+      if (wasLiked) {
+        mainController.videoLikes[video.id] = (currentLikes - 1).clamp(0, 999999999);
+      }
+    } else {
+      mainController.videoDislikes[video.id] = (currentDislikes - 1).clamp(0, 999999999);
+    }
+
     // --- Backend ---
     try {
       await mainController.dislikeVideo(video.id, userId);
@@ -2193,6 +2209,8 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
       // Revert on error
       isLiked.value = wasLiked;
       isDisliked.value = wasDisliked;
+      mainController.videoLikes[video.id] = currentLikes;
+      mainController.videoDislikes[video.id] = currentDislikes;
     }
   }
 

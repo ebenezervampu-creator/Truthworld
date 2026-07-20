@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/exceptions/app_exceptions.dart';
 
-enum ViewState { idle, loading, success, error, empty }
+enum ViewState { idle, loading, success, error, empty, cancelled }
 
 /// Base controller for all feature controllers to standardize state management
 /// and ensure scalability by handling common UI states.
@@ -15,12 +17,29 @@ abstract class BaseController extends GetxController {
   bool get isError => state == ViewState.error;
   bool get isEmpty => state == ViewState.empty;
   bool get isSuccess => state == ViewState.success;
+  bool get isCancelled => state == ViewState.cancelled;
+
+  @override
+  @mustCallSuper
+  void onInit() {
+    super.onInit();
+    debugPrint('⚙️ [Controller Init] ${runtimeType.toString()} initialized');
+  }
+
+  @override
+  @mustCallSuper
+  void onClose() {
+    debugPrint('🗑️ [Controller Close] ${runtimeType.toString()} disposed');
+    super.onClose();
+  }
 
   void setViewState(ViewState state) {
+    debugPrint('🔄 [ViewState Transition] ${runtimeType.toString()}: ${rxState.value.name} -> ${state.name}');
     rxState.value = state;
   }
 
   void setError(String message) {
+    debugPrint('❌ [Controller Error] ${runtimeType.toString()}: $message');
     _errorMessage.value = message;
     setViewState(ViewState.error);
   }
@@ -97,14 +116,19 @@ abstract class BaseController extends GetxController {
     );
   }
 
-  /// execute a task safely with automatic error handling and loading state
+  /// execute a task safely with automatic error handling, loading, and cancellation state
   Future<void> safeExecute(Future<void> Function() task, {bool showLoading = true, String? loadingMessage}) async {
     try {
       if (showLoading && items.isEmpty) setViewState(ViewState.loading);
       // We could use the loadingMessage here to show a specific snackbar/overlay if needed
       await task();
       if (state == ViewState.loading) setViewState(ViewState.success);
-      if (items.isEmpty && state != ViewState.error) setViewState(ViewState.empty);
+      if (items.isEmpty && state != ViewState.error && state != ViewState.cancelled) {
+        setViewState(ViewState.empty);
+      }
+    } on OperationCancelledException catch (e) {
+      debugPrint('ℹ️ [Task Cancelled] ${runtimeType.toString()}: ${e.message}');
+      setViewState(ViewState.cancelled);
     } catch (e) {
       handleError(e);
     }

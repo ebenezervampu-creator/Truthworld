@@ -2633,19 +2633,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
       final user = AuthService.to.currentUser.value;
       if (user == null) return const SizedBox.shrink();
 
-      String? imageUrl = user.photoURL;
-      String displayName = user.displayName ?? 'U';
-
-      if (AuthService.to.hasChannel.value &&
-          AuthService.to.userChannel != null) {
-        final channel = AuthService.to.userChannel!;
-        if (channel.avatarUrl.isNotEmpty) {
-          imageUrl = channel.avatarUrl;
-        }
-        if (channel.name.isNotEmpty) {
-          displayName = channel.name;
-        }
-      }
+      String? imageUrl = AuthService.to.activePhotoUrl.isNotEmpty ? AuthService.to.activePhotoUrl : null;
+      String displayName = AuthService.to.activeDisplayName.isNotEmpty ? AuthService.to.activeDisplayName : (user.displayName ?? 'U');
 
       final hasImage = imageUrl != null && imageUrl.isNotEmpty;
       final initials = displayName.trim().isNotEmpty

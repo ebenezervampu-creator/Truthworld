@@ -18,7 +18,11 @@ const db = () => admin.firestore();
 const storage = admin.storage();
 
 /** Valid video MIME types and extensions */
-const VALID_EXTENSIONS = new Set([".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv", ".wmv"]);
+const VALID_EXTENSIONS = new Set([
+  ".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv", ".wmv", 
+  ".3gpp", ".3gp", ".mpeg", ".mpg", ".mpegps", ".m4v", 
+  ".dnxhr", ".prores", ".cineform", ".hevc"
+]);
 
 export class IngestionLayer {
   constructor() {

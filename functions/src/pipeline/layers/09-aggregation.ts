@@ -52,7 +52,7 @@ export class AggregationLayer {
    */
   async onStageComplete(
     jobId: string,
-    stageName: "transcription" | "credibility" | "dubbing" | "aggregation",
+    stageName: "transcription" | "credibility" | "dubbing" | "aggregation" | "copyright",
     userId: string,
     executionPlan: ExecutionPlan,
     eventId?: string
@@ -117,6 +117,9 @@ export class AggregationLayer {
     // 1. Transcription is ALWAYS required
     const transcriptionDone = isDone(stages.transcription);
 
+    // 1.5. Copyright check is required (backward compatible if stages.copyright doesn't exist)
+    const copyrightDone = !stages.copyright || isDone(stages.copyright);
+
     // 2. TruthEngine (Path 1) is required if enabled
     const truthEngineRequired = plan.enablePath1 || plan.enableTruthEngine;
     const truthEngineDone = !truthEngineRequired || isDone(stages.credibility);
@@ -145,11 +148,11 @@ export class AggregationLayer {
       }
     }
 
-    const ready = transcriptionDone && truthEngineDone && reachEngineDone;
+    const ready = transcriptionDone && copyrightDone && truthEngineDone && reachEngineDone;
 
     if (ready) {
       logger.info("[Aggregation] Truth table satisfied — proceeding to completion", { 
-        jobId, transcriptionDone, truthEngineDone, reachEngineDone 
+        jobId, transcriptionDone, copyrightDone, truthEngineDone, reachEngineDone 
       });
     }
 

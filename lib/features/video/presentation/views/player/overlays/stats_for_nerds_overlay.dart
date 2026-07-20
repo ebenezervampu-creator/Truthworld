@@ -104,54 +104,50 @@ class _StatsForNerdsOverlayState extends State<StatsForNerdsOverlay> {
           ? 'Active (${(_rand.nextDouble() * 250).toInt()} KB/s)' 
           : 'Idle (0 KB/s)';
 
-      return Positioned(
-        top: 16,
-        left: 16,
-        child: Container(
-          width: 320,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.85),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white24),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Stats for Nerds',
-                    style: TS.badge.copyWith(
-                      color: AppColors.brand,
-                      fontSize: 12,
-                    ),
+      return Container(
+        width: 320,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Stats for Nerds',
+                  style: TS.badge.copyWith(
+                    color: AppColors.brand,
+                    fontSize: 12,
                   ),
-                  GestureDetector(
-                    onTap: () => widget.ctrl.showStatsForNerds.value = false,
-                    child: const Icon(
-                      Icons.close,
-                      color: Colors.white70,
-                      size: 14,
-                    ),
+                ),
+                GestureDetector(
+                  onTap: () => widget.ctrl.showStatsForNerds.value = false,
+                  child: const Icon(
+                    Icons.close,
+                    color: Colors.white70,
+                    size: 14,
                   ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              _row('Video ID / sCPN:', '${widget.ctrl.tag} / $_scpn'),
-              _row('Viewport / Frames:', '$viewportRes / $_droppedFrames dropped of $_decodedFrames'),
-              _row('Current / Optimal:', '$videoRes / ${widget.ctrl.currentQualityLabel}'),
-              _row('Codecs:', 'vp09.01.09.08.01.01.01.01.00 (248) / opus (251)'),
-              _row('Color / Bitrate:', 'BT.709 / $bitrate'),
-              _row('Connection Speed:', _fmtBw(widget.ctrl.abr.measuredBandwidthKbps.value)),
-              _row('Buffer Health:', '${widget.ctrl.bufferHealthSeconds.toStringAsFixed(1)} s'),
-              _row('Network Activity:', bufferState),
-              _row('CDN Node Region:', _cdnNode),
-              _row('Playback Speed:', '${widget.ctrl.playbackSpeed.value}x'),
-            ],
-          ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _row('Video ID / sCPN:', '${widget.ctrl.tag} / $_scpn'),
+            _row('Viewport / Frames:', '$viewportRes / $_droppedFrames dropped of $_decodedFrames'),
+            _row('Current / Optimal:', '$videoRes / ${widget.ctrl.currentQualityLabel}'),
+            _row('Codecs:', 'vp09.01.09.08.01.01.01.01.00 (248) / opus (251)'),
+            _row('Color / Bitrate:', 'BT.709 / $bitrate'),
+            _row('Connection Speed:', _fmtBw(widget.ctrl.abr.measuredBandwidthKbps.value)),
+            _row('Buffer Health:', '${widget.ctrl.bufferHealthSeconds.toStringAsFixed(1)} s'),
+            _row('Network Activity:', bufferState),
+            _row('CDN Node Region:', _cdnNode),
+            _row('Playback Speed:', '${widget.ctrl.playbackSpeed.value}x'),
+          ],
         ),
       );
     });

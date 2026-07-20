@@ -135,14 +135,16 @@ class ChannelDetailsPage extends GetView<ChannelController> {
   Widget _buildDesktopLayout(BuildContext context, Channel channel) {
     return Scaffold(
       backgroundColor: ytBackground,
-      body: Row(
-        children: [
-          Expanded(
-            flex: 8,
-            child: _buildMainContent(context, channel, isDesktop: true),
-          ),
-          Expanded(flex: 2, child: _buildChannelSidebar(context, channel)),
-        ],
+      body: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              flex: 8,
+              child: _buildMainContent(context, channel, isDesktop: true),
+            ),
+            Expanded(flex: 2, child: _buildChannelSidebar(context, channel)),
+          ],
+        ),
       ),
     );
   }
@@ -150,14 +152,18 @@ class ChannelDetailsPage extends GetView<ChannelController> {
   Widget _buildTabletLayout(BuildContext context, Channel channel) {
     return Scaffold(
       backgroundColor: ytBackground,
-      body: _buildMainContent(context, channel, isTablet: true),
+      body: SafeArea(
+        child: _buildMainContent(context, channel, isTablet: true),
+      ),
     );
   }
 
   Widget _buildMobileLayout(BuildContext context, Channel channel) {
     return Scaffold(
       backgroundColor: ytBackground,
-      body: _buildMainContent(context, channel),
+      body: SafeArea(
+        child: _buildMainContent(context, channel),
+      ),
     );
   }
 

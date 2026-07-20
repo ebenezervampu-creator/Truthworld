@@ -445,6 +445,40 @@ export const handleDubbingComplete = onMessagePublished(
 );
 
 /**
+ * 🛡️ Handle copyright checks (MD5 -> Embedding -> Transcript -> Gemini)
+ *
+ * CONFIG: minInstances=0, maxInstances=2, 1GiB, 540s timeout
+ */
+export const handleCopyrightCheck = onMessagePublished(
+  {
+    topic: "copyright.requested",
+    region: "asia-south1",
+    timeoutSeconds: 540,
+    memory: "1GiB",
+    minInstances: 0,
+    maxInstances: 2,
+    secrets: ["GEMINI_API_KEY"],
+  },
+  async (event) => {
+    try {
+      const { DistributionLayer } = require("./pipeline/layers/04-distribution");
+      const parsedEvent = DistributionLayer.parseMessage(event.data.message);
+      logger.info("[handleCopyrightCheck] Start", { jobId: parsedEvent.jobId, eventId: parsedEvent.eventId });
+
+      const { runCopyrightCheck } = require("./pipeline/tasks/copyrightCheckTask");
+      await runCopyrightCheck(
+        parsedEvent.jobId,
+        parsedEvent.userId,
+        parsedEvent.eventId
+      );
+    } catch (error) {
+      logger.error("[handleCopyrightCheck] Critical failure", { error: String(error) });
+      throw error;
+    }
+  }
+);
+
+/**
  * 🔧 Setup Pub/Sub topics (one-time)
  *
  * CONFIG: minInstances=0, maxInstances=1
@@ -668,6 +702,146 @@ export const getJobCostBreakdown = onRequest(
 
       res.status(200).json(breakdown);
     } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Internal error",
+      });
+    }
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// FEATURE 1.6: COPYRIGHT PROTECTION — Appeals and Claim Management
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 🛡️ Submit copyright appeal
+ */
+export const submitCopyrightAppeal = onRequest(
+  {
+    cors: true,
+    region: "asia-south1",
+    minInstances: 0,
+    maxInstances: 2,
+    timeoutSeconds: 30,
+    memory: "256MiB",
+  },
+  async (req, res) => {
+    try {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+
+      const { claimId, reason } = req.body;
+      if (!claimId || !reason) {
+        res.status(400).json({ error: "Missing claimId or reason" });
+        return;
+      }
+
+      // Authorization check: User must be the respondent of the claim
+      const claimSnap = await admin.firestore().collection("copyright_claims").doc(claimId).get();
+      if (!claimSnap.exists) {
+        res.status(404).json({ error: "Claim not found" });
+        return;
+      }
+      const claimData = claimSnap.data()!;
+      if (claimData.respondentId !== authUser.uid) {
+        res.status(403).json({ error: "Only the respondent of this claim can file an appeal" });
+        return;
+      }
+
+      const { copyrightClaimsService } = require("./pipeline/services/copyrightClaims");
+      const appeal = await copyrightClaimsService.submitAppeal(claimId, reason);
+
+      res.status(200).json({ success: true, appeal });
+    } catch (error) {
+      logger.error("[submitCopyrightAppeal] Error:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Internal error",
+      });
+    }
+  }
+);
+
+/**
+ * 🏛️ Resolve copyright appeal (Admin only)
+ */
+export const resolveCopyrightAppeal = onRequest(
+  {
+    cors: true,
+    region: "asia-south1",
+    minInstances: 0,
+    maxInstances: 2,
+    timeoutSeconds: 30,
+    memory: "256MiB",
+  },
+  async (req, res) => {
+    try {
+      const adminUser = await requireAdmin(req, res);
+      if (!adminUser) return;
+
+      const { appealId, resolution, notes } = req.body;
+      if (!appealId || !resolution) {
+        res.status(400).json({ error: "Missing appealId or resolution" });
+        return;
+      }
+
+      if (resolution !== "approved" && resolution !== "rejected") {
+        res.status(400).json({ error: "Resolution must be 'approved' or 'rejected'" });
+        return;
+      }
+
+      const { copyrightClaimsService } = require("./pipeline/services/copyrightClaims");
+      await copyrightClaimsService.resolveAppeal(appealId, resolution, notes || "");
+
+      res.status(200).json({ success: true, message: `Appeal ${appealId} resolved with status ${resolution}` });
+    } catch (error) {
+      logger.error("[resolveCopyrightAppeal] Error:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Internal error",
+      });
+    }
+  }
+);
+
+/**
+ * 🛡️ Get copyright claims for the current user
+ */
+export const getCreatorCopyrightClaims = onRequest(
+  {
+    cors: true,
+    region: "asia-south1",
+    minInstances: 0,
+    maxInstances: 2,
+    timeoutSeconds: 30,
+    memory: "256MiB",
+  },
+  async (req, res) => {
+    try {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+
+      const db = admin.firestore();
+      
+      // Get claims where user is claimant (rights holder)
+      const claimantSnap = await db.collection("copyright_claims")
+        .where("claimantId", "==", authUser.uid)
+        .orderBy("createdAt", "desc")
+        .get();
+
+      // Get claims where user is respondent (uploader)
+      const respondentSnap = await db.collection("copyright_claims")
+        .where("respondentId", "==", authUser.uid)
+        .orderBy("createdAt", "desc")
+        .get();
+
+      const claimantClaims = claimantSnap.docs.map(d => d.data());
+      const respondentClaims = respondentSnap.docs.map(d => d.data());
+
+      res.status(200).json({
+        claimantClaims,
+        respondentClaims
+      });
+    } catch (error) {
+      logger.error("[getCreatorCopyrightClaims] Error:", error);
       res.status(500).json({
         error: error instanceof Error ? error.message : "Internal error",
       });
@@ -921,6 +1095,7 @@ export const onVideoPublished = onDocumentUpdated(
         validation: { status: "completed", progress: 100, completedAt: now },
         queue: { status: "running", progress: 50, startedAt: now },
         transcription: { status: "pending", progress: 0 },
+        copyright: { status: "pending", progress: 0 },
         credibility: enableFactChecking ? { status: "pending", progress: 0 } : { status: "skipped", progress: 100 },
         dubbing: enablePath2 ? { status: "pending", progress: 0 } : { status: "skipped", progress: 100 },
         rendering: { status: "pending", progress: 0 },

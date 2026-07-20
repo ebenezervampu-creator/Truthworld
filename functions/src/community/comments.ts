@@ -147,7 +147,7 @@ export const addCommentNested = onCall(
       return { success: true, commentId: docRef.id };
     } catch (err) {
       logger.error("[addCommentNested] Error:", err);
-      throw new HttpsError("internal", "Failed to create comment.");
+      throw new HttpsError("internal", `Failed to create comment: ${(err as Error)?.message || String(err)}`);
     }
   }
 );
@@ -207,7 +207,7 @@ export const addReplyNested = onCall(
       return { success: true, replyId: docRef.id };
     } catch (err) {
       logger.error("[addReplyNested] Error:", err);
-      throw new HttpsError("internal", "Failed to create reply.");
+      throw new HttpsError("internal", `Failed to create reply: ${(err as Error)?.message || String(err)}`);
     }
   }
 );
@@ -407,7 +407,7 @@ export const toggleCommentInteraction = onCall(
       return { success: true };
     } catch (err) {
       logger.error("[toggleCommentInteraction] Error:", err);
-      throw new HttpsError("internal", "Failed to update interaction.");
+      throw new HttpsError("internal", `Failed to update interaction: ${(err as Error)?.message || String(err)}`);
     }
   }
 );
@@ -597,7 +597,7 @@ export const toggleReplyInteraction = onCall(
       return { success: true };
     } catch (err) {
       logger.error("[toggleReplyInteraction] Error:", err);
-      throw new HttpsError("internal", "Failed to update reply interaction.");
+      throw new HttpsError("internal", `Failed to update reply interaction: ${(err as Error)?.message || String(err)}`);
     }
   }
 );
@@ -648,7 +648,7 @@ export const deleteCommentNested = onCall(
     } catch (err) {
       if (err instanceof HttpsError) throw err;
       logger.error("[deleteCommentNested] Error:", err);
-      throw new HttpsError("internal", "Failed to delete comment.");
+      throw new HttpsError("internal", `Failed to delete comment: ${(err as Error)?.message || String(err)}`);
     }
   }
 );
@@ -692,7 +692,7 @@ export const deleteReplyNested = onCall(
     } catch (err) {
       if (err instanceof HttpsError) throw err;
       logger.error("[deleteReplyNested] Error:", err);
-      throw new HttpsError("internal", "Failed to delete reply.");
+      throw new HttpsError("internal", `Failed to delete reply: ${(err as Error)?.message || String(err)}`);
     }
   }
 );
@@ -745,7 +745,7 @@ export const reportCommentNested = onCall(
       return { success: true };
     } catch (err) {
       logger.error("[reportCommentNested] Error:", err);
-      throw new HttpsError("internal", "Failed to file report.");
+      throw new HttpsError("internal", `Failed to file report: ${(err as Error)?.message || String(err)}`);
     }
   }
 );

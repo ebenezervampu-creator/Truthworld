@@ -186,9 +186,8 @@ class _ModernCommentInputState extends State<ModernCommentInput>
       HapticFeedback.mediumImpact();
 
       final authService = AuthService.to;
-      final hasChannel = authService.hasChannel.value && authService.userChannel != null;
-      final finalUserName = hasChannel ? authService.userChannel!.name : (user.displayName ?? 'Anonymous User');
-      final finalUserProfilePicUrl = hasChannel ? authService.userChannel!.avatarUrl : (user.photoURL ?? '');
+      final finalUserName = authService.activeDisplayName;
+      final finalUserProfilePicUrl = authService.activePhotoUrl;
 
       // Submit comment (preserved original functionality)
       await _mainController.addComment(
@@ -546,8 +545,8 @@ class _ModernCommentInputState extends State<ModernCommentInput>
           ),
           child: UserAvatar(
             radius: radius,
-            photoUrl: user.photoURL,
-            displayName: user.displayName,
+            photoUrl: AuthService.to.activePhotoUrl,
+            displayName: AuthService.to.activeDisplayName,
             backgroundColor: Colors.transparent,
             textColor: theme.colorScheme.primary,
             fontSize: radius * 0.6,

@@ -1,8 +1,8 @@
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:get/get.dart';
-import 'package:chewie/chewie.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -23,6 +23,7 @@ import 'package:truthworld/features/home/presentation/controllers/home_controlle
 import 'package:truthworld/theme/app_theme.dart';
 import '../controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
+import 'package:truthworld/features/video/presentation/views/player/tower_custom_player.dart';
 import '../../../channel/presentation/controllers/channel_controller_unified.dart';
 import '../widgets/truth_index_badge.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -36,6 +37,11 @@ class VideoScreen extends GetView<VideoController> {
 
   @override
   String? get tag => videoTag;
+
+  bool _isMobilePlatform(BuildContext context) {
+    return defaultTargetPlatform == TargetPlatform.android ||
+           defaultTargetPlatform == TargetPlatform.iOS;
+  }
 
   // Theme Shortcuts
   static const Color primary = AppColors.brand;
@@ -70,6 +76,7 @@ class VideoScreen extends GetView<VideoController> {
           return const ShimmerVideoScreen();
         }
 
+        final isFs = ctrl.isFullScreen.value;
         return Scaffold(
           backgroundColor: background,
           extendBodyBehindAppBar: true,
@@ -78,17 +85,24 @@ class VideoScreen extends GetView<VideoController> {
             controller: ctrl,
             appBarBuilder: () => _buildAppBar(context),
           ),
-          body: SafeArea(
-            top: false,
-            child: ResponsiveBuilder(
-              builder: (context, device) {
-                final bool isDesktop = device.isDesktop || device.isLargeDesktop || device.isUltraWide;
-                return isDesktop
-                    ? _buildDesktopLayout(context)
-                    : _buildMobileLayout(context);
-              },
-            ),
-          ),
+          body: isFs
+              ? Container(
+                  color: Colors.black,
+                  child: Center(
+                    child: _buildVideoPlayer(),
+                  ),
+                )
+              : SafeArea(
+                  top: true,
+                  child: ResponsiveBuilder(
+                    builder: (context, device) {
+                      final bool isDesktop = device.isDesktop || device.isLargeDesktop || device.isUltraWide;
+                      return isDesktop
+                          ? _buildDesktopLayout(context)
+                          : _buildMobileLayout(context);
+                    },
+                  ),
+                ),
         );
       }),
     );
@@ -112,7 +126,21 @@ class VideoScreen extends GetView<VideoController> {
       slivers: [
         _buildVideoPlayerSection(),
         _buildVideoInfoSection(context),
-        ..._buildCommentsSlivers(context),
+        if (_isMobilePlatform(context))
+          SliverPadding(
+            padding: const EdgeInsets.only(bottom: 24),
+            sliver: SliverToBoxAdapter(
+              child: RecommendationFeed(
+                video: controller.video,
+                videoTag: videoTag,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                isGrid: false,
+              ),
+            ),
+          )
+        else
+          ..._buildCommentsSlivers(context),
       ],
     );
   }
@@ -129,7 +157,21 @@ class VideoScreen extends GetView<VideoController> {
             slivers: [
               _buildVideoPlayerSection(),
               _buildVideoInfoSection(context, isDesktop: true),
-              ..._buildCommentsSlivers(context),
+              if (_isMobilePlatform(context))
+                SliverPadding(
+                  padding: const EdgeInsets.only(bottom: 24),
+                  sliver: SliverToBoxAdapter(
+                    child: RecommendationFeed(
+                      video: controller.video,
+                      videoTag: videoTag,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      isGrid: false,
+                    ),
+                  ),
+                )
+              else
+                ..._buildCommentsSlivers(context),
             ],
           ),
         ),
@@ -436,15 +478,15 @@ class VideoScreen extends GetView<VideoController> {
               clipBehavior: Clip.none,
               alignment: Alignment.center,
               children: [
-                // YouTube Ambient Mode Glow (glow matches video thumbnail and is 30% wider/taller)
+                // YouTube Ambient Mode Glow (glow matches video thumbnail and is 30% wider)
                 if (!controller.isFullScreen.value && controller.video.thumbnailUrl.isNotEmpty)
                   Positioned(
                     width: finalWidth * 1.3,
-                    height: finalHeight * 1.3,
+                    height: finalHeight,
                     child: IgnorePointer(
                       child: AnimatedOpacity(
                         duration: const Duration(milliseconds: 1000),
-                        opacity: controller.showThumbnail.value ? 0.12 : 0.32,
+                        opacity: controller.showThumbnail.value ? 0.08 : 0.18,
                         child: Container(
                           decoration: const BoxDecoration(
                             shape: BoxShape.rectangle,
@@ -840,7 +882,10 @@ class VideoScreen extends GetView<VideoController> {
             // Only show thumbnail if video not ready yet
             if (showThumbnailOverlay) thumbnailWidget,
             // Video player
-            Chewie(controller: controller.chewieController!),
+            TowerCustomPlayer(
+              videoPlayerController: controller.videoPlayerController!,
+              tag: controller.video.id,
+            ),
 
             // --- Clip Mode Overlay ---
             if (controller.activeClip.value != null)
@@ -1619,7 +1664,152 @@ class VideoScreen extends GetView<VideoController> {
 
   Widget _buildModernActionButtons(BuildContext context) {
     final bool isUserSignedIn = FirebaseAuth.instance.currentUser != null;
+    final mediaQuery = MediaQuery.of(context);
+    final bool isDesktop = mediaQuery.size.width > 1050;
 
+    if (!isDesktop) {
+      // Mobile Layout: Two separate rows for maximum readability and proper spacing
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Row 1: Channel Info & Subscribe Button
+          _buildChannelSectionForActionRowMobile(),
+          const SizedBox(height: 12),
+          // Row 2: Scrollable Action Buttons
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: [
+                // Like & Dislike Group
+                _buildModernLikeDislikeGroup(),
+                const SizedBox(width: 8),
+
+                // Comment
+                if (_isMobilePlatform(context)) ...[
+                  _buildModernCapsuleButton(
+                    icon: Icons.comment_rounded,
+                    label: 'Comment',
+                    onTap: () {
+                      _showCommentsBottomSheet(context);
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                ],
+
+                // Share
+                _buildModernCapsuleButton(
+                  icon: Icons.share_rounded,
+                  label: 'Share',
+                  onTap: () {
+                    _mainController.shareVideo(
+                      controller.video.id,
+                      controller.video.title,
+                      thumbnailUrl: controller.video.thumbnailUrl,
+                      channelName: controller.video.channelName,
+                      durationMs: controller.video.durationValue.inMilliseconds,
+                      currentPosition: controller.videoPlayerController?.value.position,
+                    );
+                  },
+                ),
+                const SizedBox(width: 8),
+
+                // Rating / Watch Later
+                Obx(() {
+                  final double rating = controller.video.videoRating;
+                  if (rating > 0) {
+                    return _buildModernCapsuleButton(
+                      icon: Icons.auto_awesome_rounded,
+                      label: '${rating.toInt()} Rating',
+                      onTap: () => _showAnalysisBottomSheet(context, initialTabIndex: 0),
+                    );
+                  } else {
+                    // Ensure reactivity to watch later playlist changes
+                    _playlistController.playlists.length;
+                    final isInWatchLater = _playlistController.isInWatchLater(
+                      controller.video.id,
+                    );
+                    return _buildModernCapsuleButton(
+                      icon: isInWatchLater
+                          ? Icons.watch_later
+                          : Icons.watch_later_outlined,
+                      label: 'Watch Later',
+                      onTap: () {
+                        if (!isUserSignedIn) return _showSignInPrompt();
+                        _playlistController.toggleWatchLater(
+                          controller.video.id,
+                        );
+                      },
+                    );
+                  }
+                }),
+                const SizedBox(width: 8),
+
+                // Insights & Media details button (Always available)
+                _buildModernCapsuleButton(
+                  icon: Icons.verified_user_outlined,
+                  label: 'Insights & Media',
+                  onTap: () => _showAnalysisBottomSheet(context, initialTabIndex: 0),
+                ),
+                const SizedBox(width: 8),
+
+                // Save
+                Obx(() {
+                  if (controller.isDownloading.value) {
+                    final progress = (controller.downloadProgress.value * 100)
+                        .toInt();
+                    return Material(
+                      color: AppColors.bgSurface,
+                      borderRadius: BorderRadius.circular(24),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: primary,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Saving $progress%',
+                              style: GoogleFonts.roboto(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+                  return _buildModernCapsuleButton(
+                    icon: Icons.bookmark_border_rounded,
+                    label: 'Save',
+                    onTap: () =>
+                        _showDownloadQualityDialog(context, isUserSignedIn),
+                  );
+                }),
+                const SizedBox(width: 8),
+
+                // More
+                _buildModernMoreButton(context),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    // Desktop Layout: Single row with scrollable action buttons on left and channel info on right
     return Row(
       children: [
         // Scrollable Action Buttons (left side)
@@ -1632,6 +1822,18 @@ class VideoScreen extends GetView<VideoController> {
                 // Like & Dislike Group
                 _buildModernLikeDislikeGroup(),
                 const SizedBox(width: 8),
+
+                // Comment
+                if (_isMobilePlatform(context)) ...[
+                  _buildModernCapsuleButton(
+                    icon: Icons.comment_rounded,
+                    label: 'Comment',
+                    onTap: () {
+                      _showCommentsBottomSheet(context);
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                ],
 
                 // Share
                 _buildModernCapsuleButton(
@@ -1746,6 +1948,205 @@ class VideoScreen extends GetView<VideoController> {
         // Channel Section - fixed at the right corner
         _buildChannelSectionForActionRow(),
       ],
+    );
+  }
+
+  Widget _buildChannelSectionForActionRowMobile() {
+    final bool isUserSignedIn = FirebaseAuth.instance.currentUser != null;
+
+    if (controller.video.channelId.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('channels')
+          .doc(controller.video.channelId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return const SizedBox.shrink();
+        }
+
+        final channel = Channel.fromDocumentSnapshot(snapshot.data!);
+
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          decoration: const BoxDecoration(
+            color: Colors.transparent,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Left: Channel Avatar + Info
+              Expanded(
+                child: InkWell(
+                  onTap: () => Get.offAndToNamed(
+                    channel.channelRoute,
+                    arguments: {'channel': channel},
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Row(
+                    children: [
+                      // Channel Avatar
+                      CircleAvatar(
+                        radius: 18,
+                        backgroundColor: Colors.grey.shade800,
+                        child: ClipOval(
+                          child: (channel.avatarUrl.isNotEmpty ||
+                                  channel.bannerImageUrl.isNotEmpty)
+                              ? CachedNetworkImage(
+                                  imageUrl: (channel.avatarUrl.isNotEmpty
+                                          ? channel.avatarUrl
+                                          : channel.bannerImageUrl)
+                                      .replaceAll(' ', '%20'),
+                                  placeholder: (context, url) => const Center(
+                                    child: SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  ),
+                                  errorWidget: (context, url, error) =>
+                                      const Icon(
+                                        Icons.person,
+                                        size: 16,
+                                        color: Colors.white70,
+                                      ),
+                                  fit: BoxFit.cover,
+                                  width: 36,
+                                  height: 36,
+                                )
+                              : const Icon(
+                                  Icons.person,
+                                  size: 16,
+                                  color: Colors.white70,
+                                ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Channel Info
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    channel.channelName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.roboto(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                                if (channel.isVerified) ...[
+                                  const SizedBox(width: 4),
+                                  Container(
+                                    width: 14,
+                                    height: 14,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade400,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.check,
+                                      size: 10,
+                                      color: Colors.black,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              '${FormatUtils.formatCount(channel.subscriberCount)} subscribers',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.roboto(
+                                color: Colors.grey.shade400,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Right: Subscribe Button + Notification bell if subbed
+              Obx(() {
+                final isSubbed = _channelController.isSubscribed.value;
+                final notificationsEnabled = _channelController.notificationsEnabled.value;
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    InkWell(
+                      onTap: () {
+                        if (!isUserSignedIn) return _showSignInPrompt();
+                        _channelController.toggleSubscription(controller.video.channelId);
+                      },
+                      borderRadius: BorderRadius.circular(18),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSubbed
+                              ? Colors.white.withValues(alpha: 0.15)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Text(
+                          isSubbed ? 'Subscribed' : 'Subscribe',
+                          style: GoogleFonts.roboto(
+                            color: isSubbed ? Colors.white : Colors.black,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (isSubbed) ...[
+                      const SizedBox(width: 8),
+                      InkWell(
+                        onTap: () => _showVideoPageNotificationsDialog(context, controller.video.channelId),
+                        borderRadius: BorderRadius.circular(18),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            notificationsEnabled ? Icons.notifications_active_outlined : Icons.notifications_off_outlined,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                );
+              }),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -2039,44 +2440,19 @@ class VideoScreen extends GetView<VideoController> {
           // Like Button
           Obx(() {
             final bool isLiked = controller.isLiked.value;
-            return InkWell(
-              onTap: () {
-                if (!isUserSignedIn) return _showSignInPrompt();
-                controller.toggleLike();
-              },
+            return _AnimatedReactionButton(
+              icon: isLiked ? Icons.thumb_up_rounded : Icons.thumb_up_outlined,
+              isActive: isLiked,
+              activeColor: primary,
+              inactiveColor: textPrimary,
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(24),
                 bottomLeft: Radius.circular(24),
               ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      isLiked
-                          ? Icons.thumb_up_rounded
-                          : Icons.thumb_up_outlined,
-                      size: 20,
-                      color: isLiked ? primary : textPrimary,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      FormatUtils.formatCount(
-                        _mainController.videoLikes[controller.video.id] ??
-                            controller.video.likes,
-                      ),
-                      style: GoogleFonts.roboto(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: textPrimary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              onTap: () {
+                if (!isUserSignedIn) return _showSignInPrompt();
+                controller.toggleLike();
+              },
             );
           }),
           // Divider
@@ -2088,28 +2464,19 @@ class VideoScreen extends GetView<VideoController> {
           // Dislike Button
           Obx(() {
             final bool isDisliked = controller.isDisliked.value;
-            return InkWell(
-              onTap: () {
-                if (!isUserSignedIn) return _showSignInPrompt();
-                controller.toggleDislike();
-              },
+            return _AnimatedReactionButton(
+              icon: isDisliked ? Icons.thumb_down_rounded : Icons.thumb_down_outlined,
+              isActive: isDisliked,
+              activeColor: primary,
+              inactiveColor: textPrimary,
               borderRadius: const BorderRadius.only(
                 topRight: Radius.circular(24),
                 bottomRight: Radius.circular(24),
               ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Icon(
-                  isDisliked
-                      ? Icons.thumb_down_rounded
-                      : Icons.thumb_down_outlined,
-                  size: 20,
-                  color: isDisliked ? primary : textPrimary,
-                ),
-              ),
+              onTap: () {
+                if (!isUserSignedIn) return _showSignInPrompt();
+                controller.toggleDislike();
+              },
             );
           }),
         ],
@@ -2532,7 +2899,7 @@ class VideoScreen extends GetView<VideoController> {
                           final String? targetChannelId = shouldPostAsChannel ? (channelId ?? channel?.id) : null;
                           final String? targetChannelName = shouldPostAsChannel ? (channel?.handle.isNotEmpty == true ? channel?.handle : channel?.name) : null;
                           final String? targetChannelAvatar = shouldPostAsChannel ? channel?.avatarUrl : null;
-                          final String targetUserAvatar = shouldPostAsChannel ? (channel?.avatarUrl ?? '') : (currentUser.photoURL ?? '');
+                          final String targetUserAvatar = AuthService.to.activePhotoUrl;
 
                           await commentsController.submitComment(
                             text: text,
@@ -2641,6 +3008,160 @@ class VideoScreen extends GetView<VideoController> {
     );
   }
 
+  void _showCommentsBottomSheet(BuildContext context) {
+    final tag = 'video_${controller.video.id}';
+    final commentsController = Get.find<CommentsController>(tag: tag);
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.75,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          expand: false,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFF0F0F0F),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              child: Column(
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Obx(() {
+                          final count = commentsController.comments.length;
+                          return Text(
+                            'Comments ($count)',
+                            style: GoogleFonts.roboto(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          );
+                        }),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: Colors.white),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(color: Colors.white12),
+                  Expanded(
+                    child: Obx(() {
+                      if (commentsController.isLoadingComments.value &&
+                          commentsController.comments.isEmpty) {
+                        return const Center(
+                          child: CircularProgressIndicator(color: primary),
+                        );
+                      }
+                      if (commentsController.commentsError.value != null) {
+                        return Center(
+                          child: Text(
+                            'Error: ${commentsController.commentsError.value}',
+                            style: const TextStyle(color: Colors.redAccent),
+                          ),
+                        );
+                      }
+                      if (commentsController.comments.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.chat_bubble_outline, color: textSecondary, size: 48),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'No comments yet',
+                                style: TextStyle(color: Colors.white, fontSize: 16),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      return ListView.builder(
+                        controller: scrollController,
+                        itemCount: commentsController.comments.length,
+                        itemBuilder: (context, index) {
+                          final comment = commentsController.comments[index];
+                          return _buildCommentItem(comment, controller.video.id);
+                        },
+                      );
+                    }),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).viewInsets.bottom,
+                    ),
+                    child: currentUser != null
+                        ? PremiumCommentInput(
+                            key: ValueKey('popup_comment_input_${controller.video.id}'),
+                            videoId: controller.video.id,
+                            onSubmit: (text, postAsChannel, channelId) async {
+                              try {
+                                final authService = AuthService.to;
+                                final hasChannel = authService.hasChannel.value;
+                                final channel = authService.userChannel;
+
+                                final bool shouldPostAsChannel = postAsChannel || hasChannel;
+                                final String? targetChannelId = shouldPostAsChannel ? (channelId ?? channel?.id) : null;
+                                final String? targetChannelName = shouldPostAsChannel ? (channel?.handle.isNotEmpty == true ? channel?.handle : channel?.name) : null;
+                                final String? targetChannelAvatar = shouldPostAsChannel ? channel?.avatarUrl : null;
+                                final String targetUserAvatar = AuthService.to.activePhotoUrl;
+
+                                await commentsController.submitComment(
+                                  text: text,
+                                  channelId: targetChannelId,
+                                  channelName: targetChannelName,
+                                  channelProfilePicUrl: targetChannelAvatar,
+                                  userProfilePicUrl: targetUserAvatar,
+                                );
+                              } catch (e) {
+                                debugPrint('Failed to submit comment: $e');
+                              }
+                            },
+                            onCancel: () {},
+                          )
+                        : Container(
+                            padding: const EdgeInsets.all(16),
+                            width: double.infinity,
+                            color: Colors.black26,
+                            child: Text(
+                              'Sign in to comment',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.roboto(color: textSecondary),
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+
+
   Widget _buildDescriptionBox(BuildContext context) {
     return Obx(() {
       final bool expanded = controller.isExpanded.value;
@@ -2656,8 +3177,26 @@ class VideoScreen extends GetView<VideoController> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
                 children: [
+                  Text(
+                    '${FormatUtils.formatCount(_mainController.videoLikes[controller.video.id] ?? controller.video.likeCount)} likes',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    '${FormatUtils.formatCount(_mainController.videoDislikes[controller.video.id] ?? controller.video.dislikeCount)} dislikes',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   Text(
                     '${_formatViews(controller.video.views)} views',
                     style: const TextStyle(
@@ -2666,7 +3205,6 @@ class VideoScreen extends GetView<VideoController> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(width: 8),
                   Text(
                     timeago.format(controller.video.uploadedAt.toDate()),
                     style: const TextStyle(
@@ -2720,6 +3258,90 @@ class VideoScreen extends GetView<VideoController> {
     return views.toString();
   }
 
+}
+
+class _AnimatedReactionButton extends StatefulWidget {
+  final IconData icon;
+  final bool isActive;
+  final Color activeColor;
+  final Color inactiveColor;
+  final VoidCallback onTap;
+  final BorderRadius borderRadius;
+
+  const _AnimatedReactionButton({
+    required this.icon,
+    required this.isActive,
+    required this.activeColor,
+    required this.inactiveColor,
+    required this.onTap,
+    required this.borderRadius,
+  });
+
+  @override
+  State<_AnimatedReactionButton> createState() => _AnimatedReactionButtonState();
+}
+
+class _AnimatedReactionButtonState extends State<_AnimatedReactionButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _scaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.0, end: 1.4)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 40.0,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.4, end: 1.0)
+            .chain(CurveTween(curve: Curves.bounceOut)),
+        weight: 60.0,
+      ),
+    ]).animate(_controller);
+  }
+
+  @override
+  void didUpdateWidget(covariant _AnimatedReactionButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive != oldWidget.isActive && widget.isActive) {
+      _controller.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: widget.onTap,
+      borderRadius: widget.borderRadius,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 8,
+        ),
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: Icon(
+            widget.icon,
+            size: 20,
+            color: widget.isActive ? widget.activeColor : widget.inactiveColor,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ==========================================================================
@@ -2790,8 +3412,8 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
 
       final String? targetChannelId = hasChannel ? channel?.id : null;
       final String? targetChannelName = hasChannel ? (channel?.handle.isNotEmpty == true ? channel?.handle : channel?.name) : null;
-      final String? targetChannelAvatar = hasChannel ? channel?.avatarUrl : null;
-      final String targetUserAvatar = hasChannel ? (channel?.avatarUrl ?? '') : (user.photoURL ?? '');
+      final String? targetChannelAvatar = AuthService.to.activePhotoUrl.isNotEmpty ? AuthService.to.activePhotoUrl : null;
+      final String targetUserAvatar = AuthService.to.activePhotoUrl;
 
       await commentsController.submitReply(
         commentId: commentId,
@@ -3686,6 +4308,7 @@ class RecommendationFeed extends StatelessWidget {
                     video: displayVideos[index],
                     isGrid: true,
                     heroPrefix: 'rec_grid_${videoTag ?? 'global'}',
+                    disableHoverPreview: true,
                   ),
                 );
               },
@@ -3699,6 +4322,7 @@ class RecommendationFeed extends StatelessWidget {
                 video: displayVideos[index],
                 isGrid: false,
                 heroPrefix: 'rec_list_${videoTag ?? 'global'}',
+                disableHoverPreview: true,
               ),
             );
 

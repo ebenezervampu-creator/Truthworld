@@ -133,6 +133,7 @@ class VideoCard extends StatefulWidget {
   final bool isGrid;
   final String heroPrefix;
   final VoidCallback? onTap;
+  final bool disableHoverPreview;
 
   const VideoCard({
     super.key,
@@ -140,6 +141,7 @@ class VideoCard extends StatefulWidget {
     this.isGrid = false,
     this.heroPrefix = 'video_card',
     this.onTap,
+    this.disableHoverPreview = false,
   });
 
   @override
@@ -310,6 +312,7 @@ class _VideoCardState extends State<VideoCard> {
   }
 
   void _handleHoverEnter() {
+    if (widget.disableHoverPreview) return;
     _isHovered.value = true;
     _hoverTimer?.cancel();
     _hoverTimer = Timer(const Duration(milliseconds: 600), () {
@@ -320,6 +323,7 @@ class _VideoCardState extends State<VideoCard> {
   }
 
   void _handleHoverExit() {
+    if (widget.disableHoverPreview) return;
     _hoverTimer?.cancel();
     _hoverTimer = null;
     _isHovered.value = false;
@@ -328,6 +332,7 @@ class _VideoCardState extends State<VideoCard> {
   }
 
   void _handleVisibilityChanged(double visibleFraction) {
+    if (widget.disableHoverPreview) return;
     // Only apply visibility-based preview on mobile platforms (Android/iOS)
     final isMobile = Theme.of(context).platform == TargetPlatform.android ||
                      Theme.of(context).platform == TargetPlatform.iOS;

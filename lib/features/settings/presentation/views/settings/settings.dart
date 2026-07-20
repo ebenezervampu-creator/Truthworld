@@ -108,14 +108,16 @@ class WatchHistorySettingsView extends StatelessWidget {
                 onPressed: () => Get.back(),
               ),
             ),
-            body: ListView(
-              children: [
-                _buildHeader(context),
-                const Divider(color: Colors.white10),
-                _buildControlSection(context, controller),
-                const Divider(color: Colors.white10),
-                _buildDeleteSection(context, controller),
-              ],
+            body: SafeArea(
+              child: ListView(
+                children: [
+                  _buildHeader(context),
+                  const Divider(color: Colors.white10),
+                  _buildControlSection(context, controller),
+                  const Divider(color: Colors.white10),
+                  _buildDeleteSection(context, controller),
+                ],
+              ),
             ),
           );
         }
@@ -131,15 +133,17 @@ class WatchHistorySettingsView extends StatelessWidget {
         children: [
           Text(
             'Manage your viewing history',
-            style: context.typography.title.copyWith(
-              color: context.colors.textPrimary,
+            style: GoogleFonts.roboto(
+              fontSize: 20,
               fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'History helps you find videos you\'ve watched and improves your recommendations.',
-            style: context.typography.bodySmall.copyWith(
+            style: GoogleFonts.roboto(
+              fontSize: 14,
               color: context.colors.textSecondary,
             ),
           ),
@@ -162,25 +166,29 @@ class WatchHistorySettingsView extends StatelessWidget {
               controller.isHistoryPaused.value
                   ? Icons.play_arrow_outlined
                   : Icons.pause_circle_outline,
-              color: context.colors.textPrimary,
+              color: Colors.white,
             ),
             title: Text(
               controller.isHistoryPaused.value
                   ? 'Resume watch history'
                   : 'Pause watch history',
-              style: context.typography.body.copyWith(
-                color: context.colors.textPrimary,
+              style: GoogleFonts.roboto(
+                fontSize: 16,
+                fontWeight: FontWeight.w400,
+                color: Colors.white,
               ),
             ),
             onTap: controller.toggleHistoryPaused,
           ),
         ),
         ListTile(
-          leading: Icon(Icons.list_alt_rounded, color: context.colors.textPrimary),
+          leading: Icon(Icons.list_alt_rounded, color: Colors.white),
           title: Text(
             'View full history',
-            style: context.typography.body.copyWith(
-              color: context.colors.textPrimary,
+            style: GoogleFonts.roboto(
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+              color: Colors.white,
             ),
           ),
           onTap: () {
@@ -248,11 +256,15 @@ class WatchHistorySettingsView extends StatelessWidget {
           isError: true,
           onTap: controller.clearAllHistory,
         ),
-        const Padding(
-          padding: EdgeInsets.all(16.0),
+        Padding(
+          padding: const EdgeInsets.all(16.0),
           child: Text(
             'To delete a particular video, use the "View full history" option above.',
-            style: TextStyle(color: Colors.white54, fontSize: 12, fontStyle: FontStyle.italic),
+            style: GoogleFonts.roboto(
+              fontSize: 12,
+              color: Colors.white54,
+              fontStyle: FontStyle.italic,
+            ),
           ),
         ),
       ],
@@ -264,9 +276,11 @@ class WatchHistorySettingsView extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Text(
         title,
-        style: context.typography.overline.copyWith(
-          color: context.colors.brand,
+        style: GoogleFonts.roboto(
+          fontSize: 12,
           fontWeight: FontWeight.bold,
+          color: context.colors.brand,
+          letterSpacing: 1.2,
         ),
       ),
     );
@@ -282,12 +296,14 @@ class WatchHistorySettingsView extends StatelessWidget {
     return ListTile(
       leading: Icon(
         icon,
-        color: isError ? context.colors.error : context.colors.textPrimary,
+        color: isError ? context.colors.error : Colors.white,
       ),
       title: Text(
         title,
-        style: context.typography.body.copyWith(
-          color: isError ? context.colors.error : context.colors.textPrimary,
+        style: GoogleFonts.roboto(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: isError ? context.colors.error : Colors.white,
         ),
       ),
       onTap: onTap,
@@ -345,7 +361,7 @@ class SettingsScreen extends StatelessWidget {
               return Scaffold(
                 backgroundColor: context.colors.background,
                 appBar: _buildAppBar(context),
-                body: _buildBody(context),
+                body: SafeArea(child: _buildBody(context)),
               );
             },
           );
@@ -472,9 +488,10 @@ class SettingsScreen extends StatelessWidget {
             padding: EdgeInsets.all(context.layoutSpacing),
             child: Text(
               title,
-              style: context.typography.title.copyWith(
+              style: GoogleFonts.roboto(
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: context.colors.textPrimary,
+                color: Colors.white,
               ),
             ),
           ),
@@ -500,17 +517,20 @@ class SettingsScreen extends StatelessWidget {
         ),
         title: Text(
           displayName,
-          style: context.typography.body.copyWith(
-            color: context.colors.textPrimary,
+          style: GoogleFonts.roboto(
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+            color: Colors.white,
           ),
         ),
         subtitle: Text(
           handleOrEmail,
-          style: context.typography.bodySmall.copyWith(
+          style: GoogleFonts.roboto(
+            fontSize: 14,
             color: context.colors.textSecondary,
           ),
         ),
-        trailing: Icon(Icons.chevron_right, color: context.colors.textPrimary),
+        trailing: Icon(Icons.chevron_right, color: Colors.white),
         onTap: () {
           // Navigate to profile
         },
@@ -523,11 +543,13 @@ class SettingsScreen extends StatelessWidget {
       leading: Icon(Icons.history, color: context.colors.brand),
       title: Text(
         'Watch history',
-        style: context.typography.body.copyWith(
-          color: context.colors.textPrimary,
+        style: GoogleFonts.roboto(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: Colors.white,
         ),
       ),
-      trailing: Icon(Icons.chevron_right, color: context.colors.textPrimary),
+      trailing: Icon(Icons.chevron_right, color: Colors.white),
       onTap: () {
         Get.to(() => const WatchHistorySettingsView());
       },
@@ -539,7 +561,9 @@ class SettingsScreen extends StatelessWidget {
       leading: Icon(Icons.logout, color: context.colors.error),
       title: Text(
         'Log Out',
-        style: context.typography.body.copyWith(
+        style: GoogleFonts.roboto(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
           color: context.colors.error,
         ),
       ),
@@ -579,11 +603,13 @@ class SettingsScreen extends StatelessWidget {
       leading: Icon(Icons.lock, color: context.colors.brand),
       title: Text(
         'Privacy',
-        style: context.typography.body.copyWith(
-          color: context.colors.textPrimary,
+        style: GoogleFonts.roboto(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: Colors.white,
         ),
       ),
-      trailing: Icon(Icons.chevron_right, color: context.colors.textPrimary),
+      trailing: Icon(Icons.chevron_right, color: Colors.white),
       onTap: () {
         // Open privacy settings
       },
@@ -595,11 +621,13 @@ class SettingsScreen extends StatelessWidget {
       leading: Icon(Icons.data_usage, color: context.colors.brand),
       title: Text(
         'Data Usage',
-        style: context.typography.body.copyWith(
-          color: context.colors.textPrimary,
+        style: GoogleFonts.roboto(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: Colors.white,
         ),
       ),
-      trailing: Icon(Icons.chevron_right, color: context.colors.textPrimary),
+      trailing: Icon(Icons.chevron_right, color: Colors.white),
       onTap: () {
         // Open data usage settings
       },
@@ -611,13 +639,16 @@ class SettingsScreen extends StatelessWidget {
       leading: Icon(Icons.info, color: context.colors.brand),
       title: Text(
         'Version',
-        style: context.typography.body.copyWith(
-          color: context.colors.textPrimary,
+        style: GoogleFonts.roboto(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: Colors.white,
         ),
       ),
       subtitle: Text(
         '1.0.0',
-        style: context.typography.bodySmall.copyWith(
+        style: GoogleFonts.roboto(
+          fontSize: 14,
           color: context.colors.textSecondary,
         ),
       ),
@@ -629,11 +660,13 @@ class SettingsScreen extends StatelessWidget {
       leading: Icon(Icons.help, color: context.colors.brand),
       title: Text(
         'Help & Support',
-        style: context.typography.body.copyWith(
-          color: context.colors.textPrimary,
+        style: GoogleFonts.roboto(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: Colors.white,
         ),
       ),
-      trailing: Icon(Icons.chevron_right, color: context.colors.textPrimary),
+      trailing: Icon(Icons.chevron_right, color: Colors.white),
       onTap: () {
         if (Get.isRegistered<HomeController>()) {
           Get.find<HomeController>().onSideNavItemSelect(HomeController.indexHelp);
@@ -649,11 +682,13 @@ class SettingsScreen extends StatelessWidget {
       leading: Icon(Icons.chat_bubble_outline, color: context.colors.brand),
       title: Text(
         'Feedback',
-        style: context.typography.body.copyWith(
-          color: context.colors.textPrimary,
+        style: GoogleFonts.roboto(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: Colors.white,
         ),
       ),
-      trailing: Icon(Icons.chevron_right, color: context.colors.textPrimary),
+      trailing: Icon(Icons.chevron_right, color: Colors.white),
       onTap: () {
         if (Get.isRegistered<HomeController>()) {
           Get.find<HomeController>().onSideNavItemSelect(HomeController.indexFeedback);
@@ -675,11 +710,13 @@ class SettingsScreen extends StatelessWidget {
       leading: Icon(icon, color: context.colors.brand),
       title: Text(
         title,
-        style: context.typography.body.copyWith(
-          color: context.colors.textPrimary,
+        style: GoogleFonts.roboto(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: Colors.white,
         ),
       ),
-      trailing: Icon(Icons.chevron_right, color: context.colors.textPrimary),
+      trailing: Icon(Icons.chevron_right, color: Colors.white),
       onTap: () {
         if (Get.isRegistered<HomeController>()) {
           Get.find<HomeController>().onSideNavItemSelect(index);
@@ -695,13 +732,16 @@ class SettingsScreen extends StatelessWidget {
       leading: const Icon(Icons.person_remove_outlined, color: Colors.redAccent),
       title: Text(
         'Delete Account',
-        style: context.typography.body.copyWith(
+        style: GoogleFonts.roboto(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
           color: Colors.redAccent,
         ),
       ),
       subtitle: Text(
         'Permanently remove your account',
-        style: context.typography.bodySmall.copyWith(
+        style: GoogleFonts.roboto(
+          fontSize: 14,
           color: context.colors.textSecondary,
         ),
       ),

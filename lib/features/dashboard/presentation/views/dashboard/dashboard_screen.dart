@@ -263,7 +263,7 @@ class DashboardController extends GetxController {
   void _loadCopyrightStatus() {
     if (channelId.isEmpty) return;
     _copyrightSubscription = _firestore
-        .collection('copyrights')
+        .collection('copyright_claims')
         .where('channelId', isEqualTo: channelId)
         .snapshots()
         .listen((snapshot) {
@@ -1035,13 +1035,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                 children: [
                   CircleAvatar(
                     radius: 20,
-                    backgroundImage: user.photoURL != null
-                        ? NetworkImage(user.photoURL!)
+                    backgroundImage: AuthService.to.activePhotoUrl.isNotEmpty
+                        ? NetworkImage(AuthService.to.activePhotoUrl)
                         : null,
                     backgroundColor: const Color(0xFF6366F1),
-                    child: user.photoURL == null
+                    child: AuthService.to.activePhotoUrl.isEmpty
                         ? Text(
-                            (user.displayName ?? user.email ?? 'U')[0]
+                            (AuthService.to.activeDisplayName.isNotEmpty ? AuthService.to.activeDisplayName : (user.email ?? 'U'))[0]
                                 .toUpperCase(),
                             style: GoogleFonts.roboto(
                               color: Colors.white,
@@ -1057,7 +1057,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          user.displayName ?? 'User',
+                          AuthService.to.activeDisplayName.isNotEmpty ? AuthService.to.activeDisplayName : 'User',
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.roboto(
                             color: isDarkMode
@@ -1108,13 +1108,13 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
         child: CircleAvatar(
           radius: 16,
-          backgroundImage: user.photoURL != null
-              ? NetworkImage(user.photoURL!)
+          backgroundImage: AuthService.to.activePhotoUrl.isNotEmpty
+              ? NetworkImage(AuthService.to.activePhotoUrl)
               : null,
           backgroundColor: const Color(0xFF6366F1),
-          child: user.photoURL == null
+          child: AuthService.to.activePhotoUrl.isEmpty
               ? Text(
-                  (user.displayName ?? user.email ?? 'U')[0].toUpperCase(),
+                  (AuthService.to.activeDisplayName.isNotEmpty ? AuthService.to.activeDisplayName : (user.email ?? 'U'))[0].toUpperCase(),
                   style: GoogleFonts.roboto(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,

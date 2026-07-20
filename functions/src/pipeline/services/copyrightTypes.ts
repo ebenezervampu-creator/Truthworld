@@ -7,19 +7,19 @@
  *   copyright_matches/{matchId}   — Detected matches (separate collection)
  *   copyright_claims/{claimId}    — Active claims
  *   copyright_appeals/{appealId}  — Dispute/appeal records
- *
- * Architecture:
- *   MD5 (0ms) → Embedding Search (50ms) → Transcript Similarity (100ms)
- *   → Gemini Verification (ONLY if confidence > 0.80)
- *   → Fair Use Score (0-100) → Evidence Bundle → Claim/Track/No Action
  */
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// COLLECTION 1: copyright_assets — Registered Content
-// ═══════════════════════════════════════════════════════════════════════════════
 
 export type ProtectionLevel = 'strict' | 'standard' | 'lenient';
 export type ClaimPolicy = 'block' | 'monetize_shared' | 'track_only';
+
+export interface AssetPolicy {
+  action: ClaimPolicy;
+  allowFairUse: boolean;
+  allowCommentary: boolean;
+  allowEducation: boolean;
+  minMatchScore: number;
+  clipThresholdSeconds: number;
+}
 
 export interface CopyrightAsset {
   assetId: string;               // Same as videoId for simplicity
@@ -36,10 +36,11 @@ export interface CopyrightAsset {
   videoTitle: string;
   videoDuration: number;         // Seconds
 
-  // ── Detection Config (set by owner) ────────────────────────────────────────
+  // ── Detection & Strategy Config (set by owner) ─────────────────────────────
   protectionLevel: ProtectionLevel;
-  allowFairUse: boolean;         // Default true — allow commentary/review
-  claimPolicy: ClaimPolicy;
+  allowFairUse: boolean;         // Backward compatible
+  claimPolicy: ClaimPolicy;      // Backward compatible
+  policy: AssetPolicy;           // New Strategy Object
 
   // ── Metadata ───────────────────────────────────────────────────────────────
   chunkCount: number;            // Number of 30s transcript chunks
@@ -60,7 +61,9 @@ export interface CopyrightChunk {
   chunkIndex: number;            // 0-based position in video
   startTime: number;             // Seconds
   endTime: number;               // Seconds
-  transcriptText: string;        // Raw transcript for this chunk
+  transcriptText: string;        // Raw transcript for this chunk (Backward compatible)
+  chunkText: string;             // Exact chunk text (New schema)
+  chunkSummary: string;          // Specific short summary of the chunk content (New schema)
 
   // ── Embedding (Firestore vector field) ─────────────────────────────────────
   chunkEmbedding: number[];      // 256-dim embedding (text-embedding-005)
@@ -69,7 +72,7 @@ export interface CopyrightChunk {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// COLLECTION 3: copyright_matches — Detected Matches (Scalable)
+// COLLECTION 3: copyright_matches — Detected Matches
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export type MatchType = 'exact_md5' | 'embedding_similarity' | 'transcript_similarity' | 'semantic_verified';
@@ -80,6 +83,19 @@ export interface SegmentMatch {
   infringingStart: number;       // Seconds in new video
   infringingEnd: number;
   chunkSimilarity: number;       // 0-1 cosine similarity of this chunk pair
+}
+
+export interface MatchScoreSignals {
+  md5: number | null;
+  summaryEmbedding: number | null;
+  chunkEmbedding: number | null;
+  transcriptOverlap: number | null;
+  gemini: number | null;
+}
+
+export interface MatchScoreObject {
+  score: number;                 // 0-1 overall composite score
+  signals: MatchScoreSignals;
 }
 
 export interface CopyrightMatch {
@@ -93,9 +109,19 @@ export interface CopyrightMatch {
   matchType: MatchType;
   matchedSegments: SegmentMatch[];
   
-  // ── Weighted Confidence (your #7) ──────────────────────────────────────────
+  // ── Match Score & Signals ──────────────────────────────────────────────────
+  score: number;                 // Composite similarity score (0-1)
+  signals: MatchScoreSignals;
+
+  // ── Weighted Confidence (Backward compatible) ──────────────────────────────
   confidenceBreakdown: WeightedConfidence;
   finalConfidence: number;       // 0-1 weighted composite
+
+  // ── Detection Versioning ───────────────────────────────────────────────────
+  detectorVersion: number;
+  embeddingModel: string;
+  geminiModel: string;
+  pipelineVersion: string;
 
   // ── Status ─────────────────────────────────────────────────────────────────
   status: 'detected' | 'claimed' | 'dismissed' | 'expired';
@@ -131,7 +157,19 @@ export const DEFAULT_CONFIDENCE_WEIGHTS = {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export type ClaimNoticeType = 'Content Match' | 'Takedown Request' | 'Revenue Share';
-export type ClaimStatus = 'active' | 'disputed' | 'resolved' | 'retracted' | 'expired';
+
+// Updated Claim Lifecycle States
+export type ClaimStatus = 
+  | 'pending_verification'
+  | 'pending_owner_review'
+  | 'active'
+  | 'under_appeal'
+  | 'retracted'
+  | 'resolved'
+  | 'resolved_appealed'
+  | 'resolved_withdrawn'
+  | 'expired';
+
 export type ClaimImpact = 'No Impact' | 'Revenue Shared' | 'Video Blocked' | 'Action Required';
 
 export interface FairUseAnalysis {
@@ -148,7 +186,9 @@ export interface FairUseAnalysis {
   confidence: number;           // 0-1
 }
 
+// First-Class Evidence Bundle Object
 export interface EvidenceBundle {
+  matchedChunks: string[];       // exact matching chunk identifiers
   matchingTranscriptPairs: {
     originalText: string;
     originalTimeRange: string;   // "03:10-05:43"
@@ -160,10 +200,14 @@ export interface EvidenceBundle {
     timeSeconds: number;
     similarity: number;
   }[];
-  confidenceBreakdown: WeightedConfidence;
-  fairUseAnalysis: FairUseAnalysis | null;
-  geminiExplanation: string | null;
+  similarityScores: MatchScoreSignals;
+  aiReasoning: string | null;
   generatedAt: number;
+
+  // Backward compatible properties
+  confidenceBreakdown?: WeightedConfidence;
+  fairUseAnalysis?: FairUseAnalysis | null;
+  geminiExplanation?: string | null;
 }
 
 export interface CopyrightClaim {
@@ -188,6 +232,12 @@ export interface CopyrightClaim {
   matchedSegments: SegmentMatch[];
   evidenceBundle: EvidenceBundle;
   fairUseAnalysis: FairUseAnalysis;
+
+  // ── Detection Versioning ───────────────────────────────────────────────────
+  detectorVersion: number;
+  embeddingModel: string;
+  geminiModel: string;
+  pipelineVersion: string;
 
   // ── Policy & Status ────────────────────────────────────────────────────────
   noticeType: ClaimNoticeType;

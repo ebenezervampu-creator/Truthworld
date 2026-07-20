@@ -46,8 +46,11 @@ class MediaService {
           extension = name.split('.').last.toLowerCase();
         }
       }
-      if (extension != 'mp4' && extension != 'mov') {
-        throw Exception("Only MP4/MOV videos allowed.");
+      const allowedExtensions = {
+        'mp4', 'mov', 'avi', 'wmv', 'webm', 'flv', '3gpp', '3gp', 'mpeg', 'mpg', 'mkv', 'mpegps', 'm4v', 'dnxhr', 'prores', 'cineform', 'hevc'
+      };
+      if (extension == null || !allowedExtensions.contains(extension)) {
+        throw Exception("Unsupported video format. YouTube allowed formats are supported.");
       }
 
       const maxDurationSeconds = 60 * 60; // 60 minutes

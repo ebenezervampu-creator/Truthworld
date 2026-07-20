@@ -202,11 +202,11 @@ class ProgressBar extends StatelessWidget {
                                         ? PT.kProgressBarHover
                                         : PT.kProgressBarH,
                                     decoration: BoxDecoration(
-                                      color: PT.primary,
+                                      color: Colors.red,
                                       borderRadius: BorderRadius.circular(3),
                                       boxShadow: [
                                         BoxShadow(
-                                          color: PT.primary.withValues(alpha: 0.6),
+                                          color: Colors.red.withValues(alpha: 0.6),
                                           blurRadius: 6,
                                           spreadRadius: 1,
                                         ),
@@ -284,11 +284,11 @@ class ProgressBar extends StatelessWidget {
                                       width: PT.kThumbRadius * 2,
                                       height: PT.kThumbRadius * 2,
                                       decoration: BoxDecoration(
-                                        color: PT.primary,
+                                        color: Colors.red,
                                         shape: BoxShape.circle,
                                         boxShadow: [
                                           BoxShadow(
-                                            color: PT.primary.withValues(alpha: 0.7),
+                                            color: Colors.red.withValues(alpha: 0.7),
                                             blurRadius: 8,
                                             spreadRadius: 2,
                                           ),
@@ -471,12 +471,12 @@ class _ChapterSegmentedBar extends StatelessWidget {
                     widthFactor: chapterPlayedFrac,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: PT.primary,
+                        color: Colors.red,
                         borderRadius: BorderRadius.circular(2),
                         boxShadow: isCurrent && isExpanded
                             ? [
                                 BoxShadow(
-                                  color: PT.primary.withValues(alpha: 0.5),
+                                  color: Colors.red.withValues(alpha: 0.5),
                                   blurRadius: 4,
                                   spreadRadius: 0.5,
                                 ),

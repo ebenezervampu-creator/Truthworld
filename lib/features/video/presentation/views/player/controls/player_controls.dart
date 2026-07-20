@@ -39,94 +39,103 @@ class MainControls extends StatelessWidget {
       final bool isMobileDevice = Theme.of(context).platform == TargetPlatform.android ||
                                   Theme.of(context).platform == TargetPlatform.iOS;
 
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.end,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      return Stack(
         children: [
           // Top controls
-          isMobileDevice
-              ? Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    children: [
-                      IconBtn(
-                        icon: Icons.keyboard_arrow_down_rounded,
-                        size: 30,
-                        onTap: () {
-                          if (ctrl.isFullScreen.value) {
-                            ctrl.toggleFullscreen();
-                          } else {
-                            Get.back();
-                          }
-                        },
-                      ),
-                      const Spacer(),
-                      // Autoplay pill switch in top-center
-                      Obx(
-                        () => MobileAutoplaySwitch(
-                          value: ctrl.isAutoplay.value,
-                          onChanged: (v) => ctrl.toggleAutoplay(),
-                        ),
-                      ),
-                      const Spacer(),
-                      // CC / Subtitles (always present, taps toggle or toast if empty)
-                      Obx(
-                        () => IconBtn(
-                          icon: ctrl.subtitlesEnabled.value
-                              ? Icons.closed_caption_rounded
-                              : Icons.closed_caption_outlined,
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: isMobileDevice
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      children: [
+                        IconBtn(
+                          icon: Icons.keyboard_arrow_down_rounded,
+                          size: 30,
                           onTap: () {
-                            if (ctrl.subtitleTracks.isEmpty) {
-                              ctrl.showToast('No captions available for this video');
-                              return;
-                            }
-                            if (ctrl.subtitlesEnabled.value) {
-                              ctrl.setSubtitles(enabled: false);
+                            if (ctrl.isFullScreen.value) {
+                              ctrl.toggleFullscreen();
                             } else {
-                              ctrl.setSubtitles(
-                                enabled: true,
-                                track: ctrl.subtitleTracks.first,
-                              );
+                              Get.back();
                             }
                           },
-                          size: 24,
                         ),
-                      ),
-                    ],
-                  ),
-                )
-              : (ctrl.isFullScreen.value
-                  ? Center(
-                      child: SizedBox(
-                        width: maxControlsWidth,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () {}, // Absorb taps
-                          child: PlayerTopBar(ctrl: ctrl),
+                        const Spacer(),
+                        // Autoplay pill switch in top-center
+                        Obx(
+                          () => MobileAutoplaySwitch(
+                            value: ctrl.isAutoplay.value,
+                            onChanged: (v) => ctrl.toggleAutoplay(),
+                          ),
                         ),
-                      ),
-                    )
-                  : const SizedBox.shrink()),
-
-          const Spacer(),
+                        const Spacer(),
+                        // CC / Subtitles (always present, taps toggle or toast if empty)
+                        Obx(
+                          () => IconBtn(
+                            icon: ctrl.subtitlesEnabled.value
+                                ? Icons.closed_caption_rounded
+                                : Icons.closed_caption_outlined,
+                            onTap: () {
+                              if (ctrl.subtitleTracks.isEmpty) {
+                                ctrl.showToast('No captions available for this video');
+                                return;
+                              }
+                              if (ctrl.subtitlesEnabled.value) {
+                                ctrl.setSubtitles(enabled: false);
+                              } else {
+                                ctrl.setSubtitles(
+                                  enabled: true,
+                                  track: ctrl.subtitleTracks.first,
+                                );
+                              }
+                            },
+                            size: 24,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : Obx(() => ctrl.isFullScreen.value
+                    ? Center(
+                        child: SizedBox(
+                          width: maxControlsWidth,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {}, // Absorb taps
+                            child: PlayerTopBar(ctrl: ctrl),
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink()),
+          ),
 
           // Centre controls — play / prev / next
-          RepaintBoundary(child: CenterRow(ctrl: ctrl, maxControlsWidth: maxControlsWidth)),
-
-          const Spacer(),
+          Align(
+            alignment: Alignment.center,
+            child: RepaintBoundary(
+              child: CenterRow(ctrl: ctrl, maxControlsWidth: maxControlsWidth),
+            ),
+          ),
 
           // Bottom gradient + controls — wrapped in GestureDetector to absorb
           // taps so the outer player GestureDetector (togglePlayPause) doesn't fire.
-          Center(
-            child: SizedBox(
-              width: maxControlsWidth,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {},
-                child: PlayerBottomBar(
-                  ctrl: ctrl,
-                  isNarrow: isNarrow,
-                  isMedium: isMedium,
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: SizedBox(
+                width: maxControlsWidth,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () {},
+                  child: PlayerBottomBar(
+                    ctrl: ctrl,
+                    isNarrow: isNarrow,
+                    isMedium: isMedium,
+                  ),
                 ),
               ),
             ),
@@ -190,7 +199,10 @@ class PlayerTopBar extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          if (ctrl.isFullScreen.value && vc != null && channelCtrl != null) ...[
+          if (ctrl.isFullScreen.value &&
+              vc != null &&
+              channelCtrl != null &&
+              MediaQuery.of(context).size.width > 600) ...[
             const SizedBox(width: 20),
             // Avatar
             ClipOval(
@@ -495,7 +507,14 @@ class ControlRow extends StatelessWidget {
       return Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          // Settings and Fullscreen together at the end
+          // Miniplayer, Settings and Fullscreen together at the end
+          Tooltip(
+            message: 'Miniplayer',
+            child: IconBtn(
+              icon: Icons.branding_watermark_outlined,
+              onTap: ctrl.togglePiP,
+            ),
+          ),
           Tooltip(
             message: 'Settings',
             child: IconBtn(

@@ -20,7 +20,6 @@ import 'panels/player_settings_panels.dart';
 import 'overlays/ad_overlay.dart';
 import 'overlays/real_time_fact_overlay.dart';
 import 'overlays/end_screen_overlay.dart';
-import 'package:truthworld/features/video/data/models/credibility_report.dart';
 
 class TowerCustomPlayer extends StatelessWidget {
   final VideoPlayerController videoPlayerController;
@@ -69,8 +68,10 @@ class TowerCustomPlayer extends StatelessWidget {
                 focusNode: c.focusNode,
                 autofocus: true,
                 onKeyEvent: c.handleKey,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
+                child: Obx(() => AbsorbPointer(
+                  absorbing: c.isPiP.value,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
                   // YouTube-standard: single tap = controls toggle (mobile), play/pause (desktop)
                   onTap: () => c.onTap(playerWidth > 1050),
                   // Proper Flutter double-tap disambiguation:
@@ -113,17 +114,17 @@ class TowerCustomPlayer extends StatelessWidget {
                               offstage:
                                   showAd ||
                                   c.isAudioOnly.value ||
-                                  !c.vv.isInitialized,
+                                  !c.isInitialized.value,
                               child: Center(
                                 child:
-                                    c.vv.isInitialized &&
+                                    c.isInitialized.value &&
                                         c.chewieController != null
                                     ? InteractiveViewer(
                                         clipBehavior: Clip.hardEdge,
                                         minScale: 1.0,
                                         maxScale: 6.0,
                                         child: AspectRatio(
-                                          aspectRatio: c.vv.aspectRatio,
+                                          aspectRatio: c.aspectRatio.value,
                                           child: Chewie(
                                             controller: c.chewieController!,
                                           ),
@@ -181,6 +182,7 @@ class TowerCustomPlayer extends StatelessWidget {
                       // ── Layer 1: Subtitles ─────────────────────────────────
                       Obx(() {
                         if (c.isShowingAd.value ||
+                            c.isPiP.value ||
                             !c.subtitlesEnabled.value ||
                             c.currentSubtitle.value.isEmpty) {
                           return const SizedBox.shrink();
@@ -195,40 +197,40 @@ class TowerCustomPlayer extends StatelessWidget {
 
                       // ── Layer 2: Double-tap ripples ────────────────────────
                       Obx(
-                        () => c.showDoubleTapLeft.value
+                        () => c.showDoubleTapLeft.value && !c.isPiP.value
                             ? const DoubleTapRipple(isLeft: true)
                             : const SizedBox.shrink(),
                       ),
                       Obx(
-                        () => c.showDoubleTapRight.value
+                        () => c.showDoubleTapRight.value && !c.isPiP.value
                             ? const DoubleTapRipple(isLeft: false)
                             : const SizedBox.shrink(),
                       ),
 
                       // ── Layer 3: State (buffering / error / stall) ─────────
                       Obx(
-                        () => c.isShowingAd.value
+                        () => c.isShowingAd.value || c.isPiP.value
                             ? const SizedBox.shrink()
                             : StateOverlay(ctrl: c),
                       ),
 
                       // ── Layer 4: Seek preview tooltip ──────────────────────
                       Obx(
-                        () => c.seekPreviewVis.value
+                        () => c.seekPreviewVis.value && !c.isPiP.value
                             ? SeekPreviewTooltip(ctrl: c)
                             : const SizedBox.shrink(),
                       ),
 
                       // ── Layer 5: Toast ─────────────────────────────────────
                       Obx(
-                        () => c.toastMessage.value.isNotEmpty
+                        () => c.toastMessage.value.isNotEmpty && !c.isPiP.value
                             ? PlayerToast(message: c.toastMessage.value)
                             : const SizedBox.shrink(),
                       ),
 
                       // ── Layer 5.5: Long-press 2× HUD ──────────────────────
                       Obx(() {
-                        if (!c.isLongPressSpeedUp.value) {
+                        if (!c.isLongPressSpeedUp.value || c.isPiP.value) {
                           return const SizedBox.shrink();
                         }
                         return Positioned(
@@ -270,7 +272,7 @@ class TowerCustomPlayer extends StatelessWidget {
                       Obx(() {
                         final vol = c.showSwipeVolumeHUD.value;
                         final bri = c.showSwipeBrightnessHUD.value;
-                        if (!vol && !bri) return const SizedBox.shrink();
+                        if ((!vol && !bri) || c.isPiP.value) return const SizedBox.shrink();
                         return Align(
                           alignment: bri
                               ? Alignment.centerLeft
@@ -289,26 +291,8 @@ class TowerCustomPlayer extends StatelessWidget {
 
                       // ── Layer 5.7: Real-time Fact Overlay ─────────────────
                       Obx(() {
-                        if (c.isShowingAd.value) return const SizedBox.shrink();
-                        final vc = c.videoController;
-                        if (vc == null) return const SizedBox.shrink();
-                        final uiReport = vc.video.uiReport;
-                        if (uiReport == null || uiReport.keyClaims.isEmpty) {
-                          return const SizedBox.shrink();
-                        }
-
-                        final posSec = c.vv.position.inMilliseconds / 1000.0;
-                        ClaimResult? activeClaim;
-                        for (final claim in uiReport.keyClaims) {
-                          if (claim.start != null && claim.end != null) {
-                            if (posSec >= claim.start! &&
-                                posSec <= claim.end!) {
-                              activeClaim = claim;
-                              break;
-                            }
-                          }
-                        }
-
+                        if (c.isShowingAd.value || c.isPiP.value) return const SizedBox.shrink();
+                        final activeClaim = c.activeClaim.value;
                         if (activeClaim == null) return const SizedBox.shrink();
 
                         return AnimatedPositioned(
@@ -327,7 +311,7 @@ class TowerCustomPlayer extends StatelessWidget {
 
                       // ── Layer 6: Main controls ─────────────────────────────
                       Obx(() {
-                        if (c.isShowingAd.value) return const SizedBox.shrink();
+                        if (c.isShowingAd.value || c.isPiP.value) return const SizedBox.shrink();
                         return Positioned.fill(
                           child: AnimatedOpacity(
                             duration: const Duration(milliseconds: 200),
@@ -335,8 +319,8 @@ class TowerCustomPlayer extends StatelessWidget {
                             child: AbsorbPointer(
                               absorbing: !c.controlsVisible.value,
                               child: MainControls(
-                                ctrl: c,
-                                playerWidth: playerWidth,
+                                  ctrl: c,
+                                  playerWidth: playerWidth,
                               ),
                             ),
                           ),
@@ -344,75 +328,77 @@ class TowerCustomPlayer extends StatelessWidget {
                       }),
                       // ── Layer 6.5: Popups ──────────────────────────────────
                       Obx(() {
-                        if (c.isShowingAd.value) return const SizedBox.shrink();
-                        return AnimatedOpacity(
-                          duration: const Duration(milliseconds: 200),
-                          opacity: c.controlsVisible.value ? 1.0 : 0.0,
-                          child: AbsorbPointer(
-                            absorbing: !c.controlsVisible.value,
-                            child: Stack(
-                              children: [
-                                if (c.isFullScreen.value) ...[
-                                  // Comments Overlay positioned directly in Stack
-                                  Positioned(
-                                    top: 80,
-                                    bottom: 80,
-                                    right: 20,
-                                    width: 350,
-                                    child: Obx(() {
-                                      if (!c.showCommentsPopup.value) {
-                                        return const SizedBox.shrink();
-                                      }
-                                      return CommentsOverlay(ctrl: c);
-                                    }),
-                                  ),
+                        if (c.isShowingAd.value || c.isPiP.value) return const SizedBox.shrink();
+                        return Positioned.fill(
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 200),
+                            opacity: c.controlsVisible.value ? 1.0 : 0.0,
+                            child: AbsorbPointer(
+                              absorbing: !c.controlsVisible.value,
+                              child: Stack(
+                                children: [
+                                  if (c.isFullScreen.value) ...[
+                                    // Comments Overlay positioned directly in Stack
+                                    Positioned(
+                                      top: 80,
+                                      bottom: 80,
+                                      right: 20,
+                                      width: 350,
+                                      child: Obx(() {
+                                        if (!c.showCommentsPopup.value) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        return CommentsOverlay(ctrl: c);
+                                      }),
+                                    ),
 
-                                  // Transcript Overlay positioned directly in Stack
-                                  Positioned(
-                                    top: 80,
-                                    bottom: 80,
-                                    right: 20,
-                                    width: 350,
-                                    child: Obx(() {
-                                      if (!c.showTranscriptPopup.value) {
-                                        return const SizedBox.shrink();
-                                      }
-                                      return TranscriptOverlay(ctrl: c);
-                                    }),
-                                  ),
+                                    // Transcript Overlay positioned directly in Stack
+                                    Positioned(
+                                      top: 80,
+                                      bottom: 80,
+                                      right: 20,
+                                      width: 350,
+                                      child: Obx(() {
+                                        if (!c.showTranscriptPopup.value) {
+                                          return const SizedBox.shrink();
+                                        }
+                                        return TranscriptOverlay(ctrl: c);
+                                      }),
+                                    ),
 
-                                  // Floating Vertical Actions Dock positioned directly in Stack
-                                  AnimatedPositioned(
-                                    duration: const Duration(milliseconds: 250),
-                                    curve: Curves.fastOutSlowIn,
-                                    right:
-                                        (c.showCommentsPopup.value ||
-                                            c.showTranscriptPopup.value)
-                                        ? 390.0
-                                        : (c.vv.isInitialized &&
-                                              c.vv.aspectRatio < 1.0)
-                                        ? (((playerWidth -
-                                                          (playerHeight *
-                                                                  c.vv.aspectRatio)
-                                                              .clamp(
-                                                                0.0,
-                                                                playerWidth,
-                                                              )) /
-                                                      2) +
-                                                  20.0)
-                                              .clamp(20.0, playerWidth - 60.0)
-                                        : 20.0,
-                                    bottom: 150.0,
-                                    child: GestureDetector(
-                                      behavior: HitTestBehavior.opaque,
-                                      onTap: () {}, // Absorb taps
-                                      child: FullscreenVerticalActionsBar(
-                                        ctrl: c,
+                                    // Floating Vertical Actions Dock positioned directly in Stack
+                                    AnimatedPositioned(
+                                      duration: const Duration(milliseconds: 250),
+                                      curve: Curves.fastOutSlowIn,
+                                      right:
+                                          (c.showCommentsPopup.value ||
+                                              c.showTranscriptPopup.value)
+                                          ? 390.0
+                                          : (c.isInitialized.value &&
+                                                c.aspectRatio.value < 1.0)
+                                          ? (((playerWidth -
+                                                            (playerHeight *
+                                                                    c.aspectRatio.value)
+                                                                .clamp(
+                                                                  0.0,
+                                                                  playerWidth,
+                                                                )) /
+                                                        2) +
+                                                    20.0)
+                                                .clamp(20.0, playerWidth - 60.0)
+                                          : 20.0,
+                                      bottom: 150.0,
+                                      child: GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: () {}, // Absorb taps
+                                        child: FullscreenVerticalActionsBar(
+                                          ctrl: c,
+                                        ),
                                       ),
                                     ),
-                                  ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
                           ),
                         );
@@ -420,29 +406,31 @@ class TowerCustomPlayer extends StatelessWidget {
 
                       // ── Layer 7: Settings panel + dismiss scrim ─────────────
                       Obx(() {
-                        if (c.isShowingAd.value) return const SizedBox.shrink();
+                        if (c.isShowingAd.value || c.isPiP.value) return const SizedBox.shrink();
                         return c.settingsOpen.value
-                            ? Stack(
-                                children: [
-                                  // Scrim: tap anywhere outside to dismiss
-                                  Positioned.fill(
-                                    child: GestureDetector(
-                                      behavior: HitTestBehavior.opaque,
-                                      onTap: c.closeSettings,
-                                      child: const ColoredBox(
-                                        color: Colors.transparent,
+                            ? Positioned.fill(
+                                child: Stack(
+                                  children: [
+                                    // Scrim: tap anywhere outside to dismiss
+                                    Positioned.fill(
+                                      child: GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onTap: c.closeSettings,
+                                        child: const ColoredBox(
+                                          color: Colors.transparent,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  SettingsPanel(ctrl: c),
-                                ],
+                                    SettingsPanel(ctrl: c),
+                                  ],
+                                ),
                               )
                             : const SizedBox.shrink();
                       }),
 
                       // ── Layer 8: Resolution switching overlay ──────────────
                       Obx(() {
-                        if (c.isShowingAd.value) return const SizedBox.shrink();
+                        if (c.isShowingAd.value || c.isPiP.value) return const SizedBox.shrink();
                         // touch an observable
                         c.isAudioOnly.value;
                         bool isSwitching = false, isManual = false;
@@ -454,28 +442,51 @@ class TowerCustomPlayer extends StatelessWidget {
                           }
                         } catch (_) {}
                         final show = isSwitching && isManual;
-                        return AnimatedOpacity(
-                          duration: const Duration(milliseconds: 300),
-                          opacity: show ? 1.0 : 0.0,
-                          child: show
-                              ? const SwitchingResolutionOverlay()
-                              : const SizedBox.shrink(),
-                        );
+                        return show
+                            ? const Positioned.fill(
+                                child: SwitchingResolutionOverlay(),
+                              )
+                            : const SizedBox.shrink();
                       }),
 
                       // ── Layer 8.5: Ad Overlay ──────────────────────────────
-                      AdOverlay(ctrl: c),
+                      Obx(() {
+                        if (c.isShowingAd.value && !c.isPiP.value) {
+                          return Positioned.fill(
+                            child: AdOverlay(ctrl: c),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      }),
 
                       // ── Layer 8.6: End Screen Overlay ───────────────────────
-                      EndScreenOverlay(ctrl: c),
+                      Obx(() {
+                        if (c.showEndScreen.value && !c.isPiP.value) {
+                          return Positioned.fill(
+                            child: EndScreenOverlay(ctrl: c),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      }),
 
                       // ── Layer 9: Stats for Nerds ───────────────────────────
-                      RepaintBoundary(child: StatsForNerdsOverlay(ctrl: c)),
+                      Obx(() {
+                        if (!c.showStatsForNerds.value || c.isPiP.value) return const SizedBox.shrink();
+                        return Positioned(
+                          top: 16,
+                          left: 16,
+                          child: RepaintBoundary(
+                            child: StatsForNerdsOverlay(ctrl: c),
+                          ),
+                        );
+                      }),
                     ],
                   ),
                 ),
               ),
-            );
+            ),
+          ),
+        );
           },
         );
       },

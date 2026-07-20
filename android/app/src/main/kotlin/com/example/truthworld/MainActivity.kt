@@ -1,10 +1,22 @@
 package com.example.truthworld
 
+import android.app.PictureInPictureParams
 import android.content.Context
+import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
+import android.util.Rational
 import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    private val PIP_CHANNEL = "com.example.truthworld/pip"
+    private var pipChannel: MethodChannel? = null
+    private var isAutoEnterPipEnabled = false
+    private var pipAspectRatioWidth = 16
+    private var pipAspectRatioHeight = 9
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -46,5 +58,69 @@ class MainActivity : FlutterActivity() {
                     .apply()
             }
         }
+    }
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        pipChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PIP_CHANNEL)
+        pipChannel?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "enterPip" -> {
+                    val ratio = call.argument<Double>("aspectRatio") ?: 1.777
+                    enterPipMode(ratio)
+                    result.success(null)
+                }
+                "setAutoEnterPip" -> {
+                    val enabled = call.argument<Boolean>("enabled") ?: false
+                    val ratio = call.argument<Double>("aspectRatio") ?: 1.777
+                    updateAutoPipSettings(enabled, ratio)
+                    result.success(null)
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun enterPipMode(ratio: Double) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val rational = Rational((ratio * 10000).toInt(), 10000)
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(rational)
+                .build()
+            enterPictureInPictureMode(params)
+        }
+    }
+
+    private fun updateAutoPipSettings(enabled: Boolean, ratio: Double) {
+        isAutoEnterPipEnabled = enabled
+        pipAspectRatioWidth = (ratio * 10000).toInt()
+        pipAspectRatioHeight = 10000
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val rational = Rational(pipAspectRatioWidth, pipAspectRatioHeight)
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(rational)
+                .setAutoEnterEnabled(enabled)
+                .build()
+            setPictureInPictureParams(params)
+        }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (isAutoEnterPipEnabled) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val rational = Rational(pipAspectRatioWidth, pipAspectRatioHeight)
+                val params = PictureInPictureParams.Builder()
+                    .setAspectRatio(rational)
+                    .build()
+                enterPictureInPictureMode(params)
+            }
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        pipChannel?.invokeMethod("onPipModeChanged", isInPictureInPictureMode)
     }
 }

@@ -70,7 +70,11 @@ const RESOLUTION_LADDER: ResolutionProfile[] = [
   { height: 144, width: 256, label: "144p", bitrateKbps: 200, audioBitrateKbps: 48, fps: 15 },
 ];
 
-const VALID_VIDEO_EXTENSIONS = new Set([".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv", ".wmv"]);
+const VALID_VIDEO_EXTENSIONS = new Set([
+  ".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv", ".wmv", 
+  ".3gpp", ".3gp", ".mpeg", ".mpg", ".mpegps", ".m4v", 
+  ".dnxhr", ".prores", ".cineform", ".hevc"
+]);
 
 // ─── Storage Trigger ─────────────────────────────────────────────────────────
 

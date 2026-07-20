@@ -41,7 +41,7 @@ class UserAvatar extends StatelessWidget {
       if (Get.isRegistered<AuthService>()) {
         final authService = AuthService.to;
         final currentUser = FirebaseAuth.instance.currentUser;
-        if (authService.hasChannel.value && authService.userChannel != null && currentUser != null) {
+        if (currentUser != null) {
           final userPhoto = currentUser.photoURL;
           final userName = currentUser.displayName;
 
@@ -52,8 +52,12 @@ class UserAvatar extends StatelessWidget {
                                        (photoUrl == null && displayName == null);
 
           if (isCurrentUserDetails) {
-            effectivePhotoUrl = authService.userChannel!.avatarUrl;
-            effectiveDisplayName = authService.userChannel!.name;
+            if (authService.activePhotoUrl.isNotEmpty) {
+              effectivePhotoUrl = authService.activePhotoUrl;
+            }
+            if (authService.activeDisplayName.isNotEmpty) {
+              effectiveDisplayName = authService.activeDisplayName;
+            }
           }
         }
       }

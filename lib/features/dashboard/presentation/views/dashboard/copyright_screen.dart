@@ -15,7 +15,7 @@ class CopyrightScreen extends StatelessWidget {
     if (activeChannelId.isEmpty) return const Stream.empty();
     // Industry Standard: Query by channelId and ensure descending order by date
     return FirebaseFirestore.instance
-        .collection('copyrights')
+        .collection('copyright_claims')
         .where('channelId', isEqualTo: activeChannelId)
         .orderBy('date', descending: true)
         .snapshots();

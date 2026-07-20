@@ -48,13 +48,13 @@ class _WatchHistoryState extends State<WatchHistory>
     if (userId == null) {
       return Scaffold(
         backgroundColor: bgColor,
-        body: _buildNotLoggedInWidget(context),
+        body: SafeArea(child: _buildNotLoggedInWidget(context)),
       );
     }
 
     return Scaffold(
       backgroundColor: bgColor,
-      body: _buildMainContent(userId),
+      body: SafeArea(child: _buildMainContent(userId)),
     );
   }
 
@@ -64,7 +64,7 @@ class _WatchHistoryState extends State<WatchHistory>
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [

@@ -336,7 +336,7 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
       final String? targetChannelId = shouldPostAsChannel ? channel?.id : null;
       final String? targetChannelName = shouldPostAsChannel ? (channel?.handle.isNotEmpty == true ? channel?.handle : channel?.name) : null;
       final String? targetChannelAvatar = shouldPostAsChannel ? channel?.avatarUrl : null;
-      final String targetUserAvatar = shouldPostAsChannel ? (channel?.avatarUrl ?? '') : (currentUser.photoURL ?? '');
+      final String targetUserAvatar = AuthService.to.activePhotoUrl;
 
       await widget.commentsController.submitComment(
         text: text,

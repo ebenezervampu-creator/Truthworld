@@ -433,13 +433,13 @@ class _MyVideosState extends State<MyVideos> with TickerProviderStateMixin {
     if (userId == null) {
       return Scaffold(
         backgroundColor: AppColors.bgPage,
-        body: _buildNotLoggedInWidget(),
+        body: SafeArea(child: _buildNotLoggedInWidget()),
       );
     }
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
-      body: _buildMainContent(userId),
+      body: SafeArea(child: _buildMainContent(userId)),
     );
   }
 
@@ -448,7 +448,7 @@ class _MyVideosState extends State<MyVideos> with TickerProviderStateMixin {
       slivers: [
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [

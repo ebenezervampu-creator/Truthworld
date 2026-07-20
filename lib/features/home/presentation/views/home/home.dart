@@ -444,8 +444,19 @@ class HomeSidebarVisibility {
 class Home extends GetView<HomeController> {
   const Home({super.key});
 
+  void _preloadDeferredLibraries() {
+    subscriptions.loadLibrary().catchError((e) => debugPrint('Preload subscriptions error: $e'));
+    lib_feature.loadLibrary().catchError((e) => debugPrint('Preload library error: $e'));
+    explore_topics.loadLibrary().catchError((e) => debugPrint('Preload explore_topics error: $e'));
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Preload deferred layouts to ensure zero-latency transitions
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _preloadDeferredLibraries();
+    });
+
     // Check if we need to open a playlist detail
     final args = Get.arguments;
     if (args != null && args['openPlaylist'] != null) {
@@ -471,22 +482,24 @@ class Home extends GetView<HomeController> {
           backgroundColor: modernDarkProfessionalTheme.scaffoldBackgroundColor,
           appBar: _buildGlobalAppBar(context, isMobile, isTablet, isDesktop),
           drawer: null,
-          body: Row(
-            children: [
-              if (isDesktop || (isTablet && !showCompactNavRail))
-                _buildSideNavigation(context, showCompactNavRail),
-              if (isDesktop || (isTablet && !showCompactNavRail))
-                _buildVerticalDivider(context),
-              Expanded(
-                child: _buildDashboardContent(
-                  context,
-                  controller,
-                  isMobile,
-                  isTablet,
-                  isDesktop,
+          body: SafeArea(
+            child: Row(
+              children: [
+                if (isDesktop || (isTablet && !showCompactNavRail))
+                  _buildSideNavigation(context, showCompactNavRail),
+                if (isDesktop || (isTablet && !showCompactNavRail))
+                  _buildVerticalDivider(context),
+                Expanded(
+                  child: _buildDashboardContent(
+                    context,
+                    controller,
+                    isMobile,
+                    isTablet,
+                    isDesktop,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           bottomNavigationBar: isMobile || isTablet
               ? _buildBottomNavigation(context)
@@ -554,6 +567,7 @@ class Home extends GetView<HomeController> {
                 DeferredWidget(
                   key: const PageStorageKey('tab_subscriptions'),
                   loader: subscriptions.loadLibrary,
+                  placeholder: const SubscriptionsShimmerPlaceholder(),
                   builder: () =>
                       subscriptions.SubscriptionsPage(isDashboard: true),
                 ),
@@ -568,6 +582,7 @@ class Home extends GetView<HomeController> {
                 DeferredWidget(
                   key: const PageStorageKey('tab_explore_topics'),
                   loader: explore_topics.loadLibrary,
+                  placeholder: const TopicsShimmerPlaceholder(),
                   builder: () =>
                       explore_topics.ExploreTopicsPage(isDashboard: true),
                 ),
@@ -575,6 +590,7 @@ class Home extends GetView<HomeController> {
                 DeferredWidget(
                   key: const PageStorageKey('tab_library'),
                   loader: lib_feature.loadLibrary,
+                  placeholder: const LibraryShimmerPlaceholder(),
                   builder: () => lib_feature.LibraryScreen(isDashboard: true),
                 ),
               ],
@@ -1216,95 +1232,67 @@ class Home extends GetView<HomeController> {
               NavigationDestination(
                 icon: (() {
                   final user = controller.currentUser.value;
-                  final channel = AuthService.to.userChannel;
-                  if (channel != null && channel.avatarUrl.isNotEmpty) {
+                  if (user == null) return const Icon(Icons.account_circle_outlined);
+                  final photoUrl = AuthService.to.activePhotoUrl;
+                  if (photoUrl.isNotEmpty) {
                     return CircleAvatar(
                       radius: 12,
-                      backgroundImage: NetworkImage(channel.avatarUrl),
+                      backgroundImage: NetworkImage(photoUrl),
                     );
-                  } else if (user != null &&
-                      user.photoURL != null &&
-                      user.photoURL!.isNotEmpty) {
-                    return CircleAvatar(
-                      radius: 12,
-                      backgroundImage: NetworkImage(user.photoURL!),
+                  }
+                  final initial = AuthService.to.activeDisplayName.isNotEmpty
+                      ? AuthService.to.activeDisplayName[0].toUpperCase()
+                      : 'U';
+                  return CircleAvatar(
+                    radius: 12,
+                    backgroundColor: Colors.blue,
+                    child: Text(
+                      initial,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  );
+                })(),
+                selectedIcon: (() {
+                  final user = controller.currentUser.value;
+                  if (user == null) return const Icon(Icons.account_circle_rounded);
+                  final photoUrl = AuthService.to.activePhotoUrl;
+                  if (photoUrl.isNotEmpty) {
+                    return Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      child: CircleAvatar(
+                        radius: 11,
+                        backgroundImage: NetworkImage(photoUrl),
+                      ),
                     );
-                  } else if (user != null) {
-                    final initial =
-                        user.displayName != null && user.displayName!.isNotEmpty
-                        ? user.displayName![0].toUpperCase()
-                        : (user.email != null && user.email!.isNotEmpty
-                              ? user.email![0].toUpperCase()
-                              : 'E');
-                    return CircleAvatar(
-                      radius: 12,
+                  }
+                  final initial = AuthService.to.activeDisplayName.isNotEmpty
+                      ? AuthService.to.activeDisplayName[0].toUpperCase()
+                      : 'U';
+                  return Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
+                    child: CircleAvatar(
+                      radius: 11,
                       backgroundColor: Colors.blue,
                       child: Text(
                         initial,
                         style: const TextStyle(
-                          fontSize: 11,
+                          fontSize: 10,
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                    );
-                  }
-                  return const Icon(Icons.account_circle_outlined);
-                })(),
-                selectedIcon: (() {
-                  final user = controller.currentUser.value;
-                  final channel = AuthService.to.userChannel;
-                  if (channel != null && channel.avatarUrl.isNotEmpty) {
-                    return Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 1.5),
-                      ),
-                      child: CircleAvatar(
-                        radius: 11,
-                        backgroundImage: NetworkImage(channel.avatarUrl),
-                      ),
-                    );
-                  } else if (user != null &&
-                      user.photoURL != null &&
-                      user.photoURL!.isNotEmpty) {
-                    return Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 1.5),
-                      ),
-                      child: CircleAvatar(
-                        radius: 11,
-                        backgroundImage: NetworkImage(user.photoURL!),
-                      ),
-                    );
-                  } else if (user != null) {
-                    final initial =
-                        user.displayName != null && user.displayName!.isNotEmpty
-                        ? user.displayName![0].toUpperCase()
-                        : (user.email != null && user.email!.isNotEmpty
-                              ? user.email![0].toUpperCase()
-                              : 'E');
-                    return Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 1.5),
-                      ),
-                      child: CircleAvatar(
-                        radius: 11,
-                        backgroundColor: Colors.blue,
-                        child: Text(
-                          initial,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-                  return const Icon(Icons.account_circle_rounded);
+                    ),
+                  );
                 })(),
                 label: 'You',
               ),
@@ -1695,8 +1683,8 @@ class _ModernSideNavigationRail extends StatelessWidget {
                   998,
                   route: '/studio',
                   onTap: () async {
-                    final origin = html.window.location.origin;
-                    final String studioUrl = kIsWeb && origin.contains('localhost')
+                    final String? origin = html.window.location.origin;
+                    final String studioUrl = kIsWeb && (origin?.contains('localhost') ?? false)
                         ? '$origin/studio'
                         : 'https://truthworld-1-studio.web.app/';
                     final studioUri = Uri.parse(studioUrl);
@@ -3456,5 +3444,373 @@ extension StringExtension on String {
     if (isEmpty) return this;
     if (end > length) end = length;
     return substring(start, end);
+  }
+}
+
+// ==========================================================================
+// SHIMMER PLACEHOLDERS FOR DEFERRED LOADS
+// ==========================================================================
+
+class SubscriptionsShimmerPlaceholder extends StatelessWidget {
+  const SubscriptionsShimmerPlaceholder({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isMobile = MediaQuery.of(context).size.width < 600;
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F0F0F),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const NeverScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Shimmer.fromColors(
+                  baseColor: const Color(0xFF1E1E1E),
+                  highlightColor: Colors.white12,
+                  child: Container(
+                    width: 180,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              ),
+              // Channel Avatars Shimmer
+              SizedBox(
+                height: 110,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: 5,
+                  itemBuilder: (context, index) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 20),
+                      child: Shimmer.fromColors(
+                        baseColor: const Color(0xFF1E1E1E),
+                        highlightColor: Colors.white12,
+                        child: Column(
+                          children: [
+                            Container(
+                              width: 60,
+                              height: 60,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              width: 50,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              // Chips Shimmer
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: List.generate(4, (index) {
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: Shimmer.fromColors(
+                        baseColor: const Color(0xFF1E1E1E),
+                        highlightColor: Colors.white12,
+                        child: Container(
+                          width: 80,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ),
+              const SizedBox(height: 24),
+              // Video Grid Shimmer
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: isMobile ? 1 : 3,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: isMobile ? 1.3 : 0.8,
+                  ),
+                  itemCount: 6,
+                  itemBuilder: (context, index) {
+                    return Shimmer.fromColors(
+                      baseColor: const Color(0xFF1E1E1E),
+                      highlightColor: Colors.white12,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          AspectRatio(
+                            aspectRatio: 16 / 9,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                width: 36,
+                                height: 36,
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      width: double.infinity,
+                                      height: 12,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Container(
+                                      width: 120,
+                                      height: 10,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class TopicsShimmerPlaceholder extends StatelessWidget {
+  const TopicsShimmerPlaceholder({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isMobile = MediaQuery.of(context).size.width < 600;
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F0F0F),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const NeverScrollableScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Shimmer.fromColors(
+                  baseColor: const Color(0xFF1E1E1E),
+                  highlightColor: Colors.white12,
+                  child: Container(
+                    width: 200,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Search Bar Shimmer
+                Shimmer.fromColors(
+                  baseColor: const Color(0xFF1E1E1E),
+                  highlightColor: Colors.white12,
+                  child: Container(
+                    width: double.infinity,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Category Grid Shimmer
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: isMobile ? 2 : 4,
+                    childAspectRatio: 1.6,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
+                  itemCount: isMobile ? 4 : 8,
+                  itemBuilder: (context, index) {
+                    return Shimmer.fromColors(
+                      baseColor: const Color(0xFF1E1E1E),
+                      highlightColor: Colors.white12,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+                // PageView Shimmer
+                Shimmer.fromColors(
+                  baseColor: const Color(0xFF1E1E1E),
+                  highlightColor: Colors.white12,
+                  child: Container(
+                    height: isMobile ? 300 : 450,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class LibraryShimmerPlaceholder extends StatelessWidget {
+  const LibraryShimmerPlaceholder({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Profile Header Shimmer
+              Shimmer.fromColors(
+                baseColor: const Color(0xFF1E1E1E),
+                highlightColor: Colors.white12,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 140,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: 90,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+              // List tiles shimmer
+              Expanded(
+                child: ListView.builder(
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: 8,
+                  itemBuilder: (context, index) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16.0),
+                      child: Shimmer.fromColors(
+                        baseColor: const Color(0xFF1E1E1E),
+                        highlightColor: Colors.white12,
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 24,
+                              height: 24,
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 24),
+                            Container(
+                              width: 150,
+                              height: 16,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

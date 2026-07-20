@@ -118,6 +118,14 @@ class GoogleSignInFailedException implements Exception {
       'GoogleSignInFailedException: ${message ?? "Unknown error"}';
 }
 
+/// Thrown when an asynchronous operation is cancelled by the user or system.
+class OperationCancelledException implements Exception {
+  final String message;
+  const OperationCancelledException([this.message = 'Operation was cancelled']);
+
+  @override
+  String toString() => 'OperationCancelledException: $message';
+}
 
 /// Custom Exception wrapper for user profile errors
 class UserProfileException implements Exception {

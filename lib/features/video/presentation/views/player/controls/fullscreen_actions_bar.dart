@@ -38,29 +38,26 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
         children: [
           // Like
           Obx(() {
-            final count =
-                mainController.videoLikes[vc.video.id] ?? vc.video.likeCount;
             return _buildVerticalIconBtn(
               icon: vc.isLiked.value
                   ? Icons.thumb_up_rounded
                   : Icons.thumb_up_outlined,
               onTap: () => vc.toggleLike(),
               isActive: vc.isLiked.value,
-              badgeCount: count,
             );
           }),
           const SizedBox(height: 12),
 
           // Dislike
-          Obx(
-            () => _buildVerticalIconBtn(
+          Obx(() {
+            return _buildVerticalIconBtn(
               icon: vc.isDisliked.value
                   ? Icons.thumb_down_rounded
                   : Icons.thumb_down_outlined,
               onTap: () => vc.toggleDislike(),
               isActive: vc.isDisliked.value,
-            ),
-          ),
+            );
+          }),
           const SizedBox(height: 12),
 
           // Share
@@ -171,9 +168,9 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
                   : Colors.white.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              icon,
-              size: 20,
+            child: _AnimatedBounceIcon(
+              icon: icon,
+              isActive: isActive,
               color: isActive ? PT.primary : Colors.white,
               textDirection: flipHorizontal ? TextDirection.rtl : null,
             ),
@@ -199,6 +196,79 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+class _AnimatedBounceIcon extends StatefulWidget {
+  final IconData icon;
+  final bool isActive;
+  final Color color;
+  final double size;
+  final TextDirection? textDirection;
+
+  const _AnimatedBounceIcon({
+    required this.icon,
+    required this.isActive,
+    required this.color,
+    this.size = 20,
+    this.textDirection,
+  });
+
+  @override
+  State<_AnimatedBounceIcon> createState() => _AnimatedBounceIconState();
+}
+
+class _AnimatedBounceIconState extends State<_AnimatedBounceIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _scaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.0, end: 1.4)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 40.0,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(begin: 1.4, end: 1.0)
+            .chain(CurveTween(curve: Curves.bounceOut)),
+        weight: 60.0,
+      ),
+    ]).animate(_controller);
+  }
+
+  @override
+  void didUpdateWidget(covariant _AnimatedBounceIcon oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive != oldWidget.isActive && widget.isActive) {
+      _controller.forward(from: 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: _scaleAnimation,
+      child: Icon(
+        widget.icon,
+        size: widget.size,
+        color: widget.color,
+        textDirection: widget.textDirection,
+      ),
     );
   }
 }

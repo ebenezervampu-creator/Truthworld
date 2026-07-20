@@ -52,47 +52,71 @@ class PremiumPlansScreen extends StatelessWidget {
           onPressed: () => Get.back(),
         ),
       ),
-      body: Obx(() {
-        final auth = AuthService.to;
-        final bool isPremium = auth.isPremiumUser.value;
-        final String? currentPlanId = auth.premiumPlanId.value;
+      body: SafeArea(
+        child: Obx(() {
+          final auth = AuthService.to;
+          final bool isPremium = auth.isPremiumUser.value;
+          final String? currentPlanId = auth.premiumPlanId.value;
 
-        return Stack(
-          children: [
-            SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // 1. YouTube Premium Landing Hero
-                  _buildYouTubeHeroSection(
-                    context,
-                    controller,
-                    isPremium,
-                    currentPlanId,
-                  ),
-
-                  // 2. Feature Cards List (YouTube Premium Style)
-                  _buildFeatureGrid(context),
-
-                  // 3. User Membership Status Panel / Sandbox Panel
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24.0,
-                      vertical: 16.0,
-                    ),
-                    child: _buildMembershipStatusCard(
+          return Stack(
+            children: [
+              SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // 1. YouTube Premium Landing Hero
+                    _buildYouTubeHeroSection(
                       context,
                       controller,
                       isPremium,
                       currentPlanId,
                     ),
-                  ),
 
-                  // 4. Plan Selector (Visible if not subscribed)
-                  if (!isPremium) ...[
-                    const SizedBox(height: 32),
+                    // 2. Feature Cards List (YouTube Premium Style)
+                    _buildFeatureGrid(context),
+
+                    // 3. User Membership Status Panel / Sandbox Panel
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24.0,
+                        vertical: 16.0,
+                      ),
+                      child: _buildMembershipStatusCard(
+                        context,
+                        controller,
+                        isPremium,
+                        currentPlanId,
+                      ),
+                    ),
+
+                    // 4. Plan Selector (Visible if not subscribed)
+                    if (!isPremium) ...[
+                      const SizedBox(height: 32),
+                      Text(
+                        'Choose the plan that fits you',
+                        style: TextStyle(
+                          fontFamily: 'Roboto',
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        child: _buildYouTubePlansList(context, controller),
+                      ),
+                      const SizedBox(height: 24),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        child: _buildCheckoutButton(context, controller),
+                      ),
+                    ],
+
+                    // 5. Compare Table
+                    const SizedBox(height: 48),
                     Text(
-                      'Choose the plan that fits you',
+                      'Compare Free vs Premium',
                       style: TextStyle(
                         fontFamily: 'Roboto',
                         fontSize: 22,
@@ -103,81 +127,59 @@ class PremiumPlansScreen extends StatelessWidget {
                     const SizedBox(height: 16),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                      child: _buildYouTubePlansList(context, controller),
+                      child: _buildComparisonTable(context),
                     ),
-                    const SizedBox(height: 24),
+
+                    // 6. FAQs
+                    const SizedBox(height: 48),
+                    Text(
+                      'Frequently asked questions',
+                      style: TextStyle(
+                        fontFamily: 'Roboto',
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                      child: _buildCheckoutButton(context, controller),
+                      child: _buildFaqSection(context),
                     ),
+
+                    const SizedBox(height: 80),
                   ],
-
-                  // 5. Compare Table
-                  const SizedBox(height: 48),
-                  Text(
-                    'Compare Free vs Premium',
-                    style: TextStyle(
-                      fontFamily: 'Roboto',
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                    child: _buildComparisonTable(context),
-                  ),
-
-                  // 6. FAQs
-                  const SizedBox(height: 48),
-                  Text(
-                    'Frequently asked questions',
-                    style: TextStyle(
-                      fontFamily: 'Roboto',
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                    child: _buildFaqSection(context),
-                  ),
-
-                  const SizedBox(height: 80),
-                ],
-              ),
-            ),
-
-            // Loading overlay
-            if (controller.isLoading.value || controller.isSimulating.value)
-              Container(
-                color: Colors.black.withValues(alpha: 0.75),
-                child: const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        'Processing membership details...',
-                        style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
                 ),
               ),
-          ],
-        );
-      }),
+
+              // Loading overlay
+              if (controller.isLoading.value || controller.isSimulating.value)
+                Container(
+                  color: Colors.black.withValues(alpha: 0.75),
+                  child: const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'Processing membership details...',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          );
+        }),
+      ),
     );
   }
 

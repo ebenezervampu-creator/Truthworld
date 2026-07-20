@@ -45,7 +45,9 @@ export type EventType =
   | 'fact-complete'
   | 'dubbing-complete'
   | 'aggregation-ready'
-  | 'resolution-requested';
+  | 'resolution-requested'
+  | 'copyright-processing'
+  | 'copyright-complete';
 
 export interface PipelineEvent<T = Record<string, any>> {
   eventId: string;

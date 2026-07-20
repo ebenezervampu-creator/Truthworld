@@ -28,8 +28,8 @@ class ExploreTopicsPage extends StatefulWidget {
 class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   final ExploreTopicsController controller =
       Get.isRegistered<ExploreTopicsController>()
-          ? Get.find<ExploreTopicsController>()
-          : Get.put(ExploreTopicsController());
+      ? Get.find<ExploreTopicsController>()
+      : Get.put(ExploreTopicsController());
 
   final ScrollController _scrollController = ScrollController();
   final TextEditingController _searchController = TextEditingController();
@@ -102,98 +102,109 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                   ),
                   actions: [
                     IconButton(
-                      icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                      icon: const Icon(
+                        Icons.refresh_rounded,
+                        color: Colors.white,
+                      ),
                       onPressed: () => controller.initialFetch(),
                     ),
                     const SizedBox(width: 16),
                   ],
                 )
               : null,
-          body: Padding(
-            padding: EdgeInsets.all(context.layoutSpacing),
-            child: CustomScrollView(
-              controller: _scrollController,
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                if (!context.isMobile || widget.isDashboard)
+          body: SafeArea(
+            child: Padding(
+              padding: EdgeInsets.all(context.layoutSpacing),
+              child: CustomScrollView(
+                controller: _scrollController,
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  if (!context.isMobile || widget.isDashboard)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 24),
+                        child: Row(
+                          children: [
+                            Text(
+                              'Explore Topics',
+                              style: GoogleFonts.roboto(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: textColor,
+                              ),
+                            ),
+                            const Spacer(),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.refresh_rounded,
+                                color: Colors.white,
+                              ),
+                              onPressed: () => controller.initialFetch(),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                  // Search Bar
+                  SliverToBoxAdapter(child: _buildSearchBar()),
+
+                  // Categories (Grid when 'all', selected header otherwise)
+                  Obx(
+                    () =>
+                        controller.selectedCategory.value.toLowerCase() == 'all'
+                        ? _buildCategoryGrid(context)
+                        : _buildSelectedCategoryHeader(context),
+                  ),
+
+                  // Filters Bar
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.only(bottom: 24),
-                      child: Row(
-                        children: [
-                          Text(
-                            'Explore Topics',
-                            style: GoogleFonts.roboto(
-                              fontSize: 32,
-                              fontWeight: FontWeight.bold,
-                              color: textColor,
-                            ),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                            onPressed: () => controller.initialFetch(),
-                          ),
-                        ],
-                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: _buildFilterBar(context),
                     ),
                   ),
 
-                // Search Bar
-                SliverToBoxAdapter(
-                  child: _buildSearchBar(),
-                ),
+                  // Topics horizontal PageView (one-by-one) or states
+                  Obx(() {
+                    if (controller.isLoading.value &&
+                        controller.topics.isEmpty) {
+                      return SliverToBoxAdapter(
+                        child: Container(
+                          height: context.isMobile ? 360 : 540,
+                          alignment: Alignment.center,
+                          child: const _TopicPageViewShimmerWidget(),
+                        ),
+                      );
+                    }
 
-                // Categories (Grid when 'all', selected header otherwise)
-                Obx(() => controller.selectedCategory.value.toLowerCase() == 'all'
-                    ? _buildCategoryGrid(context)
-                    : _buildSelectedCategoryHeader(context)),
+                    if (controller.errorMessage.isNotEmpty &&
+                        controller.topics.isEmpty) {
+                      return SliverToBoxAdapter(
+                        child: Container(
+                          height: 300,
+                          alignment: Alignment.center,
+                          child: _buildErrorState(),
+                        ),
+                      );
+                    }
 
-                // Filters Bar
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: _buildFilterBar(context),
-                  ),
-                ),
+                    if (controller.topics.isEmpty) {
+                      return SliverToBoxAdapter(
+                        child: Container(
+                          height: 300,
+                          alignment: Alignment.center,
+                          child: _buildEmptyState(),
+                        ),
+                      );
+                    }
 
-                // Topics horizontal PageView (one-by-one) or states
-                Obx(() {
-                  if (controller.isLoading.value && controller.topics.isEmpty) {
                     return SliverToBoxAdapter(
-                      child: Container(
-                        height: context.isMobile ? 360 : 540,
-                        alignment: Alignment.center,
-                        child: const _TopicPageViewShimmerWidget(),
-                      ),
+                      child: _buildTopicsPageView(context),
                     );
-                  }
-
-                  if (controller.errorMessage.isNotEmpty && controller.topics.isEmpty) {
-                    return SliverToBoxAdapter(
-                      child: Container(
-                        height: 300,
-                        alignment: Alignment.center,
-                        child: _buildErrorState(),
-                      ),
-                    );
-                  }
-
-                  if (controller.topics.isEmpty) {
-                    return SliverToBoxAdapter(
-                      child: Container(
-                        height: 300,
-                        alignment: Alignment.center,
-                        child: _buildEmptyState(),
-                      ),
-                    );
-                  }
-
-                  return SliverToBoxAdapter(
-                    child: _buildTopicsPageView(context),
-                  );
-                }),
-              ],
+                  }),
+                ],
+              ),
             ),
           ),
         );
@@ -210,15 +221,20 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
         decoration: InputDecoration(
           hintText: 'Search topics by name...',
           prefixIcon: const Icon(Icons.search, color: AppColors.textSecondary),
-          suffixIcon: Obx(() => controller.searchQuery.value.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear, color: AppColors.textSecondary),
-                  onPressed: () {
-                    _searchController.clear();
-                    controller.clearSearch();
-                  },
-                )
-              : const SizedBox.shrink()),
+          suffixIcon: Obx(
+            () => controller.searchQuery.value.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(
+                      Icons.clear,
+                      color: AppColors.textSecondary,
+                    ),
+                    onPressed: () {
+                      _searchController.clear();
+                      controller.clearSearch();
+                    },
+                  )
+                : const SizedBox.shrink(),
+          ),
         ),
       ),
     );
@@ -228,18 +244,17 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     final categories = TopicCategoriesConfig.categories.skip(1).toList();
     return SliverGrid(
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: context.isMobile ? 2 : (ResponsiveContext(context).isTablet ? 3 : 4),
+        crossAxisCount: context.isMobile
+            ? 2
+            : (ResponsiveContext(context).isTablet ? 3 : 4),
         childAspectRatio: 1.6,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
       ),
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          final category = categories[index];
-          return _buildCategoryCard(context, category);
-        },
-        childCount: categories.length,
-      ),
+      delegate: SliverChildBuilderDelegate((context, index) {
+        final category = categories[index];
+        return _buildCategoryCard(context, category);
+      }, childCount: categories.length),
     );
   }
 
@@ -323,7 +338,9 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                   color: isSelected ? Colors.white : AppColors.textSecondary,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
               ),
             );
           });
@@ -336,7 +353,8 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     final bool isMobile = context.isMobile;
     final double bannerHeight = isMobile ? 360 : 540;
     final int itemsCount = controller.topics.length;
-    final int totalPages = itemsCount + (controller.isLoadingMore.value ? 1 : 0);
+    final int totalPages =
+        itemsCount + (controller.isLoadingMore.value ? 1 : 0);
 
     return Container(
       height: bannerHeight,
@@ -365,8 +383,14 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                   }
 
                   // Awesome transition effects
-                  final double scale = (1 - (pageOffset.abs() * 0.12)).clamp(0.88, 1.0);
-                  final double opacity = (1 - (pageOffset.abs() * 0.4)).clamp(0.0, 1.0);
+                  final double scale = (1 - (pageOffset.abs() * 0.12)).clamp(
+                    0.88,
+                    1.0,
+                  );
+                  final double opacity = (1 - (pageOffset.abs() * 0.4)).clamp(
+                    0.0,
+                    1.0,
+                  );
 
                   return Opacity(
                     opacity: opacity,
@@ -431,7 +455,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                                 BoxShadow(
                                   color: Colors.white.withValues(alpha: 0.5),
                                   blurRadius: 8,
-                                )
+                                ),
                               ]
                             : null,
                       ),
@@ -468,7 +492,9 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                 ),
               ),
               child: Icon(
-                isLeft ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
+                isLeft
+                    ? Icons.chevron_left_rounded
+                    : Icons.chevron_right_rounded,
                 color: Colors.white,
                 size: 32,
               ),
@@ -479,21 +505,27 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     );
   }
 
-  Widget _buildTopicCardItem(BuildContext context, Topic topic, double pageOffset) {
+  Widget _buildTopicCardItem(
+    BuildContext context,
+    Topic topic,
+    double pageOffset,
+  ) {
     final bool isMobile = context.isMobile;
     final followingController = Get.isRegistered<FollowingTopicsController>()
         ? Get.find<FollowingTopicsController>()
         : Get.put(FollowingTopicsController());
 
-    final bool isOwner = topic.channelId != null &&
+    final bool isOwner =
+        topic.channelId != null &&
         Get.isRegistered<AuthService>() &&
         AuthService.to.userChannel?.id == topic.channelId;
 
-    final String? bgUrl = (topic.coverImage != null && topic.coverImage!.isNotEmpty)
+    final String? bgUrl =
+        (topic.coverImage != null && topic.coverImage!.isNotEmpty)
         ? topic.coverImage
         : (topic.thumbnailUrl != null && topic.thumbnailUrl!.isNotEmpty)
-            ? topic.thumbnailUrl
-            : null;
+        ? topic.thumbnailUrl
+        : null;
 
     final double btnPaddingH = isMobile ? 12 : 20;
     final double btnPaddingV = isMobile ? 8 : 12;
@@ -530,7 +562,8 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                     ? CachedNetworkImage(
                         imageUrl: bgUrl,
                         fit: BoxFit.cover,
-                        errorWidget: (context, url, error) => _buildGradientBackground(),
+                        errorWidget: (context, url, error) =>
+                            _buildGradientBackground(),
                       )
                     : _buildGradientBackground(),
               ),
@@ -700,8 +733,8 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                           onPressed: () {
                             final topicManagementController =
                                 Get.isRegistered<TopicManagementController>()
-                                    ? Get.find<TopicManagementController>()
-                                    : Get.put(TopicManagementController());
+                                ? Get.find<TopicManagementController>()
+                                : Get.put(TopicManagementController());
                             Get.dialog(
                               EditTopicDialog(
                                 topic: topic,
@@ -727,7 +760,9 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                             ),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFE11D48), // rose-600
+                            backgroundColor: const Color(
+                              0xFFE11D48,
+                            ), // rose-600
                             foregroundColor: Colors.white,
                             padding: EdgeInsets.symmetric(
                               horizontal: btnPaddingH,
@@ -742,7 +777,8 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                       ] else ...[
                         // Follow / Following Button
                         Obx(() {
-                          final isFollowed = followingController.isTopicFollowed(topic.id);
+                          final isFollowed = followingController
+                              .isTopicFollowed(topic.id);
                           return ElevatedButton.icon(
                             onPressed: () {
                               followingController.toggleFollowTopic(topic);
@@ -777,7 +813,9 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                                 borderRadius: BorderRadius.circular(24),
                                 side: isFollowed
                                     ? BorderSide(
-                                        color: Colors.white.withValues(alpha: 0.3),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.3,
+                                        ),
                                         width: 1,
                                       )
                                     : BorderSide.none,
@@ -793,7 +831,8 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                         onPressed: () {
                           final String slug = topic.slug;
                           final String title = topic.title;
-                          final String? imageUrl = topic.coverImage ?? topic.thumbnailUrl;
+                          final String? imageUrl =
+                              topic.coverImage ?? topic.thumbnailUrl;
                           final topicUrl = DeepLinkService.topicUrl(slug);
                           ShareBottomSheet.show(
                             title: title,

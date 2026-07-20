@@ -338,7 +338,42 @@
         { "fieldPath": "topics", "arrayConfig": "CONTAINS" },
         { "fieldPath": "uploadedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "copyright_chunks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "assetId", "order": "ASCENDING" },
+        { "fieldPath": "chunkIndex", "order": "ASCENDING" }
+      ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "copyright_assets",
+      "fieldPath": "summaryEmbedding",
+      "indexes": [
+        {
+          "queryScope": "COLLECTION",
+          "vectorConfig": {
+            "dimension": 256,
+            "flat": {}
+          }
+        }
+      ]
+    },
+    {
+      "collectionGroup": "copyright_chunks",
+      "fieldPath": "chunkEmbedding",
+      "indexes": [
+        {
+          "queryScope": "COLLECTION",
+          "vectorConfig": {
+            "dimension": 256,
+            "flat": {}
+          }
+        }
+      ]
+    }
+  ]
 }

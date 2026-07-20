@@ -100,15 +100,17 @@ mixin LoadingMixin on GetxController {
   bool get isError => loadingState.value == LoadingState.error;
   bool get isSuccess => loadingState.value == LoadingState.success;
   bool get isIdle => loadingState.value == LoadingState.idle;
+  bool get isCancelled => loadingState.value == LoadingState.cancelled;
 
   void setLoading() => loadingState.value = LoadingState.loading;
   void setSuccess() => loadingState.value = LoadingState.success;
   void setError() => loadingState.value = LoadingState.error;
   void setIdle() => loadingState.value = LoadingState.idle;
+  void setCancelled() => loadingState.value = LoadingState.cancelled;
 }
 
 /// Enum for loading states
-enum LoadingState { idle, loading, success, error }
+enum LoadingState { idle, loading, success, error, cancelled }
 
 /// Mixin for controllers that manage selection state
 mixin SelectionMixin on GetxController {
