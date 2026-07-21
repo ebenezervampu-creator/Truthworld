@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/data/models/subscriptions.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
-import 'package:truthworld/features/commnuity/data/models/community_post_model.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/data/models/subscription_content.dart';
 import 'package:truthworld/data/models/channel.dart';

@@ -30,6 +30,7 @@ import 'package:http/http.dart' as http;
 import 'package:truthworld/features/analytics/data/services/viewer_identity_service.dart';
 import 'package:truthworld/features/video/presentation/widgets/fact_check_report_widget.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/features/video/domain/database_helpers.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
@@ -123,10 +124,28 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
 
   // Recommendations Cache
   final RxList<Video> recommendedVideos = <Video>[].obs;
+  final RxList<CommunityPostModel> communityPosts = <CommunityPostModel>[].obs;
   final RxList<Video> moreFromChannel = <Video>[].obs;
   final RxBool isLoadingRecommendations = true.obs;
   final RxString selectedRecommendationFilter = 'All'.obs;
   final RxInt recommendationActiveTab = 0.obs;
+
+  List<dynamic> get recommendedItems {
+    final List<dynamic> mixed = [];
+    int videoIndex = 0;
+    int postIndex = 0;
+    final displayVideos = filteredRecommendedVideos;
+    
+    while (videoIndex < displayVideos.length || postIndex < communityPosts.length) {
+      for (int i = 0; i < 4 && videoIndex < displayVideos.length; i++) {
+        mixed.add(displayVideos[videoIndex++]);
+      }
+      if (postIndex < communityPosts.length) {
+        mixed.add(communityPosts[postIndex++]);
+      }
+    }
+    return mixed;
+  }
 
   // Topics and Playlists recommendation tabs state
   final RxList<Topic> videoTopicsList = <Topic>[].obs;
@@ -1469,6 +1488,22 @@ class VideoController extends GetxController with GetTickerProviderStateMixin {
 
       // Fetch topics and playlists containing this video
       await _fetchTopicsAndPlaylistsForRecommendations();
+
+      // Fetch community posts
+      try {
+        final postsSnapshot = await FirebaseFirestore.instance
+            .collection('Community')
+            .where('visibility', isEqualTo: 'Public')
+            .limit(30)
+            .get();
+        final posts = postsSnapshot.docs
+            .map((doc) => CommunityPostModel.fromMap(doc.data()))
+            .toList();
+        posts.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
+        communityPosts.assignAll(posts.take(5));
+      } catch (e) {
+        debugPrint("Error fetching community posts for recommendations: $e");
+      }
     } catch (e) {
       debugPrint("Error fetching recommendations: $e");
     } finally {

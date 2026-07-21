@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
-import 'package:truthworld/features/commnuity/data/models/community_post_model.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
 
 enum ContentType {
   video,

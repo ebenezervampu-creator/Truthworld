@@ -15,6 +15,8 @@ import 'package:truthworld/features/home/presentation/controllers/home_controlle
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/components/ui/community_post_card.dart';
 
 // ==========================================================================
 // YOUTUBE THEME COLORS
@@ -1003,10 +1005,64 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     bool isDesktop = false,
     bool isTablet = false,
   }) {
-    return _buildEmptyTabState(
-      icon: Icons.chat_bubble_outline,
-      title: 'Posts',
-      subtitle: 'Community posts from this channel will appear here',
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final isOwner = currentUser != null && currentUser.uid == channel.ownerId;
+    final baseQuery = FirebaseFirestore.instance
+        .collection('Community')
+        .where("channelId", isEqualTo: channel.channelId);
+
+    final query = isOwner
+        ? baseQuery.where("ownerId", isEqualTo: currentUser.uid)
+        : baseQuery.where("visibility", isEqualTo: "Public");
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: query.snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _buildShimmerGrid(isDesktop: isDesktop, isTablet: isTablet);
+        }
+        if (snapshot.hasError) {
+          return _buildErrorState(
+            'Error loading posts: ${snapshot.error}',
+            () => controller.update(),
+          );
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return _buildEmptyTabState(
+            icon: Icons.chat_bubble_outline,
+            title: 'Posts',
+            subtitle: 'Community posts from this channel will appear here',
+          );
+        }
+
+        final posts = snapshot.data!.docs
+            .map((doc) => CommunityPostModel.fromMap(doc.data() as Map<String, dynamic>))
+            .toList();
+
+        // Sort posts by uploadedAt descending
+        posts.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
+
+        final crossAxisCount = isDesktop ? 3 : (isTablet ? 2 : 1);
+        final horizontalPadding = isDesktop ? 32.0 : (isTablet ? 24.0 : 16.0);
+
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 16),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            childAspectRatio: isDesktop ? 1.1 : (isTablet ? 1.0 : 1.2),
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+          ),
+          itemCount: posts.length,
+          itemBuilder: (context, index) {
+            return CommunityPostCard(
+              post: posts[index],
+            );
+          },
+        );
+      },
     );
   }
 

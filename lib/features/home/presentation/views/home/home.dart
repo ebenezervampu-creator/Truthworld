@@ -23,6 +23,8 @@ import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/components/ui/video_card.dart';
+import 'package:truthworld/components/ui/community_post_card.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -193,8 +195,8 @@ ThemeData modernDarkProfessionalTheme = ThemeData(
     backgroundColor: darkSurface,
     foregroundColor: darkOnSurface,
     elevation: 0,
-    scrolledUnderElevation: 1,
-    surfaceTintColor: primaryAccent.withValues(alpha: 0.05),
+    scrolledUnderElevation: 0,
+    surfaceTintColor: Colors.transparent,
     titleTextStyle: GoogleFonts.roboto(
       fontSize: 22,
       fontWeight: FontWeight.bold,
@@ -482,27 +484,47 @@ class Home extends GetView<HomeController> {
           backgroundColor: modernDarkProfessionalTheme.scaffoldBackgroundColor,
           appBar: _buildGlobalAppBar(context, isMobile, isTablet, isDesktop),
           drawer: null,
+          extendBody: true,
           body: SafeArea(
-            child: Row(
-              children: [
-                if (isDesktop || (isTablet && !showCompactNavRail))
-                  _buildSideNavigation(context, showCompactNavRail),
-                if (isDesktop || (isTablet && !showCompactNavRail))
-                  _buildVerticalDivider(context),
-                Expanded(
-                  child: _buildDashboardContent(
-                    context,
-                    controller,
-                    isMobile,
-                    isTablet,
-                    isDesktop,
+            bottom: false,
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification is ScrollUpdateNotification) {
+                  controller.onScrollNotification(notification);
+                }
+                return false;
+              },
+              child: Row(
+                children: [
+                  if (isDesktop || (isTablet && !showCompactNavRail))
+                    _buildSideNavigation(context, showCompactNavRail),
+                  if (isDesktop || (isTablet && !showCompactNavRail))
+                    _buildVerticalDivider(context),
+                  Expanded(
+                    child: _buildDashboardContent(
+                      context,
+                      controller,
+                      isMobile,
+                      isTablet,
+                      isDesktop,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           bottomNavigationBar: isMobile || isTablet
-              ? _buildBottomNavigation(context)
+              ? Obx(() => AnimatedSlide(
+                    offset: controller.showBottomNav.value
+                        ? Offset.zero
+                        : const Offset(0, 1),
+                    duration: const Duration(milliseconds: 220),
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 180),
+                      opacity: controller.showBottomNav.value ? 1 : 0,
+                      child: _buildBottomNavigation(context),
+                    ),
+                  ))
               : null,
         );
       },
@@ -867,6 +889,7 @@ class Home extends GetView<HomeController> {
       titleSpacing: 0,
       actions: _buildAppBarActions(context, true),
       elevation: 0,
+      scrolledUnderElevation: 0,
       backgroundColor: modernDarkProfessionalTheme.appBarTheme.backgroundColor,
       surfaceTintColor:
           modernDarkProfessionalTheme.appBarTheme.surfaceTintColor,
@@ -1171,19 +1194,18 @@ class Home extends GetView<HomeController> {
   }
 
   Widget _buildBottomNavigation(BuildContext context) {
-    return Obx(
-      () => Container(
-        decoration: BoxDecoration(
-          color: modernDarkProfessionalTheme.navigationBarTheme.backgroundColor,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 8,
-              offset: Offset(0, -2),
-            ),
-          ],
-        ),
-        child: Theme(
+    return Container(
+      decoration: BoxDecoration(
+        color: modernDarkProfessionalTheme.navigationBarTheme.backgroundColor,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Theme(
           data: Theme.of(context).copyWith(
             navigationBarTheme: modernDarkProfessionalTheme.navigationBarTheme
                 .copyWith(
@@ -1299,8 +1321,7 @@ class Home extends GetView<HomeController> {
             ],
           ),
         ),
-      ),
-    );
+      );
   }
 }
 
@@ -2353,7 +2374,7 @@ class _ModernMainContent extends StatelessWidget {
               isMobile: isMobile,
               isTablet: isTablet,
               isDesktop: isDesktop,
-              videos: homeController.videos,
+              videos: homeController.homeFeedItems,
               heroPrefix: 'main_grid',
               isLoading: false,
               horizontalPadding: horizontalPadding,
@@ -2393,6 +2414,7 @@ class _ModernMainContent extends StatelessWidget {
       pinned: true,
       snap: true,
       elevation: 0,
+      scrolledUnderElevation: 0,
       toolbarHeight: 0,
       backgroundColor: modernDarkProfessionalTheme.appBarTheme.backgroundColor,
       surfaceTintColor:
@@ -2473,7 +2495,7 @@ class _ModernVideoGridSection extends StatelessWidget {
   final bool isMobile;
   final bool isTablet;
   final bool isDesktop;
-  final List<Video> videos;
+  final List<dynamic> videos;
   final String heroPrefix;
   final bool isLoading;
   final double horizontalPadding;
@@ -2501,7 +2523,7 @@ class _ModernVideoGridSection extends StatelessWidget {
     return _buildVideoGrid(context, videos);
   }
 
-  Widget _buildVideoGrid(BuildContext context, List<Video> videos) {
+  Widget _buildVideoGrid(BuildContext context, List<dynamic> videos) {
     int crossAxisCount = isMobile ? 1 : 3;
     return SliverPadding(
       padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
@@ -2511,14 +2533,20 @@ class _ModernVideoGridSection extends StatelessWidget {
         crossAxisSpacing: 8,
         childCount: videos.length,
         itemBuilder: (context, index) {
-          // ðŸ’¡ PRE-CACHE NEXT ITEMS AHEAD
-          if (index + 2 < videos.length) {
-            final nextThumb = videos[index + 2].thumbnailUrl;
-            if (nextThumb.isNotEmpty) {
-              precacheImage(CachedNetworkImageProvider(nextThumb), context);
+          final item = videos[index];
+          if (item is Video) {
+            // ðŸ’¡ PRE-CACHE NEXT ITEMS AHEAD
+            if (index + 2 < videos.length) {
+              final nextItem = videos[index + 2];
+              if (nextItem is Video && nextItem.thumbnailUrl.isNotEmpty) {
+                precacheImage(CachedNetworkImageProvider(nextItem.thumbnailUrl), context);
+              }
             }
+            return VideoCard(video: item, isGrid: true, heroPrefix: heroPrefix);
+          } else if (item is CommunityPostModel) {
+            return CommunityPostCard(post: item, isFullWidth: true);
           }
-          return VideoCard(video: videos[index], isGrid: true, heroPrefix: heroPrefix);
+          return const SizedBox.shrink();
         },
       ),
     );
@@ -2626,61 +2654,36 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
   final RxBool _isVisible = true.obs;
   static const int _infiniteItems = 10000;
 
-  final RxList<Topic> _dbTopics = <Topic>[].obs;
-  final RxBool _isLoading = true.obs;
+  late final HomeController _homeController;
+  late final Worker _topicsWorker;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
-    _fetchTopicsFromFirestore();
-  }
+    _homeController = Get.find<HomeController>();
 
-  Future<void> _fetchTopicsFromFirestore() async {
-    try {
-      _isLoading.value = true;
-      final snapshot = await FirebaseFirestore.instance
-          .collection('topics')
-          .where('isFeatured', isEqualTo: true)
-          .limit(6)
-          .get();
-
-      List<Topic> topics = [];
-      if (snapshot.docs.isNotEmpty) {
-        topics = snapshot.docs
-            .map((doc) => Topic.fromDocumentSnapshot(doc))
-            .toList();
-      }
-
-      if (topics.isEmpty) {
-        final fallbackSnapshot = await FirebaseFirestore.instance
-            .collection('topics')
-            .orderBy('videoCount', descending: true)
-            .limit(6)
-            .get();
-        if (fallbackSnapshot.docs.isNotEmpty) {
-          topics = fallbackSnapshot.docs
-              .map((doc) => Topic.fromDocumentSnapshot(doc))
-              .toList();
-        }
-      }
-
+    // Listen to changes in the featuredTopics to reinitialize the PageController when topics are loaded
+    _topicsWorker = ever(_homeController.featuredTopics, (_) {
       if (mounted) {
-        _dbTopics.value = topics;
         _reinitPageController();
       }
-    } catch (e) {
-      debugPrint('Error fetching topics from Firestore for home banner: $e');
-    } finally {
-      if (mounted) {
-        _isLoading.value = false;
-      }
+    });
+
+    // Initialize PageController with cached topics if they are already available
+    if (_homeController.featuredTopics.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _reinitPageController();
+        }
+      });
     }
   }
 
   void _reinitPageController() {
-    if (_dbTopics.isEmpty) return;
-    final int itemsCount = _dbTopics.length;
+    final topics = _homeController.featuredTopics;
+    if (topics.isEmpty) return;
+    final int itemsCount = topics.length;
     final initialPage =
         (_infiniteItems ~/ 2) - ((_infiniteItems ~/ 2) % itemsCount);
     try {
@@ -2709,6 +2712,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
 
   @override
   void dispose() {
+    _topicsWorker.dispose();
     _timer?.cancel();
     try {
       _pageController.dispose();
@@ -2737,7 +2741,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
     final double bannerHeight = isMobile ? 320 : 520;
 
     return Obx(() {
-      if (_isLoading.value) {
+      if (_homeController.isLoadingFeaturedTopics.value) {
         return Padding(
           padding: EdgeInsets.symmetric(
             horizontal: widget.horizontalPadding,
@@ -2765,11 +2769,12 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
         );
       }
 
-      if (_dbTopics.isEmpty) {
+      final topics = _homeController.featuredTopics;
+      if (topics.isEmpty) {
         return const SizedBox.shrink();
       }
 
-      final int itemsCount = _dbTopics.length;
+      final int itemsCount = topics.length;
       return VisibilityDetector(
         key: const Key('featured_banner_visibility'),
         onVisibilityChanged: (info) {
@@ -2834,7 +2839,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                                 scale: scale,
                                 child: _buildBannerItem(
                                   context,
-                                  topic: _dbTopics[bannerIndex],
+                                  topic: topics[bannerIndex],
                                   isMobile: isMobile,
                                   pageOffset: pageOffset,
                                 ),

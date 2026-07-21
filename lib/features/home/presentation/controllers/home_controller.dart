@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
@@ -15,6 +16,7 @@ import 'package:truthworld/data/models/channel.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
 
 
 // ========================================================================
@@ -36,6 +38,10 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   final AuthService _authService = Get.find<AuthService>();
   final _storage = GetStorage();
   static const String _kVideoCacheKey = 'home_videos_cache';
+  static const String _kFeaturedTopicsCacheKey = 'featured_topics_cache';
+
+  final featuredTopics = <Topic>[].obs;
+  final isLoadingFeaturedTopics = true.obs;
 
   // ========================================================================
   // FIREBASE SERVICES
@@ -159,6 +165,8 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   // ========================================================================
 
   final videos = <Video>[].obs;
+  final communityPosts = <CommunityPostModel>[].obs;
+  final homeFeedItems = <dynamic>[].obs;
   final isLoadingVideos = true.obs;
   final isLoadingMore = false.obs;
   final rxHasMore = true.obs;
@@ -168,6 +176,9 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   static const int _loadMoreThreshold = 90; // Percentage of scroll position
 
   final scrollController = ScrollController();
+  final showBottomNav = true.obs;
+  double _lastScrollPosition = 0;
+  static const double kScrollThreshold = 8.0;
 
   // ========================================================================
   // VIDEO STATE - CAROUSELS
@@ -346,6 +357,9 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
   void _setupBottomNavSync() {
     ever(sideNavSelectedIndex, (index) {
+      // Reset bottom nav visibility when switching tabs
+      showBottomNav.value = true;
+      
       if (index == indexHome) {
         bottomNavSelectedIndex.value = 0;
       } else if (index == indexExploreTopics) {
@@ -467,8 +481,10 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   /// Load initial data (videos and carousels)
   void _loadInitialData() {
     _loadCachedVideos();
+    _loadCachedFeaturedTopics();
     fetchInitialVideos();
     fetchCarouselVideos();
+    fetchFeaturedTopics();
   }
 
   /// Load videos from local storage for instant perceived speed
@@ -495,6 +511,74 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
       _storage.write(_kVideoCacheKey, dataToCache);
     } catch (e) {
       debugPrint('HomeController: Cache save error: $e');
+    }
+  }
+
+  /// Load featured topics from local storage for instant perceived speed
+  void _loadCachedFeaturedTopics() {
+    try {
+      final cachedData = _storage.read<List>(_kFeaturedTopicsCacheKey);
+      if (cachedData != null && featuredTopics.isEmpty) {
+        final cachedTopics = cachedData
+            .map((data) => Topic.fromMap(Map<String, dynamic>.from(data)))
+            .toList();
+        featuredTopics.assignAll(cachedTopics);
+        isLoadingFeaturedTopics.value = false;
+        debugPrint('HomeController: Loaded ${featuredTopics.length} featured topics from cache');
+      }
+    } catch (e) {
+      debugPrint('HomeController: Cached topics load error: $e');
+    }
+  }
+
+  /// Save featured topics to local storage
+  void _saveFeaturedTopicsToCache() {
+    try {
+      final dataToCache = featuredTopics.map((t) => t.toCacheMap()).toList();
+      _storage.write(_kFeaturedTopicsCacheKey, dataToCache);
+    } catch (e) {
+      debugPrint('HomeController: Cached topics save error: $e');
+    }
+  }
+
+  /// Fetch featured topics from Firestore
+  Future<void> fetchFeaturedTopics() async {
+    try {
+      if (featuredTopics.isEmpty) {
+        isLoadingFeaturedTopics.value = true;
+      }
+      final snapshot = await _firestore
+          .collection('topics')
+          .where('isFeatured', isEqualTo: true)
+          .limit(6)
+          .get();
+
+      List<Topic> topicsList = [];
+      if (snapshot.docs.isNotEmpty) {
+        topicsList = snapshot.docs
+            .map((doc) => Topic.fromDocumentSnapshot(doc))
+            .toList();
+      }
+
+      if (topicsList.isEmpty) {
+        final fallbackSnapshot = await _firestore
+            .collection('topics')
+            .orderBy('videoCount', descending: true)
+            .limit(6)
+            .get();
+        if (fallbackSnapshot.docs.isNotEmpty) {
+          topicsList = fallbackSnapshot.docs
+              .map((doc) => Topic.fromDocumentSnapshot(doc))
+              .toList();
+        }
+      }
+
+      featuredTopics.assignAll(topicsList);
+      _saveFeaturedTopicsToCache();
+    } catch (e) {
+      debugPrint('HomeController: Error fetching featured topics: $e');
+    } finally {
+      isLoadingFeaturedTopics.value = false;
     }
   }
 
@@ -541,17 +625,20 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
   /// Fetch initial page of videos with current category filter
   Future<void> fetchInitialVideos() async {
-    await safeExecute(_fetchInitialVideosInternal, showLoading: true);
+    await safeExecute(_fetchInitialVideosInternal, showLoading: videos.isEmpty);
   }
 
   /// Internal implementation for initial video fetch
   Future<void> _fetchInitialVideosInternal() async {
     try {
-      isLoadingVideos.value = true;
+      final isMainFeed = selectedCategory.value == 'All';
+      if (!isMainFeed || videos.isEmpty) {
+        isLoadingVideos.value = true;
+        videos.clear();
+      }
 
       _lastDocument = null;
       rxHasMore.value = true;
-      videos.clear();
 
 
       // NORMAL QUERY PATH: Standard per-category fetching
@@ -568,14 +655,26 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
             .toList();
 
         videos.assignAll(newVideos);
-        _saveVideosToCache();
+        if (isMainFeed) {
+          _saveVideosToCache();
+        }
 
         if (results.docs.length < _pageSize) {
           rxHasMore.value = false;
         }
       } else {
+        if (!isMainFeed) {
+          videos.clear();
+        }
         rxHasMore.value = false;
       }
+
+      if (isMainFeed) {
+        await fetchCommunityPosts();
+      } else {
+        communityPosts.clear();
+      }
+      mixHomeFeed();
 
       clearError();
     } catch (e) {
@@ -629,6 +728,8 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
       } else {
         rxHasMore.value = false;
       }
+
+      mixHomeFeed();
 
       if (kDebugMode) {
         debugPrint(
@@ -965,11 +1066,60 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   // SCROLL & ANIMATION HELPERS
   // ========================================================================
 
+  /// Handle scroll notifications from any tab
+  void onScrollNotification(ScrollUpdateNotification notification) {
+    // Ignore horizontal scrolling
+    if (notification.metrics.axis != Axis.vertical) {
+      return;
+    }
+
+    // Ignore ballistic/inertial scrolling - only react to user drag
+    if (notification.dragDetails == null) {
+      return;
+    }
+
+    final delta = notification.scrollDelta ?? 0;
+
+    // Ignore tiny scroll movements to prevent flickering
+    if (delta.abs() < kScrollThreshold) return;
+
+    // Always show at top
+    if (notification.metrics.pixels <= 0) {
+      if (!showBottomNav.value) {
+        showBottomNav.value = true;
+      }
+      return;
+    }
+
+    // Hide on scroll down, show on scroll up
+    if (delta > 0) {
+      if (showBottomNav.value) {
+        showBottomNav.value = false;
+      }
+    } else {
+      if (!showBottomNav.value) {
+        showBottomNav.value = true;
+      }
+    }
+  }
+
   /// Listen for scroll events to implement infinite scroll
   void _scrollListener() {
     if (!scrollController.hasClients) return;
 
     final position = scrollController.position;
+
+    // Show/Hide bottom nav based on scroll direction
+    final currentScroll = position.pixels;
+    if (currentScroll > _lastScrollPosition && currentScroll > 50) {
+      // Scrolling down
+      if (showBottomNav.value) showBottomNav.value = false;
+    } else if (currentScroll < _lastScrollPosition) {
+      // Scrolling up
+      if (!showBottomNav.value) showBottomNav.value = true;
+    }
+    _lastScrollPosition = currentScroll;
+
     final scrollPercentage = (position.pixels / position.maxScrollExtent) * 100;
 
     // Trigger load more when 90% scrolled and not already loading
@@ -1064,6 +1214,43 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
   /// Get current user display name
   String? get userName => _authService.user?.displayName;
+
+  Future<void> fetchCommunityPosts() async {
+    try {
+      final snapshot = await _firestore
+          .collection('Community')
+          .where('visibility', isEqualTo: 'Public')
+          .limit(50)
+          .get();
+      
+      final posts = snapshot.docs
+          .map((doc) => CommunityPostModel.fromMap(doc.data()))
+          .toList();
+      
+      posts.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
+      
+      communityPosts.assignAll(posts.take(10));
+    } catch (e) {
+      debugPrint("Error fetching community posts: $e");
+    }
+  }
+
+  void mixHomeFeed() {
+    final List<dynamic> mixed = [];
+    int videoIndex = 0;
+    int postIndex = 0;
+
+    while (videoIndex < videos.length || postIndex < communityPosts.length) {
+      for (int i = 0; i < 4 && videoIndex < videos.length; i++) {
+        mixed.add(videos[videoIndex++]);
+      }
+      if (postIndex < communityPosts.length) {
+        mixed.add(communityPosts[postIndex++]);
+      }
+    }
+
+    homeFeedItems.assignAll(mixed);
+  }
 }
 
 

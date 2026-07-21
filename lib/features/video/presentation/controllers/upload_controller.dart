@@ -62,6 +62,10 @@ class UploadController extends GetxController with ContentValidationMixin {
   Rx<DateTime> scheduledDate = DateTime.now().add(Duration(days: 1)).obs;
   final RxString finalstatus = "".obs;
   final RxString finalstatusReason = "".obs;
+  final RxString titleValidationStatus = 'UNKNOWN'.obs;
+  final RxString titleValidationReason = ''.obs;
+  final RxString descriptionValidationStatus = 'UNKNOWN'.obs;
+  final RxString descriptionValidationReason = ''.obs;
 
   // ══════════════════════════════════════════════════════════════
   // VIDEO CONTENT MODERATION STATE (Gemini Audio Analysis)
@@ -1199,6 +1203,63 @@ class UploadController extends GetxController with ContentValidationMixin {
       }
     }
     return keywords.toList();
+  }
+
+  Future<void> refreshTitleDescriptionValidation(
+    String title,
+    String description,
+  ) async {
+    if (title.trim().isEmpty && description.trim().isEmpty) {
+      titleValidationStatus.value = 'UNKNOWN';
+      descriptionValidationStatus.value = 'UNKNOWN';
+      titleValidationReason.value = '';
+      descriptionValidationReason.value = '';
+      return;
+    }
+
+    titleValidationStatus.value = 'PENDING';
+    titleValidationReason.value = 'Checking title content...';
+    descriptionValidationStatus.value = 'PENDING';
+    descriptionValidationReason.value = 'Checking description content...';
+
+    try {
+      final titleResult = await validateContent(title, fieldName: 'Title');
+      if (titleResult.isValid) {
+        titleValidationStatus.value = 'APPROVED';
+        titleValidationReason.value =
+            'Title passed profanity and content validation checks.';
+      } else {
+        titleValidationStatus.value = 'REJECTED';
+        titleValidationReason.value = titleResult.message;
+      }
+    } catch (e) {
+      titleValidationStatus.value = 'REJECTED';
+      titleValidationReason.value =
+          'Unable to validate title content at this time.';
+      debugPrint('❌ Title validation failed: $e');
+    }
+
+    try {
+      final descriptionResult = await validateContent(
+        description,
+        fieldName: 'Description',
+        checkPhoneNumbers: true,
+      );
+
+      if (descriptionResult.isValid) {
+        descriptionValidationStatus.value = 'APPROVED';
+        descriptionValidationReason.value =
+            'Description passed profanity and content validation checks.';
+      } else {
+        descriptionValidationStatus.value = 'REJECTED';
+        descriptionValidationReason.value = descriptionResult.message;
+      }
+    } catch (e) {
+      descriptionValidationStatus.value = 'REJECTED';
+      descriptionValidationReason.value =
+          'Unable to validate description content at this time.';
+      debugPrint('❌ Description validation failed: $e');
+    }
   }
 
   Future<void> uploadVideo(
