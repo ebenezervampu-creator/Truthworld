@@ -1,25 +1,27 @@
-import 'package:get/get.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/mentions_helper.dart';
+import 'package:truthworld/features/notifications/data/models/user_notification.dart';
+import 'package:truthworld/features/notifications/data/services/user_notification_service.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/comment_service.dart';
-import 'package:truthworld/core/base/base_controller.dart';
-import 'package:truthworld/features/notifications/data/models/user_notification.dart';
-import 'package:truthworld/features/notifications/data/services/user_notification_service.dart';
-import 'package:truthworld/core/utils/mentions_helper.dart';
-
-import 'package:truthworld/core/services/auth_service.dart';
 
 /// Premium Comments Controller with GetX - handles all comment-related logic
 /// 100% GetX reactive with optimized Firestore queries for low latency
 class CommentsController extends BaseController {
+
+  CommentsController({this.video, this.isOffline = false});
   final CommentService _commentService = CommentService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // Video data
   Video? video;
+  @override
   bool isOffline;
 
   // Reactive state
@@ -55,17 +57,15 @@ class CommentsController extends BaseController {
     return _auth.currentUser?.displayName ?? 'Anonymous User';
   }
 
-  CommentsController({this.video, this.isOffline = false});
-
   @override
   void onInit() {
     super.onInit();
     if (Get.arguments != null) {
-      if (Get.arguments["commentId"] != null) {
-        targetCommentId.value = Get.arguments["commentId"] as String?;
+      if (Get.arguments['commentId'] != null) {
+        targetCommentId.value = Get.arguments['commentId'] as String?;
       }
-      if (Get.arguments["replyId"] != null) {
-        targetReplyId.value = Get.arguments["replyId"] as String?;
+      if (Get.arguments['replyId'] != null) {
+        targetReplyId.value = Get.arguments['replyId'] as String?;
       }
     }
     if (video != null && !isOffline) {
@@ -104,7 +104,7 @@ class CommentsController extends BaseController {
           .where('videoId', isEqualTo: video!.id)
           .get();
 
-      for (var doc in commentInteractSnap.docs) {
+      for (final doc in commentInteractSnap.docs) {
         final data = doc.data();
         final type = data['type'];
         final commentId = doc.id;
@@ -121,7 +121,7 @@ class CommentsController extends BaseController {
           .where('videoId', isEqualTo: video!.id)
           .get();
 
-      for (var doc in replyInteractSnap.docs) {
+      for (final doc in replyInteractSnap.docs) {
         final data = doc.data();
         final type = data['type'];
         final replyId = doc.id;
@@ -145,7 +145,6 @@ class CommentsController extends BaseController {
     _commentService
         .getCommentsStream(
       videoId: video!.id,
-      limit: _commentsPerPage,
     )
         .listen(
       (loadedComments) async {
@@ -184,10 +183,9 @@ class CommentsController extends BaseController {
   /// Submit a new comment
   Future<void> submitComment({
     required String text,
-    String? channelId,
+    required String userProfilePicUrl, String? channelId,
     String? channelName,
     String? channelProfilePicUrl,
-    required String userProfilePicUrl,
   }) async {
     if (text.trim().isEmpty) {
       throw Exception('Comment cannot be empty');
@@ -208,11 +206,11 @@ class CommentsController extends BaseController {
       final authService = AuthService.to;
       final hasChannel = authService.hasChannel.value && authService.userChannel != null;
 
-      final String finalUserName = authService.activeDisplayName;
-      final String finalUserProfilePicUrl = authService.activePhotoUrl;
-      final String? finalChannelId = hasChannel ? authService.userChannel!.id : channelId;
-      final String? finalChannelName = authService.activeDisplayName;
-      final String? finalChannelProfilePicUrl = authService.activePhotoUrl;
+      final finalUserName = authService.activeDisplayName;
+      final finalUserProfilePicUrl = authService.activePhotoUrl;
+      final finalChannelId = hasChannel ? authService.userChannel!.id : channelId;
+      final finalChannelName = authService.activeDisplayName;
+      final finalChannelProfilePicUrl = authService.activePhotoUrl;
 
       final commentId = await _commentService.addComment(
         videoId: video!.id,
@@ -270,8 +268,8 @@ class CommentsController extends BaseController {
     final wasLiked = currentStatus?['isLiked'] ?? false;
 
     // Calculate new counts
-    int newLikeCount = comment.likeCount;
-    int newDislikeCount = comment.dislikeCount;
+    var newLikeCount = comment.likeCount;
+    var newDislikeCount = comment.dislikeCount;
     if (wasLiked) {
       newLikeCount = (newLikeCount - 1).clamp(0, double.maxFinite.toInt());
       userCommentInteractions[commentId] = {
@@ -280,7 +278,7 @@ class CommentsController extends BaseController {
       };
     } else {
       newLikeCount += 1;
-      if (currentStatus?['isDisliked'] == true) {
+      if (currentStatus?['isDisliked'] ?? false) {
         newDislikeCount = (newDislikeCount - 1).clamp(0, double.maxFinite.toInt());
       }
       userCommentInteractions[commentId] = {
@@ -290,9 +288,9 @@ class CommentsController extends BaseController {
     }
 
     final isVideoCreator = video != null && currentUserId == video!.ownerId;
-    final creatorName = video?.channelName.isNotEmpty == true ? video!.channelName : 'Creator';
-    bool newIsHeartedByCreator = comment.isHeartedByCreator;
-    String? newCreatorHeartName = comment.creatorHeartName;
+    final creatorName = video?.channelName.isNotEmpty ?? false ? video!.channelName : 'Creator';
+    var newIsHeartedByCreator = comment.isHeartedByCreator;
+    var newCreatorHeartName = comment.creatorHeartName;
 
     if (isVideoCreator) {
       if (wasLiked) {
@@ -363,8 +361,8 @@ class CommentsController extends BaseController {
     final wasDisliked = currentStatus?['isDisliked'] ?? false;
 
     // Calculate new counts
-    int newLikeCount = comment.likeCount;
-    int newDislikeCount = comment.dislikeCount;
+    var newLikeCount = comment.likeCount;
+    var newDislikeCount = comment.dislikeCount;
     if (wasDisliked) {
       newDislikeCount = (newDislikeCount - 1).clamp(0, double.maxFinite.toInt());
       userCommentInteractions[commentId] = {
@@ -373,7 +371,7 @@ class CommentsController extends BaseController {
       };
     } else {
       newDislikeCount += 1;
-      if (currentStatus?['isLiked'] == true) {
+      if (currentStatus?['isLiked'] ?? false) {
         newLikeCount = (newLikeCount - 1).clamp(0, double.maxFinite.toInt());
       }
       userCommentInteractions[commentId] = {
@@ -383,8 +381,8 @@ class CommentsController extends BaseController {
     }
 
     final isVideoCreator = video != null && currentUserId == video!.ownerId;
-    bool newIsHeartedByCreator = comment.isHeartedByCreator;
-    String? newCreatorHeartName = comment.creatorHeartName;
+    var newIsHeartedByCreator = comment.isHeartedByCreator;
+    var newCreatorHeartName = comment.creatorHeartName;
 
     if (isVideoCreator) {
       newIsHeartedByCreator = false;
@@ -479,10 +477,9 @@ class CommentsController extends BaseController {
   Future<void> submitReply({
     required String commentId,
     required String text,
-    String? channelId,
+    required String userProfilePicUrl, String? channelId,
     String? channelName,
     String? channelProfilePicUrl,
-    required String userProfilePicUrl,
     String? commentAuthorId,
   }) async {
     if (text.trim().isEmpty || video == null) return;
@@ -494,11 +491,11 @@ class CommentsController extends BaseController {
       final authService = AuthService.to;
       final hasChannel = authService.hasChannel.value && authService.userChannel != null;
 
-      final String finalUserName = authService.activeDisplayName;
-      final String finalUserProfilePicUrl = authService.activePhotoUrl;
-      final String? finalChannelId = hasChannel ? authService.userChannel!.id : channelId;
-      final String? finalChannelName = authService.activeDisplayName;
-      final String? finalChannelProfilePicUrl = authService.activePhotoUrl;
+      final finalUserName = authService.activeDisplayName;
+      final finalUserProfilePicUrl = authService.activePhotoUrl;
+      final finalChannelId = hasChannel ? authService.userChannel!.id : channelId;
+      final finalChannelName = authService.activeDisplayName;
+      final finalChannelProfilePicUrl = authService.activePhotoUrl;
 
       final replyId = await _commentService.addReply(
         videoId: video!.id,
@@ -514,7 +511,7 @@ class CommentsController extends BaseController {
 
       if (commentAuthorId != null && commentAuthorId.isNotEmpty && commentAuthorId != currentUserId) {
         final notificationService = UserNotificationService();
-        final String displayHandle = hasChannel ? authService.activeHandle : (currentUserName.startsWith('@') ? currentUserName : '@$currentUserName');
+        final displayHandle = hasChannel ? authService.activeHandle : (currentUserName.startsWith('@') ? currentUserName : '@$currentUserName');
 
         notificationService.createNotification(
           userId: commentAuthorId,

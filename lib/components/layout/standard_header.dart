@@ -2,18 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class StandardHeader extends StatelessWidget implements PreferredSizeWidget {
-  final String title;
-  final List<Widget>? actions;
-  final Widget? leading;
-  final bool showDivider;
 
   const StandardHeader({
-    super.key,
-    required this.title,
+    required this.title, super.key,
     this.actions,
     this.leading,
     this.showDivider = true,
   });
+  final String title;
+  final List<Widget>? actions;
+  final Widget? leading;
+  final bool showDivider;
 
   @override
   Size get preferredSize =>

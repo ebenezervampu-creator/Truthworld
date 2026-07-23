@@ -2,20 +2,18 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/chapters_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class ChaptersPage extends StatefulWidget {
-  final String channelId;
-  final bool isDarkMode;
 
   const ChaptersPage({
-    super.key,
-    required this.channelId,
-    required this.isDarkMode,
+    required this.channelId, required this.isDarkMode, super.key,
   });
+  final String channelId;
+  final bool isDarkMode;
 
   @override
   State<ChaptersPage> createState() => _ChaptersPageState();
@@ -48,7 +46,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
   @override
   Widget build(BuildContext context) {
     final bgColor = widget.isDarkMode ? AppColors.bgPage : AppColors.bgPage;
-    final surfaceColor = widget.isDarkMode ? AppColors.bgSurface : Colors.white;
+    final surfaceColor = widget.isDarkMode ? AppColors.bgSurface : AppColors.textPrimary;
     final textColor = widget.isDarkMode
         ? AppColors.textPrimary
         : AppColors.textPrimary;
@@ -63,7 +61,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
       backgroundColor: bgColor,
       body: Obx(() {
         if (controller.isLoading) {
-          return Center(
+          return const Center(
             child: CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
             ),
@@ -75,7 +73,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
+                const Icon(
                   Icons.error_outline_rounded,
                   size: 64,
                   color: AppColors.error,
@@ -86,7 +84,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                       ? controller.errorMessage
                       : 'An error occurred loading chapters',
                   style: TextStyle(
-                    fontFamily: 'Roboto',
+                    
                     fontSize: 18,
                     color: textColor,
                     fontWeight: FontWeight.w500,
@@ -119,7 +117,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                 Text(
                   'No Videos Found',
                   style: TextStyle(
-                    fontFamily: 'Roboto',
+                    
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: textColor,
@@ -129,7 +127,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                 Text(
                   'Upload videos to your channel to manage chapters.',
                   style: TextStyle(
-                    fontFamily: 'Roboto',
+                    
                     fontSize: 15,
                     color: textSecondaryColor,
                   ),
@@ -213,7 +211,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
 
         // Right Column: Workspace
         Expanded(
-          child: Container(
+          child: ColoredBox(
             color: widget.isDarkMode
                 ? AppColors.bgPage
                 : const Color(0xFFF1F5F9),
@@ -282,7 +280,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: Icon(Icons.arrow_back, color: AppColors.brand,
+                      icon: const Icon(Icons.arrow_back, color: AppColors.brand,
                       ),
                       onPressed: () => controller.selectVideo(null),
                     ),
@@ -293,7 +291,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontFamily: 'Roboto',
+                          
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: textColor,
@@ -332,12 +330,12 @@ class _ChaptersPageState extends State<ChaptersPage> {
         children: [
           Row(
             children: [
-              Icon(Icons.bookmarks_rounded, color: AppColors.brand, size: 22),
+              const Icon(Icons.bookmarks_rounded, color: AppColors.brand, size: 22),
               const SizedBox(width: 8),
               Text(
                 'Video Chapters',
                 style: TextStyle(
-                  fontFamily: 'Roboto',
+                  
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: textColor,
@@ -357,24 +355,24 @@ class _ChaptersPageState extends State<ChaptersPage> {
             ),
             child: TextField(
               style: TextStyle(
-                fontFamily: 'Roboto',
+                
                 fontSize: 14,
                 color: textColor,
               ),
               decoration: InputDecoration(
                 hintText: 'Search videos...',
                 hintStyle: TextStyle(
-                  fontFamily: 'Roboto',
+                  
                   fontSize: 14,
                   color: widget.isDarkMode
-                      ? Colors.white54
+                      ? AppColors.textSecondary
                       : const Color(0xFF94A3B8),
                 ),
                 prefixIcon: Icon(
                   Icons.search_rounded,
                   size: 18,
                   color: widget.isDarkMode
-                      ? Colors.white54
+                      ? AppColors.textSecondary
                       : const Color(0xFF94A3B8),
                 ),
                 border: InputBorder.none,
@@ -457,8 +455,8 @@ class _ChaptersPageState extends State<ChaptersPage> {
       selectedColor: AppColors.brand,
       backgroundColor: surfaceColor,
       labelStyle: TextStyle(
-        fontFamily: 'Roboto',
-        color: isSelected ? Colors.white : textColor,
+        
+        color: isSelected ? AppColors.textPrimary : textColor,
         fontSize: 12,
         fontWeight: FontWeight.w500,
       ),
@@ -514,14 +512,14 @@ class _ChaptersPageState extends State<ChaptersPage> {
                           ? const Color(0xFF2A2A2A)
                           : AppColors.bgDivider,
                     ),
-                    errorWidget: (context, url, error) => Container(
+                    errorWidget: (context, url, error) => ColoredBox(
                       color: widget.isDarkMode
                           ? const Color(0xFF2A2A2A)
                           : AppColors.bgDivider,
                       child: const Icon(
                         Icons.video_file_rounded,
                         size: 20,
-                        color: Colors.grey,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ),
@@ -535,13 +533,13 @@ class _ChaptersPageState extends State<ChaptersPage> {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.8),
+                      color: AppColors.bgPage.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       video.duration,
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
                       ),
@@ -562,7 +560,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontFamily: 'Roboto',
+                      
                       fontSize: 14,
                       fontWeight: isSelected
                           ? FontWeight.bold
@@ -578,7 +576,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                           'MMM d, yyyy',
                         ).format(video.uploadedAt.toDate()),
                         style: TextStyle(
-                          fontFamily: 'Roboto',
+                          
                           fontSize: 11,
                           color: textSecondaryColor,
                         ),
@@ -610,7 +608,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                             Text(
                               '$chapterCount',
                               style: TextStyle(
-                                fontFamily: 'Roboto',
+                                
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                                 color: chapterCount > 0
@@ -646,7 +644,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
               color: AppColors.brand.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(
+            child: const Icon(
               Icons.bookmarks_outlined,
               size: 64,
               color: AppColors.brand,
@@ -656,7 +654,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
           Text(
             'Select a video to edit chapters',
             style: TextStyle(
-              fontFamily: 'Roboto',
+              
               fontSize: 20,
               fontWeight: FontWeight.bold,
               color: textColor,
@@ -669,7 +667,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
               'Select a video from the sidebar menu to view existing chapters, create new chronological chapters, or use AI auto-detection to partition your content.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontFamily: 'Roboto',
+                
                 fontSize: 14,
                 color: textSecondaryColor,
                 height: 1.4,
@@ -727,7 +725,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontFamily: 'Roboto',
+                                  
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: textColor,
@@ -755,13 +753,13 @@ class _ChaptersPageState extends State<ChaptersPage> {
                                     ).withValues(alpha: 0.3),
                                   ),
                                 ),
-                                child: Text(
+                                child: const Text(
                                   'Unsaved',
                                   style: TextStyle(
-                                    fontFamily: 'Roboto',
+                                    
                                     fontSize: 11,
                                     fontWeight: FontWeight.bold,
-                                    color: const Color(0xFFF59E0B),
+                                    color: Color(0xFFF59E0B),
                                   ),
                                 ),
                               );
@@ -771,7 +769,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                         Text(
                           'Manage content chapters & segment timestamps',
                           style: TextStyle(
-                            fontFamily: 'Roboto',
+                            
                             fontSize: 12,
                             color: textSecondaryColor,
                           ),
@@ -785,7 +783,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                     IconButton(
                       icon: const Icon(
                         Icons.download_rounded,
-                        color: Colors.blueAccent,
+                        color: AppColors.info,
                       ),
                       tooltip: 'Import from YouTube description',
                       onPressed: () => _showImportDialog(context),
@@ -793,13 +791,13 @@ class _ChaptersPageState extends State<ChaptersPage> {
                     IconButton(
                       icon: const Icon(
                         Icons.upload_rounded,
-                        color: Colors.green,
+                        color: AppColors.success,
                       ),
                       tooltip: 'Export YouTube timestamps',
                       onPressed: () => controller.exportToClipboard(),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.psychology, color: Colors.purple),
+                      icon: const Icon(Icons.psychology, color: AppColors.brand),
                       tooltip: 'AI Auto-Detect Chapters',
                       onPressed: () => controller.autoDetectChapters(),
                     ),
@@ -819,7 +817,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 valueColor: AlwaysStoppedAnimation<Color>(
-                                  Colors.white,
+                                  AppColors.textPrimary,
                                 ),
                               ),
                             )
@@ -831,7 +829,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.brand,
-                        foregroundColor: Colors.white,
+                        foregroundColor: AppColors.textPrimary,
                       ),
                     );
                   }),
@@ -914,20 +912,20 @@ class _ChaptersPageState extends State<ChaptersPage> {
         // AI Analyzing Overlay
         Obx(() {
           if (!controller.isAnalyzing.value) return const SizedBox.shrink();
-          return Container(
-            color: Colors.black.withValues(alpha: 0.6),
+          return ColoredBox(
+            color: AppColors.bgPage.withValues(alpha: 0.6),
             child: Center(
               child: Card(
-                color: widget.isDarkMode ? AppColors.bgSurface : Colors.white,
+                color: widget.isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(32.0),
+                  padding: const EdgeInsets.all(32),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      CircularProgressIndicator(
+                      const CircularProgressIndicator(
                         valueColor: AlwaysStoppedAnimation<Color>(
                           AppColors.brand,
                         ),
@@ -936,7 +934,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                       Text(
                         'AI Timeline Analysis',
                         style: TextStyle(
-                          fontFamily: 'Roboto',
+                          
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                           color: textColor,
@@ -946,7 +944,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                       Text(
                         'Scanning audio track & computing semantic chapters...',
                         style: TextStyle(
-                          fontFamily: 'Roboto',
+                          
                           fontSize: 14,
                           color: textSecondaryColor,
                         ),
@@ -976,7 +974,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
           Text(
             'Timeline is Empty',
             style: TextStyle(
-              fontFamily: 'Roboto',
+              
               fontSize: 16,
               fontWeight: FontWeight.bold,
               color: textColor,
@@ -986,7 +984,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
           Text(
             'Create manual chapters or import YouTube description timestamps.',
             style: TextStyle(
-              fontFamily: 'Roboto',
+              
               fontSize: 13,
               color: textSecondaryColor,
             ),
@@ -1001,7 +999,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                 label: const Text('Add Intro at 00:00'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.brand,
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(width: 12),
@@ -1039,7 +1037,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                 decoration: BoxDecoration(
                   color: AppColors.brand,
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
+                  border: Border.all(color: AppColors.textPrimary, width: 2),
                   boxShadow: [
                     BoxShadow(
                       color: AppColors.brand.withValues(alpha: 0.4),
@@ -1053,7 +1051,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                     width: 6,
                     height: 6,
                     decoration: const BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -1089,7 +1087,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                   ),
                   borderRadius: BorderRadius.circular(12),
                   child: Padding(
-                    padding: const EdgeInsets.all(16.0),
+                    padding: const EdgeInsets.all(16),
                     child: Row(
                       children: [
                         // Timestamp block
@@ -1104,8 +1102,8 @@ class _ChaptersPageState extends State<ChaptersPage> {
                           ),
                           child: Text(
                             chapter.formattedStartTime,
-                            style: TextStyle(
-                              fontFamily: 'Roboto',
+                            style: const TextStyle(
+                              
                               color: AppColors.brand,
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
@@ -1119,7 +1117,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                           child: Text(
                             chapter.title,
                             style: TextStyle(
-                              fontFamily: 'Roboto',
+                              
                               fontWeight: FontWeight.bold,
                               fontSize: 15,
                               color: textColor,
@@ -1150,7 +1148,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
 
                         // Delete button
                         IconButton(
-                          icon: Icon(
+                          icon: const Icon(
                             Icons.delete_outline_rounded,
                             color: AppColors.error,
                           ),
@@ -1164,7 +1162,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                                 ),
                                 actions: [
                                   TextButton(
-                                    onPressed: () => Get.back(),
+                                    onPressed: Get.back,
                                     child: const Text('Cancel'),
                                   ),
                                   TextButton(
@@ -1172,7 +1170,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                                       controller.deleteChapter(index);
                                       Get.back();
                                     },
-                                    child: Text(
+                                    child: const Text(
                                       'Delete',
                                       style: TextStyle(color: AppColors.error),
                                     ),
@@ -1239,20 +1237,19 @@ class _ChaptersPageState extends State<ChaptersPage> {
                     borderRadius: BorderRadius.circular(12),
                     side: BorderSide(
                       color: borderColor.withValues(alpha: 0.8),
-                      style: BorderStyle.solid,
                     ),
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
+                  child: const Padding(
+                    padding: EdgeInsets.all(16),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.add_rounded, color: AppColors.brand),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         Text(
                           'Add New Milestone Chapter',
                           style: TextStyle(
-                            fontFamily: 'Roboto',
+                            
                             color: AppColors.brand,
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
@@ -1275,7 +1272,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
   // ═══════════════════════════════════════════════════════════════════════════
   void _showImportDialog(BuildContext context) {
     final textController = TextEditingController();
-    final surfaceColor = widget.isDarkMode ? AppColors.bgSurface : Colors.white;
+    final surfaceColor = widget.isDarkMode ? AppColors.bgSurface : AppColors.textPrimary;
     final textColor = widget.isDarkMode
         ? AppColors.textPrimary
         : AppColors.textPrimary;
@@ -1288,12 +1285,12 @@ class _ChaptersPageState extends State<ChaptersPage> {
         backgroundColor: surfaceColor,
         title: Row(
           children: [
-            Icon(Icons.download_rounded, color: AppColors.brand),
+            const Icon(Icons.download_rounded, color: AppColors.brand),
             const SizedBox(width: 12),
             Text(
               'Import YouTube Timestamps',
               style: TextStyle(
-                fontFamily: 'Roboto',
+                
                 fontWeight: FontWeight.bold,
                 color: textColor,
               ),
@@ -1309,7 +1306,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
               Text(
                 'Paste video chapters/timestamps directly. Any matching timestamps will be imported and merged.',
                 style: TextStyle(
-                  fontFamily: 'Roboto',
+                  
                   fontSize: 13,
                   color: textSecondaryColor,
                 ),
@@ -1322,14 +1319,14 @@ class _ChaptersPageState extends State<ChaptersPage> {
                       : const Color(0xFFF1F5F9),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: widget.isDarkMode ? Colors.white10 : Colors.black12,
+                    color: widget.isDarkMode ? AppColors.bgDivider : Colors.black12,
                   ),
                 ),
                 child: TextField(
                   controller: textController,
                   maxLines: 8,
                   style: TextStyle(
-                    fontFamily: 'Roboto',
+                    
                     fontSize: 14,
                     color: textColor,
                   ),
@@ -1337,7 +1334,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                     hintText:
                         '00:00 Introduction\n01:30 Foundational Rules\n04:15 Core Topic Details',
                     hintStyle: TextStyle(
-                      fontFamily: 'Roboto',
+                      
                       fontSize: 13,
                       color: textSecondaryColor.withValues(alpha: 0.5),
                     ),
@@ -1350,7 +1347,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          TextButton(onPressed: Get.back, child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
               controller.importFromYouTubeFormat(textController.text);
@@ -1358,7 +1355,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,
-              foregroundColor: Colors.white,
+              foregroundColor: AppColors.textPrimary,
             ),
             child: const Text('Import & Parse'),
           ),
@@ -1375,7 +1372,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
     final titleController = TextEditingController(text: chapter?.title ?? '');
 
     // Convert duration to formatted HH:MM:SS or MM:SS
-    String timeText = '';
+    var timeText = '';
     if (chapter != null) {
       timeText = chapter.formattedStartTime;
     } else {
@@ -1388,9 +1385,9 @@ class _ChaptersPageState extends State<ChaptersPage> {
         final minutes = twoDigits(next.inMinutes.remainder(60));
         final seconds = twoDigits(next.inSeconds.remainder(60));
         if (next.inHours > 0) {
-          timeText = "${twoDigits(next.inHours)}:$minutes:$seconds";
+          timeText = '${twoDigits(next.inHours)}:$minutes:$seconds';
         } else {
-          timeText = "$minutes:$seconds";
+          timeText = '$minutes:$seconds';
         }
       } else {
         timeText = '00:00';
@@ -1399,7 +1396,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
 
     final timeController = TextEditingController(text: timeText);
 
-    final surfaceColor = widget.isDarkMode ? AppColors.bgSurface : Colors.white;
+    final surfaceColor = widget.isDarkMode ? AppColors.bgSurface : AppColors.textPrimary;
     final textColor = widget.isDarkMode
         ? AppColors.textPrimary
         : AppColors.textPrimary;
@@ -1424,7 +1421,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                   ? 'Create Milestone Chapter'
                   : 'Edit Milestone Chapter',
               style: TextStyle(
-                fontFamily: 'Roboto',
+                
                 fontWeight: FontWeight.bold,
                 color: textColor,
               ),
@@ -1440,7 +1437,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
               Text(
                 'Provide the timestamp and content description for this milestone.',
                 style: TextStyle(
-                  fontFamily: 'Roboto',
+                  
                   fontSize: 13,
                   color: textSecondaryColor,
                 ),
@@ -1451,7 +1448,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
               Text(
                 'Start Timestamp (MM:SS or HH:MM:SS)',
                 style: TextStyle(
-                  fontFamily: 'Roboto',
+                  
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   color: textSecondaryColor,
@@ -1461,14 +1458,14 @@ class _ChaptersPageState extends State<ChaptersPage> {
               TextField(
                 controller: timeController,
                 style: TextStyle(
-                  fontFamily: 'Roboto',
+                  
                   fontSize: 14,
                   color: textColor,
                 ),
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   hintText: 'e.g. 02:45',
-                  border: const OutlineInputBorder(),
-                  contentPadding: const EdgeInsets.symmetric(
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 10,
                   ),
@@ -1480,7 +1477,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
               Text(
                 'Chapter Title',
                 style: TextStyle(
-                  fontFamily: 'Roboto',
+                  
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   color: textSecondaryColor,
@@ -1490,14 +1487,14 @@ class _ChaptersPageState extends State<ChaptersPage> {
               TextField(
                 controller: titleController,
                 style: TextStyle(
-                  fontFamily: 'Roboto',
+                  
                   fontSize: 14,
                   color: textColor,
                 ),
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   hintText: 'e.g. Introducing the core architecture',
-                  border: const OutlineInputBorder(),
-                  contentPadding: const EdgeInsets.symmetric(
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(
                     horizontal: 12,
                     vertical: 10,
                   ),
@@ -1507,7 +1504,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          TextButton(onPressed: Get.back, child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
               final title = titleController.text.trim();
@@ -1559,7 +1556,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,
-              foregroundColor: Colors.white,
+              foregroundColor: AppColors.textPrimary,
             ),
             child: Text(index == -1 ? 'Create' : 'Apply Changes'),
           ),

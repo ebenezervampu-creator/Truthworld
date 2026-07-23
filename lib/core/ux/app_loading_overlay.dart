@@ -28,9 +28,7 @@ class AppLoadingOverlay {
     _safetyTimer?.cancel();
 
     // Auto-dismiss safety net
-    _safetyTimer = Timer(safetyTimeout, () {
-      dismiss();
-    });
+    _safetyTimer = Timer(safetyTimeout, dismiss);
 
     Get.dialog(
       PopScope(
@@ -45,11 +43,10 @@ class AppLoadingOverlay {
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: AppColors.brand.withValues(alpha: 0.1),
-                width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.4),
+                  color: AppColors.bgPage.withValues(alpha: 0.4),
                   blurRadius: 24,
                   spreadRadius: 2,
                 ),
@@ -58,12 +55,12 @@ class AppLoadingOverlay {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(
+                const SizedBox(
                   width: 40,
                   height: 40,
                   child: CircularProgressIndicator(
                     strokeWidth: 3,
-                    valueColor: const AlwaysStoppedAnimation<Color>(
+                    valueColor: AlwaysStoppedAnimation<Color>(
                       AppColors.brand,
                     ),
                   ),
@@ -73,8 +70,8 @@ class AppLoadingOverlay {
                   Text(
                     message,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'Roboto',
+                    style: const TextStyle(
+                      
                       fontSize: 14,
                       color: AppColors.textSecondary,
                       height: 1.4,
@@ -87,7 +84,7 @@ class AppLoadingOverlay {
         ),
       ),
       barrierDismissible: false,
-      barrierColor: Colors.black.withValues(alpha: 0.5),
+      barrierColor: AppColors.bgPage.withValues(alpha: 0.5),
     );
   }
 

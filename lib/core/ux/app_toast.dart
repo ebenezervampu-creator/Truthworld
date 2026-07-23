@@ -154,7 +154,7 @@ class AppToast {
             child: Text.rich(
               inlineText,
               style: const TextStyle(
-                fontFamily: 'Roboto',
+                
                 fontSize: 13.5,
                 height: 1.3,
               ),
@@ -187,7 +187,7 @@ class AppToast {
               child: Text(
                 actionLabel,
                 style: const TextStyle(
-                  fontFamily: 'Roboto',
+                  
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -203,7 +203,7 @@ class AppToast {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       borderRadius: radius?.lgValue ?? 12,
       backgroundColor: colors?.surfaceContainer ?? AppColors.bgSurfaceHover,
-      borderColor: Colors.white.withValues(alpha: 0.08),
+      borderColor: AppColors.textPrimary.withValues(alpha: 0.08),
       borderWidth: 1,
       isDismissible: true,
       dismissDirection: DismissDirection.horizontal,
@@ -250,13 +250,13 @@ class AppToast {
 enum _ToastType { success, error, info, warning }
 
 class _ToastConfig {
-  final Color color;
-  final IconData icon;
-  final Duration duration;
 
   const _ToastConfig({
     required this.color,
     required this.icon,
     required this.duration,
   });
+  final Color color;
+  final IconData icon;
+  final Duration duration;
 }

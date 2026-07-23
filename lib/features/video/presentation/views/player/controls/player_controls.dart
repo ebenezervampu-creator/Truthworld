@@ -1,42 +1,40 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
-
-import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
-import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
-import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
-import 'progress_bar.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/features/video/presentation/views/player/controls/progress_bar.dart';
+import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class MainControls extends StatelessWidget {
+  const MainControls({
+    required this.ctrl, required this.playerWidth, super.key,
+  });
   final TowerPlayerController ctrl;
   final double playerWidth;
-  const MainControls({
-    super.key,
-    required this.ctrl,
-    required this.playerWidth,
-  });
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      final double playerHeight = MediaQuery.of(context).size.height;
-      final double? videoAspectRatio = ctrl.vv.isInitialized
+      final playerHeight = MediaQuery.of(context).size.height;
+      final videoAspectRatio = ctrl.vv.isInitialized
           ? ctrl.vv.aspectRatio
           : null;
-      final double maxControlsWidth =
+      final maxControlsWidth =
           (ctrl.isFullScreen.value &&
               videoAspectRatio != null &&
               videoAspectRatio < 1.0)
           ? (playerHeight * videoAspectRatio).clamp(0.0, playerWidth)
           : playerWidth;
 
-      final bool isNarrow = maxControlsWidth < 550;
-      final bool isMedium = maxControlsWidth >= 550 && maxControlsWidth < 800;
+      final isNarrow = maxControlsWidth < 550;
+      final isMedium = maxControlsWidth >= 550 && maxControlsWidth < 800;
 
-      final bool isMobileDevice = Theme.of(context).platform == TargetPlatform.android ||
+      final isMobileDevice = Theme.of(context).platform == TargetPlatform.android ||
                                   Theme.of(context).platform == TargetPlatform.iOS;
 
       return Stack(
@@ -113,7 +111,6 @@ class MainControls extends StatelessWidget {
 
           // Centre controls — play / prev / next
           Align(
-            alignment: Alignment.center,
             child: RepaintBoundary(
               child: CenterRow(ctrl: ctrl, maxControlsWidth: maxControlsWidth),
             ),
@@ -148,12 +145,12 @@ class MainControls extends StatelessWidget {
 
 // ── Top bar ───────────────────────────────────────────────────────────────────
 class PlayerTopBar extends StatelessWidget {
+  const PlayerTopBar({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const PlayerTopBar({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
-    String title = '';
+    var title = '';
     VideoController? vc;
     ChannelController? channelCtrl;
     try {
@@ -173,7 +170,7 @@ class PlayerTopBar extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Colors.black.withValues(alpha: 0.8), Colors.transparent],
+          colors: [AppColors.bgPage.withValues(alpha: 0.8), Colors.transparent],
         ),
       ),
       child: Row(
@@ -216,11 +213,11 @@ class PlayerTopBar extends StatelessWidget {
                   : Container(
                       width: 32,
                       height: 32,
-                      color: Colors.grey[800],
+                      color: AppColors.textSecondary,
                       child: const Icon(
                         Icons.person,
                         size: 20,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
             ),
@@ -264,14 +261,14 @@ class PlayerTopBar extends StatelessWidget {
                       ),
                       decoration: BoxDecoration(
                         color: isSubbed
-                            ? Colors.white.withValues(alpha: 0.1)
-                            : Colors.white,
+                            ? AppColors.textPrimary.withValues(alpha: 0.1)
+                            : AppColors.textPrimary,
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
                         isSubbed ? 'Subscribed' : 'Subscribe',
                         style: TS.bold.copyWith(
-                          color: isSubbed ? Colors.white : Colors.black,
+                          color: isSubbed ? AppColors.textPrimary : AppColors.bgPage,
                           fontSize: 13,
                         ),
                       ),
@@ -285,12 +282,12 @@ class PlayerTopBar extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.1),
+                          color: AppColors.textPrimary.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
                           notificationsEnabled ? Icons.notifications_active : Icons.notifications_off,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           size: 18,
                         ),
                       ),
@@ -322,7 +319,7 @@ class PlayerTopBar extends StatelessWidget {
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: AppColors.textDisabled,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -332,7 +329,7 @@ class PlayerTopBar extends StatelessWidget {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,
-                color: Colors.white,
+                color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 16),
@@ -343,16 +340,16 @@ class PlayerTopBar extends StatelessWidget {
                   ListTile(
                     leading: Icon(
                       Icons.notifications_active,
-                      color: isAll ? PT.primary : Colors.white,
+                      color: isAll ? PT.primary : AppColors.textPrimary,
                     ),
                     title: Text(
                       'All notifications',
                       style: TextStyle(
-                        color: isAll ? PT.primary : Colors.white,
+                        color: isAll ? PT.primary : AppColors.textPrimary,
                         fontWeight: isAll ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
-                    trailing: isAll ? Icon(Icons.check, color: PT.primary) : null,
+                    trailing: isAll ? const Icon(Icons.check, color: PT.primary) : null,
                     onTap: () {
                       Navigator.pop(context);
                       channelCtrl.updateNotificationPreference(channelId, true);
@@ -361,16 +358,16 @@ class PlayerTopBar extends StatelessWidget {
                   ListTile(
                     leading: Icon(
                       Icons.notifications_off,
-                      color: !isAll ? PT.primary : Colors.white,
+                      color: !isAll ? PT.primary : AppColors.textPrimary,
                     ),
                     title: Text(
                       'None',
                       style: TextStyle(
-                        color: !isAll ? PT.primary : Colors.white,
+                        color: !isAll ? PT.primary : AppColors.textPrimary,
                         fontWeight: !isAll ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
-                    trailing: !isAll ? Icon(Icons.check, color: PT.primary) : null,
+                    trailing: !isAll ? const Icon(Icons.check, color: PT.primary) : null,
                     onTap: () {
                       Navigator.pop(context);
                       channelCtrl.updateNotificationPreference(channelId, false);
@@ -388,17 +385,17 @@ class PlayerTopBar extends StatelessWidget {
 
 // ── Centre row ────────────────────────────────────────────────────────────────
 class CenterRow extends StatelessWidget {
+  const CenterRow({required this.ctrl, required this.maxControlsWidth, super.key});
   final TowerPlayerController ctrl;
   final double maxControlsWidth;
-  const CenterRow({super.key, required this.ctrl, required this.maxControlsWidth});
 
   @override
   Widget build(BuildContext context) {
 
-    final bool isMobile = maxControlsWidth < 600;
-    final double playSize = isMobile ? 48.0 : 68.0;
-    final double skipSize = isMobile ? 32.0 : 44.0;
-    final double spacing = isMobile ? 24.0 : 40.0;
+    final isMobile = maxControlsWidth < 600;
+    final playSize = isMobile ? 48.0 : 68.0;
+    final skipSize = isMobile ? 32.0 : 44.0;
+    final spacing = isMobile ? 24.0 : 40.0;
 
     // Absorb taps so the outer player GestureDetector (togglePlayPause) doesn't fire
     return GestureDetector(
@@ -443,14 +440,12 @@ class CenterRow extends StatelessWidget {
 
 // ── Bottom bar ────────────────────────────────────────────────────────────────
 class PlayerBottomBar extends StatelessWidget {
-  final TowerPlayerController ctrl;
-  final bool isNarrow, isMedium;
   const PlayerBottomBar({
-    super.key,
-    required this.ctrl,
-    required this.isNarrow,
-    required this.isMedium,
+    required this.ctrl, required this.isNarrow, required this.isMedium, super.key,
   });
+  final TowerPlayerController ctrl;
+  final bool isNarrow;
+  final bool isMedium;
 
   @override
   Widget build(BuildContext context) {
@@ -461,8 +456,8 @@ class PlayerBottomBar extends StatelessWidget {
           end: Alignment.topCenter,
           stops: const [0, 0.6, 1],
           colors: [
-            Colors.black.withValues(alpha: 0.95),
-            Colors.black.withValues(alpha: 0.55),
+            AppColors.bgPage.withValues(alpha: 0.95),
+            AppColors.bgPage.withValues(alpha: 0.55),
             Colors.transparent,
           ],
         ),
@@ -489,18 +484,16 @@ class PlayerBottomBar extends StatelessWidget {
 
 // ── Control row ───────────────────────────────────────────────────────────────
 class ControlRow extends StatelessWidget {
-  final TowerPlayerController ctrl;
-  final bool isNarrow, isMedium;
   const ControlRow({
-    super.key,
-    required this.ctrl,
-    required this.isNarrow,
-    required this.isMedium,
+    required this.ctrl, required this.isNarrow, required this.isMedium, super.key,
   });
+  final TowerPlayerController ctrl;
+  final bool isNarrow;
+  final bool isMedium;
 
   @override
   Widget build(BuildContext context) {
-    final bool isMobileDevice = Theme.of(context).platform == TargetPlatform.android ||
+    final isMobileDevice = Theme.of(context).platform == TargetPlatform.android ||
                                 Theme.of(context).platform == TargetPlatform.iOS;
 
     if (isMobileDevice) {
@@ -634,7 +627,9 @@ class ControlRow extends StatelessWidget {
                   ? Icons.music_note_rounded
                   : Icons.music_note_outlined,
               onTap: () {
-                String? url, title, art;
+                String? url;
+                String? title;
+                String? art;
                 try {
                   if (ctrl.tag != null &&
                       Get.isRegistered<VideoController>(tag: ctrl.tag)) {
@@ -681,19 +676,19 @@ class ControlRow extends StatelessWidget {
 // NETWORK / ABR BADGES
 // ─────────────────────────────────────────────────────────────────────────────
 class NetworkBadge extends StatelessWidget {
+  const NetworkBadge({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const NetworkBadge({super.key, required this.ctrl});
 
   Color _qColor(NetworkQuality q) {
     switch (q) {
       case NetworkQuality.excellent:
-        return Colors.greenAccent;
+        return AppColors.success;
       case NetworkQuality.good:
         return Colors.lightGreenAccent;
       case NetworkQuality.fair:
         return Colors.yellowAccent;
       case NetworkQuality.poor:
-        return Colors.orangeAccent;
+        return AppColors.warning;
       default:
         return PT.primary;
     }
@@ -723,7 +718,7 @@ class NetworkBadge extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontFamily: 'Roboto',
+                
                 color: col,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
@@ -737,8 +732,8 @@ class NetworkBadge extends StatelessWidget {
 }
 
 class AbrBadge extends StatelessWidget {
+  const AbrBadge({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const AbrBadge({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
@@ -752,9 +747,9 @@ class AbrBadge extends StatelessWidget {
           margin: const EdgeInsets.only(right: 4),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.08),
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.12)),
           ),
           child: Text(label, style: TS.badge),
         ),
@@ -768,8 +763,8 @@ class AbrBadge extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class VolumeControl extends StatelessWidget {
+  const VolumeControl({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const VolumeControl({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
@@ -795,15 +790,13 @@ class VolumeControl extends StatelessWidget {
                             overlayRadius: 12,
                           ),
                           activeTrackColor: PT.primary,
-                          inactiveTrackColor: Colors.white24,
+                          inactiveTrackColor: AppColors.textDisabled,
                           thumbColor: PT.primary,
                           overlayColor: PT.primary.withValues(alpha: 0.2),
                         ),
                         child: Slider(
                           value: ctrl.volume.value,
                           onChanged: ctrl.setVolume,
-                          min: 0,
-                          max: 1,
                         ),
                       ),
                     )
@@ -820,13 +813,13 @@ class VolumeControl extends StatelessWidget {
 // TIME DISPLAY
 // ─────────────────────────────────────────────────────────────────────────────
 class TimeDisplay extends StatelessWidget {
+  const TimeDisplay({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const TimeDisplay({super.key, required this.ctrl});
 
   String _fmt(Duration d) {
-    final h = d.inHours,
-        m = d.inMinutes.remainder(60).toString().padLeft(2, '0'),
-        s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
 
@@ -844,7 +837,7 @@ class TimeDisplay extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               '•',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+              style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5)),
             ),
             const SizedBox(width: 8),
             Flexible(
@@ -852,8 +845,8 @@ class TimeDisplay extends StatelessWidget {
                 ctrl.currentChapter.value!.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontFamily: 'Roboto',
+                style: const TextStyle(
+                  
                   color: PT.primary,
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
@@ -872,10 +865,10 @@ class TimeDisplay extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class IconBtn extends StatelessWidget {
+  const IconBtn({required this.icon, super.key, this.onTap, this.size = 26});
   final IconData icon;
   final VoidCallback? onTap;
   final double size;
-  const IconBtn({super.key, required this.icon, this.onTap, this.size = 26});
 
   @override
   Widget build(BuildContext context) {
@@ -888,7 +881,7 @@ class IconBtn extends StatelessWidget {
         highlightColor: PT.primary.withValues(alpha: 0.1),
         child: Padding(
           padding: const EdgeInsets.all(8),
-          child: Icon(icon, color: Colors.white, size: size),
+          child: Icon(icon, color: AppColors.textPrimary, size: size),
         ),
       ),
     );
@@ -896,17 +889,16 @@ class IconBtn extends StatelessWidget {
 }
 
 class CenterBtn extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback? onTap;
-  final double size;
-  final bool isPrimary;
   const CenterBtn({
-    super.key,
-    required this.icon,
+    required this.icon, super.key,
     this.onTap,
     this.size = 44,
     this.isPrimary = false,
   });
+  final IconData icon;
+  final VoidCallback? onTap;
+  final double size;
+  final bool isPrimary;
 
   @override
   Widget build(BuildContext context) {
@@ -915,18 +907,18 @@ class CenterBtn extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         customBorder: const CircleBorder(),
-        splashColor: Colors.white.withValues(alpha: 0.2),
+        splashColor: AppColors.textPrimary.withValues(alpha: 0.2),
         child: Container(
           padding: EdgeInsets.all(isPrimary ? 14 : 10),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.35),
+            color: AppColors.bgPage.withValues(alpha: 0.35),
             shape: BoxShape.circle,
             border: Border.all(
-              color: Colors.white.withValues(alpha: 0.15),
+              color: AppColors.textPrimary.withValues(alpha: 0.15),
               width: 1.5,
             ),
           ),
-          child: Icon(icon, size: size, color: Colors.white),
+          child: Icon(icon, size: size, color: AppColors.textPrimary),
         ),
       ),
     );
@@ -934,15 +926,12 @@ class CenterBtn extends StatelessWidget {
 }
 
 class PremiumButton extends StatelessWidget {
+  const PremiumButton({
+    required this.label, required this.icon, required this.onTap, super.key,
+  });
   final String label;
   final IconData icon;
   final VoidCallback onTap;
-  const PremiumButton({
-    super.key,
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -957,13 +946,13 @@ class PremiumButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: Colors.white, size: 18),
+              Icon(icon, color: AppColors.textPrimary, size: 18),
               const SizedBox(width: 8),
               Text(
                 label,
-                style: TextStyle(
-                  fontFamily: 'Roboto',
-                  color: Colors.white,
+                style: const TextStyle(
+                  
+                  color: AppColors.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
@@ -977,13 +966,11 @@ class PremiumButton extends StatelessWidget {
 }
 
 class MobileAutoplaySwitch extends StatelessWidget {
+  const MobileAutoplaySwitch({
+    required this.value, required this.onChanged, super.key,
+  });
   final bool value;
   final ValueChanged<bool> onChanged;
-  const MobileAutoplaySwitch({
-    super.key,
-    required this.value,
-    required this.onChanged,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -996,7 +983,7 @@ class MobileAutoplaySwitch extends StatelessWidget {
         padding: const EdgeInsets.all(2),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: value ? Colors.white : Colors.white24,
+          color: value ? AppColors.textPrimary : AppColors.textDisabled,
         ),
         child: AnimatedAlign(
           duration: const Duration(milliseconds: 200),
@@ -1006,12 +993,12 @@ class MobileAutoplaySwitch extends StatelessWidget {
             height: 20,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: value ? const Color(0xFF1E1E1E) : Colors.white70,
+              color: value ? const Color(0xFF1E1E1E) : AppColors.textSecondary,
             ),
             child: Icon(
               value ? Icons.play_arrow_rounded : Icons.pause_rounded,
               size: 14,
-              color: value ? Colors.white : const Color(0xFF1E1E1E),
+              color: value ? AppColors.textPrimary : const Color(0xFF1E1E1E),
             ),
           ),
         ),

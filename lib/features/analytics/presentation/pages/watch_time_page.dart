@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/creator_analytics_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class WatchTimePage extends StatelessWidget {
   const WatchTimePage({super.key});
@@ -29,13 +30,13 @@ class WatchTimePage extends StatelessWidget {
         backgroundColor: const Color(0xFF0A0A0F),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Get.back(),
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: Get.back,
         ),
         title: const Text(
           'Watch Time',
           style: TextStyle(
-            color: Colors.white,
+            color: AppColors.textPrimary,
             fontWeight: FontWeight.w700,
             fontSize: 20,
           ),
@@ -53,7 +54,7 @@ class WatchTimePage extends StatelessWidget {
 
         return RefreshIndicator(
           color: const Color(0xFFDC2626),
-          onRefresh: () => controller.refreshAnalytics(),
+          onRefresh: controller.refreshAnalytics,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -62,15 +63,15 @@ class WatchTimePage extends StatelessWidget {
               children: [
                 _buildMainMetric(controller, args),
                 const SizedBox(height: 24),
-                _SectionHeader(title: 'Watch Time Trend'),
+                const _SectionHeader(title: 'Watch Time Trend'),
                 const SizedBox(height: 12),
                 _buildTrendChart(controller),
                 const SizedBox(height: 24),
-                _SectionHeader(title: 'Audience Retention'),
+                const _SectionHeader(title: 'Audience Retention'),
                 const SizedBox(height: 12),
                 _WatchtimeRetentionCard(controller: controller),
                 const SizedBox(height: 24),
-                _SectionHeader(title: 'Key Insights'),
+                const _SectionHeader(title: 'Key Insights'),
                 const SizedBox(height: 12),
                 _buildInsightsGrid(controller),
               ],
@@ -92,7 +93,7 @@ class WatchTimePage extends StatelessWidget {
           Text(
             'Total Watch Time',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.6),
+              color: AppColors.textPrimary.withValues(alpha: 0.6),
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
@@ -101,7 +102,7 @@ class WatchTimePage extends StatelessWidget {
           Text(
             controller.totalWatchTime.value,
             style: const TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 48,
               fontWeight: FontWeight.w800,
               letterSpacing: -1,
@@ -138,18 +139,18 @@ class WatchTimePage extends StatelessWidget {
         child: SfCartesianChart(
           plotAreaBorderWidth: 0,
           margin: EdgeInsets.zero,
-          primaryXAxis: DateTimeAxis(
-            majorGridLines: const MajorGridLines(width: 0),
-            labelStyle: const TextStyle(color: Colors.white54, fontSize: 10),
-            axisLine: const AxisLine(width: 0),
+          primaryXAxis: const DateTimeAxis(
+            majorGridLines: MajorGridLines(width: 0),
+            labelStyle: TextStyle(color: AppColors.textSecondary, fontSize: 10),
+            axisLine: AxisLine(width: 0),
           ),
           primaryYAxis: NumericAxis(
             majorGridLines: MajorGridLines(
               width: 1,
-              color: Colors.white.withValues(alpha: 0.05),
+              color: AppColors.textPrimary.withValues(alpha: 0.05),
               dashArray: const [5, 5],
             ),
-            labelStyle: const TextStyle(color: Colors.white54, fontSize: 10),
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
             axisLine: const AxisLine(width: 0),
             labelFormat: '{value}h',
           ),
@@ -162,14 +163,12 @@ class WatchTimePage extends StatelessWidget {
               gradient: LinearGradient(
                 colors: [
                   const Color(0xFF3B82F6).withValues(alpha: 0.3),
-                  const Color(0xFF3B82F6).withValues(alpha: 0.0),
+                  const Color(0xFF3B82F6).withValues(alpha: 0),
                 ],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
               ),
               borderColor: const Color(0xFF3B82F6),
-              borderWidth: 2,
-              markerSettings: const MarkerSettings(isVisible: false),
               name: 'Watch Time',
             ),
           ],
@@ -214,7 +213,7 @@ class WatchTimePage extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.w700,
             ),
@@ -222,7 +221,7 @@ class WatchTimePage extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.5),
+              color: AppColors.textPrimary.withValues(alpha: 0.5),
               fontSize: 11,
             ),
           ),
@@ -233,15 +232,15 @@ class WatchTimePage extends StatelessWidget {
 }
 
 class _SectionHeader extends StatelessWidget {
-  final String title;
   const _SectionHeader({required this.title});
+  final String title;
 
   @override
   Widget build(BuildContext context) {
     return Text(
       title,
       style: const TextStyle(
-        color: Colors.white,
+        color: AppColors.textPrimary,
         fontSize: 18,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.3,
@@ -251,8 +250,8 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _GlassCard extends StatelessWidget {
-  final Widget child;
   const _GlassCard({required this.child});
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
@@ -260,9 +259,9 @@ class _GlassCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
+        color: AppColors.textPrimary.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.08)),
       ),
       child: child,
     );
@@ -270,8 +269,8 @@ class _GlassCard extends StatelessWidget {
 }
 
 class _WatchtimeRetentionCard extends StatelessWidget {
-  final CreatorAnalyticsController controller;
   const _WatchtimeRetentionCard({required this.controller});
+  final CreatorAnalyticsController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -284,7 +283,7 @@ class _WatchtimeRetentionCard extends StatelessWidget {
               final data = controller.watchtimeChartData;
               if (data.isEmpty) {
                 return const Center(
-                  child: Text('No data', style: TextStyle(color: Colors.white38)),
+                  child: Text('No data', style: TextStyle(color: AppColors.textTertiary)),
                 );
               }
 
@@ -296,7 +295,7 @@ class _WatchtimeRetentionCard extends StatelessWidget {
                       color: Color(d.color),
                       title: '${d.percentage.toStringAsFixed(0)}%',
                       titleStyle: const TextStyle(
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                       ),
@@ -331,15 +330,15 @@ class _WatchtimeRetentionCard extends StatelessWidget {
 }
 
 class _LegendItem extends StatelessWidget {
-  final Color color;
-  final String label;
-  final String value;
 
   const _LegendItem({
     required this.color,
     required this.label,
     required this.value,
   });
+  final Color color;
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
@@ -358,7 +357,7 @@ class _LegendItem extends StatelessWidget {
         Text(
           '$label: $value',
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.7),
+            color: AppColors.textPrimary.withValues(alpha: 0.7),
             fontSize: 11,
           ),
         ),

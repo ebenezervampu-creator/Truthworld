@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/search/data/models/search_result.dart';
 import 'package:truthworld/features/search/presentation/controllers/search_controller.dart' as ctrl;
 import 'package:truthworld/features/search/presentation/widgets/voice_search_dialog.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// GetX Controller to manage state for SubscribeButton
 class SubscribeButtonController extends GetxController {
@@ -16,12 +17,14 @@ class SubscribeButtonController extends GetxController {
 
 /// GetX Subscribe Button to mock subscriptions interactively
 class SubscribeButton extends StatelessWidget {
+  const SubscribeButton({required this.channelName, super.key});
   final String channelName;
-  const SubscribeButton({super.key, required this.channelName});
 
   @override
   Widget build(BuildContext context) {
     final controller = Get.put(SubscribeButtonController(), tag: channelName);
+    final colors = context.twColors;
+    final typography = context.twTypography;
 
     return Obx(() {
       final isSubscribed = controller.isSubscribed.value;
@@ -35,8 +38,8 @@ class SubscribeButton extends StatelessWidget {
               ? 'Added $channelName to subscriptions.' 
               : 'Removed $channelName from subscriptions.',
             snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: Colors.white.withValues(alpha: 0.9),
-            colorText: Colors.black,
+            backgroundColor: colors.textPrimary.withValues(alpha: 0.9),
+            colorText: colors.background,
             duration: const Duration(seconds: 2),
           );
         },
@@ -44,14 +47,13 @@ class SubscribeButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: isSubscribed ? Colors.white.withValues(alpha: 0.1) : Colors.white,
+            color: isSubscribed ? colors.textPrimary.withValues(alpha: 0.1) : colors.textPrimary,
             borderRadius: BorderRadius.circular(18),
           ),
           child: Text(
             isSubscribed ? 'Subscribed' : 'Subscribe',
-            style: TextStyle(
-              color: isSubscribed ? Colors.white70 : Colors.black,
-              fontSize: 12,
+            style: typography.label.copyWith(
+              color: isSubscribed ? colors.textSecondary : colors.background,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -72,12 +74,14 @@ class FollowButtonController extends GetxController {
 
 /// GetX Follow Button for Topic cards
 class FollowButton extends StatelessWidget {
+  const FollowButton({required this.topicTitle, super.key});
   final String topicTitle;
-  const FollowButton({super.key, required this.topicTitle});
 
   @override
   Widget build(BuildContext context) {
     final controller = Get.put(FollowButtonController(), tag: topicTitle);
+    final colors = context.twColors;
+    final typography = context.twTypography;
 
     return Obx(() {
       final isFollowing = controller.isFollowing.value;
@@ -91,8 +95,8 @@ class FollowButton extends StatelessWidget {
               ? 'Now following the $topicTitle topic.' 
               : 'Unfollowed $topicTitle topic.',
             snackPosition: SnackPosition.BOTTOM,
-            backgroundColor: Colors.white.withValues(alpha: 0.9),
-            colorText: Colors.black,
+            backgroundColor: colors.textPrimary.withValues(alpha: 0.9),
+            colorText: colors.background,
             duration: const Duration(seconds: 2),
           );
         },
@@ -100,14 +104,13 @@ class FollowButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: isFollowing ? Colors.white.withValues(alpha: 0.1) : const Color(0xFF9B30FF),
+            color: isFollowing ? colors.textPrimary.withValues(alpha: 0.1) : colors.brand,
             borderRadius: BorderRadius.circular(18),
           ),
           child: Text(
             isFollowing ? 'Following' : 'Follow',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
+            style: typography.label.copyWith(
+              color: colors.textPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -119,10 +122,10 @@ class FollowButton extends StatelessWidget {
 
 /// Reusable search result card widget
 class SearchResultCard extends StatelessWidget {
+
+  const SearchResultCard({required this.result, super.key, this.onTap});
   final SearchResult result;
   final VoidCallback? onTap;
-
-  const SearchResultCard({super.key, required this.result, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -155,7 +158,7 @@ class SearchResultCard extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -168,15 +171,15 @@ class SearchResultCard extends StatelessWidget {
                     aspectRatio: 16 / 9,
                     child: Container(
                       width: MediaQuery.of(context).size.width * 0.38,
-                      color: Colors.grey[900],
+                      color: AppColors.textSecondary,
                       child: result.thumbnail.isNotEmpty
                           ? CachedNetworkImage(
                               imageUrl: result.thumbnail,
                               fit: BoxFit.cover,
-                              placeholder: (context, url) => Container(color: Colors.white10),
-                              errorWidget: (context, url, error) => const Icon(Icons.play_circle_outline, color: Colors.white38),
+                              placeholder: (context, url) => Container(color: AppColors.bgDivider),
+                              errorWidget: (context, url, error) => const Icon(Icons.play_circle_outline, color: AppColors.textTertiary),
                             )
-                          : const Icon(Icons.play_circle_outline, color: Colors.white38),
+                          : const Icon(Icons.play_circle_outline, color: AppColors.textTertiary),
                     ),
                   ),
                 ),
@@ -187,12 +190,12 @@ class SearchResultCard extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.8),
+                        color: AppColors.bgPage.withValues(alpha: 0.8),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         durationStr,
-                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 10, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
@@ -209,7 +212,7 @@ class SearchResultCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                       height: 1.25,
@@ -218,7 +221,7 @@ class SearchResultCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${_formatViews(result.views)} views • ${_formatRelativeTime(result.createdAt.toDate())}',
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                   const SizedBox(height: 8),
                   // Channel row
@@ -232,19 +235,19 @@ class SearchResultCard extends StatelessWidget {
                             width: 20,
                             height: 20,
                             fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(color: Colors.white10),
-                            errorWidget: (context, url, error) => const Icon(Icons.account_circle, size: 20, color: Colors.white38),
+                            placeholder: (context, url) => Container(color: AppColors.bgDivider),
+                            errorWidget: (context, url, error) => const Icon(Icons.account_circle, size: 20, color: AppColors.textTertiary),
                           ),
                         )
                       else
-                        const Icon(Icons.account_circle, size: 20, color: Colors.white38),
+                        const Icon(Icons.account_circle, size: 20, color: AppColors.textTertiary),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           result.channelName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: Colors.white70, fontSize: 12),
+                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                         ),
                       ),
                     ],
@@ -256,12 +259,12 @@ class SearchResultCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                         decoration: BoxDecoration(
-                          color: Colors.white10,
+                          color: AppColors.bgDivider,
                           borderRadius: BorderRadius.circular(3),
                         ),
                         child: const Text(
                           '4K',
-                          style: TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.bold),
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: 9, fontWeight: FontWeight.bold),
                         ),
                       ),
                       const SizedBox(width: 6),
@@ -270,7 +273,7 @@ class SearchResultCard extends StatelessWidget {
                           'Watch in high quality truth stream.',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: Colors.white38, fontSize: 11),
+                          style: TextStyle(color: AppColors.textTertiary, fontSize: 11),
                         ),
                       ),
                     ],
@@ -288,7 +291,7 @@ class SearchResultCard extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         child: Row(
           children: [
             // Circular Avatar
@@ -296,15 +299,15 @@ class SearchResultCard extends StatelessWidget {
               child: Container(
                 width: 80,
                 height: 80,
-                color: Colors.grey[900],
+                color: AppColors.textSecondary,
                 child: result.thumbnail.isNotEmpty
                     ? CachedNetworkImage(
                         imageUrl: result.thumbnail,
                         fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(color: Colors.white10),
-                        errorWidget: (context, url, error) => const Icon(Icons.account_circle, size: 40, color: Colors.white38),
+                        placeholder: (context, url) => Container(color: AppColors.bgDivider),
+                        errorWidget: (context, url, error) => const Icon(Icons.account_circle, size: 40, color: AppColors.textTertiary),
                       )
-                    : const Icon(Icons.account_circle, size: 40, color: Colors.white38),
+                    : const Icon(Icons.account_circle, size: 40, color: AppColors.textTertiary),
               ),
             ),
             const SizedBox(width: 16),
@@ -318,7 +321,7 @@ class SearchResultCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
@@ -326,14 +329,14 @@ class SearchResultCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${result.channelName} • ${_formatViews(result.views)} subscribers',
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                   const SizedBox(height: 6),
                   const Text(
                     'Official channel. Explore and join.',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.white38, fontSize: 12),
+                    style: TextStyle(color: AppColors.textTertiary, fontSize: 12),
                   ),
                 ],
               ),
@@ -351,7 +354,7 @@ class SearchResultCard extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -364,15 +367,15 @@ class SearchResultCard extends StatelessWidget {
                     aspectRatio: 16 / 9,
                     child: Container(
                       width: MediaQuery.of(context).size.width * 0.38,
-                      color: Colors.grey[900],
+                      color: AppColors.textSecondary,
                       child: result.thumbnail.isNotEmpty
                           ? CachedNetworkImage(
                               imageUrl: result.thumbnail,
                               fit: BoxFit.cover,
-                              placeholder: (context, url) => Container(color: Colors.white10),
-                              errorWidget: (context, url, error) => const Icon(Icons.playlist_play, color: Colors.white38),
+                              placeholder: (context, url) => Container(color: AppColors.bgDivider),
+                              errorWidget: (context, url, error) => const Icon(Icons.playlist_play, color: AppColors.textTertiary),
                             )
-                          : const Icon(Icons.playlist_play, color: Colors.white38),
+                          : const Icon(Icons.playlist_play, color: AppColors.textTertiary),
                     ),
                   ),
                 ),
@@ -383,7 +386,7 @@ class SearchResultCard extends StatelessWidget {
                   width: MediaQuery.of(context).size.width * 0.14,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.7),
+                      color: AppColors.bgPage.withValues(alpha: 0.7),
                       borderRadius: const BorderRadius.only(
                         topRight: Radius.circular(12),
                         bottomRight: Radius.circular(12),
@@ -392,12 +395,12 @@ class SearchResultCard extends StatelessWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.playlist_play, color: Colors.white),
+                        const Icon(Icons.playlist_play, color: AppColors.textPrimary),
                         const SizedBox(height: 4),
                         Text(
                           '${result.views}', // acts as video count
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
@@ -419,7 +422,7 @@ class SearchResultCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -427,7 +430,7 @@ class SearchResultCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     'Playlist • ${result.channelName}',
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                   const SizedBox(height: 8),
                   const Text(
@@ -451,7 +454,7 @@ class SearchResultCard extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -464,15 +467,28 @@ class SearchResultCard extends StatelessWidget {
                     aspectRatio: 16 / 9,
                     child: Container(
                       width: MediaQuery.of(context).size.width * 0.38,
-                      color: Colors.grey[900],
+                      color: AppColors.textSecondary,
                       child: result.thumbnail.isNotEmpty
-                          ? CachedNetworkImage(
-                              imageUrl: result.thumbnail,
-                              fit: BoxFit.cover,
-                              placeholder: (context, url) => Container(color: Colors.white10),
-                              errorWidget: (context, url, error) => const Icon(Icons.topic, color: Colors.white38),
+                          ? Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                CachedNetworkImage(
+                                  imageUrl: result.thumbnail,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (context, url, error) => const Icon(Icons.topic, color: AppColors.textTertiary),
+                                ),
+                                Container(
+                                  color: Colors.black.withValues(alpha: 0.65),
+                                ),
+                                CachedNetworkImage(
+                                  imageUrl: result.thumbnail,
+                                  fit: BoxFit.contain,
+                                  placeholder: (context, url) => Container(color: AppColors.bgDivider),
+                                  errorWidget: (context, url, error) => const Icon(Icons.topic, color: AppColors.textTertiary),
+                                ),
+                              ],
                             )
-                          : const Icon(Icons.topic, color: Colors.white38),
+                          : const Icon(Icons.topic, color: AppColors.textTertiary),
                     ),
                   ),
                 ),
@@ -487,7 +503,7 @@ class SearchResultCard extends StatelessWidget {
                     ),
                     child: const Text(
                       'TOPIC',
-                      style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                      style: TextStyle(color: AppColors.textPrimary, fontSize: 8, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -504,7 +520,7 @@ class SearchResultCard extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                     ),
@@ -512,12 +528,12 @@ class SearchResultCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     result.channelName, // Display slug/handle
-                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     '${_formatViews(result.views)} videos available',
-                    style: const TextStyle(color: Colors.white38, fontSize: 11),
+                    style: const TextStyle(color: AppColors.textTertiary, fontSize: 11),
                   ),
                 ],
               ),
@@ -564,16 +580,13 @@ class SearchResultCard extends StatelessWidget {
 
 /// Custom autocomplete suggestion tile
 class SearchSuggestionTile extends StatelessWidget {
+
+  const SearchSuggestionTile({
+    required this.suggestion, required this.onTap, required this.onCopy, super.key,
+  });
   final ctrl.SearchSuggestion suggestion;
   final VoidCallback onTap;
   final VoidCallback onCopy;
-
-  const SearchSuggestionTile({
-    super.key,
-    required this.suggestion,
-    required this.onTap,
-    required this.onCopy,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -585,7 +598,7 @@ class SearchSuggestionTile extends StatelessWidget {
           children: [
             Icon(
               suggestion.icon,
-              color: Colors.white54,
+              color: AppColors.textSecondary,
               size: 20,
             ),
             const SizedBox(width: 16),
@@ -596,7 +609,7 @@ class SearchSuggestionTile extends StatelessWidget {
                   Text(
                     suggestion.text,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w400,
                     ),
@@ -607,7 +620,7 @@ class SearchSuggestionTile extends StatelessWidget {
                     Text(
                       suggestion.subtitle!,
                       style: const TextStyle(
-                        color: Colors.white54,
+                        color: AppColors.textSecondary,
                         fontSize: 12,
                       ),
                       maxLines: 1,
@@ -624,15 +637,15 @@ class SearchSuggestionTile extends StatelessWidget {
                   width: 40,
                   height: suggestion.isRoundImage ? 40 : 25,
                   fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(color: Colors.white10),
-                  errorWidget: (context, url, error) => const Icon(Icons.image, size: 20, color: Colors.white24),
+                  placeholder: (context, url) => Container(color: AppColors.bgDivider),
+                  errorWidget: (context, url, error) => const Icon(Icons.image, size: 20, color: AppColors.textDisabled),
                 ),
               )
             else
               IconButton(
                 icon: const Icon(
                   Icons.north_west,
-                  color: Colors.white30,
+                  color: AppColors.textTertiary,
                   size: 18,
                 ),
                 onPressed: onCopy,
@@ -648,10 +661,10 @@ class SearchSuggestionTile extends StatelessWidget {
 
 /// Empty state widget for no search results
 class EmptySearchState extends StatelessWidget {
+
+  const EmptySearchState({required this.query, super.key, this.onClearSearch});
   final String query;
   final VoidCallback? onClearSearch;
-
-  const EmptySearchState({super.key, required this.query, this.onClearSearch});
 
   @override
   Widget build(BuildContext context) {
@@ -659,21 +672,21 @@ class EmptySearchState extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.search_off, size: 64, color: Colors.grey[700]),
+          const Icon(Icons.search_off, size: 64, color: AppColors.textSecondary),
           const SizedBox(height: 16),
           Text(
             'No results for "$query"',
-            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          const Text('Try different keywords', style: TextStyle(color: Colors.white54)),
+          const Text('Try different keywords', style: TextStyle(color: AppColors.textSecondary)),
           const SizedBox(height: 16),
           if (onClearSearch != null)
             ElevatedButton(
               onPressed: onClearSearch,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white10,
-                foregroundColor: Colors.white,
+                backgroundColor: AppColors.bgDivider,
+                foregroundColor: AppColors.textPrimary,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               ),
               child: const Text('Clear Search'),
@@ -686,9 +699,9 @@ class EmptySearchState extends StatelessWidget {
 
 /// Loading skeleton for search results
 class SearchResultSkeleton extends StatelessWidget {
-  final int count;
 
   const SearchResultSkeleton({super.key, this.count = 5});
+  final int count;
 
   @override
   Widget build(BuildContext context) {
@@ -696,7 +709,7 @@ class SearchResultSkeleton extends StatelessWidget {
       itemCount: count,
       itemBuilder: (context, index) {
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -705,7 +718,7 @@ class SearchResultSkeleton extends StatelessWidget {
                 height: 90,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
-                  color: Colors.white.withValues(alpha: 0.05),
+                  color: AppColors.textPrimary.withValues(alpha: 0.05),
                 ),
               ),
               const SizedBox(width: 12),
@@ -715,19 +728,19 @@ class SearchResultSkeleton extends StatelessWidget {
                   children: [
                     Container(
                       height: 16,
-                      color: Colors.white.withValues(alpha: 0.05),
+                      color: AppColors.textPrimary.withValues(alpha: 0.05),
                     ),
                     const SizedBox(height: 8),
                     Container(
                       height: 12,
                       width: 120,
-                      color: Colors.white.withValues(alpha: 0.05),
+                      color: AppColors.textPrimary.withValues(alpha: 0.05),
                     ),
                     const SizedBox(height: 12),
                     Container(
                       height: 12,
                       width: 80,
-                      color: Colors.white.withValues(alpha: 0.05),
+                      color: AppColors.textPrimary.withValues(alpha: 0.05),
                     ),
                   ],
                 ),
@@ -742,16 +755,13 @@ class SearchResultSkeleton extends StatelessWidget {
 
 /// Recent searches list widget
 class RecentSearchesList extends StatelessWidget {
+
+  const RecentSearchesList({
+    required this.recentSearches, required this.onSearchSelected, required this.onClearAll, super.key,
+  });
   final List<String> recentSearches;
   final Function(String) onSearchSelected;
   final VoidCallback onClearAll;
-
-  const RecentSearchesList({
-    super.key,
-    required this.recentSearches,
-    required this.onSearchSelected,
-    required this.onClearAll,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -769,11 +779,11 @@ class RecentSearchesList extends StatelessWidget {
             children: [
               const Text(
                 'Recent Searches',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold),
               ),
               TextButton(
                 onPressed: onClearAll,
-                child: const Text('Clear All', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                child: const Text('Clear All', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
               ),
             ],
           ),
@@ -786,8 +796,8 @@ class RecentSearchesList extends StatelessWidget {
                 (search) => InkWell(
                   onTap: () => onSearchSelected(search),
                   child: Chip(
-                    label: Text(search, style: const TextStyle(color: Colors.white)),
-                    backgroundColor: Colors.white10,
+                    label: Text(search, style: const TextStyle(color: AppColors.textPrimary)),
+                    backgroundColor: AppColors.bgDivider,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   ),
                 ),
@@ -799,116 +809,145 @@ class RecentSearchesList extends StatelessWidget {
   }
 }
 
-/// Search bar widget with YouTube capsule design
-class SearchBar extends StatelessWidget {
+/// Search bar widget matching Category Page simple text field design
+class SearchBar extends StatefulWidget {
+
+  const SearchBar({
+    required this.controller, required this.onChanged, required this.onClear, required this.onSearchSubmitted, super.key,
+    this.hintText = 'Search videos, channels, topics...',
+    this.isLoading = false,
+  });
   final TextEditingController controller;
   final Function(String) onChanged;
   final VoidCallback onClear;
   final VoidCallback onSearchSubmitted;
   final String hintText;
+  final bool isLoading;
 
-  const SearchBar({
-    super.key,
-    required this.controller,
-    required this.onChanged,
-    required this.onClear,
-    required this.onSearchSubmitted,
-    this.hintText = 'Search videos, channels, topics...',
-  });
+  @override
+  State<SearchBar> createState() => _SearchBarState();
+}
+
+class _SearchBarState extends State<SearchBar> {
+  final FocusNode _focusNode = FocusNode();
+  final RxBool _isFocused = false.obs;
+  final RxInt _textLength = 0.obs;
+
+  @override
+  void initState() {
+    super.initState();
+    _textLength.value = widget.controller.text.length;
+    widget.controller.addListener(_handleTextChanged);
+    _focusNode.addListener(_handleFocusChange);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleTextChanged);
+    _focusNode.removeListener(_handleFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _handleTextChanged() {
+    _textLength.value = widget.controller.text.length;
+  }
+
+  void _handleFocusChange() {
+    _isFocused.value = _focusNode.hasFocus;
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              height: 40,
-              decoration: BoxDecoration(
-                color: const Color(0xFF212121),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFF3F3F3F)),
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: TextField(
-                      controller: controller,
-                      onChanged: onChanged,
-                      onSubmitted: (_) => onSearchSubmitted(),
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
-                      cursorColor: const Color(0xFF9B30FF),
-                      decoration: InputDecoration(
-                        hintText: hintText,
-                        hintStyle: const TextStyle(color: Colors.white30, fontSize: 14),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                  ),
-                  if (controller.text.isNotEmpty)
-                    IconButton(
-                      icon: const Icon(Icons.clear, color: Colors.white70, size: 18),
-                      onPressed: () {
-                        controller.clear();
-                        onClear();
-                      },
-                      constraints: const BoxConstraints(),
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                  const VerticalDivider(
-                    color: Color(0xFF3F3F3F),
-                    thickness: 1,
-                    width: 1,
-                    indent: 8,
-                    endIndent: 8,
-                  ),
-                  InkWell(
-                    onTap: onSearchSubmitted,
-                    borderRadius: const BorderRadius.only(
-                      topRight: Radius.circular(20),
-                      bottomRight: Radius.circular(20),
-                    ),
-                    child: Container(
-                      width: 50,
-                      alignment: Alignment.center,
-                      child: const Icon(Icons.search, color: Colors.white70, size: 20),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+    final theme = Theme.of(context);
+
+    return Obx(() => Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.bgSurfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _isFocused.value ? AppColors.brand : AppColors.bgSurfaceContainerHighest,
+        ),
+      ),
+      child: TextField(
+        controller: widget.controller,
+        focusNode: _focusNode,
+        onChanged: widget.onChanged,
+        onSubmitted: (_) => widget.onSearchSubmitted(),
+        autofocus: true,
+        textInputAction: TextInputAction.search,
+        style: TextStyle(
+          color: theme.colorScheme.onSurface,
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+        ),
+        cursorColor: AppColors.brand,
+        decoration: InputDecoration(
+          hintText: widget.hintText,
+          hintStyle: TextStyle(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontSize: 14,
           ),
-          const SizedBox(width: 8),
-          // Separate circle mic button next to capsule
-          InkWell(
-            onTap: () {
-              Get.dialog(
-                VoiceSearchDialog(
-                  onSearch: (query) {
-                    controller.text = query;
-                    onSearchSubmitted();
+          prefixIcon: widget.isLoading
+              ? Container(
+                  width: 20,
+                  height: 20,
+                  margin: const EdgeInsets.all(12),
+                  child: const CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.brand,
+                  ),
+                )
+              : IconButton(
+                  icon: Icon(
+                    Icons.search_rounded,
+                    color: _isFocused.value ? AppColors.brand : theme.colorScheme.onSurfaceVariant,
+                    size: 20,
+                  ),
+                  onPressed: widget.onSearchSubmitted,
+                ),
+          suffixIcon: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_textLength.value > 0)
+                IconButton(
+                  icon: Icon(
+                    Icons.clear_rounded,
+                    color: theme.colorScheme.onSurfaceVariant,
+                    size: 18,
+                  ),
+                  onPressed: () {
+                    widget.controller.clear();
+                    _textLength.value = 0;
+                    widget.onClear();
                   },
                 ),
-                useSafeArea: false,
-              );
-            },
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: const BoxDecoration(
-                color: Color(0xFF212121),
-                shape: BoxShape.circle,
+              IconButton(
+                icon: Icon(
+                  Icons.mic_rounded,
+                  color: theme.colorScheme.onSurfaceVariant,
+                  size: 20,
+                ),
+                onPressed: () {
+                  Get.dialog(
+                    VoiceSearchDialog(
+                      onSearch: (query) {
+                        widget.controller.text = query;
+                        widget.onChanged(query);
+                        widget.onSearchSubmitted();
+                      },
+                    ),
+                    useSafeArea: false,
+                  );
+                },
               ),
-              child: const Icon(Icons.mic, color: Colors.white, size: 20),
-            ),
+            ],
           ),
-        ],
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        ),
       ),
-    );
+    ));
   }
 }

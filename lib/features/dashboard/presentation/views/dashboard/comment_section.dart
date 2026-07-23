@@ -1,30 +1,17 @@
-import 'package:truthworld/theme/app_theme.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 // studio_comments_module.dart
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:truthworld/features/video/data/services/comment_service.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:truthworld/features/video/data/services/comment_service.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 // ------------------------------------------------------------
 // MODELS
 // ------------------------------------------------------------
 
 class Comment {
-  final String id;
-  final String text;
-  final String userId;
-  final String userName;
-  final String userProfilePicUrl;
-  final Timestamp createdAt;
-  final int likeCount;
-  final int dislikeCount;
-  final List<String> likedBy;
-  final List<String> dislikedBy;
-  final Timestamp? hiddenUntil;
-  bool hasCreatorReply;
-  Reply? creatorReply;
 
   Comment({
     required this.id,
@@ -43,7 +30,7 @@ class Comment {
   });
 
   factory Comment.fromDocumentSnapshot(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = doc.data()! as Map<String, dynamic>;
     return Comment(
       id: doc.id,
       text: _stringFrom(data['text']),
@@ -58,6 +45,19 @@ class Comment {
       hiddenUntil: _timestampFrom(data['hiddenUntil']),
     );
   }
+  final String id;
+  final String text;
+  final String userId;
+  final String userName;
+  final String userProfilePicUrl;
+  final Timestamp createdAt;
+  final int likeCount;
+  final int dislikeCount;
+  final List<String> likedBy;
+  final List<String> dislikedBy;
+  final Timestamp? hiddenUntil;
+  bool hasCreatorReply;
+  Reply? creatorReply;
 
   Comment copyWith({bool? hasCreatorReply, Reply? creatorReply}) {
     return Comment(
@@ -79,12 +79,6 @@ class Comment {
 }
 
 class Reply {
-  final String id;
-  final String text;
-  final String userId;
-  final String userName;
-  final String userProfilePicUrl;
-  final Timestamp createdAt;
 
   Reply({
     required this.id,
@@ -96,7 +90,7 @@ class Reply {
   });
 
   factory Reply.fromDocumentSnapshot(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = doc.data()! as Map<String, dynamic>;
     return Reply(
       id: doc.id,
       text: _stringFrom(data['text']),
@@ -106,14 +100,15 @@ class Reply {
       createdAt: _timestampFrom(data['createdAt']) ?? Timestamp.now(),
     );
   }
+  final String id;
+  final String text;
+  final String userId;
+  final String userName;
+  final String userProfilePicUrl;
+  final Timestamp createdAt;
 }
 
 class VideoComment {
-  final String videoId;
-  final String videoTitle;
-  final String videoThumbnail;
-  final Comment comment;
-  final int totalReplyCount;
 
   VideoComment({
     required this.videoId,
@@ -122,6 +117,11 @@ class VideoComment {
     required this.comment,
     required this.totalReplyCount,
   });
+  final String videoId;
+  final String videoTitle;
+  final String videoThumbnail;
+  final Comment comment;
+  final int totalReplyCount;
 }
 
 // ------------------------------------------------------------
@@ -159,9 +159,6 @@ Timestamp? _timestampFrom(dynamic val) {
 // ------------------------------------------------------------
 
 class StudioCommentsController extends GetxController {
-  final String channelId;
-  final String channelImageUrl;
-  final String channelName;
 
   StudioCommentsController({
     required this.channelId,
@@ -175,6 +172,9 @@ class StudioCommentsController extends GetxController {
       });
     }
   }
+  final String channelId;
+  final String channelImageUrl;
+  final String channelName;
 
   final comments = <VideoComment>[].obs;
   final isLoading = true.obs;
@@ -193,7 +193,7 @@ class StudioCommentsController extends GetxController {
           .doc(userId)
           .collection('comment_interactions')
           .get();
-      for (var doc in snap.docs) {
+      for (final doc in snap.docs) {
         final data = doc.data();
         final type = data['type'];
         userCommentInteractions[doc.id] = {
@@ -227,7 +227,7 @@ class StudioCommentsController extends GetxController {
         return;
       }
 
-      List<VideoComment> allComments = [];
+      final allComments = <VideoComment>[];
 
       final List<Future<void>> fetches = videosSnapshot.docs.map((
         videoDoc,
@@ -241,8 +241,8 @@ class StudioCommentsController extends GetxController {
             .orderBy('createdAt', descending: true)
             .get();
 
-        for (var commentDoc in commentsSnapshot.docs) {
-          Comment comment = Comment.fromDocumentSnapshot(commentDoc);
+        for (final commentDoc in commentsSnapshot.docs) {
+          var comment = Comment.fromDocumentSnapshot(commentDoc);
 
           // Skip hidden comments
           if (comment.hiddenUntil != null &&
@@ -250,9 +250,9 @@ class StudioCommentsController extends GetxController {
             continue;
           }
 
-          bool hasCreatorReply = false;
+          var hasCreatorReply = false;
           Reply? creatorReply;
-          int totalReplyCount = 0;
+          var totalReplyCount = 0;
 
           try {
             final repliesSnap = await commentDoc.reference
@@ -420,7 +420,7 @@ class StudioCommentsController extends GetxController {
   }
 
   List<VideoComment> get filteredComments {
-    List<VideoComment> filtered = List.from(comments);
+    var filtered = List<VideoComment>.from(comments);
 
     // Filter
     if (selectedFilter.value == 'unanswered') {
@@ -475,15 +475,15 @@ class StudioCommentsController extends GetxController {
 // ------------------------------------------------------------
 
 class ReplyController extends GetxController {
-  final String videoId;
-  final String commentId;
-  final String channelId;
 
   ReplyController({
     required this.videoId,
     required this.commentId,
     required this.channelId,
   });
+  final String videoId;
+  final String commentId;
+  final String channelId;
 
   final replies = <Reply>[].obs;
   final isLoading = true.obs;
@@ -507,7 +507,7 @@ class ReplyController extends GetxController {
           .get();
 
       replies.value = snapshot.docs
-          .map((doc) => Reply.fromDocumentSnapshot(doc))
+          .map(Reply.fromDocumentSnapshot)
           .toList();
     } catch (e) {
       debugPrint('Error loading replies: $e');
@@ -547,18 +547,15 @@ class ReplyController extends GetxController {
 // ------------------------------------------------------------
 
 class StudioCommentsScreen extends StatefulWidget {
+
+  const StudioCommentsScreen({
+    required this.channelId, required this.channelImageUrl, required this.channelName, super.key,
+    this.searchQuery = '',
+  });
   final String channelId;
   final String channelImageUrl;
   final String channelName;
   final String searchQuery;
-
-  const StudioCommentsScreen({
-    super.key,
-    required this.channelId,
-    required this.channelImageUrl,
-    required this.channelName,
-    this.searchQuery = '',
-  });
 
   @override
   State<StudioCommentsScreen> createState() => _StudioCommentsScreenState();
@@ -614,9 +611,9 @@ class _StudioCommentsScreenState extends State<StudioCommentsScreen> {
                   onChanged: (v) =>
                       v != null ? controller.selectedSort.value = v : null,
                   underline: const SizedBox(),
-                  icon: const Icon(Icons.sort, color: Colors.white),
+                  icon: const Icon(Icons.sort, color: AppColors.textPrimary),
                   dropdownColor: const Color(0xFF1F1F1F),
-                  style: TextStyle(color: Colors.white),
+                  style: const TextStyle(color: AppColors.textPrimary),
                 ),
               ),
             ],
@@ -624,7 +621,7 @@ class _StudioCommentsScreenState extends State<StudioCommentsScreen> {
           bottom: PreferredSize(
             preferredSize: const Size.fromHeight(60),
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Obx(
                 () => Row(
                   children: [
@@ -688,10 +685,10 @@ class _StudioCommentsScreenState extends State<StudioCommentsScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.comment_outlined,
                     size: 80,
-                    color: Colors.grey[700],
+                    color: AppColors.textSecondary,
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -702,7 +699,7 @@ class _StudioCommentsScreenState extends State<StudioCommentsScreen> {
                         : controller.selectedFilter.value == 'questions'
                         ? 'No questions'
                         : 'No comments yet',
-                    style: TextStyle(fontSize: 18, color: Colors.grey[500]),
+                    style: const TextStyle(fontSize: 18, color: AppColors.textSecondary),
                   ),
                 ],
               ),
@@ -713,7 +710,7 @@ class _StudioCommentsScreenState extends State<StudioCommentsScreen> {
             onRefresh: controller._loadComments,
             color: AppColors.textLink,
             child: ListView.separated(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               itemCount: filtered.length,
               separatorBuilder: (_, _) => const SizedBox(height: 12),
               itemBuilder: (_, i) => CommentCard(
@@ -735,10 +732,6 @@ class _StudioCommentsScreenState extends State<StudioCommentsScreen> {
 // ------------------------------------------------------------
 
 class _FilterChip extends StatelessWidget {
-  final String label;
-  final int count;
-  final bool isSelected;
-  final VoidCallback onTap;
 
   const _FilterChip({
     required this.label,
@@ -746,13 +739,17 @@ class _FilterChip extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
   });
+  final String label;
+  final int count;
+  final bool isSelected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
       child: Container(
-        padding: EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
         decoration: BoxDecoration(
           color: isSelected ? AppColors.textLink : AppColors.bgSurfaceHover,
           borderRadius: BorderRadius.circular(8),
@@ -763,14 +760,14 @@ class _FilterChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? Colors.black : Colors.white70,
+                color: isSelected ? AppColors.bgPage : AppColors.textSecondary,
                 fontWeight: isSelected ? FontWeight.w500 : FontWeight.w500,
                 fontSize: 13,
               ),
             ),
             const SizedBox(width: 6),
             Container(
-              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: isSelected ? Colors.black26 : AppColors.bgElevated,
                 borderRadius: BorderRadius.circular(10),
@@ -778,7 +775,7 @@ class _FilterChip extends StatelessWidget {
               child: Text(
                 '$count',
                 style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.white70,
+                  color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
                 ),
@@ -796,18 +793,14 @@ class _FilterChip extends StatelessWidget {
 // ------------------------------------------------------------
 
 class CommentCard extends StatelessWidget {
+
+  const CommentCard({
+    required this.videoComment, required this.controller, required this.channelImageUrl, required this.channelName, super.key,
+  });
   final VideoComment videoComment;
   final StudioCommentsController controller;
   final String channelImageUrl;
   final String channelName;
-
-  const CommentCard({
-    super.key,
-    required this.videoComment,
-    required this.controller,
-    required this.channelImageUrl,
-    required this.channelName,
-  });
 
   void _showReplySheet(BuildContext context) {
     final textController = TextEditingController();
@@ -828,7 +821,7 @@ class CommentCard extends StatelessWidget {
                 controller: textController,
                 decoration: InputDecoration(
                   hintText: 'Write a reply...',
-                  hintStyle: TextStyle(color: Colors.grey[500]),
+                  hintStyle: const TextStyle(color: AppColors.textSecondary),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -920,7 +913,7 @@ class CommentCard extends StatelessWidget {
         children: [
           // Video header
           Container(
-            padding: EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
             decoration: const BoxDecoration(
               color: Color(0xFF171717),
               borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
@@ -934,9 +927,9 @@ class CommentCard extends StatelessWidget {
                     width: 60,
                     height: 45,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) => Container(
-                      color: const Color(0xFF2F2F2F),
-                      child: const Icon(Icons.video_library),
+                    errorBuilder: (_, _, _) => const ColoredBox(
+                      color: Color(0xFF2F2F2F),
+                      child: Icon(Icons.video_library),
                     ),
                   ),
                 ),
@@ -944,8 +937,8 @@ class CommentCard extends StatelessWidget {
                 Expanded(
                   child: Text(
                     videoComment.videoTitle,
-                    style: TextStyle(
-                      color: Colors.white,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
@@ -955,7 +948,7 @@ class CommentCard extends StatelessWidget {
                 ),
                 if (comment.hasCreatorReply)
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: AppColors.textLink.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(4),
@@ -996,7 +989,7 @@ class CommentCard extends StatelessWidget {
                     ),
                     PopupMenuItem(value: 'hide', child: Text('Hide from list')),
                   ],
-                  icon: const Icon(Icons.more_vert, color: Colors.white),
+                  icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
                 ),
               ],
             ),
@@ -1004,7 +997,7 @@ class CommentCard extends StatelessWidget {
 
           // Comment body
           Padding(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1021,16 +1014,16 @@ class CommentCard extends StatelessWidget {
                         children: [
                           Text(
                             comment.userName,
-                            style: TextStyle(
-                              color: Colors.white,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
                               fontWeight: FontWeight.w500,
                               fontSize: 14,
                             ),
                           ),
                           Text(
                             timeago.format(comment.createdAt.toDate()),
-                            style: TextStyle(
-                              color: Colors.grey[500],
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
                               fontSize: 12,
                             ),
                           ),
@@ -1042,8 +1035,8 @@ class CommentCard extends StatelessWidget {
                 const SizedBox(height: 12),
                 Text(
                   comment.text,
-                  style: TextStyle(
-                    color: Colors.white,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
                     fontSize: 14,
                     height: 1.4,
                   ),
@@ -1064,7 +1057,7 @@ class CommentCard extends StatelessWidget {
                         count: comment.likeCount,
                         color: hasLiked
                             ? AppColors.textLink
-                            : Colors.grey[400]!,
+                            : AppColors.textSecondary,
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -1081,14 +1074,14 @@ class CommentCard extends StatelessWidget {
                         count: comment.dislikeCount,
                         color: hasDisliked
                             ? AppColors.textLink
-                            : Colors.grey[400]!,
+                            : AppColors.textSecondary,
                       ),
                     ),
                     const SizedBox(width: 16),
                     _StatItem(
                       icon: Icons.comment_outlined,
                       count: videoComment.totalReplyCount,
-                      color: Colors.grey[400]!,
+                      color: AppColors.textSecondary,
                     ),
                     const Spacer(),
                     InkWell(
@@ -1110,7 +1103,7 @@ class CommentCard extends StatelessWidget {
                           children: [
                             Text(
                               isExpanded ? 'Hide' : 'View',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 color: AppColors.textLink,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -1135,8 +1128,8 @@ class CommentCard extends StatelessWidget {
           // Creator reply preview
           if (comment.hasCreatorReply && comment.creatorReply != null)
             Container(
-              margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              padding: EdgeInsets.all(12),
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: AppColors.textLink.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
@@ -1159,14 +1152,14 @@ class CommentCard extends StatelessWidget {
                           children: [
                             Text(
                               comment.creatorReply!.userName,
-                              style: TextStyle(
-                                color: Colors.white,
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
                             const SizedBox(width: 6),
                             Container(
-                              padding: EdgeInsets.symmetric(
+                              padding: const EdgeInsets.symmetric(
                                 horizontal: 6,
                                 vertical: 2,
                               ),
@@ -1177,7 +1170,7 @@ class CommentCard extends StatelessWidget {
                               child: const Text(
                                 'CREATOR',
                                 style: TextStyle(
-                                  color: Colors.black,
+                                  color: AppColors.bgPage,
                                   fontSize: 9,
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -1188,8 +1181,8 @@ class CommentCard extends StatelessWidget {
                         const SizedBox(height: 6),
                         Text(
                           comment.creatorReply!.text,
-                          style: TextStyle(
-                            color: Colors.grey[200],
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
                             fontSize: 13,
                           ),
                         ),
@@ -1198,8 +1191,8 @@ class CommentCard extends StatelessWidget {
                           timeago.format(
                             comment.creatorReply!.createdAt.toDate(),
                           ),
-                          style: TextStyle(
-                            color: Colors.grey[500],
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
                             fontSize: 11,
                           ),
                         ),
@@ -1246,7 +1239,7 @@ class CommentCard extends StatelessWidget {
                   child: ListView.separated(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     itemCount: replyCtrl.replies.length,
                     separatorBuilder: (_, _) =>
                         const Divider(color: Color(0xFF2F2F2F), height: 24),
@@ -1276,15 +1269,15 @@ class CommentCard extends StatelessWidget {
 // ------------------------------------------------------------
 
 class _StatItem extends StatelessWidget {
-  final IconData icon;
-  final int count;
-  final Color color;
 
   const _StatItem({
     required this.icon,
     required this.count,
     required this.color,
   });
+  final IconData icon;
+  final int count;
+  final Color color;
 
   String _format(int n) => n >= 1000000
       ? '${(n / 1000000).toStringAsFixed(1)}M'
@@ -1309,18 +1302,14 @@ class _StatItem extends StatelessWidget {
 // ------------------------------------------------------------
 
 class ReplyCard extends StatelessWidget {
+
+  const ReplyCard({
+    required this.reply, required this.isCreator, required this.channelImageUrl, required this.replyController, super.key,
+  });
   final Reply reply;
   final bool isCreator;
   final String channelImageUrl;
   final ReplyController replyController;
-
-  const ReplyCard({
-    super.key,
-    required this.reply,
-    required this.isCreator,
-    required this.channelImageUrl,
-    required this.replyController,
-  });
 
   void _edit(BuildContext context) {
     final ctrl = TextEditingController(text: reply.text);
@@ -1333,7 +1322,7 @@ class ReplyCard extends StatelessWidget {
           decoration: const InputDecoration(hintText: 'Edit text'),
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          TextButton(onPressed: Get.back, child: const Text('Cancel')),
           TextButton(
             onPressed: () {
               replyController.updateReply(reply.id, ctrl.text);
@@ -1355,7 +1344,7 @@ class ReplyCard extends StatelessWidget {
           width: 2,
           height: 40,
           color: isCreator ? AppColors.textLink : AppColors.bgElevated,
-          margin: EdgeInsets.only(right: 12),
+          margin: const EdgeInsets.only(right: 12),
         ),
         CircleAvatar(
           radius: 14,
@@ -1373,7 +1362,7 @@ class ReplyCard extends StatelessWidget {
                   Text(
                     reply.userName,
                     style: TextStyle(
-                      color: isCreator ? AppColors.textLink : Colors.white,
+                      color: isCreator ? AppColors.textLink : AppColors.textPrimary,
                       fontWeight: FontWeight.w500,
                       fontSize: 13,
                     ),
@@ -1381,7 +1370,7 @@ class ReplyCard extends StatelessWidget {
                   if (isCreator) ...[
                     const SizedBox(width: 6),
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                       decoration: BoxDecoration(
                         color: AppColors.textLink,
                         borderRadius: BorderRadius.circular(3),
@@ -1389,7 +1378,7 @@ class ReplyCard extends StatelessWidget {
                       child: const Text(
                         'CREATOR',
                         style: TextStyle(
-                          color: Colors.black,
+                          color: AppColors.bgPage,
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
                         ),
@@ -1414,7 +1403,7 @@ class ReplyCard extends StatelessWidget {
                       icon: const Icon(
                         Icons.more_vert,
                         size: 18,
-                        color: Colors.grey,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                 ],
@@ -1422,12 +1411,12 @@ class ReplyCard extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 reply.text,
-                style: TextStyle(color: Colors.grey[200], fontSize: 13),
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
               ),
               const SizedBox(height: 6),
               Text(
                 timeago.format(reply.createdAt.toDate()),
-                style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
               ),
             ],
           ),

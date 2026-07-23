@@ -28,10 +28,45 @@ class PerformanceMonitor {
   static const String kCacheSize = 'cache_size_mb';
   static const String kOfflineHits = 'offline_hits';
 
+  // State & Resource Metrics
+  static int _activeControllers = 0;
+  static int _activeWorkers = 0;
+  static int _activeStreamSubscriptions = 0;
+  static int _activeVideoDecoders = 0;
+
+  static int get activeControllers => _activeControllers;
+  static int get activeWorkers => _activeWorkers;
+  static int get activeStreamSubscriptions => _activeStreamSubscriptions;
+  static int get activeVideoDecoders => _activeVideoDecoders;
+
   // Cache tracking
   static int _totalRequests = 0;
   static int _cacheHits = 0;
   static int _offlineHits = 0;
+
+  static void trackControllerInit(String controllerName) {
+    _activeControllers++;
+    if (kDebugMode) {
+      logger.debug('Active Controllers: $_activeControllers (+$controllerName)', tag: 'PERF');
+    }
+  }
+
+  static void trackControllerDispose(String controllerName) {
+    if (_activeControllers > 0) _activeControllers--;
+    if (kDebugMode) {
+      logger.debug('Active Controllers: $_activeControllers (-$controllerName)', tag: 'PERF');
+    }
+  }
+
+  static void updateResourceMetrics({
+    int? activeWorkers,
+    int? activeStreams,
+    int? activeDecoders,
+  }) {
+    if (activeWorkers != null) _activeWorkers = activeWorkers;
+    if (activeStreams != null) _activeStreamSubscriptions = activeStreams;
+    if (activeDecoders != null) _activeVideoDecoders = activeDecoders;
+  }
 
   /// Track page load from navigation start to first frame rendered
   static void trackPageLoad(String pageName) {

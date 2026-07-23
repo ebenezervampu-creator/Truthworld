@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/analytics/data/models/watch_event_model.dart';
-import 'geo_breakdown_state.dart';
+import 'package:truthworld/features/analytics/presentation/widgets/geo_breakdown_state.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Geographic breakdown widget that splits regions into Indian States
 /// and Countries sections.
@@ -11,9 +12,9 @@ import 'geo_breakdown_state.dart';
 /// - Sorted by view count descending
 /// - Dark theme matching the app's aesthetic
 class GeoBreakdownWidget extends StatelessWidget {
-  final List<GeoRegionModel> regions;
 
-  const GeoBreakdownWidget({super.key, required this.regions});
+  const GeoBreakdownWidget({required this.regions, super.key});
+  final List<GeoRegionModel> regions;
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +37,7 @@ class GeoBreakdownWidget extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -44,7 +45,7 @@ class GeoBreakdownWidget extends StatelessWidget {
           const Text(
             'Geographic Breakdown',
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
@@ -53,7 +54,7 @@ class GeoBreakdownWidget extends StatelessWidget {
           Text(
             '${regions.length} regions • $totalCount total views',
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.5),
+              color: AppColors.textPrimary.withValues(alpha: 0.5),
               fontSize: 12,
             ),
           ),
@@ -83,7 +84,7 @@ class GeoBreakdownWidget extends StatelessWidget {
                 child: Text(
                   '+ ${indianStates.length - 10} more states',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.4),
+                    color: AppColors.textPrimary.withValues(alpha: 0.4),
                     fontSize: 12,
                     fontStyle: FontStyle.italic,
                   ),
@@ -117,7 +118,7 @@ class GeoBreakdownWidget extends StatelessWidget {
                 child: Text(
                   '+ ${countries.length - 10} more countries',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.4),
+                    color: AppColors.textPrimary.withValues(alpha: 0.4),
                     fontSize: 12,
                     fontStyle: FontStyle.italic,
                   ),
@@ -143,14 +144,14 @@ class GeoBreakdownWidget extends StatelessWidget {
           children: [
             Icon(
               Icons.public,
-              color: Colors.white.withValues(alpha: 0.3),
+              color: AppColors.textPrimary.withValues(alpha: 0.3),
               size: 40,
             ),
             const SizedBox(height: 12),
             Text(
               'No geographic data available yet',
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
+                color: AppColors.textPrimary.withValues(alpha: 0.5),
                 fontSize: 14,
               ),
             ),
@@ -162,10 +163,6 @@ class GeoBreakdownWidget extends StatelessWidget {
 }
 
 class _SectionTitle extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final int count;
-  final Color color;
 
   const _SectionTitle({
     required this.icon,
@@ -173,6 +170,10 @@ class _SectionTitle extends StatelessWidget {
     required this.count,
     required this.color,
   });
+  final IconData icon;
+  final String title;
+  final int count;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -210,15 +211,15 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _RegionRow extends StatelessWidget {
-  final GeoRegionModel region;
-  final int totalCount;
-  final Color barColor;
 
   const _RegionRow({
     required this.region,
     required this.totalCount,
     required this.barColor,
   });
+  final GeoRegionModel region;
+  final int totalCount;
+  final Color barColor;
 
   @override
   Widget build(BuildContext context) {
@@ -232,7 +233,7 @@ class _RegionRow extends StatelessWidget {
             flex: 3,
             child: Text(
               region.regionKey,
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -240,7 +241,7 @@ class _RegionRow extends StatelessWidget {
           Text(
             '${region.count}',
             style: const TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.w500,
               fontSize: 13,
             ),
@@ -252,7 +253,7 @@ class _RegionRow extends StatelessWidget {
               borderRadius: BorderRadius.circular(3),
               child: LinearProgressIndicator(
                 value: (percentage / 100).clamp(0.0, 1.0),
-                backgroundColor: Colors.white.withValues(alpha: 0.1),
+                backgroundColor: AppColors.textPrimary.withValues(alpha: 0.1),
                 valueColor: AlwaysStoppedAnimation(barColor),
                 minHeight: 6,
               ),
@@ -264,7 +265,7 @@ class _RegionRow extends StatelessWidget {
             child: Text(
               '${percentage.toStringAsFixed(1)}%',
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
+                color: AppColors.textPrimary.withValues(alpha: 0.5),
                 fontSize: 11,
               ),
               textAlign: TextAlign.right,

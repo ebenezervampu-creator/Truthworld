@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -14,16 +15,12 @@ import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
+import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 
 /// Internal Cue Representation for visual preview and editing
 class SubtitleCue {
-  String id;
-  String startTime;
-  String endTime;
-  String text;
 
   SubtitleCue({
     required this.id,
@@ -31,6 +28,10 @@ class SubtitleCue {
     required this.endTime,
     required this.text,
   });
+  String id;
+  String startTime;
+  String endTime;
+  String text;
 
   SubtitleCue copyWith({
     String? id,
@@ -145,7 +146,7 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
         .where('channelId', isEqualTo: channelId.value)
         .snapshots()
         .listen((snapshot) {
-      final loadedVideos = snapshot.docs.map((doc) => Video.fromDocumentSnapshot(doc)).toList();
+      final loadedVideos = snapshot.docs.map(Video.fromDocumentSnapshot).toList();
       // Client-side sort to ensure consistent chronological ordering without composite index requirement
       loadedVideos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       videos.value = loadedVideos;
@@ -189,7 +190,7 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
     }).toList();
   }
 
-  void selectVideo(Video? video) async {
+  Future<void> selectVideo(Video? video) async {
     selectedVideo.value = video;
     hasUnsavedChanges.value = false;
     _requestsSubscription?.cancel();
@@ -269,13 +270,13 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
       return;
     }
 
-    String contentToParse = urlOrData;
+    var contentToParse = urlOrData;
 
     // Check if it's a remote file link stored in Firestore instead of raw string data
     if (urlOrData.startsWith('gs://') || urlOrData.startsWith('http://') || urlOrData.startsWith('https://')) {
       try {
         setViewState(ViewState.loading);
-        String downloadUrl = urlOrData;
+        var downloadUrl = urlOrData;
 
         // Resolve gs:// storage URIs to public download URLs
         if (urlOrData.startsWith('gs://')) {
@@ -335,8 +336,8 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
       // It's a plain text segment layout or raw strings! Let's generate clean 4-second timestamp window slices dynamically.
       final lines = contentToParse.split('\n').where((l) => l.trim().isNotEmpty).toList();
       final cues = <SubtitleCue>[];
-      int startSec = 1;
-      for (int i = 0; i < lines.length; i++) {
+      var startSec = 1;
+      for (var i = 0; i < lines.length; i++) {
         final sStr = "00:00:${startSec.toString().padLeft(2, '0')}.000";
         final eStr = "00:00:${(startSec + 4).toString().padLeft(2, '0')}.000";
         cues.add(SubtitleCue(id: UniqueKey().toString(), startTime: sStr, endTime: eStr, text: lines[i].trim()));
@@ -411,7 +412,10 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
   String _shiftTimeString(String timeStr, int offsetMs) {
     try {
       final parts = timeStr.split(':');
-      int h = 0, m = 0, s = 0, ms = 0;
+      var h = 0;
+      var m = 0;
+      var s = 0;
+      var ms = 0;
       if (parts.length >= 3) {
         h = int.parse(parts[0]);
         m = int.parse(parts[1]);
@@ -425,13 +429,13 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
         ms = sParts.length > 1 ? int.parse(sParts[1].padRight(3, '0').substring(0, 3)) : 0;
       }
       
-      int totalMs = Duration(hours: h, minutes: m, seconds: s, milliseconds: ms).inMilliseconds + offsetMs;
+      var totalMs = Duration(hours: h, minutes: m, seconds: s, milliseconds: ms).inMilliseconds + offsetMs;
       if (totalMs < 0) totalMs = 0;
       final updated = Duration(milliseconds: totalMs);
       
       String twoDigits(int n) => n.toString().padLeft(2, '0');
       String threeDigits(int n) => n.toString().padLeft(3, '0');
-      return "${twoDigits(updated.inHours)}:${twoDigits(updated.inMinutes.remainder(60))}:${twoDigits(updated.inSeconds.remainder(60))}.${threeDigits(updated.inMilliseconds.remainder(1000))}";
+      return '${twoDigits(updated.inHours)}:${twoDigits(updated.inMinutes.remainder(60))}:${twoDigits(updated.inSeconds.remainder(60))}.${threeDigits(updated.inMilliseconds.remainder(1000))}';
     } catch (_) {
       return timeStr;
     }
@@ -551,9 +555,9 @@ class SubtitlesController extends BaseController with ContentValidationMixin {
       }
 
       // Upload to Firebase Storage
-      final String sanitizedTitle = title.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
-      final String extension = file.extension ?? 'vtt';
-      final String storagePath = 'videos/${video.id}/subtitles/${sanitizedTitle}_${DateTime.now().millisecondsSinceEpoch}.$extension';
+      final sanitizedTitle = title.replaceAll(RegExp('[^a-zA-Z0-9_-]'), '_');
+      final extension = file.extension ?? 'vtt';
+      final storagePath = 'videos/${video.id}/subtitles/${sanitizedTitle}_${DateTime.now().millisecondsSinceEpoch}.$extension';
       final storageRef = FirebaseStorage.instance.ref().child(storagePath);
       
       final metadata = SettableMetadata(contentType: 'text/vtt');

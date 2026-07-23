@@ -1,16 +1,17 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:get/get.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:truthworld/data/models/subscriptions.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/data/models/playlist_model.dart';
-import 'package:truthworld/features/community/data/models/community_post_model.dart';
-import 'package:truthworld/core/services/connectivity_service.dart';
-import 'package:truthworld/data/models/subscription_content.dart';
-import 'package:truthworld/data/models/channel.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/connectivity_service.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/data/models/subscription_content.dart';
+import 'package:truthworld/data/models/subscriptions.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 
 enum ContentFilter {
   all,
@@ -129,7 +130,7 @@ class SubscriptionController extends GetxController {
           .get();
 
       subscriptions.value = snapshot.docs
-          .map((doc) => Subscription.fromDocumentSnapshot(doc))
+          .map(Subscription.fromDocumentSnapshot)
           .toList();
     } catch (e) {
       debugPrint('Error loading subscriptions: $e');
@@ -144,9 +145,9 @@ class SubscriptionController extends GetxController {
     }
     final channelIds = subscriptions.map((s) => s.channelId).toSet().toList();
     try {
-      final List<Channel> channels = [];
+      final channels = <Channel>[];
       if (channelIds.length > 10) {
-        for (int i = 0; i < channelIds.length; i += 10) {
+        for (var i = 0; i < channelIds.length; i += 10) {
           final batch = channelIds.sublist(
             i,
             i + 10 > channelIds.length ? channelIds.length : i + 10,
@@ -155,14 +156,14 @@ class SubscriptionController extends GetxController {
               .collection('channels')
               .where(FieldPath.documentId, whereIn: batch)
               .get();
-          channels.addAll(snapshot.docs.map((doc) => Channel.fromDocumentSnapshot(doc)));
+          channels.addAll(snapshot.docs.map(Channel.fromDocumentSnapshot));
         }
       } else {
         final snapshot = await _firestore
             .collection('channels')
             .where(FieldPath.documentId, whereIn: channelIds)
             .get();
-        channels.addAll(snapshot.docs.map((doc) => Channel.fromDocumentSnapshot(doc)));
+        channels.addAll(snapshot.docs.map(Channel.fromDocumentSnapshot));
       }
       subscribedChannels.value = channels;
     } catch (e) {
@@ -180,12 +181,12 @@ class SubscriptionController extends GetxController {
     final channelIds = subscriptions.map((s) => s.channelId).toSet().toList();
     
     try {
-      final List<SubscriptionContent> contentList = [];
+      final contentList = <SubscriptionContent>[];
       
       // Load videos
       try {
         final videos = await _loadVideos(channelIds);
-        contentList.addAll(videos.map((v) => SubscriptionContent.fromVideo(v)));
+        contentList.addAll(videos.map(SubscriptionContent.fromVideo));
       } catch (e) {
         debugPrint('Error loading subscription videos: $e');
       }
@@ -193,7 +194,7 @@ class SubscriptionController extends GetxController {
       // Load playlists
       try {
         final playlists = await _loadPlaylists(channelIds);
-        contentList.addAll(playlists.map((p) => SubscriptionContent.fromPlaylist(p)));
+        contentList.addAll(playlists.map(SubscriptionContent.fromPlaylist));
       } catch (e) {
         debugPrint('Error loading subscription playlists: $e');
       }
@@ -201,7 +202,7 @@ class SubscriptionController extends GetxController {
       // Load community posts
       try {
         final communityPosts = await _loadCommunityPosts(channelIds);
-        contentList.addAll(communityPosts.map((cp) => SubscriptionContent.fromCommunityPost(cp)));
+        contentList.addAll(communityPosts.map(SubscriptionContent.fromCommunityPost));
       } catch (e) {
         debugPrint('Error loading subscription community posts: $e');
       }
@@ -216,10 +217,10 @@ class SubscriptionController extends GetxController {
   }
 
   Future<List<Video>> _loadVideos(List<String> channelIds) async {
-    final List<Video> videos = [];
+    final videos = <Video>[];
     
     if (channelIds.length > 10) {
-      for (int i = 0; i < channelIds.length; i += 10) {
+      for (var i = 0; i < channelIds.length; i += 10) {
         final batch = channelIds.sublist(
           i,
           i + 10 > channelIds.length ? channelIds.length : i + 10,
@@ -231,7 +232,7 @@ class SubscriptionController extends GetxController {
             .orderBy('uploadedAt', descending: true)
             .limit(50)
             .get();
-        videos.addAll(snapshot.docs.map((doc) => Video.fromDocumentSnapshot(doc)));
+        videos.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));
       }
     } else {
       final snapshot = await _firestore
@@ -241,17 +242,17 @@ class SubscriptionController extends GetxController {
           .orderBy('uploadedAt', descending: true)
           .limit(50)
           .get();
-      videos.addAll(snapshot.docs.map((doc) => Video.fromDocumentSnapshot(doc)));
+      videos.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));
     }
     
     return videos;
   }
 
   Future<List<PlaylistModel>> _loadPlaylists(List<String> channelIds) async {
-    final List<PlaylistModel> playlists = [];
+    final playlists = <PlaylistModel>[];
     
     if (channelIds.length > 10) {
-      for (int i = 0; i < channelIds.length; i += 10) {
+      for (var i = 0; i < channelIds.length; i += 10) {
         final batch = channelIds.sublist(
           i,
           i + 10 > channelIds.length ? channelIds.length : i + 10,
@@ -263,7 +264,7 @@ class SubscriptionController extends GetxController {
             .orderBy('createdAt', descending: true)
             .limit(30)
             .get();
-        playlists.addAll(snapshot.docs.map((doc) => PlaylistModel.fromDocumentSnapshot(doc)));
+        playlists.addAll(snapshot.docs.map(PlaylistModel.fromDocumentSnapshot));
       }
     } else {
       final snapshot = await _firestore
@@ -273,17 +274,17 @@ class SubscriptionController extends GetxController {
           .orderBy('createdAt', descending: true)
           .limit(30)
           .get();
-      playlists.addAll(snapshot.docs.map((doc) => PlaylistModel.fromDocumentSnapshot(doc)));
+      playlists.addAll(snapshot.docs.map(PlaylistModel.fromDocumentSnapshot));
     }
     
     return playlists;
   }
 
   Future<List<CommunityPostModel>> _loadCommunityPosts(List<String> channelIds) async {
-    final List<CommunityPostModel> posts = [];
+    final posts = <CommunityPostModel>[];
     
     if (channelIds.length > 10) {
-      for (int i = 0; i < channelIds.length; i += 10) {
+      for (var i = 0; i < channelIds.length; i += 10) {
         final batch = channelIds.sublist(
           i,
           i + 10 > channelIds.length ? channelIds.length : i + 10,
@@ -324,13 +325,10 @@ class SubscriptionController extends GetxController {
       switch (contentFilter) {
         case ContentFilter.videos:
           filteredContent.retainWhere((c) => c.type == ContentType.video);
-          break;
         case ContentFilter.playlists:
           filteredContent.retainWhere((c) => c.type == ContentType.playlist);
-          break;
         case ContentFilter.communityPosts:
           filteredContent.retainWhere((c) => c.type == ContentType.communityPost);
-          break;
         case ContentFilter.all:
           break;
       }
@@ -396,20 +394,16 @@ class SubscriptionController extends GetxController {
     switch (sortFilter) {
       case SortFilter.trending:
         filteredContent.sort((a, b) => b.algorithmicScore.compareTo(a.algorithmicScore));
-        break;
       case SortFilter.popular:
         filteredContent.sort((a, b) {
           final aEngagement = _getEngagementScore(a);
           final bEngagement = _getEngagementScore(b);
           return bEngagement.compareTo(aEngagement);
         });
-        break;
       case SortFilter.newest:
         filteredContent.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-        break;
       case SortFilter.oldest:
         filteredContent.sort((a, b) => a.createdAt.compareTo(b.createdAt));
-        break;
     }
   }
 
@@ -485,7 +479,6 @@ class SubscriptionController extends GetxController {
       subscriptions.add(Subscription(
         userId: currentUserId!,
         channelId: channelId,
-        notificationsEnabled: true,
       ));
       await loadSubscribedChannels();
       await loadAllContent();
@@ -494,7 +487,7 @@ class SubscriptionController extends GetxController {
       Get.snackbar('Success', 'Subscribed successfully');
     } catch (e) {
       debugPrint('Error subscribing: $e');
-      Get.snackbar('Error', 'Failed to subscribe: ${e.toString()}');
+      Get.snackbar('Error', 'Failed to subscribe: $e');
     }
   }
 
@@ -525,7 +518,7 @@ class SubscriptionController extends GetxController {
             .get();
         if (snapshot.docs.isNotEmpty) {
           final batch = _firestore.batch();
-          for (var doc in snapshot.docs) {
+          for (final doc in snapshot.docs) {
             batch.delete(doc.reference);
           }
           batch.update(channelRef, {
@@ -544,7 +537,7 @@ class SubscriptionController extends GetxController {
       Get.snackbar('Success', 'Unsubscribed successfully');
     } catch (e) {
       debugPrint('Error unsubscribing: $e');
-      Get.snackbar('Error', 'Failed to unsubscribe: ${e.toString()}');
+      Get.snackbar('Error', 'Failed to unsubscribe: $e');
     }
   }
 

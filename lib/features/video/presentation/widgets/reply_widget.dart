@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/features/video/data/models/reply.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Professional Reply Widget (Industry Standard)
 /// Displays nested replies with indentation and interaction options
-class ReplyWidget extends StatefulWidget {
+class ReplyWidget extends StatefulWidget { // For nested indentation
+
+  const ReplyWidget({
+    required this.reply, required this.onLike, required this.onDislike, required this.onReply, required this.isLiked, required this.isDisliked, required this.isCreatorReply, super.key,
+    this.replyLevel = 0,
+  });
   final Reply reply;
   final VoidCallback onLike;
   final VoidCallback onDislike;
@@ -14,19 +18,7 @@ class ReplyWidget extends StatefulWidget {
   final bool isLiked;
   final bool isDisliked;
   final bool isCreatorReply;
-  final int replyLevel; // For nested indentation
-
-  const ReplyWidget({
-    super.key,
-    required this.reply,
-    required this.onLike,
-    required this.onDislike,
-    required this.onReply,
-    required this.isLiked,
-    required this.isDisliked,
-    required this.isCreatorReply,
-    this.replyLevel = 0,
-  });
+  final int replyLevel;
 
   @override
   State<ReplyWidget> createState() => _ReplyWidgetState();
@@ -39,7 +31,7 @@ class _ReplyWidgetState extends State<ReplyWidget> {
     final indent = 16.0 * (widget.replyLevel + 1).clamp(0, 3);
 
     return Padding(
-      padding: EdgeInsets.only(left: indent.toDouble()),
+      padding: EdgeInsets.only(left: indent),
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
@@ -47,7 +39,7 @@ class _ReplyWidgetState extends State<ReplyWidget> {
               ? AppColors.brand.withValues(alpha: 0.08)
               : AppTheme.secondaryBackground.withValues(alpha: 0.3),
           border: widget.isCreatorReply
-              ? Border(
+              ? const Border(
                   left: BorderSide(
                     color: AppColors.brand,
                     width: 2,
@@ -65,7 +57,7 @@ class _ReplyWidgetState extends State<ReplyWidget> {
             // Reply text
             Text(
               widget.reply.text,
-              style: GoogleFonts.roboto(
+              style: const TextStyle(
                 fontSize: 12,
                 color: AppColors.textPrimary,
                 height: 1.4,
@@ -105,7 +97,7 @@ class _ReplyWidgetState extends State<ReplyWidget> {
                 children: [
                   Text(
                     widget.reply.displayName,
-                    style: GoogleFonts.roboto(
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                       color: AppColors.textPrimary,
@@ -124,12 +116,12 @@ class _ReplyWidgetState extends State<ReplyWidget> {
                           color: AppColors.brand,
                           borderRadius: BorderRadius.circular(2),
                         ),
-                        child: Text(
+                        child: const Text(
                           'Creator',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w500,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                       ),
@@ -144,15 +136,15 @@ class _ReplyWidgetState extends State<ReplyWidget> {
                           vertical: 1,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.blue.shade700,
+                          color: AppColors.info,
                           borderRadius: BorderRadius.circular(2),
                         ),
-                        child: Text(
+                        child: const Text(
                           'Channel',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w500,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                       ),
@@ -162,7 +154,7 @@ class _ReplyWidgetState extends State<ReplyWidget> {
               const SizedBox(height: 2),
               Text(
                 _formatTimeAgo(widget.reply.createdAt.toDate()),
-                style: GoogleFonts.roboto(
+                style: const TextStyle(
                   fontSize: 10,
                   color: AppColors.textSecondary,
                 ),
@@ -232,7 +224,7 @@ class _ReplyWidgetState extends State<ReplyWidget> {
             const SizedBox(width: 3),
             Text(
               label,
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 11,
                 color: isActive ? AppColors.brand : AppColors.textSecondary,
                 fontWeight: isActive ? FontWeight.w500 : FontWeight.w500,

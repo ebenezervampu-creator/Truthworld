@@ -1,4 +1,3 @@
-library;
 
 /// Integration Examples: Premium Feedback UI across Tower VSP
 ///
@@ -6,6 +5,7 @@ library;
 /// and ToastService across different pages in the application.
 ///
 /// Copy these patterns to your actual page implementations.
+library;
 
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/services/feedback/feedback_service.dart';
@@ -50,22 +50,20 @@ class VideoUploadPageExample {
       title: 'Upload Failed',
       message: error,
       confirmLabel: 'Retry',
-      onConfirm: () {
-        onUploadStart();
-      },
+      onConfirm: onUploadStart,
     );
   }
 
   /// Example: User tries to close while uploading
   Future<void> onLeaveWhileUploading() async {
-    bool? confirmed = await DialogService.confirm(
+    final confirmed = await DialogService.confirm(
       title: 'Cancel Upload?',
       message: 'Leaving this page will cancel the upload. Continue?',
       confirmLabel: 'Cancel Upload',
       cancelLabel: 'Keep Uploading',
     );
 
-    if (confirmed == true) {
+    if (confirmed ?? false) {
       ToastService.warning('Upload cancelled');
     }
   }
@@ -99,13 +97,13 @@ class VideoUploadPageExample {
 
 class VideoWatchPageExample {
   /// Example: User likes video
-  void onLike(String videoId) async {
+  Future<void> onLike(String videoId) async {
     try {
       // Show quick toast
       ToastService.success('Added to likes');
 
       // Call API (simulated)
-      await Future.delayed(Duration(seconds: 1));
+      await Future.delayed(const Duration(seconds: 1));
 
       // Show snackbar with action to undo
       SnackbarService.success(
@@ -134,7 +132,7 @@ class VideoWatchPageExample {
   Future<void> onShare(String videoId) async {
     try {
       // Simulate share action
-      await Future.delayed(Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 500));
 
       SnackbarService.success(message: 'Share link copied to clipboard');
     } catch (e) {
@@ -146,12 +144,12 @@ class VideoWatchPageExample {
   Future<void> onReport(String videoId) async {
     await DialogService.custom(
       title: 'Report This Video',
-      content: ReportDialogContent(),
+      content: const ReportDialogContent(),
       confirmLabel: 'Submit Report',
       cancelLabel: 'Cancel',
       onConfirm: () async {
         // Simulate API call
-        await Future.delayed(Duration(seconds: 1));
+        await Future.delayed(const Duration(seconds: 1));
 
         DialogService.close();
         SnackbarService.success(
@@ -198,9 +196,7 @@ class SettingsPageExample {
       message: 'You will be logged out from all devices',
       confirmLabel: 'Logout',
       cancelLabel: 'Cancel',
-      onConfirm: () {
-        performLogout();
-      },
+      onConfirm: performLogout,
     );
   }
 
@@ -208,7 +204,7 @@ class SettingsPageExample {
   void performLogout() {
     DialogService.loading(message: 'Logging out...');
 
-    Future.delayed(Duration(seconds: 1), () {
+    Future.delayed(const Duration(seconds: 1), () {
       DialogService.close();
       ToastService.success('Logged out successfully');
       // Navigate to login
@@ -225,14 +221,14 @@ class SettingsPageExample {
       cancelLabel: 'Cancel',
       onConfirm: () async {
         // Ask for confirmation again
-        bool? confirmed = await DialogService.confirm(
+        final var confirmed = await DialogService.confirm(
           title: 'Confirm Deletion',
           message: 'Type "DELETE" to confirm',
           confirmLabel: 'Delete',
           cancelLabel: 'Cancel',
         );
 
-        if (confirmed == true) {
+        if (confirmed ?? false) {
           deleteAccount();
         }
       },
@@ -243,7 +239,7 @@ class SettingsPageExample {
   void deleteAccount() {
     DialogService.loading(message: 'Deleting account...');
 
-    Future.delayed(Duration(seconds: 2), () {
+    Future.delayed(const Duration(seconds: 2), () {
       DialogService.close();
       SnackbarService.success(message: 'Account deleted');
     });
@@ -366,14 +362,14 @@ class MessagingPageExample {
 
   /// Example: Delete message
   Future<void> onDeleteMessage(String messageId) async {
-    bool? confirmed = await DialogService.confirm(
+    final confirmed = await DialogService.confirm(
       title: 'Delete Message',
       message: 'This message will be permanently deleted',
       confirmLabel: 'Delete',
       cancelLabel: 'Cancel',
     );
 
-    if (confirmed == true) {
+    if (confirmed ?? false) {
       ToastService.success('Message deleted');
     }
   }
@@ -437,7 +433,7 @@ Future<void> handleListOperation(
   } catch (e) {
     ToastService.dismissAll();
 
-    SnackbarService.error(message: '$actionName failed: ${e.toString()}');
+    SnackbarService.error(message: '$actionName failed: $e');
   }
 }
 
@@ -459,7 +455,7 @@ class ReportDialogContent extends StatelessWidget {
           'Why are you reporting this?',
           style: Theme.of(context).textTheme.titleMedium,
         ),
-        SizedBox(height: 16),
+        const SizedBox(height: 16),
         // Add report reason options here
       ],
     );
@@ -475,11 +471,11 @@ Future<void> showAdvancedConfirmation() async {
       children: [
         // Custom content
         ListTile(
-          title: Text('Option 1'),
+          title: const Text('Option 1'),
           trailing: Checkbox(value: false, onChanged: (val) {}),
         ),
         ListTile(
-          title: Text('Option 2'),
+          title: const Text('Option 2'),
           trailing: Checkbox(value: true, onChanged: (val) {}),
         ),
       ],

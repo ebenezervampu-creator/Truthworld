@@ -1,8 +1,8 @@
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/app_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/firestore_service.dart';
 import 'package:truthworld/core/services/storage_service.dart';
-import 'package:truthworld/core/services/app_service.dart';
 
 /// GetX Dependency Injection Setup
 /// Initialize all services at app startup

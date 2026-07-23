@@ -1,25 +1,23 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:timeago/timeago.dart' as timeago;
-
-import 'package:truthworld/theme/app_theme.dart';
+import 'package:truthworld/components/ui/share_bottom_sheet.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/topic_management_screen.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/data/models/topic_categories.dart';
 import 'package:truthworld/features/topics/presentation/controllers/explore_topics_controller.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/topic_management_screen.dart';
-import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
-import 'package:truthworld/core/services/auth_service.dart';
-import 'package:truthworld/components/ui/share_bottom_sheet.dart';
-import 'package:truthworld/core/services/deep_link_service.dart';
-import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class ExploreTopicsPage extends StatefulWidget {
-  final bool isDashboard;
   const ExploreTopicsPage({super.key, this.isDashboard = false});
+  final bool isDashboard;
 
   @override
   State<ExploreTopicsPage> createState() => _ExploreTopicsPageState();
@@ -45,7 +43,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     _pageController.addListener(() {
       if (_pageController.hasClients) {
         final page = _pageController.page ?? 0.0;
-        final int index = page.round();
+        final index = page.round();
         if (_currentTopicIndex.value != index) {
           _currentTopicIndex.value = index;
         }
@@ -80,16 +78,16 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   Widget build(BuildContext context) {
     return ResponsiveBuilder(
       builder: (context, deviceType) {
-        final backgroundColor = AppColors.bgPage;
-        final textColor = AppColors.textPrimary;
+        const backgroundColor = AppColors.bgPage;
+        const textColor = AppColors.textPrimary;
 
         return Scaffold(
           backgroundColor: backgroundColor,
           appBar: (context.isMobile && !widget.isDashboard)
               ? AppBar(
-                  title: Text(
+                  title: const Text(
                     'Explore Topics',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: textColor,
                       fontWeight: FontWeight.bold,
                     ),
@@ -97,16 +95,16 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                   backgroundColor: Colors.transparent,
                   elevation: 0,
                   leading: IconButton(
-                    icon: const Icon(Icons.arrow_back, color: Colors.white),
-                    onPressed: () => Get.back(),
+                    icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                    onPressed: Get.back,
                   ),
                   actions: [
                     IconButton(
                       icon: const Icon(
                         Icons.refresh_rounded,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
-                      onPressed: () => controller.initialFetch(),
+                      onPressed: controller.initialFetch,
                     ),
                     const SizedBox(width: 16),
                   ],
@@ -125,9 +123,9 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                         padding: const EdgeInsets.only(bottom: 24),
                         child: Row(
                           children: [
-                            Text(
+                            const Text(
                               'Explore Topics',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontSize: 32,
                                 fontWeight: FontWeight.bold,
                                 color: textColor,
@@ -137,9 +135,9 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                             IconButton(
                               icon: const Icon(
                                 Icons.refresh_rounded,
-                                color: Colors.white,
+                                color: AppColors.textPrimary,
                               ),
-                              onPressed: () => controller.initialFetch(),
+                              onPressed: controller.initialFetch,
                             ),
                           ],
                         ),
@@ -269,7 +267,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
             image: CachedNetworkImageProvider(category.imageUrl),
             fit: BoxFit.cover,
             colorFilter: ColorFilter.mode(
-              Colors.black.withValues(alpha: 0.45),
+              AppColors.bgPage.withValues(alpha: 0.45),
               BlendMode.darken,
             ),
           ),
@@ -278,13 +276,13 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
         padding: const EdgeInsets.all(16),
         child: Text(
           category.title,
-          style: GoogleFonts.roboto(
-            color: Colors.white,
+          style: TextStyle(
+            color: AppColors.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.bold,
             shadows: [
               Shadow(
-                color: Colors.black.withValues(alpha: 0.8),
+                color: AppColors.bgPage.withValues(alpha: 0.8),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -305,7 +303,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
           ),
           Text(
             controller.selectedCategory.value,
-            style: GoogleFonts.roboto(
+            style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
@@ -335,7 +333,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                 backgroundColor: AppColors.bgSurface,
                 selectedColor: AppColors.brand,
                 labelStyle: TextStyle(
-                  color: isSelected ? Colors.white : AppColors.textSecondary,
+                  color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
                 shape: RoundedRectangleBorder(
@@ -350,10 +348,10 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   }
 
   Widget _buildTopicsPageView(BuildContext context) {
-    final bool isMobile = context.isMobile;
-    final double bannerHeight = isMobile ? 360 : 540;
-    final int itemsCount = controller.topics.length;
-    final int totalPages =
+    final isMobile = context.isMobile;
+    final bannerHeight = isMobile ? 360.0 : 540.0;
+    final itemsCount = controller.topics.length;
+    final totalPages =
         itemsCount + (controller.isLoadingMore.value ? 1 : 0);
 
     return Container(
@@ -383,11 +381,11 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                   }
 
                   // Awesome transition effects
-                  final double scale = (1 - (pageOffset.abs() * 0.12)).clamp(
+                  final scale = (1 - (pageOffset.abs() * 0.12)).clamp(
                     0.88,
                     1.0,
                   );
-                  final double opacity = (1 - (pageOffset.abs() * 0.4)).clamp(
+                  final opacity = (1 - (pageOffset.abs() * 0.4)).clamp(
                     0.0,
                     1.0,
                   );
@@ -441,19 +439,19 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: List.generate(itemsCount, (index) {
-                    final bool isSelected = currentIndex == index;
+                    final isSelected = currentIndex == index;
                     return AnimatedContainer(
                       duration: const Duration(milliseconds: 300),
                       width: isSelected ? 32 : 8,
                       height: 8,
                       margin: const EdgeInsets.symmetric(horizontal: 4),
                       decoration: BoxDecoration(
-                        color: isSelected ? Colors.white : Colors.white38,
+                        color: isSelected ? AppColors.textPrimary : AppColors.textTertiary,
                         borderRadius: BorderRadius.circular(4),
                         boxShadow: isSelected
                             ? [
                                 BoxShadow(
-                                  color: Colors.white.withValues(alpha: 0.5),
+                                  color: AppColors.textPrimary.withValues(alpha: 0.5),
                                   blurRadius: 8,
                                 ),
                               ]
@@ -485,17 +483,16 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.black.withValues(alpha: 0.5),
+                color: AppColors.bgPage.withValues(alpha: 0.5),
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  width: 1,
+                  color: AppColors.textPrimary.withValues(alpha: 0.15),
                 ),
               ),
               child: Icon(
                 isLeft
                     ? Icons.chevron_left_rounded
                     : Icons.chevron_right_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 32,
               ),
             ),
@@ -510,27 +507,31 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     Topic topic,
     double pageOffset,
   ) {
-    final bool isMobile = context.isMobile;
+    final isMobile = context.isMobile;
     final followingController = Get.isRegistered<FollowingTopicsController>()
         ? Get.find<FollowingTopicsController>()
         : Get.put(FollowingTopicsController());
 
-    final bool isOwner =
-        topic.channelId != null &&
+    final isOwner =
         Get.isRegistered<AuthService>() &&
-        AuthService.to.userChannel?.id == topic.channelId;
+        ((topic.channelId != null &&
+            topic.channelId!.isNotEmpty &&
+            AuthService.to.userChannel?.id == topic.channelId) ||
+         (topic.creatorId != null &&
+            topic.creatorId!.isNotEmpty &&
+            AuthService.to.uid == topic.creatorId));
 
-    final String? bgUrl =
+    final bgUrl =
         (topic.coverImage != null && topic.coverImage!.isNotEmpty)
         ? topic.coverImage
         : (topic.thumbnailUrl != null && topic.thumbnailUrl!.isNotEmpty)
         ? topic.thumbnailUrl
         : null;
 
-    final double btnPaddingH = isMobile ? 12 : 20;
-    final double btnPaddingV = isMobile ? 8 : 12;
-    final double btnFontSize = isMobile ? 13 : 15;
-    final double btnIconSize = isMobile ? 16 : 18;
+    final btnPaddingH = isMobile ? 12.0 : 20.0;
+    final btnPaddingV = isMobile ? 8.0 : 12.0;
+    final btnFontSize = isMobile ? 13.0 : 15.0;
+    final btnIconSize = isMobile ? 16.0 : 18.0;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
@@ -538,12 +539,12 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
         color: const Color(0xFF0F0F0F),
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: Colors.white.withValues(alpha: 0.05),
+          color: AppColors.textPrimary.withValues(alpha: 0.05),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
+            color: AppColors.bgPage.withValues(alpha: 0.4),
             blurRadius: 16,
             offset: const Offset(0, 8),
           ),
@@ -559,11 +560,25 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
               child: Transform.translate(
                 offset: Offset(pageOffset * 100, 0), // Parallax effect
                 child: bgUrl != null
-                    ? CachedNetworkImage(
-                        imageUrl: bgUrl,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, url, error) =>
-                            _buildGradientBackground(),
+                    ? Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          CachedNetworkImage(
+                            imageUrl: bgUrl,
+                            fit: BoxFit.cover,
+                            errorWidget: (context, url, error) =>
+                                _buildGradientBackground(),
+                          ),
+                          Container(
+                            color: Colors.black.withValues(alpha: 0.65),
+                          ),
+                          CachedNetworkImage(
+                            imageUrl: bgUrl,
+                            fit: BoxFit.contain,
+                            errorWidget: (context, url, error) =>
+                                _buildGradientBackground(),
+                          ),
+                        ],
                       )
                     : _buildGradientBackground(),
               ),
@@ -579,8 +594,8 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                   end: isMobile ? Alignment.bottomCenter : Alignment.centerLeft,
                   colors: [
                     Colors.transparent,
-                    Colors.black.withValues(alpha: isMobile ? 0.75 : 0.8),
-                    Colors.black.withValues(alpha: isMobile ? 0.95 : 1.0),
+                    AppColors.bgPage.withValues(alpha: isMobile ? 0.75 : 0.8),
+                    AppColors.bgPage.withValues(alpha: isMobile ? 0.95 : 1.0),
                   ],
                   stops: const [0.0, 0.6, 1.0],
                 ),
@@ -604,8 +619,8 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                     },
                   );
                 },
-                splashColor: Colors.white.withValues(alpha: 0.05),
-                highlightColor: Colors.white.withValues(alpha: 0.02),
+                splashColor: AppColors.textPrimary.withValues(alpha: 0.05),
+                highlightColor: AppColors.textPrimary.withValues(alpha: 0.02),
               ),
             ),
           ),
@@ -628,19 +643,19 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                       color: const Color(0xFF9333EA), // Purple accent
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Row(
+                    child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.bookmark_outline_rounded,
                           size: 14,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                         ),
-                        const SizedBox(width: 6),
+                        SizedBox(width: 6),
                         Text(
                           'TOPIC',
-                          style: GoogleFonts.roboto(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
@@ -655,10 +670,10 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                     width: isMobile ? double.infinity : 700,
                     child: Text(
                       topic.title,
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: isMobile ? 24 : 48,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         height: 1.15,
                         letterSpacing: -0.5,
                       ),
@@ -677,7 +692,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                       Text(
                         '${FormatUtils.formatCount(topic.videoCount)} videos • ${timeago.format(topic.createdAt)}',
                         style: const TextStyle(
-                          color: Colors.white70,
+                          color: AppColors.textSecondary,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                         ),
@@ -688,13 +703,13 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white10,
+                          color: AppColors.bgDivider,
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           topic.category,
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
@@ -711,7 +726,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                       child: Text(
                         topic.description,
                         style: const TextStyle(
-                          color: Colors.white60,
+                          color: AppColors.textSecondary,
                           fontSize: 16,
                           height: 1.5,
                         ),
@@ -727,7 +742,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                     spacing: 12,
                     runSpacing: 8,
                     children: [
-                      if (widget.isDashboard || isOwner) ...[
+                      if (isOwner) ...[
                         // Edit Button for Owners/Dashboard
                         ElevatedButton.icon(
                           onPressed: () {
@@ -748,13 +763,13 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                           },
                           icon: Icon(
                             Icons.edit_rounded,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             size: btnIconSize,
                           ),
                           label: Text(
-                            "Edit",
+                            'Edit',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                               fontWeight: FontWeight.w500,
                               fontSize: btnFontSize,
                             ),
@@ -763,7 +778,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                             backgroundColor: const Color(
                               0xFFE11D48,
                             ), // rose-600
-                            foregroundColor: Colors.white,
+                            foregroundColor: AppColors.textPrimary,
                             padding: EdgeInsets.symmetric(
                               horizontal: btnPaddingH,
                               vertical: btnPaddingV,
@@ -787,24 +802,24 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                               isFollowed
                                   ? Icons.check_circle_outline_rounded
                                   : Icons.person_add_alt_1_outlined,
-                              color: isFollowed ? Colors.white : Colors.black,
+                              color: isFollowed ? AppColors.textPrimary : AppColors.bgPage,
                               size: btnIconSize,
                             ),
                             label: Text(
                               isFollowed ? 'Following' : 'Follow',
                               style: TextStyle(
-                                color: isFollowed ? Colors.white : Colors.black,
+                                color: isFollowed ? AppColors.textPrimary : AppColors.bgPage,
                                 fontWeight: FontWeight.w500,
                                 fontSize: btnFontSize,
                               ),
                             ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: isFollowed
-                                  ? Colors.white.withValues(alpha: 0.15)
-                                  : Colors.white,
+                                  ? AppColors.textPrimary.withValues(alpha: 0.15)
+                                  : AppColors.textPrimary,
                               foregroundColor: isFollowed
-                                  ? Colors.white
-                                  : Colors.black,
+                                  ? AppColors.textPrimary
+                                  : AppColors.bgPage,
                               padding: EdgeInsets.symmetric(
                                 horizontal: btnPaddingH,
                                 vertical: btnPaddingV,
@@ -813,10 +828,9 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                                 borderRadius: BorderRadius.circular(24),
                                 side: isFollowed
                                     ? BorderSide(
-                                        color: Colors.white.withValues(
+                                        color: AppColors.textPrimary.withValues(
                                           alpha: 0.3,
                                         ),
-                                        width: 1,
                                       )
                                     : BorderSide.none,
                               ),
@@ -829,9 +843,9 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                       // Share Button
                       ElevatedButton.icon(
                         onPressed: () {
-                          final String slug = topic.slug;
-                          final String title = topic.title;
-                          final String? imageUrl =
+                          final slug = topic.slug;
+                          final title = topic.title;
+                          final imageUrl =
                               topic.coverImage ?? topic.thumbnailUrl;
                           final topicUrl = DeepLinkService.topicUrl(slug);
                           ShareBottomSheet.show(
@@ -846,20 +860,20 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                         },
                         icon: Icon(
                           Icons.share_rounded,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           size: btnIconSize,
                         ),
                         label: Text(
                           'Share',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             fontWeight: FontWeight.w500,
                             fontSize: btnFontSize,
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white.withValues(alpha: 0.12),
-                          foregroundColor: Colors.white,
+                          backgroundColor: AppColors.textPrimary.withValues(alpha: 0.12),
+                          foregroundColor: AppColors.textPrimary,
                           padding: EdgeInsets.symmetric(
                             horizontal: btnPaddingH,
                             vertical: btnPaddingV,
@@ -890,7 +904,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
           colors: [
             AppColors.brand.withValues(alpha: 0.3),
             AppColors.brand.withValues(alpha: 0.15),
-            Colors.black,
+            AppColors.bgPage,
           ],
         ),
       ),
@@ -900,24 +914,24 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   Widget _buildErrorState() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(
               Icons.error_outline_rounded,
-              color: Colors.redAccent,
+              color: AppColors.error,
               size: 60,
             ),
             const SizedBox(height: 16),
             Text(
               controller.errorMessage.value,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: () => controller.initialFetch(),
+              onPressed: controller.initialFetch,
               child: const Text('Try Again'),
             ),
           ],
@@ -927,14 +941,14 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   }
 
   Widget _buildEmptyState() {
-    final bool isSearch = controller.searchQuery.value.isNotEmpty;
+    final isSearch = controller.searchQuery.value.isNotEmpty;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             isSearch ? Icons.search_off_rounded : Icons.hub_outlined,
-            color: Colors.white38,
+            color: AppColors.textTertiary,
             size: 80,
           ),
           const SizedBox(height: 16),
@@ -942,8 +956,8 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
             isSearch
                 ? 'No topics match "${controller.searchQuery.value}"'
                 : 'No topics available under this Category',
-            style: GoogleFonts.roboto(
-              color: Colors.white70,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -951,7 +965,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
           const SizedBox(height: 8),
           const Text(
             'Try switching explore modes or explore different categories.',
-            style: TextStyle(color: Colors.white38, fontSize: 13),
+            style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
           ),
         ],
       ),
@@ -964,13 +978,13 @@ class _TopicPageViewShimmerWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isMobile = MediaQuery.of(context).size.width < 600;
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
       decoration: BoxDecoration(
         color: const Color(0xFF0F0F0F),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.05)),
       ),
       child: Shimmer.fromColors(
         baseColor: const Color(0xFF161618),
@@ -984,7 +998,7 @@ class _TopicPageViewShimmerWidget extends StatelessWidget {
                 width: 100,
                 height: 20,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -993,7 +1007,7 @@ class _TopicPageViewShimmerWidget extends StatelessWidget {
                 width: isMobile ? 200 : 400,
                 height: isMobile ? 28 : 40,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   borderRadius: BorderRadius.circular(6),
                 ),
               ),
@@ -1002,7 +1016,7 @@ class _TopicPageViewShimmerWidget extends StatelessWidget {
                 width: 150,
                 height: 16,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -1012,7 +1026,7 @@ class _TopicPageViewShimmerWidget extends StatelessWidget {
                   width: 300,
                   height: 14,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -1024,7 +1038,7 @@ class _TopicPageViewShimmerWidget extends StatelessWidget {
                     width: 100,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       borderRadius: BorderRadius.circular(18),
                     ),
                   ),
@@ -1033,7 +1047,7 @@ class _TopicPageViewShimmerWidget extends StatelessWidget {
                     width: 100,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       borderRadius: BorderRadius.circular(18),
                     ),
                   ),

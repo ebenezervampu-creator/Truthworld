@@ -2,15 +2,15 @@ import 'package:flutter/material.dart';
 
 /// Represents the result of a typography measurement
 class TypographyMeasurement {
-  final double width;
-  final double height;
-  final int lineCount;
 
   TypographyMeasurement({
     required this.width,
     required this.height,
     required this.lineCount,
   });
+  final double width;
+  final double height;
+  final int lineCount;
 
   @override
   String toString() => 'TypographyMeasurement(width: $width, height: $height, lineCount: $lineCount)';

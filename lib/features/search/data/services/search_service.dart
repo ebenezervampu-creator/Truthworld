@@ -2,8 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
-import '../models/search_result.dart';
-import '../models/search_cache.dart';
+import 'package:truthworld/features/search/data/models/search_cache.dart';
+import 'package:truthworld/features/search/data/models/search_result.dart';
 
 /// SearchService: Core query logic
 ///
@@ -45,9 +45,9 @@ class SearchService {
         _searchTopics(normalized),
       ]);
 
-      // Merge and sort
-      List<SearchResult> merged = results.expand((x) => x).toList();
-      merged = _sortResults(merged);
+      // Merge and sort using Industry Standard relevance scoring & ranking
+      var merged = results.expand((x) => x).toList();
+      merged = _rankAndSortResults(merged, normalized);
 
       _cache.put(normalized, merged);
       return merged;
@@ -83,6 +83,8 @@ class SearchService {
 
   /// 🎬 VIDEO SEARCH (INTERNAL - with fallback strategy, cost-effective)
   Future<List<SearchResult>> _searchVideos(String query) async {
+    final tokens = query.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+
     // 1. Try keywords (fast, indexed query)
     var results = await _firestore
         .collection('videos')
@@ -92,7 +94,7 @@ class SearchService {
         .get()
         .then(
           (s) => s.docs
-              .map((d) => SearchResult.fromFirestore(d, type: ResultType.video))
+              .map(SearchResult.fromFirestore)
               .toList(),
         );
 
@@ -108,21 +110,27 @@ class SearchService {
           .then(
             (s) => s.docs
                 .map(
-                  (d) => SearchResult.fromFirestore(d, type: ResultType.video),
+                  SearchResult.fromFirestore,
                 )
                 .toList(),
           );
     }
 
-    // 3. Free Local Cache Fallback (for development/testing or offline capability)
-    // Note: This fallback only searches currently cached/loaded videos in HomeController, not the entire Firestore catalog,
-    // which prevents costly Firestore reads.
+    // 3. Free Local Multi-Token Fallback (for development/testing or offline capability)
     if (results.isEmpty) {
       try {
         if (Get.isRegistered<HomeController>()) {
           final homeCtrl = Get.find<HomeController>();
           final localMatches = homeCtrl.videos
-              .where((v) => v.title.toLowerCase().contains(query))
+              .where((v) {
+                final t = v.title.toLowerCase();
+                final c = v.channelName.toLowerCase();
+                if (t.contains(query) || c.contains(query)) return true;
+                if (tokens.isNotEmpty) {
+                  return tokens.every((token) => t.contains(token) || c.contains(token));
+                }
+                return false;
+              })
               .map((v) => SearchResult(
                     id: v.id,
                     title: v.title,
@@ -131,7 +139,6 @@ class SearchService {
                     channelName: v.channelName,
                     channelImage: v.channelAvatarUrl,
                     createdAt: v.createdAt,
-                    type: ResultType.video,
                     durationMs: v.durationValue.inMilliseconds,
                   ));
           results.addAll(localMatches);
@@ -341,7 +348,7 @@ class SearchService {
           .get();
 
       return snapshot.docs
-          .map((doc) => SearchResult.fromFirestore(doc))
+          .map(SearchResult.fromFirestore)
           .toList();
     } catch (e) {
       debugPrint('⚠️ [Search] Recommended fetch failed: $e');
@@ -349,7 +356,7 @@ class SearchService {
       try {
         final snapshot = await _firestore.collection('videos').limit(5).get();
         return snapshot.docs
-            .map((doc) => SearchResult.fromFirestore(doc))
+            .map(SearchResult.fromFirestore)
             .toList();
       } catch (_) {
         return [];
@@ -389,18 +396,67 @@ class SearchService {
     }
   }
 
-  /// Sort results locally (avoid expensive Firestore sorting)
-  ///
-  /// Priority:
-  /// 1. Views (descending) - most popular first
-  /// 2. CreatedAt (descending) - most recent second
-  List<SearchResult> _sortResults(List<SearchResult> results) {
+  /// Sort results locally using Industry Standard multi-factor relevance ranking
+  List<SearchResult> _rankAndSortResults(List<SearchResult> results, String rawQuery) {
+    final query = rawQuery.toLowerCase().trim();
+    if (query.isEmpty) return results;
+
+    final tokens = query.split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+
+    for (final item in results) {
+      var score = 0.0;
+      final title = item.title.toLowerCase();
+      final channel = item.channelName.toLowerCase();
+
+      // 1. Title matching (Exact: 100, Prefix: 80, Substring: 60)
+      if (title == query) {
+        score += 100.0;
+      } else if (title.startsWith(query)) {
+        score += 80.0;
+      } else if (title.contains(query)) {
+        score += 60.0;
+      }
+
+      // 2. Channel matching (Exact: 75, Prefix: 55, Substring: 35)
+      if (channel == query) {
+        score += 75.0;
+      } else if (channel.startsWith(query)) {
+        score += 55.0;
+      } else if (channel.contains(query)) {
+        score += 35.0;
+      }
+
+      // 3. Multi-token coverage boost (up to 50 points based on ratio of matched words)
+      if (tokens.isNotEmpty) {
+        var tokenMatches = 0;
+        for (final token in tokens) {
+          if (title.contains(token) || channel.contains(token)) {
+            tokenMatches++;
+          }
+        }
+        final tokenRatio = tokenMatches / tokens.length;
+        score += tokenRatio * 50.0;
+      }
+
+      // 4. Popularity Boost (Log scale of views)
+      if (item.views > 0) {
+        score += item.views.toString().length * 2.5;
+      }
+
+      // 5. Freshness / Recency Boost
+      final daysOld = DateTime.now().difference(item.createdAt.toDate()).inDays;
+      if (daysOld >= 0 && daysOld < 30) {
+        score += (30 - daysOld) * 0.3;
+      }
+
+      item.relevanceScore = score;
+    }
+
     results.sort((a, b) {
-      // First: sort by views (descending)
+      final scoreCompare = b.relevanceScore.compareTo(a.relevanceScore);
+      if (scoreCompare != 0) return scoreCompare;
       final viewsCompare = b.views.compareTo(a.views);
       if (viewsCompare != 0) return viewsCompare;
-
-      // Second: sort by date (descending)
       return b.createdAt.compareTo(a.createdAt);
     });
 
@@ -446,7 +502,7 @@ class SearchService {
       }
 
       // Small delay to avoid overwhelming Firestore
-      await Future.delayed(Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 100));
     }
 
     debugPrint('✅ [Search] Cache warmup complete');

@@ -1,14 +1,14 @@
 // ignore_for_file: subtype_of_sealed_class
-import 'package:flutter_test/flutter_test.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 
 class FakeDocumentSnapshot extends Fake implements DocumentSnapshot<Map<String, dynamic>> {
+
+  FakeDocumentSnapshot(this.id, this._data);
   final Map<String, dynamic> _data;
   @override
   final String id;
-
-  FakeDocumentSnapshot(this.id, this._data);
 
   @override
   Map<String, dynamic>? data() => _data;
@@ -34,7 +34,7 @@ void main() {
     });
 
     test('Should parse createdAt/updatedAt correctly when they are int (milliseconds)', () {
-      final ms = 1784343769382;
+      const ms = 1784343769382;
       final expectedDateTime = DateTime.fromMillisecondsSinceEpoch(ms);
       
       final doc = FakeDocumentSnapshot('topic_2', {
@@ -50,7 +50,7 @@ void main() {
     });
 
     test('Should parse createdAt/updatedAt correctly when they are int (seconds)', () {
-      final seconds = 1784343769;
+      const seconds = 1784343769;
       final expectedDateTime = DateTime.fromMillisecondsSinceEpoch(seconds * 1000);
       
       final doc = FakeDocumentSnapshot('topic_3', {
@@ -66,7 +66,7 @@ void main() {
     });
 
     test('Should parse createdAt/updatedAt correctly when they are String ISO-8601', () {
-      final isoStr = '2026-05-26T14:19:29.382Z';
+      const isoStr = '2026-05-26T14:19:29.382Z';
       final expectedDateTime = DateTime.parse(isoStr);
       
       final doc = FakeDocumentSnapshot('topic_4', {

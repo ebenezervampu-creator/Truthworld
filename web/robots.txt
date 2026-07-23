@@ -6,6 +6,7 @@ Allow: /@
 Allow: /topic/
 Allow: /T/
 Allow: /playlist
+Allow: /feeds/
 Allow: /trending
 Allow: /browse
 

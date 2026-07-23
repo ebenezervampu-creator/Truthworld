@@ -1,6 +1,41 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Reply {
+
+  Reply({
+    required this.id,
+    required this.commentId,
+    required this.videoId,
+    required this.userId,
+    required this.userName,
+    required this.userProfilePicUrl,
+    required this.channelId,
+    required this.text, required this.likeCount, required this.dislikeCount, required this.reportCount, required this.createdAt, this.channelName,
+    this.channelProfilePicUrl,
+    this.isLikedByCurrentUser = false,
+    this.isDislikedByCurrentUser = false,
+  });
+
+  factory Reply.fromDocumentSnapshot(DocumentSnapshot doc) {
+    final data = doc.data()! as Map<String, dynamic>;
+    return Reply(
+      id: doc.id,
+      commentId: data['commentId'] ?? '',
+      videoId: data['videoId'] ?? '',
+      userId: data['userId'] ?? '',
+      userName: data['userName'] ?? '',
+      userProfilePicUrl: data['userProfilePicUrl'] ?? '',
+      channelId: data['channelId'] ?? data['userId'] ?? '',
+      channelName: data['channelName'],
+      channelProfilePicUrl: data['channelProfilePicUrl'],
+      text: data['text'] ?? '',
+      likeCount: data['likeCount'] ?? 0,
+      dislikeCount: data['dislikeCount'] ?? 0,
+      reportCount: data['reportCount'] ?? 0,
+      createdAt: data['createdAt'] ?? Timestamp.now(),
+      // likedBy/dislikedBy not read from Firestore — use subcollection
+    );
+  }
   final String id;
   final String commentId;
   final String videoId;
@@ -23,25 +58,6 @@ class Reply {
   String get displayName => (channelName != null && channelName!.isNotEmpty) ? channelName! : userName;
   String get avatarUrl => (channelProfilePicUrl != null && channelProfilePicUrl!.isNotEmpty) ? channelProfilePicUrl! : userProfilePicUrl;
 
-  Reply({
-    required this.id,
-    required this.commentId,
-    required this.videoId,
-    required this.userId,
-    required this.userName,
-    required this.userProfilePicUrl,
-    required this.channelId,
-    this.channelName,
-    this.channelProfilePicUrl,
-    required this.text,
-    required this.likeCount,
-    required this.dislikeCount,
-    required this.reportCount,
-    required this.createdAt,
-    this.isLikedByCurrentUser = false,
-    this.isDislikedByCurrentUser = false,
-  });
-
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -60,27 +76,6 @@ class Reply {
       'createdAt': createdAt,
       // likedBy/dislikedBy maps removed for scale
     };
-  }
-
-  factory Reply.fromDocumentSnapshot(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return Reply(
-      id: doc.id,
-      commentId: data['commentId'] ?? '',
-      videoId: data['videoId'] ?? '',
-      userId: data['userId'] ?? '',
-      userName: data['userName'] ?? '',
-      userProfilePicUrl: data['userProfilePicUrl'] ?? '',
-      channelId: data['channelId'] ?? data['userId'] ?? '',
-      channelName: data['channelName'],
-      channelProfilePicUrl: data['channelProfilePicUrl'],
-      text: data['text'] ?? '',
-      likeCount: data['likeCount'] ?? 0,
-      dislikeCount: data['dislikeCount'] ?? 0,
-      reportCount: data['reportCount'] ?? 0,
-      createdAt: data['createdAt'] ?? Timestamp.now(),
-      // likedBy/dislikedBy not read from Firestore — use subcollection
-    );
   }
 
   Reply copyWith({

@@ -1,14 +1,14 @@
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:truthworld/theme/app_theme.dart';
-
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 // ========================================================================
 // COLOR CONSTANTS
@@ -177,7 +177,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     );
 
     // Setup fade animation
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
         parent: _fadeAnimationController,
         curve: Curves.easeOutCubic,
@@ -186,7 +186,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
     // Setup slide animation
     _slideAnimation =
-        Tween<Offset>(begin: const Offset(0.0, 0.1), end: Offset.zero).animate(
+        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
           CurvedAnimation(
             parent: _slideAnimationController,
             curve: Curves.easeOutCubic,
@@ -194,7 +194,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
         );
 
     // Setup scale animation
-    _scaleAnimation = Tween<double>(begin: 0.95, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.95, end: 1).animate(
       CurvedAnimation(
         parent: _scaleAnimationController,
         curve: Curves.easeOutBack,
@@ -219,7 +219,6 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     tabController = TabController(
       length: categories.length,
       vsync: this,
-      initialIndex: 0,
     );
 
     tabController.addListener(_onTabChanged);
@@ -260,9 +259,9 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
       // Parallel fetch all carousel categories
       final results = await Future.wait([
-        _fetchPublicVideos(limit: 10), // Recommended
-        _fetchCategoryVideos('Music', limit: 10), // Music
-        _fetchPublicVideos(limit: 10), // Trending
+        _fetchPublicVideos(), // Recommended
+        _fetchCategoryVideos('Music'), // Music
+        _fetchPublicVideos(), // Trending
       ]);
 
       recommendedVideos.assignAll(results[0]);
@@ -298,7 +297,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
   /// Fetch initial page of videos with current category filter
   Future<void> fetchInitialVideos() async {
-    await safeExecute(_fetchInitialVideosInternal, showLoading: true);
+    await safeExecute(_fetchInitialVideosInternal);
   }
 
   /// Internal implementation for initial video fetch
@@ -313,16 +312,15 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
           .get()
           .timeout(
             const Duration(seconds: 10),
-            onTimeout: () => throw TimeoutException(
+            onTimeout: () => throw const TimeoutException(
               message: 'Loading videos',
-              originalException: null,
             ),
           );
 
       if (results.docs.isNotEmpty) {
         _lastDocument = results.docs.last;
         final newVideos = results.docs
-            .map((doc) => Video.fromDocumentSnapshot(doc))
+            .map(Video.fromDocumentSnapshot)
             .toList();
         videos.assignAll(newVideos);
 
@@ -374,16 +372,15 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
           .get()
           .timeout(
             const Duration(seconds: 10),
-            onTimeout: () => throw TimeoutException(
+            onTimeout: () => throw const TimeoutException(
               message: 'Loading more videos',
-              originalException: null,
             ),
           );
 
       if (results.docs.isNotEmpty) {
         _lastDocument = results.docs.last;
         final newVideos = results.docs
-            .map((doc) => Video.fromDocumentSnapshot(doc))
+            .map(Video.fromDocumentSnapshot)
             .toList();
         videos.addAll(newVideos);
 
@@ -440,7 +437,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
         .limit(limit)
         .get();
 
-    return results.docs.map((doc) => Video.fromDocumentSnapshot(doc)).toList();
+    return results.docs.map(Video.fromDocumentSnapshot).toList();
   }
 
   /// Fetch videos by category (helper for carousel)
@@ -455,7 +452,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
         .limit(limit)
         .get();
 
-    return results.docs.map((doc) => Video.fromDocumentSnapshot(doc)).toList();
+    return results.docs.map(Video.fromDocumentSnapshot).toList();
   }
 
 
@@ -522,21 +519,18 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
         if (Get.currentRoute != '/home') {
           Get.toNamed('/home');
         }
-        break;
       case 1:
         if (currentUser.value == null) {
           showWarning('Please sign in to access subscriptions');
         } else if (Get.currentRoute != '/subscriptions') {
           Get.toNamed('/subscriptions');
         }
-        break;
       case 2:
         if (currentUser.value == null) {
           showWarning('Please sign in to access library');
         } else if (Get.currentRoute != '/library') {
           Get.toNamed('/library');
         }
-        break;
     }
   }
 

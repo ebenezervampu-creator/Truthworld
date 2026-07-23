@@ -172,7 +172,6 @@ class ToastService {
         snackPosition: SnackPosition.TOP,
         padding: EdgeInsets.all(AppTheme.spacing.space12),
         borderColor: borderColor,
-        borderWidth: 1,
         animationDuration: const Duration(milliseconds: 200),
         forwardAnimationCurve: Curves.easeOutCubic,
         reverseAnimationCurve: Curves.easeInCubic,

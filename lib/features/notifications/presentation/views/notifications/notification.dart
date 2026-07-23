@@ -1,16 +1,17 @@
 import 'dart:async';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
-import 'package:truthworld/features/notifications/data/services/user_notification_service.dart';
+import 'package:truthworld/features/notifications/presentation/controllers/user_notification_controller.dart';
+import 'package:truthworld/features/notifications/presentation/controllers/video_feed_notification_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 // Extension for capitalize (top-level)
 extension StringExtension on String {
@@ -50,504 +51,6 @@ users/
     seenVideoIds: [videoId1, videoId2, ...]
   }
 */
-
-// ==========================================================================
-// VIDEO FEED NOTIFICATION MODEL
-// ==========================================================================
-
-// ==========================================================================
-// VIDEO FEED NOTIFICATION SERVICE (Feed Reconstruction)
-// ==========================================================================
-
-class VideoFeedNotificationService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static const int defaultVideoLimit = 50;
-
-  // ==========================================================================
-  // 🔥 O(1) MATERIALIZED FEED STREAM
-  // ==========================================================================
-  Stream<List<Video>> getVideoNotificationsStream(
-    String userId, {
-    int limit = defaultVideoLimit,
-  }) {
-    if (userId == 'guest_user' || userId.isEmpty) {
-      return Stream.value([]);
-    }
-
-    return _firestore
-        .collection('users')
-        .doc(userId)
-        .collection('feed_inbox')
-        .orderBy('uploadedAt', descending: true)
-        .limit(limit)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs.map((doc) => _mapInboxToVideo(doc)).toList();
-    });
-  }
-
-  // ==========================================================================
-  // 🔥 FETCH NOTIFICATIONS ONCE
-  // ==========================================================================
-  Future<List<Video>> getVideoNotificationsOnce(
-    String userId, {
-    int limit = defaultVideoLimit,
-  }) async {
-    if (userId == 'guest_user' || userId.isEmpty) {
-      return [];
-    }
-
-    try {
-      final snapshot = await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('feed_inbox')
-          .orderBy('uploadedAt', descending: true)
-          .limit(limit)
-          .get();
-
-      return snapshot.docs.map((doc) => _mapInboxToVideo(doc)).toList();
-    } catch (e) {
-      debugPrint('Error fetching materialized notifications once: $e');
-      return [];
-    }
-  }
-
-  // ==========================================================================
-  // 🔥 MARK VIDEO AS SEEN
-  // ==========================================================================
-  Future<void> markVideoAsSeen(String userId, String videoId) async {
-    if (userId == 'guest_user' || userId.isEmpty) return;
-    try {
-      // ⚡ SCALE FIX: Removed legacy seenVideoIds arrayUnion — unbounded array growth.
-      // The feed_inbox isSeen flag is the authoritative source of truth.
-
-      // Flag the specific feed inbox document as seen
-      await _firestore
-          .collection('users')
-          .doc(userId)
-          .collection('feed_inbox')
-          .doc(videoId)
-          .update({'isSeen': true});
-
-      // Update lastSeenNotifications timestamp only (no array)
-      await _firestore.collection('users').doc(userId).update({
-        'lastSeenNotifications': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      debugPrint('Error marking video as seen: $e');
-    }
-  }
-
-  // ==========================================================================
-  // 🔥 MARK ALL AS SEEN
-  // ==========================================================================
-  Future<void> markAllAsSeen(String userId, List<String> videoIds) async {
-    if (userId == 'guest_user' || userId.isEmpty || videoIds.isEmpty) return;
-    try {
-      // ⚡ SCALE FIX: Removed legacy seenVideoIds arrayUnion — unbounded array growth.
-      // Only update lastSeenNotifications timestamp and feed_inbox flags.
-      await _firestore.collection('users').doc(userId).update({
-        'lastSeenNotifications': FieldValue.serverTimestamp(),
-      });
-
-      // Perform optimal batched status propagation across feed_inbox
-      final batch = _firestore.batch();
-      for (final vid in videoIds) {
-        final ref = _firestore
-            .collection('users')
-            .doc(userId)
-            .collection('feed_inbox')
-            .doc(vid);
-        batch.update(ref, {'isSeen': true});
-      }
-      await batch.commit();
-    } catch (e) {
-      debugPrint('Error batch marking all as seen: $e');
-    }
-  }
-
-  // ==========================================================================
-  // 🔥 INTERNAL DOCUMENT MAPPER
-  // ==========================================================================
-  Video _mapInboxToVideo(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
-    final id = doc.id;
-    final title = data['title'] as String? ?? '';
-    final channelId = data['channelId'] as String? ?? '';
-    final channelName = data['channelName'] as String? ?? '';
-    final channelImage = data['channelImage'] as String? ?? '';
-    final thumbnailUrl = data['thumbnailUrl'] as String? ?? '';
-    final category = data['category'] as String? ?? 'General';
-    final isSeen = data['isSeen'] as bool? ?? false;
-
-    Timestamp createdAt = Timestamp.now();
-    if (data['uploadedAt'] is Timestamp) {
-      createdAt = data['uploadedAt'] as Timestamp;
-    } else if (data['createdAt'] is Timestamp) {
-      createdAt = data['createdAt'] as Timestamp;
-    }
-
-    int viewCount = 0;
-    if (data['views'] is int) {
-      viewCount = data['views'] as int;
-    } else if (data['viewCount'] is int) {
-      viewCount = data['viewCount'] as int;
-    } else {
-      viewCount = int.tryParse(data['views']?.toString() ?? '0') ?? 0;
-    }
-
-    Duration durationValue = Duration.zero;
-    final durStr = data['duration']?.toString() ?? '';
-    if (durStr.isNotEmpty && durStr.contains(':')) {
-      final parts = durStr.split(':');
-      if (parts.length == 3) {
-        durationValue = Duration(
-          hours: int.tryParse(parts[0]) ?? 0,
-          minutes: int.tryParse(parts[1]) ?? 0,
-          seconds: int.tryParse(parts[2]) ?? 0,
-        );
-      } else if (parts.length == 2) {
-        durationValue = Duration(
-          minutes: int.tryParse(parts[0]) ?? 0,
-          seconds: int.tryParse(parts[1]) ?? 0,
-        );
-      }
-    }
-
-    final video = Video(
-      id: id,
-      title: title,
-      description: '',
-      thumbnailUrl: thumbnailUrl,
-      ownerId: channelId,
-      channelId: channelId,
-      channelName: channelName,
-      channelAvatarUrl: channelImage,
-      category: category,
-      tags: const [],
-      viewCount: viewCount,
-      vDurationValue: durationValue,
-      createdAt: createdAt,
-    );
-    video.isSeen = isSeen;
-    return video;
-  }
-}
-
-// ==========================================================================
-// VIDEO FEED NOTIFICATION CONTROLLER
-// ==========================================================================
-
-class VideoFeedNotificationController extends GetxController {
-  final VideoFeedNotificationService _service = VideoFeedNotificationService();
-
-  var notifications = <Video>[].obs;
-  var isLoading = true.obs;
-  var errorMessage = ''.obs;
-  var selectedTimeFilter = 'all'.obs;
-  var selectedSeenFilter = 'all'.obs;
-  var selectedCategory = 'all'.obs;
-  var searchQuery = ''.obs;
-  var isSearching = false.obs;
-
-  StreamSubscription<List<Video>>? _subscription;
-  final String userId = FirebaseAuth.instance.currentUser?.uid ?? 'guest_user';
-
-  @override
-  void onInit() {
-    super.onInit();
-    _listenToNotifications();
-  }
-
-  @override
-  void onClose() {
-    _subscription?.cancel();
-    super.onClose();
-  }
-
-  void _listenToNotifications() {
-    isLoading.value = true;
-    errorMessage.value = '';
-
-    _subscription = _service
-        .getVideoNotificationsStream(userId, limit: 100)
-        .listen(
-          (notificationList) {
-            notifications.value = notificationList;
-            isLoading.value = false;
-          },
-          onError: (error) {
-            errorMessage.value = error.toString();
-            isLoading.value = false;
-          },
-        );
-  }
-
-  void setTimeFilter(String filter) {
-    selectedTimeFilter.value = filter;
-    HapticFeedback.selectionClick();
-  }
-
-  void setSeenFilter(String filter) {
-    selectedSeenFilter.value = filter;
-    HapticFeedback.selectionClick();
-  }
-
-  void setCategory(String category) {
-    selectedCategory.value = category;
-    HapticFeedback.selectionClick();
-  }
-
-  void toggleSearching() {
-    isSearching.value = !isSearching.value;
-    if (!isSearching.value) {
-      searchQuery.value = '';
-    }
-  }
-
-  Future<void> markVideoAsSeen(String videoId) async {
-    await _service.markVideoAsSeen(userId, videoId);
-    final index = notifications.indexWhere((n) => n.id == videoId);
-    if (index != -1) {
-      notifications[index].isSeen = true;
-      notifications.refresh();
-    }
-  }
-
-  Future<void> markAllAsSeen() async {
-    try {
-      final videoIds = notifications.map((n) => n.id).toList();
-      await _service.markAllAsSeen(userId, videoIds);
-      for (var notification in notifications) {
-        notification.isSeen = true;
-      }
-      notifications.refresh();
-      Get.snackbar(
-        'Success',
-        'All videos marked as seen',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: const Color(0xFF10B981),
-        colorText: Colors.white,
-        duration: const Duration(seconds: 2),
-        margin: EdgeInsets.all(16),
-        borderRadius: 12,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to mark all as seen',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: const Color(0xFFEF4444),
-        colorText: Colors.white,
-      );
-    }
-  }
-
-  Future<void> refreshNotifications() async {
-    try {
-      final fresh = await _service.getVideoNotificationsOnce(userId);
-      notifications.value = fresh;
-    } catch (e) {
-      errorMessage.value = e.toString();
-    }
-  }
-
-  List<Video> get filteredNotifications {
-    var filtered = notifications.toList();
-
-    // Search filter
-    if (searchQuery.isNotEmpty) {
-      filtered = filtered.where((n) {
-        return n.title.toLowerCase().contains(searchQuery.toLowerCase()) ||
-            n.channelName.toLowerCase().contains(searchQuery.toLowerCase());
-      }).toList();
-    }
-
-    // Time filter
-    final now = DateTime.now();
-    switch (selectedTimeFilter.value) {
-      case 'today':
-        filtered = filtered.where((n) {
-          return n.uploadedAt.toDate().year == now.year &&
-              n.uploadedAt.toDate().month == now.month &&
-              n.uploadedAt.toDate().day == now.day;
-        }).toList();
-        break;
-      case 'this_week':
-        final weekAgo = now.subtract(const Duration(days: 7));
-        filtered = filtered
-            .where((n) => n.uploadedAt.toDate().isAfter(weekAgo))
-            .toList();
-        break;
-      case 'this_month':
-        filtered = filtered.where((n) {
-          return n.uploadedAt.toDate().year == now.year &&
-              n.uploadedAt.toDate().month == now.month;
-        }).toList();
-        break;
-    }
-
-    // Seen filter
-    switch (selectedSeenFilter.value) {
-      case 'unseen':
-        filtered = filtered.where((n) => !n.isSeen).toList();
-        break;
-      case 'seen':
-        filtered = filtered.where((n) => n.isSeen).toList();
-        break;
-    }
-
-    // Category filter
-    if (selectedCategory.value != 'all') {
-      filtered = filtered
-          .where((n) => n.category == selectedCategory.value)
-          .toList();
-    }
-
-    return filtered;
-  }
-
-  List<String> get availableCategories {
-    final categories = notifications.map((n) => n.category).toSet().toList();
-    categories.sort();
-    return ['all', ...categories];
-  }
-
-  int get unseenCount => notifications.where((n) => !n.isSeen).length;
-  int get todayCount {
-    final now = DateTime.now();
-    return notifications.where((n) {
-      final uploadDate = n.uploadedAt.toDate();
-      return uploadDate.year == now.year &&
-          uploadDate.month == now.month &&
-          uploadDate.day == now.day;
-    }).length;
-  }
-}
-
-// ==========================================================================
-// USER NOTIFICATION CONTROLLER (Cloud Functions Alerts)
-// ==========================================================================
-
-class UserNotificationController extends GetxController {
-  final UserNotificationService _service = UserNotificationService();
-  final String userId = FirebaseAuth.instance.currentUser?.uid ?? 'guest_user';
-
-  var notifications = <UserNotification>[].obs;
-  var isLoading = true.obs;
-  var selectedSeverityFilter = 'all'.obs;
-
-  StreamSubscription<List<UserNotification>>? _subscription;
-
-  @override
-  void onInit() {
-    super.onInit();
-    _listenToCloudNotifications();
-  }
-
-  @override
-  void onClose() {
-    _subscription?.cancel();
-    super.onClose();
-  }
-
-  void _listenToCloudNotifications() {
-    isLoading.value = true;
-    _subscription = _service.getNotificationsStream(userId, limit: 100).listen(
-      (list) {
-        notifications.value = list;
-        isLoading.value = false;
-      },
-      onError: (err) {
-        debugPrint('Error streaming cloud notifications: $err');
-        isLoading.value = false;
-      },
-    );
-  }
-
-  void setSeverityFilter(String severity) {
-    selectedSeverityFilter.value = severity;
-    HapticFeedback.selectionClick();
-  }
-
-  Future<void> markAsRead(String notificationId) async {
-    final success = await _service.markAsRead(notificationId);
-    if (success) {
-      final index = notifications.indexWhere((n) => n.id == notificationId);
-      if (index != -1) {
-        notifications[index].read = true;
-        notifications.refresh();
-      }
-    }
-  }
-
-  Future<void> markAllAsRead() async {
-    final unreadIds = notifications.where((n) => !n.read).map((n) => n.id).toList();
-    if (unreadIds.isEmpty) return;
-
-    await _service.markAllAsReadBatch(userId, unreadIds);
-    for (var n in notifications) {
-      n.read = true;
-    }
-    notifications.refresh();
-    HapticFeedback.mediumImpact();
-  }
-
-  Future<void> refreshNotifications() async {
-    isLoading.value = true;
-    final fresh = await _service.fetchNotificationsViaCallable(limit: 100);
-    if (fresh.isNotEmpty) {
-      notifications.value = fresh;
-    }
-    isLoading.value = false;
-  }
-
-  List<UserNotification> get filteredNotifications {
-    final nonMentions = notifications.where((n) => n.type.toLowerCase() != 'mention').toList();
-    if (selectedSeverityFilter.value == 'all') {
-      return nonMentions;
-    }
-    return nonMentions
-        .where((n) =>
-            n.severity.name.toLowerCase() ==
-            selectedSeverityFilter.value.toLowerCase())
-        .toList();
-  }
-
-  int get unreadCount => notifications.where((n) => !n.read).length;
-
-  Future<void> markAllMentionsAsRead() async {
-    final unreadMentions = notifications.where((n) => n.type.toLowerCase() == 'mention' && !n.read).toList();
-    if (unreadMentions.isEmpty) return;
-
-    final unreadIds = unreadMentions.map((n) => n.id).toList();
-    await _service.markAllAsReadBatch(userId, unreadIds);
-    for (var n in notifications) {
-      if (n.type.toLowerCase() == 'mention') {
-        n.read = true;
-      }
-    }
-    notifications.refresh();
-    HapticFeedback.mediumImpact();
-  }
-
-  Future<void> markAllNonMentionsAsRead() async {
-    final unreadNonMentions = notifications.where((n) => n.type.toLowerCase() != 'mention' && !n.read).toList();
-    if (unreadNonMentions.isEmpty) return;
-
-    final unreadIds = unreadNonMentions.map((n) => n.id).toList();
-    await _service.markAllAsReadBatch(userId, unreadIds);
-    for (var n in notifications) {
-      if (n.type.toLowerCase() != 'mention') {
-        n.read = true;
-      }
-    }
-    notifications.refresh();
-    HapticFeedback.mediumImpact();
-  }
-}
-
 // ==========================================================================
 // VIDEO FEED NOTIFICATION SCREEN
 // ==========================================================================
@@ -636,22 +139,21 @@ class _VideoFeedNotificationScreenState
 
   Widget _buildAppBar() {
     return SliverAppBar(
-      floating: false,
       pinned: true,
       backgroundColor: AppColors.bgPage,
       elevation: 0,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: Colors.white),
-        onPressed: () => Get.back(),
+        icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+        onPressed: Get.back,
       ),
       title: Obx(() => controller.isSearching.value
           ? _buildSearchBar()
-          : Text(
-              "Notifications",
-              style: GoogleFonts.roboto(
+          : const Text(
+              'Notifications',
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: AppColors.textPrimary,
               ),
             )),
       actions: [
@@ -660,7 +162,7 @@ class _VideoFeedNotificationScreenState
                 controller.isSearching.value
                     ? Icons.close_rounded
                     : Icons.search_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
               ),
               onPressed: () {
                 controller.toggleSearching();
@@ -670,7 +172,7 @@ class _VideoFeedNotificationScreenState
               },
             )),
         PopupMenuButton<String>(
-          icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
+          icon: const Icon(Icons.more_vert_rounded, color: AppColors.textPrimary),
           onSelected: (value) {
             if (value == 'mark_all_read') {
               _markAllActiveTabAsRead();
@@ -681,7 +183,7 @@ class _VideoFeedNotificationScreenState
               value: 'mark_all_read',
               child: Row(
                 children: [
-                  Icon(Icons.done_all_rounded, size: 20, color: Colors.white),
+                  Icon(Icons.done_all_rounded, size: 20, color: AppColors.textPrimary),
                   SizedBox(width: 12),
                   Text('Mark all as read'),
                 ],
@@ -697,10 +199,10 @@ class _VideoFeedNotificationScreenState
     return TextField(
       controller: _searchController,
       autofocus: true,
-      style: GoogleFonts.roboto(color: Colors.white, fontSize: 16),
-      decoration: InputDecoration(
+      style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
+      decoration: const InputDecoration(
         hintText: 'Search notifications...',
-        hintStyle: GoogleFonts.roboto(color: Colors.white60),
+        hintStyle: TextStyle(color: AppColors.textSecondary),
         border: InputBorder.none,
         enabledBorder: InputBorder.none,
         focusedBorder: InputBorder.none,
@@ -742,16 +244,16 @@ class _VideoFeedNotificationScreenState
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: isSelected ? Colors.white : const Color(0xFF272727),
+            color: isSelected ? AppColors.textPrimary : const Color(0xFF272727),
             borderRadius: BorderRadius.circular(8),
           ),
           alignment: Alignment.center,
           child: Text(
             title,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-              color: isSelected ? Colors.black : Colors.white,
+              color: isSelected ? AppColors.bgPage : AppColors.textPrimary,
             ),
           ),
         ),
@@ -760,9 +262,9 @@ class _VideoFeedNotificationScreenState
   }
 
   List<_UnifiedNotification> _getUnifiedNotificationsForTab() {
-    final List<_UnifiedNotification> items = [];
-    final int activeTab = _selectedTabIndex.value;
-    final String query = controller.searchQuery.value.trim().toLowerCase();
+    final items = <_UnifiedNotification>[];
+    final activeTab = _selectedTabIndex.value;
+    final query = controller.searchQuery.value.trim().toLowerCase();
 
     // 1. Collect video upload notifications (only for "All" tab)
     if (activeTab == 0) {
@@ -785,7 +287,7 @@ class _VideoFeedNotificationScreenState
       final typeLower = n.type.toLowerCase();
       final isMention = typeLower == 'mention';
 
-      bool belongsToTab = false;
+      var belongsToTab = false;
       if (activeTab == 0) {
         belongsToTab = true; // All tab includes everything
       } else if (activeTab == 1) {
@@ -839,9 +341,9 @@ class _VideoFeedNotificationScreenState
     final todayStart = DateTime(now.year, now.month, now.day);
     final weekStart = todayStart.subtract(const Duration(days: 7));
 
-    final List<_UnifiedNotification> todayItems = [];
-    final List<_UnifiedNotification> weekItems = [];
-    final List<_UnifiedNotification> olderItems = [];
+    final todayItems = <_UnifiedNotification>[];
+    final weekItems = <_UnifiedNotification>[];
+    final olderItems = <_UnifiedNotification>[];
 
     for (final item in items) {
       if (item.timestamp.isAfter(todayStart) || item.timestamp.isAtSameMomentAs(todayStart)) {
@@ -853,7 +355,7 @@ class _VideoFeedNotificationScreenState
       }
     }
 
-    final List<Widget> listWidgets = [];
+    final listWidgets = <Widget>[];
 
     if (todayItems.isNotEmpty) {
       listWidgets.add(_buildSectionHeader('Today'));
@@ -889,17 +391,17 @@ class _VideoFeedNotificationScreenState
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
       child: Text(
         title,
-        style: GoogleFonts.roboto(
+        style: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.bold,
-          color: Colors.white,
+          color: AppColors.textPrimary,
         ),
       ),
     );
   }
 
   Widget _buildCompactNotificationTile(_UnifiedNotification item) {
-    String thumbnailUrl = '';
+    var thumbnailUrl = '';
     if (item.video != null) {
       thumbnailUrl = item.video!.thumbnailUrl;
     } else if (item.alert != null) {
@@ -924,7 +426,7 @@ class _VideoFeedNotificationScreenState
           HapticFeedback.lightImpact();
         },
         child: Container(
-          color: item.isSeen ? Colors.transparent : Colors.white.withValues(alpha: 0.05),
+          color: item.isSeen ? Colors.transparent : AppColors.textPrimary.withValues(alpha: 0.05),
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -958,9 +460,9 @@ class _VideoFeedNotificationScreenState
   }
 
   Widget _buildAvatar(_UnifiedNotification item) {
-    String avatarUrl = '';
+    var avatarUrl = '';
     IconData? fallbackIcon;
-    Color fallbackBgColor = Colors.grey[800]!;
+    var fallbackBgColor = AppColors.textSecondary;
 
     if (item.video != null) {
       avatarUrl = item.video!.channelAvatarUrl.isNotEmpty
@@ -976,19 +478,15 @@ class _VideoFeedNotificationScreenState
         case NotificationSeverity.priority:
           fallbackIcon = Icons.warning_rounded;
           fallbackBgColor = const Color(0xFFEF4444);
-          break;
         case NotificationSeverity.warning:
           fallbackIcon = Icons.error_outline_rounded;
           fallbackBgColor = const Color(0xFFF59E0B);
-          break;
         case NotificationSeverity.success:
           fallbackIcon = Icons.star_rounded;
           fallbackBgColor = const Color(0xFF10B981);
-          break;
         case NotificationSeverity.info:
           fallbackIcon = Icons.info_outline_rounded;
           fallbackBgColor = const Color(0xFF6366F1);
-          break;
       }
     }
 
@@ -1005,10 +503,10 @@ class _VideoFeedNotificationScreenState
       final video = item.video!;
       return RichText(
         text: TextSpan(
-          style: GoogleFonts.roboto(
+          style: const TextStyle(
             fontSize: 14,
             height: 1.3,
-            color: Colors.white,
+            color: AppColors.textPrimary,
           ),
           children: [
             TextSpan(
@@ -1034,16 +532,16 @@ class _VideoFeedNotificationScreenState
         children: [
           Text(
             alert.title,
-            style: GoogleFonts.roboto(
+            style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             alert.message,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 14,
               color: isLike ? const Color(0xFF8E8E8E) : const Color(0xFFCCCCCC),
               fontStyle: isLike ? FontStyle.italic : FontStyle.normal,
@@ -1060,9 +558,9 @@ class _VideoFeedNotificationScreenState
   Widget _buildTimeAgo(_UnifiedNotification item) {
     return Text(
       _formatTimestamp(item.timestamp),
-      style: GoogleFonts.roboto(
+      style: const TextStyle(
         fontSize: 12,
-        color: const Color(0xFF8E8E8E),
+        color: Color(0xFF8E8E8E),
       ),
     );
   }
@@ -1073,21 +571,21 @@ class _VideoFeedNotificationScreenState
       height: 54,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        color: Colors.grey[900],
+        color: AppColors.textSecondary,
       ),
       clipBehavior: Clip.antiAlias,
       child: CachedNetworkImage(
         imageUrl: url,
         fit: BoxFit.cover,
-        placeholder: (context, url) => Container(
-          color: Colors.grey[900],
-          child: const Center(
+        placeholder: (context, url) => const ColoredBox(
+          color: AppColors.textSecondary,
+          child: Center(
             child: SizedBox(
               width: 16,
               height: 16,
               child: CircularProgressIndicator(
                 strokeWidth: 1.5,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white24),
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.textDisabled),
               ),
             ),
           ),
@@ -1141,7 +639,7 @@ class _VideoFeedNotificationScreenState
               'The notification has been deleted',
               snackPosition: SnackPosition.BOTTOM,
               backgroundColor: AppColors.bgSurface,
-              colorText: Colors.white,
+              colorText: AppColors.textPrimary,
               duration: const Duration(seconds: 2),
             );
           } catch (e) {
@@ -1163,24 +661,24 @@ class _VideoFeedNotificationScreenState
   }
 
   Widget _buildEmptyTopicsState() {
-    return SliverFillRemaining(
+    return const SliverFillRemaining(
       hasScrollBody: false,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.topic_rounded,
               size: 140,
               color: Color(0xFF333333),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               'No topic updates yet',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w400,
-                color: Colors.white54,
+                color: AppColors.textSecondary,
               ),
             ),
           ],
@@ -1190,24 +688,24 @@ class _VideoFeedNotificationScreenState
   }
 
   Widget _buildEmptyMentionsState() {
-    return SliverFillRemaining(
+    return const SliverFillRemaining(
       hasScrollBody: false,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.alternate_email_rounded,
               size: 140,
               color: Color(0xFF333333),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               'No mentions yet',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w400,
-                color: Colors.white54,
+                color: AppColors.textSecondary,
               ),
             ),
           ],
@@ -1227,28 +725,28 @@ class _VideoFeedNotificationScreenState
               width: 120,
               height: 120,
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.05),
+                color: AppColors.textPrimary.withValues(alpha: 0.05),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.notifications_off_rounded,
                 size: 60,
-                color: Colors.white30,
+                color: AppColors.textTertiary,
               ),
             ),
             const SizedBox(height: 24),
-            Text(
+            const Text(
               'No notifications',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
-            Text(
+            const Text(
               'You have no notifications in this section.',
-              style: GoogleFonts.roboto(fontSize: 14, color: Colors.white60),
+              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),
           ],
         ),
@@ -1262,13 +760,13 @@ class _VideoFeedNotificationScreenState
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           CircularProgressIndicator(
-            color: Colors.white.withValues(alpha: 0.6),
+            color: AppColors.textPrimary.withValues(alpha: 0.6),
             strokeWidth: 3,
           ),
           const SizedBox(height: 20),
-          Text(
+          const Text(
             'Loading...',
-            style: GoogleFonts.roboto(color: Colors.white60, fontSize: 14),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
           ),
         ],
       ),
@@ -1283,15 +781,15 @@ class _VideoFeedNotificationScreenState
           const Icon(
             Icons.error_outline_rounded,
             size: 48,
-            color: Colors.white30,
+            color: AppColors.textTertiary,
           ),
           const SizedBox(height: 16),
-          Text(
+          const Text(
             'Something went wrong',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 16),
@@ -1333,7 +831,7 @@ class _VideoFeedNotificationScreenState
                 backgroundColor: AppColors.bgSurface,
                 child: const Icon(
                   Icons.keyboard_arrow_up_rounded,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
             ),
@@ -1345,15 +843,15 @@ class _VideoFeedNotificationScreenState
                 _markAllActiveTabAsRead();
                 HapticFeedback.mediumImpact();
               },
-              icon: const Icon(Icons.done_all_rounded, color: Colors.black),
-              label: Text(
+              icon: const Icon(Icons.done_all_rounded, color: AppColors.bgPage),
+              label: const Text(
                 'Mark All Read',
-                style: GoogleFonts.roboto(
-                  color: Colors.black,
+                style: TextStyle(
+                  color: AppColors.bgPage,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              backgroundColor: Colors.white,
+              backgroundColor: AppColors.textPrimary,
               elevation: 8,
             ),
         ],
@@ -1367,8 +865,8 @@ class _VideoFeedNotificationScreenState
 
     if (unreadItems.isEmpty) return;
 
-    final List<String> videoIds = [];
-    final List<String> alertIds = [];
+    final videoIds = <String>[];
+    final alertIds = <String>[];
 
     for (final item in unreadItems) {
       if (item.video != null) {
@@ -1390,7 +888,7 @@ class _VideoFeedNotificationScreenState
       'Marked active notifications as read',
       snackPosition: SnackPosition.BOTTOM,
       backgroundColor: AppColors.bgSurface,
-      colorText: Colors.white,
+      colorText: AppColors.textPrimary,
       duration: const Duration(seconds: 2),
     );
   }
@@ -1448,20 +946,23 @@ class _VideoFeedNotificationScreenState
 }
 
 class _UnifiedNotification {
+
+  _UnifiedNotification({
+    required this.timestamp, required this.isSeen, this.video,
+    this.alert,
+  });
   final Video? video;
   final UserNotification? alert;
   final DateTime timestamp;
   final bool isSeen;
-
-  _UnifiedNotification({
-    this.video,
-    this.alert,
-    required this.timestamp,
-    required this.isSeen,
-  });
 }
 
 class _DynamicAvatarController extends GetxController {
+
+  _DynamicAvatarController({
+    required this.item,
+    required this.initialAvatarUrl,
+  });
   final _UnifiedNotification item;
   final String initialAvatarUrl;
 
@@ -1472,11 +973,6 @@ class _DynamicAvatarController extends GetxController {
   static final _storage = GetStorage('AvatarCache');
   static final Map<String, String> _avatarCache = {};
   static final Map<String, Future<String>> _avatarFetchFutures = {};
-
-  _DynamicAvatarController({
-    required this.item,
-    required this.initialAvatarUrl,
-  });
 
   @override
   void onInit() {
@@ -1503,7 +999,7 @@ class _DynamicAvatarController extends GetxController {
     if (metadata == null) return;
 
     // Check action performer's ID first, instead of the video owner's channelId!
-    final String targetId = metadata['subscriberId'] as String? ??
+    final targetId = metadata['subscriberId'] as String? ??
         metadata['likerId'] as String? ??
         metadata['commentAuthorId'] as String? ??
         metadata['senderUserId'] as String? ??
@@ -1519,7 +1015,7 @@ class _DynamicAvatarController extends GetxController {
     }
 
     // 2. Persistent Disk Cache lookup (O(1) local read, 0ms latency, 0 costs!)
-    final String? cachedUrl = _storage.read(targetId);
+    final cachedUrl = _storage.read(targetId);
     if (cachedUrl != null && cachedUrl.isNotEmpty) {
       _avatarCache[targetId] = cachedUrl;
       avatarUrl.value = cachedUrl;
@@ -1554,7 +1050,7 @@ class _DynamicAvatarController extends GetxController {
       if (currentMetaAvatar.isEmpty && url.isNotEmpty) {
         unawaited(() async {
           try {
-            final Map<String, dynamic> updatedMetadata = Map<String, dynamic>.from(metadata);
+            final updatedMetadata = Map<String, dynamic>.from(metadata);
             updatedMetadata['userAvatar'] = url;
             await FirebaseFirestore.instance
                 .collection('user_notifications')
@@ -1637,10 +1133,6 @@ class _DynamicAvatarController extends GetxController {
 }
 
 class _DynamicAvatar extends StatefulWidget {
-  final _UnifiedNotification item;
-  final String initialAvatarUrl;
-  final IconData? fallbackIcon;
-  final Color fallbackBgColor;
 
   const _DynamicAvatar({
     required this.item,
@@ -1648,6 +1140,10 @@ class _DynamicAvatar extends StatefulWidget {
     required this.fallbackIcon,
     required this.fallbackBgColor,
   });
+  final _UnifiedNotification item;
+  final String initialAvatarUrl;
+  final IconData? fallbackIcon;
+  final Color fallbackBgColor;
 
   @override
   State<_DynamicAvatar> createState() => _DynamicAvatarState();
@@ -1694,7 +1190,7 @@ class _DynamicAvatarState extends State<_DynamicAvatar> {
               height: 16,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white38),
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.textTertiary),
               ),
             ),
           ),
@@ -1705,23 +1201,23 @@ class _DynamicAvatarState extends State<_DynamicAvatar> {
         return Container(
           width: 40,
           height: 40,
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             shape: BoxShape.circle,
-            color: Colors.grey[900],
+            color: AppColors.textSecondary,
           ),
           clipBehavior: Clip.antiAlias,
           child: CachedNetworkImage(
             imageUrl: controller.avatarUrl.value,
             fit: BoxFit.cover,
-            placeholder: (context, url) => Container(
-              color: Colors.grey[900],
-              child: const Center(
+            placeholder: (context, url) => const ColoredBox(
+              color: AppColors.textSecondary,
+              child: Center(
                 child: SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white38),
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.textTertiary),
                   ),
                 ),
               ),
@@ -1748,7 +1244,7 @@ class _DynamicAvatarState extends State<_DynamicAvatar> {
         child: const Center(
           child: Icon(
             Icons.play_arrow_rounded,
-            color: Colors.white,
+            color: AppColors.textPrimary,
             size: 24,
           ),
         ),

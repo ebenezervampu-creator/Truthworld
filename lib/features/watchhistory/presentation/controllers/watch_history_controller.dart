@@ -1,11 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/core/services/auth_service.dart';
 
 class WatchHistoryController extends BaseController {
   final searchQuery = ''.obs;
@@ -77,12 +77,12 @@ class WatchHistoryController extends BaseController {
 
     Get.dialog(
       AlertDialog(
-        title: Text('Clear Watch History?'),
-        content: Text('This will remove all videos from your viewing history. This action cannot be undone.'),
+        title: const Text('Clear Watch History?'),
+        content: const Text('This will remove all videos from your viewing history. This action cannot be undone.'),
         actions: [
           TextButton(
-            onPressed: () => Get.back(),
-            child: Text('Cancel'),
+            onPressed: Get.back,
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () async {
@@ -95,7 +95,7 @@ class WatchHistoryController extends BaseController {
                     .collection('watch_history');
                 
                 final snapshots = await collection.get();
-                for (var doc in snapshots.docs) {
+                for (final doc in snapshots.docs) {
                   batch.delete(doc.reference);
                 }
                 
@@ -105,7 +105,7 @@ class WatchHistoryController extends BaseController {
                 Get.snackbar('Error', 'Failed to clear history: $e');
               }
             },
-            child: Text('Clear All', style: TextStyle(color: Colors.red)),
+            child: const Text('Clear All', style: TextStyle(color: AppColors.error)),
           ),
         ],
       ),
@@ -135,7 +135,7 @@ class WatchHistoryController extends BaseController {
       }
 
       final batch = FirebaseFirestore.instance.batch();
-      for (var doc in snapshots.docs) {
+      for (final doc in snapshots.docs) {
         batch.delete(doc.reference);
       }
       
@@ -230,38 +230,34 @@ class WatchHistoryController extends BaseController {
               ? a.uploadedAt.compareTo(b.uploadedAt)
               : b.uploadedAt.compareTo(a.uploadedAt),
         );
-        break;
       case 'views':
         videos.sort(
           (a, b) => isAscending.value
               ? a.views.compareTo(b.views)
               : b.views.compareTo(a.views),
         );
-        break;
       case 'likes':
         videos.sort(
           (a, b) => isAscending.value
               ? a.likeCount.compareTo(b.likeCount)
               : b.likeCount.compareTo(a.likeCount),
         );
-        break;
       case 'title':
         videos.sort(
           (a, b) => isAscending.value
               ? a.title.toLowerCase().compareTo(b.title.toLowerCase())
               : b.title.toLowerCase().compareTo(a.title.toLowerCase()),
         );
-        break;
     }
   }
 
   Map<String, List<Video>> groupVideosByDate(List<Video> videos) {
-    final Map<String, List<Video>> groups = {};
+    final groups = <String, List<Video>>{};
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
 
-    for (var video in videos) {
+    for (final video in videos) {
       final uploadDate = video.uploadedAt.toDate();
       final date = DateTime(uploadDate.year, uploadDate.month, uploadDate.day);
       String key;

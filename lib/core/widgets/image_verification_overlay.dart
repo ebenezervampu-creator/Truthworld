@@ -23,16 +23,14 @@ String? getVerificationDocId(String url) {
 
 /// A premium, non-blocking overlay that overlays image verification status on any widget.
 class ImageVerificationOverlay extends StatelessWidget {
+
+  const ImageVerificationOverlay({
+    required this.imageUrl, required this.child, super.key,
+    this.borderRadius = 8.0,
+  });
   final String imageUrl;
   final Widget child;
   final double borderRadius;
-
-  const ImageVerificationOverlay({
-    super.key,
-    required this.imageUrl,
-    required this.child,
-    this.borderRadius = 8.0,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -99,10 +97,10 @@ class ImageVerificationOverlay extends StatelessWidget {
     final twSpacing = context.spacing;
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
-      child: Container(
+      child: ColoredBox(
         color: isPending
-            ? Colors.black.withValues(alpha: 0.3)
-            : Colors.black.withValues(alpha: 0.6),
+            ? AppColors.bgPage.withValues(alpha: 0.3)
+            : AppColors.bgPage.withValues(alpha: 0.6),
         child: Center(
           child: Container(
             margin: EdgeInsets.all(twSpacing.sm),
@@ -127,18 +125,18 @@ class ImageVerificationOverlay extends StatelessWidget {
                     height: 12,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
                     ),
                   )
                 else
-                  Icon(icon, size: 12, color: Colors.white),
+                  Icon(icon, size: 12, color: AppColors.textPrimary),
                 const SizedBox(width: 6),
                 Flexible(
                   child: Text(
                     label,
                     style: const TextStyle(
-                      fontFamily: 'Roboto',
-                      color: Colors.white,
+                      
+                      color: AppColors.textPrimary,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),

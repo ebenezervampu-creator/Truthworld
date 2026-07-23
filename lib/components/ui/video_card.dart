@@ -1,40 +1,39 @@
+import 'dart:async';
+
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:timeago/timeago.dart' as timeago;
-import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
-import 'package:truthworld/core/services/watch_history_service.dart';
-import 'dart:async';
-import 'package:video_player/video_player.dart';
-import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/components/ui/video_options_sheet.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:truthworld/core/services/watch_history_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
+import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
+import 'package:truthworld/theme/app_theme.dart';
+import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 /// Reusable Modern Avatar Widget matching the homescreen design
 class _ModernAvatar extends StatelessWidget {
+
+  const _ModernAvatar({
+    required this.radius, this.imageUrl,
+    this.placeholderText,
+  });
   final String? imageUrl;
   final double radius;
   final String? placeholderText;
 
-  const _ModernAvatar({
-    this.imageUrl,
-    required this.radius,
-    this.placeholderText,
-  });
-
   @override
   Widget build(BuildContext context) {
-    final bool hasImage = imageUrl != null && imageUrl!.isNotEmpty;
+    final hasImage = imageUrl != null && imageUrl!.isNotEmpty;
     final theme = Theme.of(context);
 
     return Container(
@@ -42,7 +41,6 @@ class _ModernAvatar extends StatelessWidget {
         shape: BoxShape.circle,
         border: Border.all(
           color: theme.colorScheme.primary.withValues(alpha: 0.2),
-          width: 1,
         ),
       ),
       child: CircleAvatar(
@@ -72,7 +70,7 @@ class _ModernAvatar extends StatelessWidget {
       child: Text(
         placeholderText ?? '?',
         style: TextStyle(
-          color: Colors.white,
+          color: AppColors.textPrimary,
           fontSize: radius * 0.8,
           fontWeight: FontWeight.bold,
         ),
@@ -86,7 +84,8 @@ class HoverPreviewCoordinator {
   static _VideoCardState? _activeCardState;
   static bool _hasInitializedListener = false;
 
-  static void setActiveCard(_VideoCardState cardState) {
+  static void setActiveCard(dynamic cardState) {
+    if (cardState is! _VideoCardState) return;
     if (!_hasInitializedListener) {
       _hasInitializedListener = true;
       ever(globalMute, (bool isMuted) {
@@ -101,7 +100,7 @@ class HoverPreviewCoordinator {
     _activeCardState = cardState;
   }
 
-  static void clearActiveCard(_VideoCardState cardState) {
+  static void clearActiveCard(dynamic cardState) {
     if (_activeCardState == cardState) {
       _activeCardState = null;
     }
@@ -129,20 +128,19 @@ class HoverPreviewCoordinator {
 
 @immutable
 class VideoCard extends StatefulWidget {
-  final Video video;
-  final bool isGrid;
-  final String heroPrefix;
-  final VoidCallback? onTap;
-  final bool disableHoverPreview;
 
   const VideoCard({
-    super.key,
-    required this.video,
+    required this.video, super.key,
     this.isGrid = false,
     this.heroPrefix = 'video_card',
     this.onTap,
     this.disableHoverPreview = false,
   });
+  final Video video;
+  final bool isGrid;
+  final String heroPrefix;
+  final VoidCallback? onTap;
+  final bool disableHoverPreview;
 
   @override
   State<VideoCard> createState() => _VideoCardState();
@@ -212,8 +210,8 @@ class _VideoCardState extends State<VideoCard> {
     try {
       return timeago.format(timestamp.toDate());
     } catch (e) {
-      debugPrint("Error formatting timestamp: $e");
-      return "some time ago";
+      debugPrint('Error formatting timestamp: $e');
+      return 'some time ago';
     }
   }
 
@@ -243,7 +241,7 @@ class _VideoCardState extends State<VideoCard> {
 
     _isLoadingVideo.value = true;
 
-    String previewUrl = widget.video.animatedPreviewUrl;
+    var previewUrl = widget.video.animatedPreviewUrl;
     if (previewUrl.isEmpty || previewUrl.startsWith('gs://')) {
       if (widget.video.adaptiveResolutions.isNotEmpty) {
         // Cost-effective: find lowest bitrate resolution
@@ -276,7 +274,7 @@ class _VideoCardState extends State<VideoCard> {
             .refFromURL(previewUrl)
             .getDownloadURL();
       } catch (e) {
-        debugPrint("Error resolving gs:// preview URL: $e");
+        debugPrint('Error resolving gs:// preview URL: $e');
         if (mounted) {
           _isLoadingVideo.value = false;
         }
@@ -304,7 +302,7 @@ class _VideoCardState extends State<VideoCard> {
         controller.dispose();
       }
     } catch (e) {
-      debugPrint("Error initializing hover video player: $e");
+      debugPrint('Error initializing hover video player: $e');
       if (mounted) {
         _isLoadingVideo.value = false;
       }
@@ -407,11 +405,10 @@ class _VideoCardState extends State<VideoCard> {
                           color: theme.colorScheme.outline.withValues(
                             alpha: 0.1,
                           ),
-                          width: 1,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
+                            color: AppColors.bgPage.withValues(alpha: 0.1),
                             blurRadius: 8,
                             offset: const Offset(0, 4),
                           ),
@@ -473,7 +470,7 @@ class _VideoCardState extends State<VideoCard> {
     required IconData icon,
     required String tooltip,
     required VoidCallback onTap,
-    Color iconColor = Colors.white,
+    Color iconColor = AppColors.textPrimary,
   }) {
     return Tooltip(
       message: tooltip,
@@ -483,7 +480,7 @@ class _VideoCardState extends State<VideoCard> {
           width: 32,
           height: 32,
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.7),
+            color: AppColors.bgPage.withValues(alpha: 0.7),
             shape: BoxShape.circle,
           ),
           child: Icon(
@@ -514,8 +511,7 @@ class _VideoCardState extends State<VideoCard> {
             return Stack(
               fit: StackFit.expand,
               children: [
-                isInitialized && controller != null
-                    ? ClipRect(
+                if (isInitialized && controller != null) ClipRect(
                         child: FittedBox(
                           fit: BoxFit.cover,
                           child: SizedBox(
@@ -528,8 +524,7 @@ class _VideoCardState extends State<VideoCard> {
                             child: VideoPlayer(controller),
                           ),
                         ),
-                      )
-                    : CachedNetworkImage(
+                      ) else CachedNetworkImage(
                         imageUrl: widget.video.thumbnailUrl,
                         fit: BoxFit.cover,
                         placeholder: (context, url) => _buildThumbnailShimmer(theme),
@@ -543,7 +538,7 @@ class _VideoCardState extends State<VideoCard> {
                         end: Alignment.bottomCenter,
                         colors: [
                           Colors.transparent,
-                          Colors.black.withValues(alpha: 0.3),
+                          AppColors.bgPage.withValues(alpha: 0.3),
                         ],
                       ),
                     ),
@@ -562,7 +557,7 @@ class _VideoCardState extends State<VideoCard> {
                         color: const Color(0xFF10B981).withValues(alpha: 0.95), // Emerald green
                         borderRadius: AppTheme.radius.circularMd,
                         border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.15),
+                          color: AppColors.textPrimary.withValues(alpha: 0.15),
                           width: 0.5,
                         ),
                         boxShadow: const [
@@ -573,19 +568,19 @@ class _VideoCardState extends State<VideoCard> {
                           )
                         ],
                       ),
-                      child: Row(
+                      child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.verified_rounded,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             size: 11,
                           ),
-                          const SizedBox(width: 4),
+                          SizedBox(width: 4),
                           Text(
                             'Fact Checked',
-                            style: GoogleFonts.roboto(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
                               fontWeight: FontWeight.bold,
                               fontSize: 9,
                               letterSpacing: 0.3,
@@ -603,13 +598,13 @@ class _VideoCardState extends State<VideoCard> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.8),
+                        color: AppColors.bgPage.withValues(alpha: 0.8),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
                         widget.video.duration,
-                        style: GoogleFonts.roboto(
-                          color: Colors.white,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
                         ),
@@ -628,12 +623,12 @@ class _VideoCardState extends State<VideoCard> {
                       child: Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.7),
+                          color: AppColors.bgPage.withValues(alpha: 0.7),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
                           isMutedVal ? Icons.volume_off_rounded : Icons.volume_up_rounded,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           size: 16,
                         ),
                       ),
@@ -655,7 +650,7 @@ class _VideoCardState extends State<VideoCard> {
                             final isSaved = playlistCtrl.isInWatchLater(widget.video.id);
                             return _buildHoverActionIconButton(
                               icon: isSaved ? Icons.check_circle_rounded : Icons.watch_later_outlined,
-                              iconColor: isSaved ? theme.colorScheme.primary : Colors.white,
+                              iconColor: isSaved ? theme.colorScheme.primary : AppColors.textPrimary,
                               tooltip: isSaved ? 'Saved to Watch Later' : 'Watch later',
                               onTap: () async {
                                 await playlistCtrl.toggleWatchLater(widget.video.id);
@@ -669,11 +664,11 @@ class _VideoCardState extends State<VideoCard> {
                           tooltip: 'Add to queue',
                           onTap: () {
                             AppSnackbar.show(
-                              "Added to queue",
+                              'Added to queue',
                               "'${widget.video.title}' has been added to your play queue.",
                               snackPosition: SnackPosition.BOTTOM,
                               backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.8),
-                              colorText: Colors.white,
+                              colorText: AppColors.textPrimary,
                               margin: const EdgeInsets.all(20),
                               borderRadius: 16,
                             );
@@ -695,13 +690,13 @@ class _VideoCardState extends State<VideoCard> {
                       return Container(
                         height: 3,
                         width: double.infinity,
-                        color: Colors.white.withValues(alpha: 0.2),
+                        color: AppColors.textPrimary.withValues(alpha: 0.2),
                         child: Align(
                           alignment: Alignment.centerLeft,
                           child: FractionallySizedBox(
                             widthFactor: (progress / 100).clamp(0.0, 1.0),
                             child: Container(
-                              color: Colors.red,
+                              color: AppColors.error,
                             ),
                           ),
                         ),
@@ -869,7 +864,7 @@ class _VideoCardState extends State<VideoCard> {
         child: Icon(
           Icons.play_circle_outline_rounded,
           size: 48,
-          color: Colors.white,
+          color: AppColors.textPrimary,
         ),
       ),
     );

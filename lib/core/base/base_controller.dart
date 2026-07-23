@@ -1,11 +1,22 @@
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
+import 'package:truthworld/core/network/result.dart';
 
-enum ViewState { idle, loading, success, error, empty, cancelled }
+enum ViewState {
+  idle,
+  loading,
+  refreshing,
+  paginationLoading,
+  success,
+  empty,
+  error,
+  offline,
+  cancelled,
+}
 
-/// Base controller for all feature controllers to standardize state management
-/// and ensure scalability by handling common UI states.
+/// Base controller for all feature controllers to standardize state management,
+/// worker lifecycle disposal, cancellation support, and low-latency UI updates.
 abstract class BaseController extends GetxController {
   final rxState = ViewState.idle.obs;
   ViewState get state => rxState.value;
@@ -14,32 +25,71 @@ abstract class BaseController extends GetxController {
   String get errorMessage => _errorMessage.value;
 
   bool get isLoading => state == ViewState.loading;
+  bool get isRefreshing => state == ViewState.refreshing;
+  bool get isPaginationLoading => state == ViewState.paginationLoading;
   bool get isError => state == ViewState.error;
   bool get isEmpty => state == ViewState.empty;
   bool get isSuccess => state == ViewState.success;
+  bool get isOffline => state == ViewState.offline;
   bool get isCancelled => state == ViewState.cancelled;
+
+  /// Workers registered with this controller that will be automatically disposed on [onClose].
+  final List<Worker> workers = <Worker>[];
+
+  /// Register a worker (ever, once, debounce, interval) for automatic cleanup.
+  void addWorker(Worker worker) {
+    workers.add(worker);
+  }
 
   @override
   @mustCallSuper
   void onInit() {
     super.onInit();
-    debugPrint('⚙️ [Controller Init] ${runtimeType.toString()} initialized');
+    logInit();
   }
 
   @override
   @mustCallSuper
   void onClose() {
-    debugPrint('🗑️ [Controller Close] ${runtimeType.toString()} disposed');
+    logDispose();
+    for (final worker in workers) {
+      worker.dispose();
+    }
+    workers.clear();
     super.onClose();
   }
 
+  void logInit() {
+    debugPrint('🟢 [Controller Init] $runtimeType initialized');
+  }
+
+  void logDispose() {
+    debugPrint('⚫ [Controller Dispose] $runtimeType disposed (${workers.length} workers cleaned)');
+  }
+
+  void logApi(String endpoint) {
+    debugPrint('🟡 [API Request] $runtimeType -> $endpoint');
+  }
+
+  void logCacheHit(String key) {
+    debugPrint('🔵 [Cache Hit] $runtimeType -> $key');
+  }
+
+  void logPagination(int page) {
+    debugPrint('🟠 [Pagination] $runtimeType -> page $page');
+  }
+
+  void logException(dynamic error) {
+    debugPrint('🔴 [Exception] $runtimeType -> $error');
+  }
+
   void setViewState(ViewState state) {
-    debugPrint('🔄 [ViewState Transition] ${runtimeType.toString()}: ${rxState.value.name} -> ${state.name}');
+    debugPrint('🔄 [ViewState Transition] $runtimeType: ${rxState.value.name} -> ${state.name}');
     rxState.value = state;
   }
 
   void setError(String message) {
-    debugPrint('❌ [Controller Error] ${runtimeType.toString()}: $message');
+    logException(message);
     _errorMessage.value = message;
     setViewState(ViewState.error);
   }
@@ -73,10 +123,12 @@ abstract class BaseController extends GetxController {
   }
 
   void handleError(dynamic error) {
-    String message = error.toString();
-    // Special handling for specific exception types if needed
+    var message = error.toString();
+    if (error is AppException) {
+      message = error.message;
+    }
     setError(message);
-    
+
     Get.snackbar(
       'Error',
       message,
@@ -116,31 +168,61 @@ abstract class BaseController extends GetxController {
     );
   }
 
-  /// execute a task safely with automatic error handling, loading, and cancellation state
-  Future<void> safeExecute(Future<void> Function() task, {bool showLoading = true, String? loadingMessage}) async {
+  /// Execute an async function returning a `Result<T>` with automatic UI state transitions
+  Future<Result<T>> safeExecuteResult<T>(
+    Future<Result<T>> Function() task, {
+    bool showLoading = true,
+  }) async {
     try {
       if (showLoading && items.isEmpty) setViewState(ViewState.loading);
-      // We could use the loadingMessage here to show a specific snackbar/overlay if needed
+      final result = await task();
+      result.when(
+        success: (data) {
+          if (state == ViewState.loading || state == ViewState.refreshing) {
+            setViewState(ViewState.success);
+          }
+        },
+        failure: (exception) {
+          handleError(exception);
+        },
+      );
+      return result;
+    } on OperationCancelledException catch (e) {
+      debugPrint('ℹ️ [Task Cancelled] $runtimeType: ${e.message}');
+      setViewState(ViewState.cancelled);
+      return Result.failure(e);
+    } catch (e) {
+      handleError(e);
+      return Result.failure(GenericAppException(message: e.toString(), originalException: e));
+    }
+  }
+
+  /// Legacy safeExecute helper wrapper for void async tasks
+  Future<void> safeExecute(
+    Future<void> Function() task, {
+    bool showLoading = true,
+    String? loadingMessage,
+  }) async {
+    try {
+      if (showLoading && items.isEmpty) setViewState(ViewState.loading);
       await task();
       if (state == ViewState.loading) setViewState(ViewState.success);
       if (items.isEmpty && state != ViewState.error && state != ViewState.cancelled) {
         setViewState(ViewState.empty);
       }
     } on OperationCancelledException catch (e) {
-      debugPrint('ℹ️ [Task Cancelled] ${runtimeType.toString()}: ${e.message}');
+      debugPrint('ℹ️ [Task Cancelled] $runtimeType: ${e.message}');
       setViewState(ViewState.cancelled);
     } catch (e) {
       handleError(e);
     }
   }
 
-  /// Helper to wrap async calls with state management
-  Future<void> runTask(Future<void> Function() task, {bool showLoading = true, String? loadingMessage}) async {
+  Future<void> runTask(
+    Future<void> Function() task, {
+    bool showLoading = true,
+    String? loadingMessage,
+  }) async {
     await safeExecute(task, showLoading: showLoading, loadingMessage: loadingMessage);
   }
 }
-
-
-
-
-

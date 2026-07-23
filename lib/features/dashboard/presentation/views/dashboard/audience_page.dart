@@ -1,20 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/core/base/base_controller.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audience_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class AudiencePage extends StatefulWidget {
-  final String channelId;
-  final bool isDarkMode;
 
   const AudiencePage({
-    super.key,
-    required this.channelId,
-    required this.isDarkMode,
+    required this.channelId, required this.isDarkMode, super.key,
   });
+  final String channelId;
+  final bool isDarkMode;
 
   @override
   State<AudiencePage> createState() => _AudiencePageState();
@@ -31,10 +28,10 @@ class _AudiencePageState extends State<AudiencePage> {
 
   @override
   Widget build(BuildContext context) {
-    final surfaceColor = widget.isDarkMode ? AppColors.bgInput : Colors.white;
+    final surfaceColor = widget.isDarkMode ? AppColors.bgInput : AppColors.textPrimary;
     final backgroundColor = widget.isDarkMode ? AppColors.bgPage : AppColors.bgPage;
-    final textColor = widget.isDarkMode ? Colors.white : AppColors.textPrimary;
-    final subtitleColor = widget.isDarkMode ? Colors.white60 : AppColors.textSecondary;
+    final textColor = widget.isDarkMode ? AppColors.textPrimary : AppColors.textPrimary;
+    final subtitleColor = widget.isDarkMode ? AppColors.textSecondary : AppColors.textSecondary;
     final borderColor = widget.isDarkMode ? const Color(0xFF2A2A2A) : AppColors.bgDivider;
 
     return Scaffold(
@@ -55,13 +52,13 @@ class _AudiencePageState extends State<AudiencePage> {
                 const SizedBox(height: 16),
                 Text(
                   controller.errorMessage,
-                  style: GoogleFonts.roboto(color: textColor, fontSize: 16),
+                  style: TextStyle(color: textColor, fontSize: 16),
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brand,
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppColors.textPrimary,
                   ),
                   onPressed: () => controller.fetchAudienceData(),
                   child: const Text('Retry'),
@@ -103,7 +100,7 @@ class _AudiencePageState extends State<AudiencePage> {
                             children: [
                               Text(
                                 'Audience Geography & Insights',
-                                style: GoogleFonts.roboto(
+                                style: TextStyle(
                                   fontSize: 24,
                                   fontWeight: FontWeight.bold,
                                   color: textColor,
@@ -113,7 +110,7 @@ class _AudiencePageState extends State<AudiencePage> {
                               const SizedBox(height: 4),
                               Text(
                                 'Track geographical viewers reach and localized subscriber conversions by state.',
-                                style: GoogleFonts.roboto(
+                                style: TextStyle(
                                   fontSize: 14,
                                   color: subtitleColor,
                                 ),
@@ -141,7 +138,7 @@ class _AudiencePageState extends State<AudiencePage> {
                       children: [
                         Text(
                           'Regional Performance Matrix',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.w700,
                             color: textColor,
@@ -149,7 +146,7 @@ class _AudiencePageState extends State<AudiencePage> {
                         ),
                         Text(
                           'Showing ${stateItems.length} regions',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 13,
                             color: subtitleColor,
                           ),
@@ -172,7 +169,7 @@ class _AudiencePageState extends State<AudiencePage> {
                       const SizedBox(height: 12),
                       Text(
                         'No matching states or regions found.',
-                        style: GoogleFonts.roboto(color: subtitleColor, fontSize: 15),
+                        style: TextStyle(color: subtitleColor, fontSize: 15),
                       ),
                     ],
                   ),
@@ -286,7 +283,7 @@ class _AudiencePageState extends State<AudiencePage> {
         border: Border.all(color: borderColor),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: widget.isDarkMode ? 0.2 : 0.02),
+            color: AppColors.bgPage.withValues(alpha: widget.isDarkMode ? 0.2 : 0.02),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -301,7 +298,7 @@ class _AudiencePageState extends State<AudiencePage> {
               Expanded(
                 child: Text(
                   title,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                     color: subtitleColor,
@@ -316,7 +313,7 @@ class _AudiencePageState extends State<AudiencePage> {
           const SizedBox(height: 12),
           Text(
             value,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
               color: textColor,
@@ -325,7 +322,7 @@ class _AudiencePageState extends State<AudiencePage> {
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 11,
               color: subtitleColor.withValues(alpha: 0.8),
             ),
@@ -345,10 +342,10 @@ class _AudiencePageState extends State<AudiencePage> {
         border: Border.all(color: borderColor),
       ),
       child: TextField(
-        style: GoogleFonts.roboto(color: textColor, fontSize: 14),
+        style: TextStyle(color: textColor, fontSize: 14),
         decoration: InputDecoration(
           hintText: 'Search localized view matrix by State Name or Abbrev (e.g. Maharashtra, KA)...',
-          hintStyle: GoogleFonts.roboto(color: subtitleColor, fontSize: 14),
+          hintStyle: TextStyle(color: subtitleColor, fontSize: 14),
           prefixIcon: Icon(Icons.search_rounded, color: subtitleColor, size: 20),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -387,7 +384,7 @@ class _AudiencePageState extends State<AudiencePage> {
                 ),
                 child: Text(
                   item.stateCode,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                     color: subtitleColor,
@@ -398,7 +395,7 @@ class _AudiencePageState extends State<AudiencePage> {
               Expanded(
                 child: Text(
                   item.stateName,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: textColor,
@@ -448,13 +445,13 @@ class _AudiencePageState extends State<AudiencePage> {
           children: [
             Text(
               label,
-              style: GoogleFonts.roboto(fontSize: 13, color: subtitleColor),
+              style: TextStyle(fontSize: 13, color: subtitleColor),
             ),
             Row(
               children: [
                 Text(
                   NumberFormat.decimalPattern().format(count),
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
                     color: textColor,
@@ -465,7 +462,7 @@ class _AudiencePageState extends State<AudiencePage> {
                   width: 48,
                   child: Text(
                     '${percentage.toStringAsFixed(1)}%',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 12,
                       color: subtitleColor,
                     ),

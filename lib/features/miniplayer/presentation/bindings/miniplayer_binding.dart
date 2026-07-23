@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
-import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/miniplayer/data/services/miniplayer_service.dart';
+import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 
 /// DI binding for the miniplayer feature.
 ///

@@ -1,14 +1,15 @@
 import 'dart:async';
 import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class StatsForNerdsOverlay extends StatefulWidget {
+  const StatsForNerdsOverlay({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const StatsForNerdsOverlay({super.key, required this.ctrl});
 
   @override
   State<StatsForNerdsOverlay> createState() => _StatsForNerdsOverlayState();
@@ -17,8 +18,8 @@ class StatsForNerdsOverlay extends StatefulWidget {
 class _StatsForNerdsOverlayState extends State<StatsForNerdsOverlay> {
   Timer? _timer;
   late final String _scpn;
-  int _decodedFrames = 0;
-  int _droppedFrames = 0;
+  final RxInt _decodedFrames = 0.obs;
+  final RxInt _droppedFrames = 0.obs;
   final Random _rand = Random();
   late final String _cdnNode;
 
@@ -43,17 +44,15 @@ class _StatsForNerdsOverlayState extends State<StatsForNerdsOverlay> {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
       if (widget.ctrl.vv.isPlaying) {
-        setState(() {
-          // Increment decoded frames based on 30 FPS playback rate
-          _decodedFrames += 30;
-          
-          // Random tiny chance of drop during buffering or low connection speeds
-          if (widget.ctrl.isBuffering.value || widget.ctrl.bufferHealthSeconds < 2.0) {
-            if (_rand.nextDouble() < 0.15) {
-              _droppedFrames += _rand.nextInt(3) + 1;
-            }
+        // Increment decoded frames based on 30 FPS playback rate
+        _decodedFrames.value += 30;
+        
+        // Random tiny chance of drop during buffering or low connection speeds
+        if (widget.ctrl.isBuffering.value || widget.ctrl.bufferHealthSeconds < 2.0) {
+          if (_rand.nextDouble() < 0.15) {
+            _droppedFrames.value += _rand.nextInt(3) + 1;
           }
-        });
+        }
       }
     });
   }
@@ -83,12 +82,12 @@ class _StatsForNerdsOverlayState extends State<StatsForNerdsOverlay> {
           : '1920x1080@30';
           
       // Viewport dimensions of current video frame widget
-      final double viewW = MediaQuery.of(context).size.width;
-      final double viewH = MediaQuery.of(context).size.height;
+      final viewW = MediaQuery.of(context).size.width;
+      final viewH = MediaQuery.of(context).size.height;
       final viewportRes = '${viewW.toInt()}x${viewH.toInt()}';
 
       // Estimate Bitrate based on Resolution
-      String bitrate = '1200 Kbps';
+      var bitrate = '1200 Kbps';
       if (size.width >= 1920) {
         bitrate = '4200 Kbps';
       } else if (size.width >= 1280) {
@@ -100,7 +99,7 @@ class _StatsForNerdsOverlayState extends State<StatsForNerdsOverlay> {
       }
 
       // Buffer activity description
-      final String bufferState = widget.ctrl.isBuffering.value 
+      final bufferState = widget.ctrl.isBuffering.value 
           ? 'Active (${(_rand.nextDouble() * 250).toInt()} KB/s)' 
           : 'Idle (0 KB/s)';
 
@@ -108,9 +107,9 @@ class _StatsForNerdsOverlayState extends State<StatsForNerdsOverlay> {
         width: 320,
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.85),
+          color: AppColors.bgPage.withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white24),
+          border: Border.all(color: AppColors.textDisabled),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -130,7 +129,7 @@ class _StatsForNerdsOverlayState extends State<StatsForNerdsOverlay> {
                   onTap: () => widget.ctrl.showStatsForNerds.value = false,
                   child: const Icon(
                     Icons.close,
-                    color: Colors.white70,
+                    color: AppColors.textSecondary,
                     size: 14,
                   ),
                 ),
@@ -138,7 +137,7 @@ class _StatsForNerdsOverlayState extends State<StatsForNerdsOverlay> {
             ),
             const SizedBox(height: 8),
             _row('Video ID / sCPN:', '${widget.ctrl.tag} / $_scpn'),
-            _row('Viewport / Frames:', '$viewportRes / $_droppedFrames dropped of $_decodedFrames'),
+            _row('Viewport / Frames:', '$viewportRes / ${_droppedFrames.value} dropped of ${_decodedFrames.value}'),
             _row('Current / Optimal:', '$videoRes / ${widget.ctrl.currentQualityLabel}'),
             _row('Codecs:', 'vp09.01.09.08.01.01.01.01.00 (248) / opus (251)'),
             _row('Color / Bitrate:', 'BT.709 / $bitrate'),
@@ -163,7 +162,7 @@ class _StatsForNerdsOverlayState extends State<StatsForNerdsOverlay> {
             width: 125,
             child: Text(
               label,
-              style: TS.mono.copyWith(color: Colors.white70, fontSize: 10),
+              style: TS.mono.copyWith(color: AppColors.textSecondary, fontSize: 10),
             ),
           ),
           Expanded(

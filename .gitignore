@@ -59,4 +59,7 @@ transcript_*.json
 manifest.json
 full.json
 latest.json
+.firebase/
+**/.artifacts/
+
 

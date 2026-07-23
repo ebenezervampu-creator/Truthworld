@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
 // import 'package:blurhash/blurhash.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -85,7 +85,7 @@ class ImageOptimizer {
     };
 
     // For Imgix-like CDNs
-    String queryString = params.entries
+    var queryString = params.entries
         .map((e) => '${e.key}=${e.value}')
         .join('&');
 
@@ -121,17 +121,9 @@ class ImageOptimizer {
 /// - Responsive sizing
 /// - Automatic caching
 class OptimizedThumbnail extends StatefulWidget {
-  final String imageUrl;
-  final String? blurHash;
-  final double width;
-  final double height;
-  final BoxFit fit;
-  final VoidCallback? onTap;
-  final bool lazy;
 
   const OptimizedThumbnail({
-    super.key,
-    required this.imageUrl,
+    required this.imageUrl, super.key,
     this.blurHash,
     this.width = double.infinity,
     this.height = double.infinity,
@@ -139,6 +131,13 @@ class OptimizedThumbnail extends StatefulWidget {
     this.onTap,
     this.lazy = true,
   });
+  final String imageUrl;
+  final String? blurHash;
+  final double width;
+  final double height;
+  final BoxFit fit;
+  final VoidCallback? onTap;
+  final bool lazy;
 
   @override
   State<OptimizedThumbnail> createState() => _OptimizedThumbnailState();
@@ -150,7 +149,7 @@ class _OptimizedThumbnailState extends State<OptimizedThumbnail> {
   @override
   Widget build(BuildContext context) {
     // Build placeholder
-    Widget placeholder = _buildPlaceholder();
+    final placeholder = _buildPlaceholder();
 
     // If lazy loading, return placeholder and load image later
     if (widget.lazy) {
@@ -228,6 +227,12 @@ class _OptimizedThumbnailState extends State<OptimizedThumbnail> {
 ///
 /// Commonly used in video feeds with optimized loading
 class VideoThumbnailCard extends StatelessWidget {
+
+  const VideoThumbnailCard({
+    required this.imageUrl, required this.duration, required this.title, required this.channelName, required this.views, required this.uploadedTime, super.key,
+    this.blurHash,
+    this.onTap,
+  });
   final String imageUrl;
   final String? blurHash;
   final String duration;
@@ -236,18 +241,6 @@ class VideoThumbnailCard extends StatelessWidget {
   final String views;
   final String uploadedTime;
   final VoidCallback? onTap;
-
-  const VideoThumbnailCard({
-    super.key,
-    required this.imageUrl,
-    this.blurHash,
-    required this.duration,
-    required this.title,
-    required this.channelName,
-    required this.views,
-    required this.uploadedTime,
-    this.onTap,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -265,7 +258,6 @@ class VideoThumbnailCard extends StatelessWidget {
                 OptimizedThumbnail(
                   imageUrl: imageUrl,
                   blurHash: blurHash,
-                  fit: BoxFit.cover,
                 ),
                 // Duration badge
                 Positioned(
@@ -341,14 +333,12 @@ class VideoThumbnailCard extends StatelessWidget {
 ///
 /// Used while images are loading
 class ImageSkeletonLoader extends StatelessWidget {
-  final double width;
-  final double height;
 
   const ImageSkeletonLoader({
-    super.key,
-    required this.width,
-    required this.height,
+    required this.width, required this.height, super.key,
   });
+  final double width;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
@@ -376,7 +366,7 @@ class BatchImagePreloader {
     List<String> imageUrls, {
     int batchSize = 5,
   }) async {
-    for (int i = 0; i < imageUrls.length; i += batchSize) {
+    for (var i = 0; i < imageUrls.length; i += batchSize) {
       final batch = imageUrls.sublist(
         i,
         i + batchSize > imageUrls.length ? imageUrls.length : i + batchSize,
@@ -386,7 +376,6 @@ class BatchImagePreloader {
         batch.map(
           (url) => precacheImage(CachedNetworkImageProvider(url), context),
         ),
-        eagerError: false,
       );
 
       // Add delay between batches to avoid overwhelming network

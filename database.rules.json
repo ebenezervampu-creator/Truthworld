@@ -28,34 +28,30 @@
     },
     "videoCache": {
       ".read": true,
-      ".write": "auth != null",
       "$videoId": {
         ".read": true,
-        ".write": "auth != null"
+        ".write": "auth != null && (newData.child('ownerId').val() === auth.uid || !data.exists())"
       }
     },
     "userCache": {
       ".read": true,
-      ".write": "auth != null",
       "$userId": {
         ".read": true,
-        ".write": "auth != null"
+        ".write": "auth != null && auth.uid === $userId"
       }
     },
     "videoList": {
       ".read": true,
-      ".write": "auth != null",
       "$channelId": {
         ".read": true,
-        ".write": "auth != null"
+        ".write": false
       }
     },
     "commentCounts": {
       ".read": true,
-      ".write": "auth != null",
       "$videoId": {
         ".read": true,
-        ".write": "auth != null"
+        ".write": false
       }
     }
   }

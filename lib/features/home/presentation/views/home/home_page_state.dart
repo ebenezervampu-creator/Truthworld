@@ -1,10 +1,5 @@
 /// Immutable UI state for the home screen feed.
 class HomePageState {
-  final bool isLoadingTopics;
-  final bool isLoadingVideos;
-  final bool isLoadingMore;
-  final bool hasTopics;
-  final bool hasVideos;
 
   const HomePageState({
     required this.isLoadingTopics,
@@ -29,6 +24,11 @@ class HomePageState {
       hasVideos: hasVideos,
     );
   }
+  final bool isLoadingTopics;
+  final bool isLoadingVideos;
+  final bool isLoadingMore;
+  final bool hasTopics;
+  final bool hasVideos;
 
   bool get showTopicsSection => hasTopics && !isLoadingTopics;
   bool get showVideoGrid => !isLoadingVideos;

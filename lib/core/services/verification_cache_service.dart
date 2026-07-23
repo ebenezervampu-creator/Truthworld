@@ -11,13 +11,13 @@ import 'package:truthworld/core/services/image_verification_service.dart';
 /// - Real-time sync support
 
 class VerificationCacheService {
-  static final VerificationCacheService _singleton = VerificationCacheService._internal();
 
   factory VerificationCacheService() {
     return _singleton;
   }
 
   VerificationCacheService._internal();
+  static final VerificationCacheService _singleton = VerificationCacheService._internal();
 
   // Cache storage with timestamp tracking
   final Map<String, _CacheEntry> _cache = {};
@@ -137,14 +137,14 @@ class VerificationCacheService {
 }
 
 class _CacheEntry {
-  final VerificationResult result;
-  final DateTime timestamp;
-  DateTime lastAccessed;
 
   _CacheEntry({
     required this.result,
     required this.timestamp,
   }) : lastAccessed = DateTime.now();
+  final VerificationResult result;
+  final DateTime timestamp;
+  DateTime lastAccessed;
 }
 
 /// ============================================================================
@@ -206,8 +206,8 @@ extension OptimizedImageVerificationService on ImageVerificationService {
 
   /// Preload verification for upcoming items
   Future<void> preloadVerifications(List<String> docIds) async {
-    final futures = docIds.map((id) => getCachedVerification(id)).toList();
-    await Future.wait(futures, eagerError: false);
+    final futures = docIds.map(getCachedVerification).toList();
+    await Future.wait(futures);
   }
 }
 
@@ -217,14 +217,14 @@ extension OptimizedImageVerificationService on ImageVerificationService {
 /// Track verification performance metrics for optimization
 
 class VerificationPerformanceMonitor {
-  static final VerificationPerformanceMonitor _singleton =
-      VerificationPerformanceMonitor._internal();
 
   factory VerificationPerformanceMonitor() {
     return _singleton;
   }
 
   VerificationPerformanceMonitor._internal();
+  static final VerificationPerformanceMonitor _singleton =
+      VerificationPerformanceMonitor._internal();
 
   final Map<String, _PerformanceEntry> _metrics = {};
 
@@ -285,16 +285,16 @@ class VerificationPerformanceMonitor {
 }
 
 class _PerformanceEntry {
-  final String docId;
-  final Duration? fetchTime;
-  Duration? renderTime;
-  final DateTime timestamp;
 
   _PerformanceEntry({
     required this.docId,
     this.fetchTime,
     DateTime? timestamp,
   }) : timestamp = timestamp ?? DateTime.now();
+  final String docId;
+  final Duration? fetchTime;
+  Duration? renderTime;
+  final DateTime timestamp;
 }
 
 

@@ -119,8 +119,8 @@ class DialogService {
   ///
   /// Non-dismissible loading dialog
   static Future<void> loading({required String message, String? title}) {
-    final bool isMobile = Get.width < 600;
-    final double actualMaxWidth = isMobile ? Get.width * 0.75 : 280;
+    final isMobile = Get.width < 600;
+    final actualMaxWidth = isMobile ? Get.width * 0.75 : 280.0;
 
     return Get.dialog<void>(
       Dialog(
@@ -134,11 +134,10 @@ class DialogService {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: AppTokens.colors.border.withValues(alpha: 0.1),
-              width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.4),
+                color: AppColors.bgPage.withValues(alpha: 0.4),
                 blurRadius: 24,
                 spreadRadius: -4,
                 offset: const Offset(0, 12),
@@ -148,7 +147,7 @@ class DialogService {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(
+              const CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
                 strokeWidth: 3,
               ),
@@ -156,7 +155,7 @@ class DialogService {
               if (title != null) ...[
                 Text(
                   title,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -168,7 +167,7 @@ class DialogService {
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 13,
                   height: 1.4,
@@ -194,8 +193,8 @@ class DialogService {
     VoidCallback? onCancel,
     bool barrierDismissible = true,
   }) {
-    final bool isMobile = Get.width < 600;
-    final double actualMaxWidth = isMobile ? Get.width * 0.9 : 450;
+    final isMobile = Get.width < 600;
+    final actualMaxWidth = isMobile ? Get.width * 0.9 : 450.0;
 
     return Get.dialog<T>(
       Dialog(
@@ -208,11 +207,10 @@ class DialogService {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: AppTokens.colors.border.withValues(alpha: 0.1),
-              width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.4),
+                color: AppColors.bgPage.withValues(alpha: 0.4),
                 blurRadius: 24,
                 spreadRadius: -4,
                 offset: const Offset(0, 12),
@@ -228,7 +226,7 @@ class DialogService {
                   padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
                   child: Text(
                     title,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
@@ -262,7 +260,7 @@ class DialogService {
                           ),
                           child: Text(
                             cancelLabel,
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: AppColors.textSecondary,
                               fontWeight: FontWeight.w500,
                               fontSize: 13,
@@ -323,8 +321,8 @@ class DialogService {
     VoidCallback? onConfirm,
     VoidCallback? onCancel,
   }) {
-    final bool isMobile = Get.width < 600;
-    final double actualMaxWidth = isMobile ? Get.width * 0.85 : 360;
+    final isMobile = Get.width < 600;
+    final actualMaxWidth = isMobile ? Get.width * 0.85 : 360.0;
 
     return Get.dialog<bool>(
       Dialog(
@@ -337,11 +335,10 @@ class DialogService {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: AppTokens.colors.border.withValues(alpha: 0.1),
-              width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.4),
+                color: AppColors.bgPage.withValues(alpha: 0.4),
                 blurRadius: 24,
                 spreadRadius: -4,
                 offset: const Offset(0, 12),
@@ -394,7 +391,7 @@ class DialogService {
                   children: [
                     Text(
                       title,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
@@ -405,7 +402,7 @@ class DialogService {
                     const SizedBox(height: 8),
                     Text(
                       message,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 13,
                         height: 1.4,
@@ -442,7 +439,7 @@ class DialogService {
                           ),
                           child: Text(
                             cancelLabel,
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: AppColors.textSecondary,
                               fontWeight: FontWeight.w500,
                               fontSize: 13,
@@ -483,7 +480,6 @@ class DialogService {
           ),
         ),
       ),
-      barrierDismissible: true,
       transitionCurve: Curves.easeOutCirc,
       transitionDuration: const Duration(milliseconds: 300),
     );

@@ -4,7 +4,7 @@ class TrendingVideosService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   Future<List<Map<String, dynamic>>> getTrendingVideos() async {
-    QuerySnapshot snapshot = await _firestore
+    final QuerySnapshot snapshot = await _firestore
         .collection('videos')
         .where('visibility', isEqualTo: 'Public')
         .where('status', isEqualTo: 'published')
@@ -12,23 +12,23 @@ class TrendingVideosService {
         .limit(20) // Limit to top 20 videos
         .get();
 
-    List<Map<String, dynamic>> videos = snapshot.docs.map((doc) {
-      var data = doc.data() as Map<String, dynamic>;
+    final videos = snapshot.docs.map((doc) {
+      final data = doc.data()! as Map<String, dynamic>;
 
       // Extract engagement metrics
-      int views = data['views'] ?? 0;
-      int likes = data['likes'] ?? 0;
-      int comments = data['comments'] ?? 0;
-      DateTime timestamp = (data['timestamp'] as Timestamp).toDate();
+      final int views = data['views'] ?? 0;
+      final int likes = data['likes'] ?? 0;
+      final int comments = data['comments'] ?? 0;
+      final timestamp = (data['timestamp'] as Timestamp).toDate();
 
       // Calculate recency weight (newer videos get higher scores)
-      int daysOld =
+      final daysOld =
           DateTime.now().difference(timestamp).inDays +
           1; // Avoid division by zero
-      double recencyWeight = 1 / daysOld; // More w eight for newer videos
+      final recencyWeight = 1 / daysOld; // More w eight for newer videos
 
       // Trending Score Formula
-      double trendingScore =
+      final trendingScore =
           (views * 0.5) +
           (likes * 0.3) +
           (comments * 0.2) +

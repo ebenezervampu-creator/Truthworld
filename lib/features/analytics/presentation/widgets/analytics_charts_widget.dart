@@ -1,14 +1,15 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:fl_chart/fl_chart.dart';
-import '../controllers/creator_analytics_controller.dart';
+import 'package:truthworld/features/analytics/presentation/controllers/creator_analytics_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Display pie chart for watchtime categories
 class WatchtimePieChart extends StatelessWidget {
-  final CreatorAnalyticsController controller =
-      Get.find<CreatorAnalyticsController>();
 
   WatchtimePieChart({super.key});
+  final CreatorAnalyticsController controller =
+      Get.find<CreatorAnalyticsController>();
 
   @override
   Widget build(BuildContext context) {
@@ -25,10 +26,10 @@ class WatchtimePieChart extends StatelessWidget {
           title: '${e.value.percentage.toStringAsFixed(1)}%',
           color: Color(e.value.color),
           radius: 60,
-          titleStyle: TextStyle(
+          titleStyle: const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: AppColors.textPrimary,
           ),
         );
       }).toList();
@@ -37,7 +38,7 @@ class WatchtimePieChart extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Title
-          Padding(
+          const Padding(
             padding: EdgeInsets.only(left: 16, top: 16, bottom: 8),
             child: Text(
               'Watchtime Distribution',
@@ -50,7 +51,7 @@ class WatchtimePieChart extends StatelessWidget {
           ),
           // Chart
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: SizedBox(
               height: 280,
               child: PieChart(
@@ -64,7 +65,7 @@ class WatchtimePieChart extends StatelessWidget {
           ),
           // Legend
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Wrap(
               spacing: 12,
               runSpacing: 8,
@@ -80,10 +81,10 @@ class WatchtimePieChart extends StatelessWidget {
                         shape: BoxShape.circle,
                       ),
                     ),
-                    SizedBox(width: 6),
+                    const SizedBox(width: 6),
                     Text(
                       '${data.title}: ${data.value.toInt()} views',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 12,
                         color: Color(0xFF34495E),
                       ),
@@ -104,7 +105,7 @@ class WatchtimePieChart extends StatelessWidget {
       child: Center(
         child: Text(
           message,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 14,
             color: Color(0xFF95A5A6),
           ),
@@ -116,10 +117,10 @@ class WatchtimePieChart extends StatelessWidget {
 
 /// Display pie chart for state-wise traffic
 class StateTrafficChart extends StatelessWidget {
-  final CreatorAnalyticsController controller =
-      Get.find<CreatorAnalyticsController>();
 
   StateTrafficChart({super.key});
+  final CreatorAnalyticsController controller =
+      Get.find<CreatorAnalyticsController>();
 
   @override
   Widget build(BuildContext context) {
@@ -139,10 +140,10 @@ class StateTrafficChart extends StatelessWidget {
           title: '${e.value.percentage.toStringAsFixed(0)}%',
           color: Color(e.value.color),
           radius: 55,
-          titleStyle: TextStyle(
+          titleStyle: const TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: AppColors.textPrimary,
           ),
         );
       }).toList();
@@ -151,7 +152,7 @@ class StateTrafficChart extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Title
-          Padding(
+          const Padding(
             padding: EdgeInsets.only(left: 16, top: 16, bottom: 8),
             child: Text(
               'State-wise Traffic Distribution',
@@ -164,7 +165,7 @@ class StateTrafficChart extends StatelessWidget {
           ),
           // Chart
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: SizedBox(
               height: 280,
               child: PieChart(
@@ -178,12 +179,12 @@ class StateTrafficChart extends StatelessWidget {
           ),
           // Legend table
           Padding(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
                 columnSpacing: 20,
-                columns: [
+                columns: const [
                   DataColumn(label: Text('State')),
                   DataColumn(label: Text('Views'), numeric: true),
                   DataColumn(label: Text('Percentage'), numeric: true),
@@ -209,7 +210,7 @@ class StateTrafficChart extends StatelessWidget {
       child: Center(
         child: Text(
           message,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 14,
             color: Color(0xFF95A5A6),
           ),
@@ -221,10 +222,10 @@ class StateTrafficChart extends StatelessWidget {
 
 /// Summary metrics cards
 class AnalyticsSummaryCards extends StatelessWidget {
-  final CreatorAnalyticsController controller =
-      Get.find<CreatorAnalyticsController>();
 
   AnalyticsSummaryCards({super.key});
+  final CreatorAnalyticsController controller =
+      Get.find<CreatorAnalyticsController>();
 
   @override
   Widget build(BuildContext context) {
@@ -232,54 +233,54 @@ class AnalyticsSummaryCards extends StatelessWidget {
       final videoAnalytics = controller.videoAnalytics.value;
 
       if (videoAnalytics == null || videoAnalytics.totalViews == 0) {
-        return SizedBox.shrink();
+        return const SizedBox.shrink();
       }
 
       return Padding(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: GridView.count(
           crossAxisCount: 2,
           childAspectRatio: 1.4,
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
-          physics: NeverScrollableScrollPhysics(),
+          physics: const NeverScrollableScrollPhysics(),
           shrinkWrap: true,
           children: [
             _buildMetricCard(
               title: 'Total Views',
               value: '${videoAnalytics.totalViews}',
               icon: Icons.play_circle_outline,
-              color: Color(0xFF3498DB),
+              color: const Color(0xFF3498DB),
             ),
             _buildMetricCard(
               title: 'Unique Viewers',
               value: '${videoAnalytics.totalUniqueViewers}',
               icon: Icons.people_outline,
-              color: Color(0xFF2ECC71),
+              color: const Color(0xFF2ECC71),
             ),
             _buildMetricCard(
               title: 'Avg Watch Time',
               value: controller.averageWatchTime.value,
               icon: Icons.timer_outlined,
-              color: Color(0xFFF39C12),
+              color: const Color(0xFFF39C12),
             ),
             _buildMetricCard(
               title: 'Completion Rate',
               value: '${controller.completionRate.value.toStringAsFixed(1)}%',
               icon: Icons.trending_up,
-              color: Color(0xFFE74C3C),
+              color: const Color(0xFFE74C3C),
             ),
             _buildMetricCard(
               title: 'Engagement Score',
               value: '${controller.engagementScore.value.toStringAsFixed(1)}/100',
               icon: Icons.stacked_bar_chart,
-              color: Color(0xFF9B59B6),
+              color: const Color(0xFF9B59B6),
             ),
             _buildMetricCard(
               title: 'CTR',
               value: '${controller.ctrValue.value.toStringAsFixed(1)}%',
               icon: Icons.touch_app,
-              color: Color(0xFF1ABC9C),
+              color: const Color(0xFF1ABC9C),
             ),
           ],
         ),
@@ -295,9 +296,9 @@ class AnalyticsSummaryCards extends StatelessWidget {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.textPrimary,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
             color: Colors.black12,
             blurRadius: 8,
@@ -306,10 +307,9 @@ class AnalyticsSummaryCards extends StatelessWidget {
         ],
         border: Border.all(
           color: color.withValues(alpha: 0.2),
-          width: 1,
         ),
       ),
-      padding: EdgeInsets.all(12),
+      padding: const EdgeInsets.all(12),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -320,7 +320,7 @@ class AnalyticsSummaryCards extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 12,
                     color: Color(0xFF7F8C8D),
                     fontWeight: FontWeight.w500,
@@ -348,10 +348,10 @@ class AnalyticsSummaryCards extends StatelessWidget {
 
 /// Top states breakdown
 class TopStatesBreakdown extends StatelessWidget {
-  final CreatorAnalyticsController controller =
-      Get.find<CreatorAnalyticsController>();
 
   TopStatesBreakdown({super.key});
+  final CreatorAnalyticsController controller =
+      Get.find<CreatorAnalyticsController>();
 
   @override
   Widget build(BuildContext context) {
@@ -359,15 +359,15 @@ class TopStatesBreakdown extends StatelessWidget {
       final states = controller.topStates;
 
       if (states.isEmpty) {
-        return SizedBox.shrink();
+        return const SizedBox.shrink();
       }
 
       return Container(
-        margin: EdgeInsets.all(16),
+        margin: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.textPrimary,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [
+          boxShadow: const [
             BoxShadow(
               color: Colors.black12,
               blurRadius: 8,
@@ -379,7 +379,7 @@ class TopStatesBreakdown extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
-            Padding(
+            const Padding(
               padding: EdgeInsets.all(16),
               child: Text(
                 'Top 5 States by Traffic',
@@ -399,7 +399,7 @@ class TopStatesBreakdown extends StatelessWidget {
               return Column(
                 children: [
                   Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -408,7 +408,7 @@ class TopStatesBreakdown extends StatelessWidget {
                           children: [
                             Text(
                               '${index + 1}. ${state.stateName}',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
                                 color: Color(0xFF2C3E50),
@@ -416,7 +416,7 @@ class TopStatesBreakdown extends StatelessWidget {
                             ),
                             Text(
                               '${percentage.toStringAsFixed(1)}%',
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
                                 color: Color(0xFF3498DB),
@@ -424,22 +424,22 @@ class TopStatesBreakdown extends StatelessWidget {
                             ),
                           ],
                         ),
-                        SizedBox(height: 6),
+                        const SizedBox(height: 6),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(4),
                           child: LinearProgressIndicator(
                             value: percentage / 100,
                             minHeight: 6,
-                            backgroundColor: Color(0xFFECF0F1),
-                            valueColor: AlwaysStoppedAnimation<Color>(
+                            backgroundColor: const Color(0xFFECF0F1),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
                               Color(0xFF3498DB),
                             ),
                           ),
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
                           '${state.viewCount} views',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 12,
                             color: Color(0xFF95A5A6),
                           ),
@@ -448,7 +448,7 @@ class TopStatesBreakdown extends StatelessWidget {
                     ),
                   ),
                   if (index < states.length - 1)
-                    Divider(height: 1, color: Color(0xFFECF0F1)),
+                    const Divider(height: 1, color: Color(0xFFECF0F1)),
                 ],
               );
             }),
@@ -461,10 +461,10 @@ class TopStatesBreakdown extends StatelessWidget {
 
 /// Device breakdown
 class DeviceBreakdownWidget extends StatelessWidget {
-  final CreatorAnalyticsController controller =
-      Get.find<CreatorAnalyticsController>();
 
   DeviceBreakdownWidget({super.key});
+  final CreatorAnalyticsController controller =
+      Get.find<CreatorAnalyticsController>();
 
   @override
   Widget build(BuildContext context) {
@@ -472,15 +472,15 @@ class DeviceBreakdownWidget extends StatelessWidget {
       final devices = controller.deviceBreakdownStats;
 
       if (devices.isEmpty) {
-        return SizedBox.shrink();
+        return const SizedBox.shrink();
       }
 
       return Container(
-        margin: EdgeInsets.all(16),
+        margin: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.textPrimary,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: [
+          boxShadow: const [
             BoxShadow(
               color: Colors.black12,
               blurRadius: 8,
@@ -491,7 +491,7 @@ class DeviceBreakdownWidget extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
+            const Padding(
               padding: EdgeInsets.all(16),
               child: Text(
                 'Device Breakdown',
@@ -503,16 +503,16 @@ class DeviceBreakdownWidget extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Wrap(
                 spacing: 16,
                 runSpacing: 16,
                 children: devices.map((device) {
                   return Flexible(
                     child: Container(
-                      padding: EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Color(0xFFF8F9FA),
+                        color: const Color(0xFFF8F9FA),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Column(
@@ -520,16 +520,16 @@ class DeviceBreakdownWidget extends StatelessWidget {
                         children: [
                           Text(
                             device.deviceType.toUpperCase(),
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF2C3E50),
                             ),
                           ),
-                          SizedBox(height: 6),
+                          const SizedBox(height: 6),
                           Text(
                             '${device.percentage.toStringAsFixed(1)}%',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF3498DB),
@@ -537,7 +537,7 @@ class DeviceBreakdownWidget extends StatelessWidget {
                           ),
                           Text(
                             '${device.count} views',
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 11,
                               color: Color(0xFF95A5A6),
                             ),
@@ -549,7 +549,7 @@ class DeviceBreakdownWidget extends StatelessWidget {
                 }).toList(),
               ),
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
           ],
         ),
       );

@@ -1,7 +1,8 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -86,7 +87,7 @@ class LibraryController extends GetxController
       vsync: this,
     );
 
-    fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
         parent: fadeAnimationController,
         curve: Curves.easeOutCubic,
@@ -94,14 +95,14 @@ class LibraryController extends GetxController
     );
 
     slideAnimation =
-        Tween<Offset>(begin: const Offset(0.0, 0.1), end: Offset.zero).animate(
+        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
           CurvedAnimation(
             parent: slideAnimationController,
             curve: Curves.easeOutCubic,
           ),
         );
 
-    scaleAnimation = Tween<double>(begin: 0.95, end: 1.0).animate(
+    scaleAnimation = Tween<double>(begin: 0.95, end: 1).animate(
       CurvedAnimation(
         parent: scaleAnimationController,
         curve: Curves.easeOutBack,
@@ -159,7 +160,7 @@ class LibraryController extends GetxController
         .listen(
           (snapshot) {
             watchHistory.value = snapshot.docs
-                .map((doc) => Video.fromDocumentSnapshot(doc))
+                .map(Video.fromDocumentSnapshot)
                 .toList();
             isLoadingHistory.value = false;
           },
@@ -178,7 +179,7 @@ class LibraryController extends GetxController
         .listen(
           (snapshot) {
             playlists.value = snapshot.docs
-                .map((doc) => PlaylistModel.fromDocumentSnapshot(doc))
+                .map(PlaylistModel.fromDocumentSnapshot)
                 .toList();
             isLoadingPlaylists.value = false;
           },
@@ -204,9 +205,9 @@ class LibraryController extends GetxController
             }
             final videoIds = snapshot.docs.map((doc) => doc.id).toList();
             final videoDocs = await _fetchVideosInBatches(videoIds);
-            final videoMap = {for (var v in videoDocs) v.id: v};
+            final videoMap = {for (final v in videoDocs) v.id: v};
             final orderedVideos = videoIds
-                .where((id) => videoMap.containsKey(id))
+                .where(videoMap.containsKey)
                 .map((id) => videoMap[id]!)
                 .toList();
             likedVideos.value = orderedVideos;
@@ -228,7 +229,7 @@ class LibraryController extends GetxController
         .listen(
           (snapshot) {
             clips.value = snapshot.docs
-                .map((doc) => VideoClip.fromDocumentSnapshot(doc))
+                .map(VideoClip.fromDocumentSnapshot)
                 .toList();
             isLoadingClips.value = false;
           },
@@ -245,7 +246,7 @@ class LibraryController extends GetxController
         .listen(
           (snapshot) {
             final list = snapshot.docs
-                .map((doc) => Video.fromDocumentSnapshot(doc))
+                .map(Video.fromDocumentSnapshot)
                 .toList();
             // Sort in-memory to prevent missing composite index errors
             list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -266,7 +267,7 @@ class LibraryController extends GetxController
           .collection('videos')
           .where(FieldPath.documentId, whereIn: videoIds)
           .get();
-      return docs.docs.map((doc) => Video.fromDocumentSnapshot(doc)).toList();
+      return docs.docs.map(Video.fromDocumentSnapshot).toList();
     } catch (e) {
       debugPrint('LibraryController fetch liked videos error: $e');
       return [];

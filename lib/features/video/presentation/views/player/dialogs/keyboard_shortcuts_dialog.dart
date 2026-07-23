@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class KeyboardShortcutsDialog extends StatelessWidget {
   const KeyboardShortcutsDialog({super.key});
@@ -74,10 +73,10 @@ class KeyboardShortcutsDialog extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.bgSurface,
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white12),
+            border: Border.all(color: AppColors.bgDivider),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.5),
+                color: AppColors.bgPage.withValues(alpha: 0.5),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
@@ -98,7 +97,7 @@ class KeyboardShortcutsDialog extends StatelessWidget {
                     IconButton(
                       icon: const Icon(
                         Icons.close_rounded,
-                        color: Colors.white54,
+                        color: AppColors.textSecondary,
                         size: 20,
                       ),
                       onPressed: Get.back,
@@ -106,7 +105,7 @@ class KeyboardShortcutsDialog extends StatelessWidget {
                   ],
                 ),
               ),
-              const Divider(color: Colors.white12, height: 1),
+              const Divider(color: AppColors.bgDivider, height: 1),
               Flexible(
                 child: ListView.builder(
                   shrinkWrap: true,
@@ -114,8 +113,8 @@ class KeyboardShortcutsDialog extends StatelessWidget {
                   itemCount: _shortcuts.length,
                   itemBuilder: (_, i) {
                     final item = _shortcuts[i];
-                    final keys = item['keys'] as List<String>;
-                    final action = item['action'] as String;
+                    final keys = item['keys']! as List<String>;
+                    final action = item['action']! as String;
                     return Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 24,
@@ -126,7 +125,7 @@ class KeyboardShortcutsDialog extends StatelessWidget {
                           Expanded(
                             child: Text(
                               action,
-                              style: TS.bodySm.copyWith(color: Colors.white70),
+                              style: TS.bodySm.copyWith(color: AppColors.textSecondary),
                             ),
                           ),
                           Wrap(
@@ -139,16 +138,16 @@ class KeyboardShortcutsDialog extends StatelessWidget {
                                       vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: Colors.white.withValues(
+                                      color: AppColors.textPrimary.withValues(
                                         alpha: 0.08,
                                       ),
                                       borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(color: Colors.white12),
+                                      border: Border.all(color: AppColors.bgDivider),
                                     ),
                                     child: Text(
                                       k,
                                       style: TS.mono.copyWith(
-                                        color: Colors.white,
+                                        color: AppColors.textPrimary,
                                         fontSize: 11,
                                         fontWeight: FontWeight.bold,
                                       ),

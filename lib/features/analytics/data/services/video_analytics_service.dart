@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/core/services/logger_service.dart';
-import '../../data/models/watch_event_model.dart';
+import 'package:truthworld/features/analytics/data/models/watch_event_model.dart';
 
 /// Date range presets for analytics filtering
 enum AnalyticsDateRange {
@@ -76,7 +76,7 @@ class VideoAnalyticsService extends GetxService {
       // Calculate date range
       final now = DateTime.now();
       DateTime startDate;
-      DateTime endDate = now;
+      var endDate = now;
 
       if (dateRange == AnalyticsDateRange.custom &&
           customStart != null &&
@@ -84,7 +84,7 @@ class VideoAnalyticsService extends GetxService {
         startDate = customStart;
         endDate = customEnd;
       } else if (dateRange == AnalyticsDateRange.allTime) {
-        startDate = DateTime(2020, 1, 1); // Platform start
+        startDate = DateTime(2020); // Platform start
       } else {
         startDate = now.subtract(Duration(days: dateRange.days));
       }
@@ -161,7 +161,7 @@ class VideoAnalyticsService extends GetxService {
         liveViewerCount: liveCount,
         generatedAt: DateTime.now(),
         nextUpdateAt: DateTime.now().add(
-          Duration(minutes: _cacheExpiryMinutes),
+          const Duration(minutes: _cacheExpiryMinutes),
         ),
         estimatedReadCount: dailyStats.length + 1,
       );
@@ -224,22 +224,22 @@ class VideoAnalyticsService extends GetxService {
     String title,
     List<DailyVideoStats> dailyStats,
   ) {
-    int totalViews = 0;
-    int totalImpressions = 0;
-    int totalUnique = 0;
-    int totalWatchTime = 0;
-    int subViews = 0;
-    int nonSubViews = 0;
-    int returning = 0;
-    int subGained = 0;
-    int subLost = 0;
-    int bounced = 0;
-    int w25 = 0;
-    int w50 = 0;
-    int w75 = 0;
-    int w100 = 0;
-    int urban = 0;
-    int rural = 0;
+    var totalViews = 0;
+    var totalImpressions = 0;
+    var totalUnique = 0;
+    var totalWatchTime = 0;
+    var subViews = 0;
+    var nonSubViews = 0;
+    var returning = 0;
+    var subGained = 0;
+    var subLost = 0;
+    var bounced = 0;
+    var w25 = 0;
+    var w50 = 0;
+    var w75 = 0;
+    var w100 = 0;
+    var urban = 0;
+    var rural = 0;
     final stateTraffic = <String, int>{};
     final cityTraffic = <String, int>{};
     final countryTraffic = <String, int>{};
@@ -417,7 +417,7 @@ class VideoAnalyticsService extends GetxService {
 
       final now = DateTime.now();
       DateTime startDate;
-      DateTime endDate = now;
+      var endDate = now;
 
       if (dateRange == AnalyticsDateRange.custom &&
           customStart != null &&
@@ -425,7 +425,7 @@ class VideoAnalyticsService extends GetxService {
         startDate = customStart;
         endDate = customEnd;
       } else if (dateRange == AnalyticsDateRange.allTime) {
-        startDate = DateTime(2020, 1, 1);
+        startDate = DateTime(2020);
       } else {
         startDate = now.subtract(Duration(days: dateRange.days));
       }
@@ -573,18 +573,18 @@ class VideoAnalyticsService extends GetxService {
     String channelName,
     List<DailyChannelStats> dailyStats,
   ) {
-    int totalViews = 0;
-    int totalImpressions = 0;
-    int totalUnique = 0;
-    int totalWatchTime = 0;
-    int subViews = 0;
-    int nonSubViews = 0;
-    int returning = 0;
-    int subGained = 0;
-    int subLost = 0;
-    int urban = 0;
-    int rural = 0;
-    int videoCount = 0;
+    var totalViews = 0;
+    var totalImpressions = 0;
+    var totalUnique = 0;
+    var totalWatchTime = 0;
+    var subViews = 0;
+    var nonSubViews = 0;
+    var returning = 0;
+    var subGained = 0;
+    var subLost = 0;
+    var urban = 0;
+    var rural = 0;
+    var videoCount = 0;
     final stateTraffic = <String, int>{};
     final cityTraffic = <String, int>{};
     final countryTraffic = <String, int>{};
@@ -706,14 +706,14 @@ class VideoAnalyticsService extends GetxService {
       final dailyStats = filteredStats.take(500).toList();
 
       // Aggregate all video stats into channel-level
-      int totalViews = 0;
-      int totalUnique = 0;
-      int totalWatchTime = 0;
-      int subViews = 0;
-      int nonSubViews = 0;
-      int subGained = 0;
-      int urban = 0;
-      int rural = 0;
+      var totalViews = 0;
+      var totalUnique = 0;
+      var totalWatchTime = 0;
+      var subViews = 0;
+      var nonSubViews = 0;
+      var subGained = 0;
+      var urban = 0;
+      var rural = 0;
       final stateTraffic = <String, int>{};
       final cityTraffic = <String, int>{};
       final trafficSources = <String, int>{};
@@ -779,7 +779,7 @@ class VideoAnalyticsService extends GetxService {
       );
     } catch (e) {
       logger.error('Error building channel from video stats: $e', tag: _tag);
-      return await _buildChannelFromLiveCounters(channelId, channelName);
+      return _buildChannelFromLiveCounters(channelId, channelName);
     }
   }
 
@@ -822,12 +822,8 @@ class VideoAnalyticsService extends GetxService {
         generatedAt: DateTime.now(),
         videoCount: (data['videoCount'] as num?)?.toInt() ?? 0,
         totalEngagementScore: 0,
-        subscriberViews: 0,
-        nonSubscriberViews: 0,
-        returningViewers: 0,
         subscribersGained:
             subCount, // Fallback: show total as gained if no history
-        subscribersLost: 0,
       );
     } catch (e) {
       logger.error('Error building channel from live counters: $e', tag: _tag);
@@ -1064,8 +1060,13 @@ class VideoAnalyticsService extends GetxService {
           .toList();
 
       // Aggregate all hourly docs into one
-      int views = 0, unique = 0, watchTime = 0, subViews = 0, nonSubViews = 0;
-      int bounced = 0, w25 = 0, w50 = 0, w75 = 0, w100 = 0, flagged = 0;
+      var views = 0, unique = 0, watchTime = 0, subViews = 0, nonSubViews = 0;
+      var bounced = 0;
+      var w25 = 0;
+      var w50 = 0;
+      var w75 = 0;
+      var w100 = 0;
+      var flagged = 0;
       final trafficSources = <String, int>{};
 
       for (final h in hourlyStats) {
@@ -1155,8 +1156,8 @@ class VideoAnalyticsService extends GetxService {
           .limit(672) // 28 days * 24 hours
           .get();
 
-      int totalViews = 0;
-      int flaggedViews = 0;
+      var totalViews = 0;
+      var flaggedViews = 0;
       for (final doc in snapshot.docs) {
         final data = doc.data();
         totalViews += (data['totalViews'] as num?)?.toInt() ?? 0;
@@ -1180,18 +1181,14 @@ class VideoAnalyticsService extends GetxService {
 
 /// Internal class for caching analytics with timestamp
 class _CachedAnalytics {
-  final VideoAnalyticsSnapshot snapshot;
-  final DateTime createdAt;
 
   _CachedAnalytics({required this.snapshot, required this.createdAt});
+  final VideoAnalyticsSnapshot snapshot;
+  final DateTime createdAt;
 }
 
 /// Fraud overview summary
-class FraudOverview {
-  final int totalViews;
-  final int flaggedViews;
-  final int cleanViews;
-  final double fraudRate; // percentage
+class FraudOverview { // percentage
 
   const FraudOverview({
     required this.totalViews,
@@ -1199,6 +1196,10 @@ class FraudOverview {
     required this.cleanViews,
     required this.fraudRate,
   });
+  final int totalViews;
+  final int flaggedViews;
+  final int cleanViews;
+  final double fraudRate;
 
   static const clean = FraudOverview(
     totalViews: 0,

@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
@@ -7,8 +8,8 @@ import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
-import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
+import 'package:truthworld/features/video/data/services/video_media_service.dart';
 
 /// Professional Chapters Management Controller
 class ChaptersController extends BaseController {
@@ -109,7 +110,7 @@ class ChaptersController extends BaseController {
         .listen(
           (snapshot) {
             final loadedVideos = snapshot.docs
-                .map((doc) => Video.fromDocumentSnapshot(doc))
+                .map(Video.fromDocumentSnapshot)
                 .toList();
             // Client-side sort to ensure consistent chronological ordering
             loadedVideos.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -174,7 +175,7 @@ class ChaptersController extends BaseController {
     filteredVideos.value = list;
   }
 
-  void selectVideo(Video? video) async {
+  Future<void> selectVideo(Video? video) async {
     selectedVideo.value = video;
     hasUnsavedChanges.value = false;
     if (video == null) {
@@ -237,7 +238,7 @@ class ChaptersController extends BaseController {
   void shiftChapterTiming(int index, int shiftMilliseconds) {
     if (index < 0 || index >= currentChapters.length) return;
     final chapter = currentChapters[index];
-    int newMs = chapter.startTime.inMilliseconds + shiftMilliseconds;
+    var newMs = chapter.startTime.inMilliseconds + shiftMilliseconds;
     if (newMs < 0) newMs = 0;
 
     updateChapter(index, startTime: Duration(milliseconds: newMs));
@@ -301,9 +302,9 @@ class ChaptersController extends BaseController {
       if (line.trim().isEmpty) continue;
       final match = regex.firstMatch(line);
       if (match != null) {
-        int hours = 0;
-        int minutes = int.parse(match.group(2)!);
-        int seconds = int.parse(match.group(3)!);
+        var hours = 0;
+        final minutes = int.parse(match.group(2)!);
+        final seconds = int.parse(match.group(3)!);
         if (match.group(1) != null) {
           hours = int.parse(match.group(1)!);
         }
@@ -314,7 +315,7 @@ class ChaptersController extends BaseController {
         );
 
         // Extract title (everything remaining in the line)
-        String title = line.replaceFirst(match.group(0)!, '').trim();
+        var title = line.replaceFirst(match.group(0)!, '').trim();
         // Remove typical separator chars like dashes, brackets, colons
         title = title.replaceAll(RegExp(r'^[\s\-–—:;\[\]\(\)]+'), '').trim();
         if (title.isEmpty) {
@@ -328,7 +329,7 @@ class ChaptersController extends BaseController {
       parsedChapters.sort((a, b) => a.startTime.compareTo(b.startTime));
 
       // Merge into current chapters, preventing duplicate start times
-      final existingMap = {for (var c in currentChapters) c.startTime: c};
+      final existingMap = {for (final c in currentChapters) c.startTime: c};
       for (final pc in parsedChapters) {
         existingMap[pc.startTime] = pc;
       }

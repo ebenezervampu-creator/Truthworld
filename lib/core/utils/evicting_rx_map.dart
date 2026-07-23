@@ -4,9 +4,9 @@ import 'package:get/get.dart';
 /// entries (Least Recently Used based on insertion/access order) when it exceeds [maxEntries].
 /// Fully compatible drop-in replacement for GetX [RxMap].
 class EvictingRxMap<K, V> extends RxMap<K, V> {
-  final int maxEntries;
 
   EvictingRxMap({this.maxEntries = 1000}) : super(<K, V>{});
+  final int maxEntries;
 
   @override
   void operator []=(K key, V value) {
@@ -50,8 +50,8 @@ class EvictingRxMap<K, V> extends RxMap<K, V> {
       } else {
         throw ArgumentError.value(
           key,
-          "key",
-          "Key not in map and no ifAbsent parameter provided",
+          'key',
+          'Key not in map and no ifAbsent parameter provided',
         );
       }
     }

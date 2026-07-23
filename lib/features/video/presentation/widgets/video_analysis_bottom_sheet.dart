@@ -1,22 +1,20 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/theme/app_colors.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class VideoAnalysisBottomSheet extends StatefulWidget {
-  final Video video;
-  final int initialTabIndex;
 
   const VideoAnalysisBottomSheet({
-    super.key,
-    required this.video,
+    required this.video, super.key,
     this.initialTabIndex = 0,
   });
+  final Video video;
+  final int initialTabIndex;
 
   @override
   State<VideoAnalysisBottomSheet> createState() => _VideoAnalysisBottomSheetState();
@@ -38,32 +36,21 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
       initialIndex: widget.initialTabIndex,
     );
 
-    // Locate controllers
     final tag = widget.video.id;
-    if (Get.isRegistered<VideoController>(tag: tag) &&
-        Get.isRegistered<TowerPlayerController>(tag: tag)) {
+    if (Get.isRegistered<VideoController>(tag: tag)) {
       videoCtrl = Get.find<VideoController>(tag: tag);
+    } else if (Get.isRegistered<VideoController>()) {
+      videoCtrl = Get.find<VideoController>();
+    } else {
+      videoCtrl = Get.put(VideoController());
+    }
+
+    if (Get.isRegistered<TowerPlayerController>(tag: tag)) {
       playerCtrl = Get.find<TowerPlayerController>(tag: tag);
-      controllersFound = true;
-
-      // Automatically load fact-checking data in background if needed
-      if (videoCtrl.factCheckData.isEmpty && widget.video.factCheckUrl.isNotEmpty) {
-        videoCtrl.loadFactCheckData();
-      }
-
-      // Automatically load transcript if empty
-      _checkAndLoadTranscript();
+    } else {
+      playerCtrl = Get.find<TowerPlayerController>();
     }
-  }
-
-  void _checkAndLoadTranscript() {
-    if (playerCtrl.subtitleSegments.isEmpty) {
-      if (playerCtrl.subtitleTracks.isNotEmpty) {
-        playerCtrl.fetchAndParseSubtitles(playerCtrl.subtitleTracks.first.url);
-      } else if (widget.video.transcriptionUrl.isNotEmpty) {
-        playerCtrl.fetchAndParseSubtitles(widget.video.transcriptionUrl);
-      }
-    }
+    controllersFound = true;
   }
 
   @override
@@ -74,66 +61,62 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
 
   @override
   Widget build(BuildContext context) {
-    if (!controllersFound) {
-      return Container(
-        height: MediaQuery.of(context).size.height * 0.8,
-        decoration: BoxDecoration(
-          color: AppColors.bgPage,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        ),
-        child: const Center(
-          child: Text(
-            'Error: Video controllers not found.',
-            style: TextStyle(color: Colors.white),
-          ),
-        ),
-      );
-    }
-
     return Container(
       height: MediaQuery.of(context).size.height * 0.85,
       decoration: BoxDecoration(
-        color: AppColors.bgPage.withValues(alpha: 0.96),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        color: AppColors.bgPage.withValues(alpha: 0.98),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        border: Border.all(color: AppColors.bgDivider),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.6),
-            blurRadius: 40,
-            spreadRadius: 10,
-          )
+            color: AppColors.bgPage.withValues(alpha: 0.5),
+            blurRadius: 32,
+            spreadRadius: 8,
+          ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-          child: SafeArea(
-            child: Column(
-              children: [
-                _buildHeader(context),
-                _buildTabBar(),
-                const Divider(height: 1, color: Colors.white10),
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildFactCheckTab(),
-                      _buildTranscriptTab(),
-                      _buildSubtitlesTab(),
-                      _buildResolutionsTab(),
-                    ],
-                  ),
+          child: Column(
+            children: [
+              _buildDragHandle(),
+              _buildHeader(context),
+              _buildTabBar(),
+              const Divider(height: 1, color: AppColors.bgDivider),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildFactCheckTab(),
+                    _buildTranscriptTab(),
+                    _buildSubtitlesTab(),
+                    _buildResolutionsTab(),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  // --- Header ---
+  Widget _buildDragHandle() {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.only(top: 12),
+        width: 36,
+        height: 4,
+        decoration: BoxDecoration(
+          color: AppColors.textTertiary,
+          borderRadius: BorderRadius.circular(2),
+        ),
+      ),
+    );
+  }
+
   Widget _buildHeader(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
@@ -145,7 +128,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
               children: [
                 Text(
                   'VIDEO ANALYSIS & MEDIA',
-                  style: GoogleFonts.roboto(
+                  style: AppTextStyles.labelSmall.copyWith(
                     fontSize: 10,
                     fontWeight: FontWeight.w900,
                     color: AppColors.brand,
@@ -157,20 +140,19 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
                   widget.video.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.roboto(
-                    fontSize: 16,
+                  style: AppTextStyles.titleMedium.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.close_rounded, color: Colors.white70),
-            onPressed: () => Get.back(),
+            icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+            onPressed: Get.back,
             style: IconButton.styleFrom(
-              backgroundColor: Colors.white.withValues(alpha: 0.05),
+              backgroundColor: AppColors.bgSurface,
               shape: const CircleBorder(),
             ),
           ),
@@ -179,16 +161,15 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
     );
   }
 
-  // --- Tab Bar ---
   Widget _buildTabBar() {
     return TabBar(
       controller: _tabController,
       labelColor: AppColors.brand,
-      unselectedLabelColor: Colors.white38,
+      unselectedLabelColor: AppColors.textTertiary,
       indicatorColor: AppColors.brand,
       indicatorWeight: 3,
       indicatorSize: TabBarIndicatorSize.tab,
-      labelStyle: GoogleFonts.roboto(
+      labelStyle: AppTextStyles.labelMedium.copyWith(
         fontSize: 12,
         fontWeight: FontWeight.bold,
         letterSpacing: 0.5,
@@ -202,69 +183,41 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
     );
   }
 
-  // ==========================================================================
-  // TAB 1: FACT CHECK
-  // ==========================================================================
   Widget _buildFactCheckTab() {
     if (widget.video.factCheckUrl.isEmpty) {
       return _buildNoFactCheckFallback();
     }
 
     return Obx(() {
+      final reportData = videoCtrl.factCheckData;
       if (videoCtrl.isLoadingFactCheck.value) {
         return const Center(
           child: CircularProgressIndicator(color: AppColors.brand),
         );
       }
 
-      final data = videoCtrl.factCheckData;
-      if (data.isEmpty) {
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 48),
-              const SizedBox(height: 16),
-              Text(
-                'Could not load fact check data.',
-                style: GoogleFonts.roboto(color: Colors.white70, fontSize: 14),
-              ),
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: () => videoCtrl.loadFactCheckData(),
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Retry'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.brand,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
-          ),
-        );
+      if (reportData.isEmpty) {
+        return _buildNoFactCheckFallback();
       }
 
-      final double trustScore = (data['trustScore'] ?? data['compositeRating'] ?? data['videoRating'] ?? 0.0).toDouble();
-      final double truthScore = (data['truthScore'] ?? trustScore).toDouble();
-      final double honestyScore = (data['honestyScore'] ?? 0.0).toDouble();
-      final double rationalityScore = (data['rationalityScore'] ?? 0.0).toDouble();
-      
-       final stats = data['factCheckStats'] as Map? ?? {};
-      final claims = data['claims'] as List? ?? [];
-      final factors = data['factors'] as Map? ?? {};
-      
-      final uiReport = data['uiReport'] as Map? ?? {};
-      final narrative = uiReport['narrative'] as String? ?? data['viewerNote'] as String? ?? '';
-      final sources = uiReport['sources'] as List? ?? data['richSources'] as List? ?? [];
-      final confidence = (data['confidence'] ?? 0.5).toDouble();
-      
+      final trustScore = ((reportData['trustScore'] ?? reportData['compositeRating'] ?? 0.0) as num).toDouble();
+      final truthScore = ((reportData['truthScore'] ?? trustScore) as num).toDouble();
+      final honestyScore = ((reportData['honestyScore'] ?? 0.0) as num).toDouble();
+      final rationalityScore = ((reportData['rationalityScore'] ?? 0.0) as num).toDouble();
+      final confidence = ((reportData['confidence'] ?? 0.5) as num).toDouble();
+
+      final stats = reportData['factCheckStats'] as Map? ?? {};
+      final claims = reportData['claims'] as List? ?? [];
+      final factors = reportData['factors'] as Map? ?? {};
+      final uiReport = reportData['uiReport'] as Map? ?? {};
+      final narrative = uiReport['narrative'] as String? ?? reportData['viewerNote'] as String? ?? '';
+      final sources = uiReport['sources'] as List? ?? reportData['richSources'] as List? ?? [];
+
       final themeColor = _getScoreColor(trustScore);
 
       return ListView(
-        padding: const EdgeInsets.all(24),
-        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.all(20),
         children: [
-          // Main trust score ring
           Center(
             child: Container(
               width: 140,
@@ -273,27 +226,21 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
                 shape: BoxShape.circle,
                 color: themeColor.withValues(alpha: 0.03),
                 border: Border.all(color: themeColor.withValues(alpha: 0.1), width: 4),
-                boxShadow: [
-                  BoxShadow(
-                    color: themeColor.withValues(alpha: 0.1),
-                    blurRadius: 20,
-                  ),
-                ],
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
                     '${trustScore.toInt()}',
-                    style: GoogleFonts.roboto(
+                    style: AppTextStyles.pageTitle.copyWith(
                       fontSize: 48,
                       fontWeight: FontWeight.w900,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                   Text(
                     _getRatingLabel(trustScore),
-                    style: GoogleFonts.roboto(
+                    style: AppTextStyles.labelSmall.copyWith(
                       fontSize: 9,
                       fontWeight: FontWeight.w900,
                       color: themeColor,
@@ -324,55 +271,52 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
           // Stats: Total and Verified Claims
           Row(
             children: [
-              _buildStatCard('Total Claims', '${stats['totalClaims'] ?? claims.length}', Icons.article_outlined, Colors.blueAccent),
+              _buildStatCard('Total Claims', '${stats['totalClaims'] ?? claims.length}', Icons.article_outlined, AppColors.info),
               const SizedBox(width: 12),
-              _buildStatCard('Verified', '${stats['correct'] ?? stats['verifiedClaims'] ?? claims.where((c) => c['status'] == 'correct' || c['isVerified'] == true).length}', Icons.check_circle_outlined, const Color(0xFF10B981)),
+              _buildStatCard('Verified', '${stats['correct'] ?? stats['verifiedClaims'] ?? claims.where((c) => c['status'] == 'correct' || c['isVerified'] == true).length}', Icons.check_circle_outlined, AppColors.success),
             ],
           ),
           const SizedBox(height: 24),
 
-          // Narrative Analysis
           if (narrative.isNotEmpty) ...[
-            Text('SUMMARY ANALYSIS', style: GoogleFonts.roboto(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white54, letterSpacing: 1)),
+            Text('SUMMARY ANALYSIS', style: AppTextStyles.labelSmall.copyWith(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.textTertiary, letterSpacing: 1)),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.03),
+                color: AppColors.bgSurface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                border: Border.all(color: AppColors.bgDivider),
               ),
               child: Text(
                 narrative,
-                style: GoogleFonts.roboto(fontSize: 14, color: Colors.white70, height: 1.5),
+                style: AppTextStyles.bodyMedium.copyWith(fontSize: 14, color: AppColors.textSecondary, height: 1.5),
               ),
             ),
             const SizedBox(height: 24),
           ],
 
-          // Trust drivers (Factors)
           if (factors.isNotEmpty) ...[
-            Text('TRUST DRIVERS', style: GoogleFonts.roboto(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white54, letterSpacing: 1)),
+            Text('TRUST DRIVERS', style: AppTextStyles.labelSmall.copyWith(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.textTertiary, letterSpacing: 1)),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: factors.entries.map((e) {
                 final score = (e.value ?? 0).toDouble();
-                final color = _getScoreColor(score);
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
+                    color: AppColors.bgSurface,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: color.withValues(alpha: 0.2)),
+                    border: Border.all(color: AppColors.bgDivider),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(e.key.toString().toUpperCase(), style: GoogleFonts.roboto(fontSize: 9, fontWeight: FontWeight.bold, color: color)),
+                      Text(e.key.toString().toUpperCase(), style: AppTextStyles.labelSmall.copyWith(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
                       const SizedBox(width: 6),
-                      Text('${score.toInt()}', style: GoogleFonts.roboto(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
+                      Text('${score.toInt()}', style: AppTextStyles.bodyMedium.copyWith(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
                     ],
                   ),
                 );
@@ -381,18 +325,17 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
             const SizedBox(height: 24),
           ],
 
-          // Claims Verification list
-          Text('CLAIM VERIFICATIONS', style: GoogleFonts.roboto(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white54, letterSpacing: 1)),
+          Text('CLAIM VERIFICATIONS', style: AppTextStyles.labelSmall.copyWith(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.textTertiary, letterSpacing: 1)),
           const SizedBox(height: 12),
           if (claims.isEmpty)
             _buildEmptyBox('No specific claims extracted for this analysis.')
           else
-            ...claims.asMap().entries.map((entry) => _buildClaimCard(entry.value, entry.key)),
+            ...claims.asMap().entries.map((entry) => _buildClaimCard(entry.value as Map, entry.key)),
           const SizedBox(height: 24),
 
           // Verified Sources section
           if (sources.isNotEmpty) ...[
-            Text('VERIFIED SOURCES', style: GoogleFonts.roboto(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.white54, letterSpacing: 1)),
+            Text('VERIFIED SOURCES', style: AppTextStyles.labelSmall.copyWith(fontSize: 11, fontWeight: FontWeight.w900, color: AppColors.textTertiary, letterSpacing: 1)),
             const SizedBox(height: 12),
             SizedBox(
               height: 90,
@@ -400,7 +343,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
                 scrollDirection: Axis.horizontal,
                 itemCount: sources.length,
                 separatorBuilder: (context, index) => const SizedBox(width: 12),
-                itemBuilder: (context, index) => _buildSourceCard(sources[index]),
+                itemBuilder: (context, index) => _buildSourceCard(sources[index] as Map),
               ),
             ),
             const SizedBox(height: 16),
@@ -413,39 +356,34 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
   Widget _buildNoFactCheckFallback() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32.0),
+        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.02),
+                color: AppColors.bgSurface,
                 shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                border: Border.all(color: AppColors.bgDivider),
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.verified_user_outlined,
-                color: Colors.white.withValues(alpha: 0.3),
+                color: AppColors.textTertiary,
                 size: 72,
               ),
             ),
             const SizedBox(height: 24),
             Text(
               'Not Fact-Checked Yet',
-              style: GoogleFonts.roboto(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+              style: AppTextStyles.titleLarge,
             ),
             const SizedBox(height: 12),
             Text(
               'Not all videos on our network are fact-checked. Our artificial intelligence and fact-checking engines are deployed for popular or requested streams to verify authenticity.',
               textAlign: TextAlign.center,
-              style: GoogleFonts.roboto(
-                fontSize: 13,
-                color: Colors.white54,
+              style: AppTextStyles.bodyMedium.copyWith(
+                color: AppColors.textSecondary,
                 height: 1.5,
               ),
             ),
@@ -455,17 +393,17 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
                 Get.snackbar(
                   'Request Received',
                   'AI Verification has been queued for this video stream.',
-                  backgroundColor: AppColors.brand.withValues(alpha: 0.9),
-                  colorText: Colors.white,
+                  backgroundColor: AppColors.brand,
+                  colorText: AppColors.textPrimary,
                   snackPosition: SnackPosition.BOTTOM,
                   margin: const EdgeInsets.all(16),
                 );
               },
               icon: const Icon(Icons.bolt_rounded, size: 18),
-              label: const Text('Request AI Verification'),
+              label: Text('Request AI Verification', style: AppTextStyles.buttonText),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.brand,
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.textPrimary,
                 padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(24),
@@ -484,28 +422,28 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
       children: [
         Text(
           '${score.toInt()}%',
-          style: GoogleFonts.roboto(fontSize: 18, fontWeight: FontWeight.w900, color: color),
+          style: AppTextStyles.titleLarge.copyWith(fontSize: 18, fontWeight: FontWeight.w900, color: color),
         ),
         const SizedBox(height: 4),
         Text(
           label,
-          style: GoogleFonts.roboto(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white38),
+          style: AppTextStyles.labelSmall.copyWith(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.textTertiary),
         ),
       ],
     );
   }
 
   Widget _buildConfidenceBar(double confidence) {
-    final double value = confidence > 1.0 ? confidence / 100 : confidence;
-    final color = value >= 0.8 ? const Color(0xFF10B981) : (value >= 0.5 ? Colors.orangeAccent : Colors.redAccent);
+    final value = confidence > 1.0 ? confidence / 100 : confidence;
+    final color = value >= 0.8 ? AppColors.success : (value >= 0.5 ? AppColors.warning : AppColors.error);
 
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('ANALYSIS CONFIDENCE', style: GoogleFonts.roboto(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white38)),
-            Text('${(value * 100).toInt()}%', style: GoogleFonts.roboto(fontSize: 11, fontWeight: FontWeight.w900, color: color)),
+            Text('ANALYSIS CONFIDENCE', style: AppTextStyles.labelSmall.copyWith(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.textTertiary)),
+            Text('${(value * 100).toInt()}%', style: AppTextStyles.bodyMedium.copyWith(fontSize: 11, fontWeight: FontWeight.w900, color: color)),
           ],
         ),
         const SizedBox(height: 8),
@@ -514,7 +452,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
             Container(
               height: 6,
               width: double.infinity,
-              decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(3)),
+              decoration: BoxDecoration(color: AppColors.bgDivider, borderRadius: BorderRadius.circular(3)),
             ),
             FractionallySizedBox(
               widthFactor: value.clamp(0.0, 1.0),
@@ -537,9 +475,9 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.02),
+          color: AppColors.bgSurface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          border: Border.all(color: AppColors.bgDivider),
         ),
         child: Row(
           children: [
@@ -548,8 +486,8 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(value, style: GoogleFonts.roboto(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-                Text(label, style: GoogleFonts.roboto(fontSize: 9, color: Colors.white38)),
+                Text(value, style: AppTextStyles.titleMedium.copyWith(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                Text(label, style: AppTextStyles.caption.copyWith(fontSize: 9, color: AppColors.textTertiary)),
               ],
             ),
           ],
@@ -560,8 +498,8 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
 
   Widget _buildClaimCard(Map claim, int index) {
     final status = (claim['status'] ?? '').toString().toLowerCase();
-    final bool isVerified = status == 'correct' || status == 'mostly_correct' || claim['isVerified'] == true;
-    final color = isVerified ? const Color(0xFF10B981) : Colors.redAccent;
+    final isVerified = status == 'correct' || status == 'mostly_correct' || claim['isVerified'] == true;
+    final color = isVerified ? AppColors.success : AppColors.error;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -581,14 +519,14 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  claim['claim'] ?? claim['text'] ?? '',
-                  style: GoogleFonts.roboto(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500, height: 1.4),
+                  (claim['claim'] ?? claim['text'] ?? '').toString(),
+                  style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500, height: 1.4),
                 ),
                 if (claim['explanation'] != null || claim['reasoning'] != null) ...[
                   const SizedBox(height: 8),
                   Text(
-                    claim['explanation'] ?? claim['reasoning'],
-                    style: GoogleFonts.roboto(color: Colors.white54, fontSize: 11, fontStyle: FontStyle.italic),
+                    (claim['explanation'] ?? claim['reasoning'])?.toString() ?? '',
+                    style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 11, fontStyle: FontStyle.italic),
                   ),
                 ],
               ],
@@ -604,23 +542,23 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
       width: 160,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.02),
+        color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            source['title'] ?? 'Source',
+            (source['title'] ?? 'Source').toString(),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.roboto(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70),
+            style: AppTextStyles.bodyMedium.copyWith(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
           ),
           const Spacer(),
           Text(
-            source['domain'] ?? 'Verified Source',
-            style: GoogleFonts.roboto(fontSize: 9, color: Colors.white38),
+            (source['domain'] ?? 'Verified Source').toString(),
+            style: AppTextStyles.caption.copyWith(fontSize: 9, color: AppColors.textTertiary),
           ),
         ],
       ),
@@ -632,24 +570,24 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.01),
+        color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Text(
         text,
-        style: GoogleFonts.roboto(color: Colors.white38, fontSize: 12, fontStyle: FontStyle.italic),
+        style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary, fontSize: 12, fontStyle: FontStyle.italic),
         textAlign: TextAlign.center,
       ),
     );
   }
 
   Color _getScoreColor(double score) {
-    if (score >= 90) return const Color(0xFF10B981);
+    if (score >= 90) return AppColors.success;
     if (score >= 75) return const Color(0xFFA3E635);
     if (score >= 60) return Colors.yellowAccent;
-    if (score >= 45) return Colors.orangeAccent;
-    return Colors.redAccent;
+    if (score >= 45) return AppColors.warning;
+    return AppColors.error;
   }
 
   String _getRatingLabel(double score) {
@@ -667,15 +605,15 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
     return Obx(() {
       final segments = playerCtrl.subtitleSegments;
       if (segments.isEmpty) {
-        return const Center(
+        return Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              CircularProgressIndicator(color: AppColors.brand),
-              SizedBox(height: 16),
+              const CircularProgressIndicator(color: AppColors.brand),
+              const SizedBox(height: 16),
               Text(
                 'Loading or parsing transcript...',
-                style: TextStyle(color: Colors.white54, fontSize: 13),
+                style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary, fontSize: 13),
               ),
             ],
           ),
@@ -705,8 +643,8 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
                     width: 50,
                     child: Text(
                       _formatDuration(seg.start),
-                      style: GoogleFonts.robotoMono(
-                        color: isActive ? AppColors.brand : Colors.white38,
+                      style: AppTextStyles.labelSmall.copyWith(
+                        color: isActive ? AppColors.brand : AppColors.textTertiary,
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
                       ),
@@ -715,8 +653,8 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
                   Expanded(
                     child: Text(
                       seg.text,
-                      style: GoogleFonts.roboto(
-                        color: isActive ? Colors.white : Colors.white70,
+                      style: AppTextStyles.bodyMedium.copyWith(
+                        color: isActive ? AppColors.textPrimary : AppColors.textSecondary,
                         fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
                         fontSize: 13,
                         height: 1.4,
@@ -758,10 +696,10 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
               const SizedBox(width: 16),
               Text(
                 'Show Subtitles on Player',
-                style: GoogleFonts.roboto(
+                style: AppTextStyles.bodyMedium.copyWith(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
               const Spacer(),
@@ -772,11 +710,11 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
               ),
             ],
           ),
-          const Divider(height: 32, color: Colors.white10),
+          const Divider(height: 32, color: AppColors.bgDivider),
 
           Text(
             'AVAILABLE SUBTITLE LANGUAGES',
-            style: GoogleFonts.roboto(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white38, letterSpacing: 0.5),
+            style: AppTextStyles.labelSmall.copyWith(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textTertiary, letterSpacing: 0.5),
           ),
           const SizedBox(height: 12),
 
@@ -784,7 +722,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Center(
-                child: Text('No subtitle tracks available', style: GoogleFonts.roboto(color: Colors.white54, fontSize: 13)),
+                child: Text('No subtitle tracks available', style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary, fontSize: 13)),
               ),
             )
           else
@@ -793,10 +731,10 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(
-                  color: isSelected ? AppColors.brand.withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.01),
+                  color: isSelected ? AppColors.brand.withValues(alpha: 0.1) : AppColors.bgSurface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isSelected ? AppColors.brand.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.05),
+                    color: isSelected ? AppColors.brand.withValues(alpha: 0.3) : AppColors.bgDivider,
                   ),
                 ),
                 child: ListTile(
@@ -804,25 +742,25 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
                   onTap: () => playerCtrl.setSubtitles(enabled: true, track: t),
                   leading: Icon(
                     isSelected ? Icons.radio_button_checked_rounded : Icons.radio_button_off_rounded,
-                    color: isSelected ? AppColors.brand : Colors.white38,
+                    color: isSelected ? AppColors.brand : AppColors.textTertiary,
                     size: 18,
                   ),
                   title: Text(
                     t.label,
-                    style: GoogleFonts.roboto(
-                      color: isSelected ? Colors.white : Colors.white70,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                   trailing: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.05),
+                      color: AppColors.bgInput,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       t.langCode.toUpperCase(),
-                      style: GoogleFonts.robotoMono(fontSize: 9, color: Colors.white54, fontWeight: FontWeight.bold),
+                      style: AppTextStyles.labelSmall.copyWith(fontSize: 9, color: AppColors.textSecondary, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -846,7 +784,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
         children: [
           Text(
             'STREAM QUALITY & RESOLUTION',
-            style: GoogleFonts.roboto(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white38, letterSpacing: 0.5),
+            style: AppTextStyles.labelSmall.copyWith(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textTertiary, letterSpacing: 0.5),
           ),
           const SizedBox(height: 12),
 
@@ -854,7 +792,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Center(
-                child: Text('No adaptive resolutions available', style: GoogleFonts.roboto(color: Colors.white54, fontSize: 13)),
+                child: Text('No adaptive resolutions available', style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary, fontSize: 13)),
               ),
             )
           else
@@ -863,10 +801,10 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(
-                  color: isSelected ? AppColors.brand.withValues(alpha: 0.1) : Colors.white.withValues(alpha: 0.01),
+                  color: isSelected ? AppColors.brand.withValues(alpha: 0.1) : AppColors.bgSurface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isSelected ? AppColors.brand.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.05),
+                    color: isSelected ? AppColors.brand.withValues(alpha: 0.3) : AppColors.bgDivider,
                   ),
                 ),
                 child: ListTile(
@@ -874,19 +812,19 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
                   onTap: () => videoCtrl.setResolution(r),
                   leading: Icon(
                     isSelected ? Icons.check_circle_rounded : Icons.crop_free_rounded,
-                    color: isSelected ? AppColors.brand : Colors.white38,
+                    color: isSelected ? AppColors.brand : AppColors.textTertiary,
                     size: 18,
                   ),
                   title: Text(
                     r.label,
-                    style: GoogleFonts.roboto(
-                      color: isSelected ? Colors.white : Colors.white70,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                     ),
                   ),
                   subtitle: Text(
                     '${r.width} x ${r.height} @ ${(r.bitrate / 1000).toInt()} Kbps',
-                    style: GoogleFonts.roboto(fontSize: 11, color: Colors.white38),
+                    style: AppTextStyles.caption.copyWith(fontSize: 11, color: AppColors.textTertiary),
                   ),
                   trailing: isSelected
                       ? Container(
@@ -897,7 +835,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet>
                           ),
                           child: Text(
                             'ACTIVE',
-                            style: GoogleFonts.roboto(fontSize: 9, color: AppColors.brand, fontWeight: FontWeight.w900),
+                            style: AppTextStyles.labelSmall.copyWith(fontSize: 9, color: AppColors.brand, fontWeight: FontWeight.w900),
                           ),
                         )
                       : null,

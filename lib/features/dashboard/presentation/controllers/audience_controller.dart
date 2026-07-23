@@ -5,12 +5,6 @@ import 'package:truthworld/features/analytics/data/models/watch_event_model.dart
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
 
 class StateAudienceItem {
-  final String stateCode;
-  final String stateName;
-  final int viewers;
-  final int subscribers;
-  final double viewerPercentage;
-  final double subscriberPercentage;
 
   StateAudienceItem({
     required this.stateCode,
@@ -20,13 +14,19 @@ class StateAudienceItem {
     required this.viewerPercentage,
     required this.subscriberPercentage,
   });
+  final String stateCode;
+  final String stateName;
+  final int viewers;
+  final int subscribers;
+  final double viewerPercentage;
+  final double subscriberPercentage;
 }
 
 class AudienceController extends BaseController {
-  final String channelId;
-  final VideoAnalyticsService _analyticsService = Get.find();
 
   AudienceController({required this.channelId});
+  final String channelId;
+  final VideoAnalyticsService _analyticsService = Get.find();
 
   // Search filter
   final searchQuery = ''.obs;
@@ -96,7 +96,7 @@ class AudienceController extends BaseController {
   void fetchAudienceData() {
     runTask(() async {
       logger.info('Fetching aggregated audience data for channel: $channelId', tag: 'AudienceController');
-      final data = await _analyticsService.getChannelAnalytics(channelId, dateRange: AnalyticsDateRange.last28Days);
+      final data = await _analyticsService.getChannelAnalytics(channelId);
       snapshot.value = data;
 
       totalViews.value = data.totalVideoWatches;
@@ -116,20 +116,20 @@ class AudienceController extends BaseController {
     final stateCounts = data.stateTraffic;
     
     // If channel has zero views or empty states, we show empty stats instead of injecting mock data
-    Map<String, int> activeStateCounts = stateCounts;
+    final activeStateCounts = stateCounts;
 
     final totalViewersSum = activeStateCounts.values.fold<int>(0, (prev, val) => prev + val);
     
     // Determine overall subscriber conversion coefficient
-    double conversionRate = data.totalVideoWatches > 0
+    final conversionRate = data.totalVideoWatches > 0
         ? (data.subscribersGained / data.totalVideoWatches)
         : 0.0;
 
     // Derive estimated absolute subscribers distribution based on proportional regional viewers
-    int totalSubsSum = 0;
-    final Map<String, int> computedSubs = {};
+    var totalSubsSum = 0;
+    final computedSubs = <String, int>{};
     for (final entry in activeStateCounts.entries) {
-      int estimatedSubs = (entry.value * conversionRate).round();
+      final estimatedSubs = (entry.value * conversionRate).round();
       computedSubs[entry.key] = estimatedSubs;
       totalSubsSum += estimatedSubs;
     }

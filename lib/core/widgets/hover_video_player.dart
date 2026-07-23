@@ -1,11 +1,13 @@
 import 'dart:async';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:video_player/video_player.dart';
+import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
+import 'package:truthworld/theme/app_theme.dart';
+import 'package:video_player/video_player.dart';
 
 /// A premium, YouTube-style hover-to-play video preview card.
 ///
@@ -14,19 +16,16 @@ import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
 /// - Loop-playback muted, perfectly fitted (cover fit) within the thumbnail area.
 /// - YouTube-style muted volume indicator overlay.
 /// - Seamless zero-latency warm-handover on tap.
-class HoverVideoPlayer extends StatefulWidget {
+class HoverVideoPlayer extends StatefulWidget { // Previews start muted by default
+
+  const HoverVideoPlayer({
+    required this.video, required this.thumbnail, required this.borderRadius, super.key,
+  });
   final Video video;
   final Widget thumbnail;
   final BorderRadius borderRadius;
 
-  static bool isGlobalMuted = true; // Previews start muted by default
-
-  const HoverVideoPlayer({
-    super.key,
-    required this.video,
-    required this.thumbnail,
-    required this.borderRadius,
-  });
+  static bool isGlobalMuted = true;
 
   @override
   State<HoverVideoPlayer> createState() => _HoverVideoPlayerState();
@@ -93,9 +92,9 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
   Future<void> _initializePlayer() async {
     // Prefer videoUrl on Web since HLS (.m3u8) is not natively supported by Chrome/Firefox.
     // On other platforms, prefer hlsUrl if available, falling back to videoUrl.
-    final bool preferVideoUrl = kIsWeb;
+    const preferVideoUrl = kIsWeb;
 
-    String playUrl = '';
+    var playUrl = '';
     if (preferVideoUrl) {
       playUrl = widget.video.videoUrl.isNotEmpty
           ? widget.video.videoUrl
@@ -147,7 +146,6 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
       Uri.parse(url),
       videoPlayerOptions: VideoPlayerOptions(
         mixWithOthers: true, // Allow other audio to play
-        allowBackgroundPlayback: false,
       ),
     );
 
@@ -201,24 +199,23 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
         child: ClipRRect(
           borderRadius: widget.borderRadius,
           child: Stack(
-            fit: StackFit.loose,
             children: [
               // Always show/render the thumbnail under the video player so transitions are flawless
               widget.thumbnail,
 
               // Buffering Shimmer overlay
               if (_isLoading.value)
-                Positioned.fill(
-                  child: Container(
+                const Positioned.fill(
+                  child: ColoredBox(
                     color: Colors.black45,
-                    child: const Center(
+                    child: Center(
                       child: SizedBox(
                         width: 28,
                         height: 28,
                         child: CircularProgressIndicator(
                           strokeWidth: 2.5,
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.white70,
+                            AppColors.textSecondary,
                           ),
                         ),
                       ),
@@ -229,8 +226,8 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
               // Muted video preview player
               if (_isInitialized.value && _controller.value != null)
                 Positioned.fill(
-                  child: Container(
-                    color: Colors.black,
+                  child: ColoredBox(
+                    color: AppColors.bgPage,
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
@@ -260,13 +257,12 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
                               color: const Color(0xFF0B1428), // Premium dark blue
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: Colors.white24,
-                                width: 1.0,
+                                color: AppColors.textDisabled,
                               ),
                             ),
                             child: const Icon(
                               Icons.psychology_rounded,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                               size: 16,
                             ),
                           ),
@@ -293,10 +289,10 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
                                 child: Container(
                                   padding: const EdgeInsets.all(6),
                                   decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.75),
+                                    color: AppColors.bgPage.withValues(alpha: 0.75),
                                     borderRadius: BorderRadius.circular(6),
                                     border: Border.all(
-                                      color: Colors.white12,
+                                      color: AppColors.bgDivider,
                                       width: 0.5,
                                     ),
                                   ),
@@ -304,7 +300,7 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
                                     _isMuted.value
                                         ? Icons.volume_off_rounded
                                         : Icons.volume_up_rounded,
-                                    color: Colors.white,
+                                    color: AppColors.textPrimary,
                                     size: 14,
                                   ),
                                 ),
@@ -313,17 +309,17 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.75),
+                                  color: AppColors.bgPage.withValues(alpha: 0.75),
                                   borderRadius: BorderRadius.circular(4),
                                   border: Border.all(
-                                    color: Colors.white12,
+                                    color: AppColors.bgDivider,
                                     width: 0.5,
                                   ),
                                 ),
                                 child: const Text(
                                   'CC',
                                   style: TextStyle(
-                                    color: Colors.white,
+                                    color: AppColors.textPrimary,
                                     fontSize: 9,
                                     fontWeight: FontWeight.bold,
                                     letterSpacing: 0.5,
@@ -341,7 +337,7 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                             decoration: BoxDecoration(
-                              color: Colors.black54,
+                              color: AppColors.bgPage54,
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Obx(() {
@@ -349,7 +345,7 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
                               return Text(
                                 elapsed,
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: AppColors.textPrimary,
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -381,51 +377,72 @@ class _HoverVideoPlayerState extends State<HoverVideoPlayer> {
       final pos = _position.value.inMilliseconds;
       final dur = _duration.value.inMilliseconds;
       if (dur == 0) return const SizedBox.shrink();
-      final double factor = (pos / dur).clamp(0.0, 1.0);
+      final factor = (pos / dur).clamp(0.0, 1.0);
 
       return LayoutBuilder(
         builder: (context, constraints) {
-          final double width = constraints.maxWidth;
-          final double thumbPosition = factor * width;
+          final width = constraints.maxWidth;
+          final thumbPosition = factor * width;
 
-          return SizedBox(
-            height: 16,
-            width: double.infinity,
-            child: Stack(
-              clipBehavior: Clip.none,
-              alignment: Alignment.centerLeft,
-              children: [
-                // Track Background
-                Container(
-                  height: 4,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                // Active Progress
-                Container(
-                  height: 4,
-                  width: thumbPosition,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFF0000),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                // Thumb Dot
-                Positioned(
-                  left: (thumbPosition - 6).clamp(0.0, width - 12),
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFF0000),
-                      shape: BoxShape.circle,
+          void seekToPosition(Offset localPosition) {
+            if (width <= 0 || _controller.value == null) return;
+            final targetRatio = (localPosition.dx / width).clamp(0.0, 1.0);
+            final targetMs = (targetRatio * dur).round();
+            _controller.value!.seekTo(Duration(milliseconds: targetMs));
+            _position.value = Duration(milliseconds: targetMs);
+          }
+
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (details) => seekToPosition(details.localPosition),
+            onHorizontalDragStart: (details) => seekToPosition(details.localPosition),
+            onHorizontalDragUpdate: (details) => seekToPosition(details.localPosition),
+            child: SizedBox(
+              height: 24,
+              width: double.infinity,
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.centerLeft,
+                children: [
+                  // Track Background
+                  Container(
+                    height: 4,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: AppColors.textDisabled.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                ),
-              ],
+                  // Active Progress
+                  Container(
+                    height: 4,
+                    width: thumbPosition,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF0000),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  // Thumb Dot
+                  Positioned(
+                    left: (thumbPosition - 6).clamp(0.0, width - 12),
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFFF0000),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black38,
+                            blurRadius: 4,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           );
         },

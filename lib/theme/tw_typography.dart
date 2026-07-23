@@ -2,20 +2,6 @@ import 'package:flutter/material.dart';
 
 /// Semantic typography roles for TruthWorld.
 class TWTypography extends ThemeExtension<TWTypography> {
-  static const String brandFamily = 'TruthWorld Sans';
-  static const String uiFamily = 'Roboto';
-
-  final TextStyle logo;
-  final TextStyle hero;
-  final TextStyle display;
-  final TextStyle headline;
-  final TextStyle title;
-  final TextStyle body;
-  final TextStyle bodySmall;
-  final TextStyle label;
-  final TextStyle caption;
-  final TextStyle button;
-  final TextStyle overline;
 
   const TWTypography({
     required this.logo,
@@ -46,7 +32,7 @@ class TWTypography extends ThemeExtension<TWTypography> {
         fontSize: 36,
         fontWeight: FontWeight.bold,
         color: textColor,
-        letterSpacing: -1.0,
+        letterSpacing: -1,
       ),
       display: TextStyle(
         fontFamily: brandFamily,
@@ -105,6 +91,20 @@ class TWTypography extends ThemeExtension<TWTypography> {
       ),
     );
   }
+  static const String brandFamily = 'TruthWorld Sans';
+  static const String uiFamily = 'Roboto';
+
+  final TextStyle logo;
+  final TextStyle hero;
+  final TextStyle display;
+  final TextStyle headline;
+  final TextStyle title;
+  final TextStyle body;
+  final TextStyle bodySmall;
+  final TextStyle label;
+  final TextStyle caption;
+  final TextStyle button;
+  final TextStyle overline;
 
   @override
   ThemeExtension<TWTypography> copyWith({
@@ -157,4 +157,5 @@ class TWTypography extends ThemeExtension<TWTypography> {
 /// Helper extension to easily access TruthWorld typography from [BuildContext].
 extension TWTypographyThemeExtension on BuildContext {
   TWTypography get themeTypography => Theme.of(this).extension<TWTypography>()!;
+  TWTypography get twTypography => Theme.of(this).extension<TWTypography>()!;
 }

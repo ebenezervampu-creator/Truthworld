@@ -1,38 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/studio_settings_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class StudioSettingsPage extends StatelessWidget {
   const StudioSettingsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final StudioSettingsController controller = Get.put(StudioSettingsController());
+    final controller = Get.put(StudioSettingsController());
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: AppColors.bgPage,
         title: const Text('Settings'),
         elevation: 0,
       ),
       body: Obx(() => controller.isLoadingData.value
           ? const Center(child: CircularProgressIndicator())
           : (controller.userData.isEmpty
-                ? Center(
+                ? const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.person_off, size: 48, color: Colors.grey),
+                      children: [
+                        Icon(Icons.person_off, size: 48, color: AppColors.textSecondary),
                         SizedBox(height: 16),
                         Text(
                           'No user data available',
-                          style: TextStyle(color: Colors.white, fontSize: 16),
+                          style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
                         ),
                         SizedBox(height: 8),
                         Text(
                           'Please sign in to access settings',
-                          style: TextStyle(color: Colors.grey, fontSize: 14),
+                          style: TextStyle(color: AppColors.textSecondary, fontSize: 14),
                         ),
                       ],
                     ),
@@ -67,7 +67,7 @@ class StudioSettingsPage extends StatelessWidget {
         style: const TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.bold,
-          color: Colors.white,
+          color: AppColors.textPrimary,
         ),
       ),
     );
@@ -158,11 +158,11 @@ class StudioSettingsPage extends StatelessWidget {
           ListTile(
             title: const Text(
               'AdSense ID',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
             subtitle: Text(
               controller.userData['adSenseId'] ?? 'Not linked',
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: AppColors.textPrimary),
             ),
             trailing: OutlinedButton(
               onPressed: () {
@@ -207,13 +207,13 @@ class StudioSettingsPage extends StatelessWidget {
         ListTile(
           title: const Text(
             'Default video visibility',
-            style: TextStyle(color: Colors.white),
+            style: TextStyle(color: AppColors.textPrimary),
           ),
           subtitle: Text(
             controller.getVisibilityLabel(
               defaultVisibility,
             ),
-            style: const TextStyle(color: Colors.grey),
+            style: const TextStyle(color: AppColors.textSecondary),
           ),
           trailing: DropdownButton<String>(
             value: defaultVisibility,
@@ -252,10 +252,10 @@ class StudioSettingsPage extends StatelessWidget {
       readOnly: readOnly,
       initialValue: '${prefix ?? ""}$value',
       onFieldSubmitted: onChanged,
-      style: const TextStyle(color: Colors.white),
+      style: const TextStyle(color: AppColors.textPrimary),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: Colors.grey),
+        labelStyle: const TextStyle(color: AppColors.textSecondary),
         enabledBorder: OutlineInputBorder(
           borderSide: const BorderSide(color: Color(0xFF333333)),
           borderRadius: BorderRadius.circular(4),
@@ -274,7 +274,7 @@ class StudioSettingsPage extends StatelessWidget {
     Function(bool) onChanged,
   ) {
     return SwitchListTile.adaptive(
-      title: Text(title, style: const TextStyle(color: Colors.white)),
+      title: Text(title, style: const TextStyle(color: AppColors.textPrimary)),
       value: value,
       onChanged: onChanged,
       activeThumbColor: AppTheme.colors.primary,

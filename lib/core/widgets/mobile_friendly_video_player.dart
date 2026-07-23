@@ -1,26 +1,26 @@
+import 'dart:io' show Platform;
+
+import 'package:chewie/chewie.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
-import 'dart:io' show Platform;
 import 'package:get/get.dart';
 import 'package:universal_html/html.dart' as html;
+import 'package:video_player/video_player.dart';
 
 /// A video player widget that wraps raw [VideoPlayer] but automatically uses
 /// [Chewie] on Android and iOS devices, and for Android users on web.
 class MobileFriendlyVideoPlayer extends StatefulWidget {
-  final VideoPlayerController controller;
-  final bool showControls;
-  final bool autoPlay;
-  final bool looping;
 
   const MobileFriendlyVideoPlayer({
-    super.key,
-    required this.controller,
+    required this.controller, super.key,
     this.showControls = false,
     this.autoPlay = false,
     this.looping = false,
   });
+  final VideoPlayerController controller;
+  final bool showControls;
+  final bool autoPlay;
+  final bool looping;
 
   @override
   State<MobileFriendlyVideoPlayer> createState() => _MobileFriendlyVideoPlayerState();
@@ -77,7 +77,6 @@ class _MobileFriendlyVideoPlayerState extends State<MobileFriendlyVideoPlayer> {
         looping: widget.looping,
         showControls: widget.showControls,
         allowedScreenSleep: false,
-        aspectRatio: null,
       );
       if (!widget.controller.value.isInitialized) {
         widget.controller.addListener(_onControllerInitialized);
@@ -95,7 +94,6 @@ class _MobileFriendlyVideoPlayerState extends State<MobileFriendlyVideoPlayer> {
         looping: widget.looping,
         showControls: widget.showControls,
         allowedScreenSleep: false,
-        aspectRatio: null,
       );
       old?.dispose();
     }

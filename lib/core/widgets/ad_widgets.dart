@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:video_player/video_player.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
+import 'package:truthworld/theme/app_theme.dart';
+import 'package:video_player/video_player.dart';
 
 class AdMediaWidget extends StatefulWidget {
+
+  const AdMediaWidget({required this.ad, super.key, this.fit = BoxFit.cover});
   final AdItem ad;
   final BoxFit fit;
-
-  const AdMediaWidget({super.key, required this.ad, this.fit = BoxFit.cover});
 
   @override
   State<AdMediaWidget> createState() => _AdMediaWidgetState();
@@ -34,14 +34,13 @@ class _AdMediaWidgetState extends State<AdMediaWidget> {
       Uri.parse(widget.ad.videoUrl!),
       videoPlayerOptions: VideoPlayerOptions(
         mixWithOthers: true,
-        allowBackgroundPlayback: false,
       ),
     );
     _controller!
         .initialize()
         .then((_) {
           if (mounted) {
-            _controller!.setVolume(0.0);
+            _controller!.setVolume(0);
             _controller!.setLooping(true);
             _controller!.play();
             _isInitialized.value = true;
@@ -95,7 +94,7 @@ class _AdMediaWidgetState extends State<AdMediaWidget> {
                 height: 20,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation(Colors.white30),
+                  valueColor: AlwaysStoppedAnimation(AppColors.textTertiary),
                 ),
               ),
             ),
@@ -130,13 +129,13 @@ class _AdMediaWidgetState extends State<AdMediaWidget> {
                 child: Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.7),
+                    color: AppColors.bgPage.withValues(alpha: 0.7),
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white24, width: 0.5),
+                    border: Border.all(color: AppColors.textDisabled, width: 0.5),
                   ),
                   child: Icon(
                     _isMuted.value ? Icons.volume_off_rounded : Icons.volume_up_rounded,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     size: 14,
                   ),
                 ),
@@ -152,15 +151,15 @@ class _AdMediaWidgetState extends State<AdMediaWidget> {
           fit: widget.fit,
           loadingBuilder: (context, child, progress) {
             if (progress == null) return child;
-            return Container(
+            return const ColoredBox(
               color: Colors.black26,
-              child: const Center(
+              child: Center(
                 child: SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation(Colors.white30),
+                    valueColor: AlwaysStoppedAnimation(AppColors.textTertiary),
                   ),
                 ),
               ),
@@ -187,7 +186,7 @@ class _AdMediaWidgetState extends State<AdMediaWidget> {
         child: Icon(
           widget.ad.fallbackIcon ?? Icons.ads_click_rounded,
           size: 48,
-          color: Colors.white.withValues(alpha: 0.15),
+          color: AppColors.textPrimary.withValues(alpha: 0.15),
         ),
       ),
     );
@@ -203,9 +202,9 @@ class AdCardController extends GetxController {
 }
 
 class HomepageAdCard extends StatelessWidget {
-  final AdItem ad;
 
-  const HomepageAdCard({super.key, required this.ad});
+  const HomepageAdCard({required this.ad, super.key});
+  final AdItem ad;
 
   @override
   Widget build(BuildContext context) {
@@ -224,7 +223,7 @@ class HomepageAdCard extends StatelessWidget {
             transform: Matrix4.diagonal3Values(
               controller.isHovered ? 1.02 : 1.0,
               controller.isHovered ? 1.02 : 1.0,
-              1.0,
+              1,
             ),
             transformAlignment: Alignment.center,
             duration: AppTheme.animations.normal,
@@ -243,7 +242,7 @@ class HomepageAdCard extends StatelessWidget {
               boxShadow: controller.isHovered
                   ? [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3),
+                        color: AppColors.bgPage.withValues(alpha: 0.3),
                         blurRadius: 12,
                         offset: const Offset(0, 6),
                       ),
@@ -276,24 +275,24 @@ class HomepageAdCard extends StatelessWidget {
                                     ad.videoUrl!.isNotEmpty ||
                                 ad.imageUrl.isNotEmpty)
                               Container(
-                                color: Colors.black.withValues(alpha: 0.3),
+                                color: AppColors.bgPage.withValues(alpha: 0.3),
                               ),
                             () {
                               final isLightBg =
                                   ad.gradientColors.first.computeLuminance() >
                                   0.5;
                               final textColor = isLightBg
-                                  ? Colors.black.withValues(alpha: 0.6)
-                                  : Colors.white70;
+                                  ? AppColors.bgPage.withValues(alpha: 0.6)
+                                  : AppColors.textSecondary;
                               final titleColor = isLightBg
-                                  ? Colors.black
-                                  : Colors.white;
+                                  ? AppColors.bgPage
+                                  : AppColors.textPrimary;
                               final logoColor = isLightBg
-                                  ? Colors.black87
-                                  : Colors.white;
+                                  ? AppColors.bgPage
+                                  : AppColors.textPrimary;
                               final iconColor = isLightBg
-                                  ? Colors.black.withValues(alpha: 0.1)
-                                  : Colors.white.withValues(alpha: 0.12);
+                                  ? AppColors.bgPage.withValues(alpha: 0.1)
+                                  : AppColors.textPrimary.withValues(alpha: 0.12);
 
                               return Stack(
                                 fit: StackFit.expand,
@@ -334,11 +333,11 @@ class HomepageAdCard extends StatelessWidget {
                                             Text(
                                               ad.advertiser.toUpperCase(),
                                               style: TextStyle(
-                                                fontFamily: 'Roboto',
+                                                
                                                 color: textColor,
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.bold,
-                                                letterSpacing: 1.0,
+                                                letterSpacing: 1,
                                               ),
                                             ),
                                           ],
@@ -348,7 +347,7 @@ class HomepageAdCard extends StatelessWidget {
                                           ad.title,
                                           maxLines: 2,
                                           style: TextStyle(
-                                            fontFamily: 'Roboto',
+                                            
                                             color: titleColor,
                                             fontSize: 16,
                                             fontWeight: FontWeight.w600,
@@ -362,23 +361,23 @@ class HomepageAdCard extends StatelessWidget {
                                             vertical: 6,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: Colors.black.withValues(
+                                            color: AppColors.bgPage.withValues(
                                               alpha: 0.8,
                                             ),
                                             borderRadius: BorderRadius.circular(
                                               4,
                                             ),
                                             border: Border.all(
-                                              color: Colors.white.withValues(
+                                              color: AppColors.textPrimary.withValues(
                                                 alpha: 0.15,
                                               ),
                                             ),
                                           ),
                                           child: Text(
                                             ad.ctaText.toUpperCase(),
-                                            style: TextStyle(
-                                              fontFamily: 'Roboto',
-                                              color: Colors.white,
+                                            style: const TextStyle(
+                                              
+                                              color: AppColors.textPrimary,
                                               fontSize: 11,
                                               fontWeight: FontWeight.bold,
                                               letterSpacing: 0.5,
@@ -396,14 +395,14 @@ class HomepageAdCard extends StatelessWidget {
                                       width: 36,
                                       height: 36,
                                       decoration: BoxDecoration(
-                                        color: Colors.black.withValues(
+                                        color: AppColors.bgPage.withValues(
                                           alpha: 0.6,
                                         ),
                                         shape: BoxShape.circle,
                                       ),
                                       child: const Icon(
                                         Icons.north_east_rounded,
-                                        color: Colors.white,
+                                        color: AppColors.textPrimary,
                                         size: 18,
                                       ),
                                     ),
@@ -511,9 +510,9 @@ class HomepageAdCard extends StatelessWidget {
 }
 
 class ScrollAdCard extends StatelessWidget {
-  final AdItem ad;
 
-  const ScrollAdCard({super.key, required this.ad});
+  const ScrollAdCard({required this.ad, super.key});
+  final AdItem ad;
 
   @override
   Widget build(BuildContext context) {
@@ -546,7 +545,7 @@ class ScrollAdCard extends StatelessWidget {
               boxShadow: controller.isHovered
                   ? [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3),
+                        color: AppColors.bgPage.withValues(alpha: 0.3),
                         blurRadius: 12,
                         offset: const Offset(0, 6),
                       ),
@@ -584,14 +583,14 @@ class ScrollAdCard extends StatelessWidget {
                                     vertical: 1,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.amber,
+                                    color: AppColors.warning,
                                     borderRadius: BorderRadius.circular(2),
                                   ),
-                                  child: Text(
+                                  child: const Text(
                                     'Ad',
                                     style: TextStyle(
-                                      fontFamily: 'Roboto',
-                                      color: Colors.black,
+                                      
+                                      color: AppColors.bgPage,
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -685,7 +684,7 @@ class ScrollAdCard extends StatelessWidget {
 
 Widget buildAdActionBar(BuildContext context, AdItem ad) {
   return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
     child: Row(
       children: [
         // Thumbs Up (Like)
@@ -700,12 +699,12 @@ Widget buildAdActionBar(BuildContext context, AdItem ad) {
                 icon: Icon(
                   isLiked ? Icons.thumb_up_rounded : Icons.thumb_up_outlined,
                   size: 14,
-                  color: isLiked ? Colors.amber : Colors.white60,
+                  color: isLiked ? AppColors.warning : AppColors.textSecondary,
                 ),
                 label: Text(
                   '$count',
                   style: TextStyle(
-                    color: isLiked ? Colors.amber : Colors.white60,
+                    color: isLiked ? AppColors.warning : AppColors.textSecondary,
                     fontSize: 11,
                   ),
                 ),
@@ -733,11 +732,11 @@ Widget buildAdActionBar(BuildContext context, AdItem ad) {
               icon: const Icon(
                 Icons.chat_bubble_outline_rounded,
                 size: 14,
-                color: Colors.white60,
+                color: AppColors.textSecondary,
               ),
               label: Text(
                 '$count',
-                style: const TextStyle(color: Colors.white60, fontSize: 11),
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
               ),
               style: TextButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -756,7 +755,7 @@ Widget buildAdActionBar(BuildContext context, AdItem ad) {
             icon: Icon(
               isSaved ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
               size: 16,
-              color: isSaved ? Colors.amber : Colors.white60,
+              color: isSaved ? AppColors.warning : AppColors.textSecondary,
             ),
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),

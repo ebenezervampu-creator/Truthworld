@@ -2,8 +2,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/services/seo_helper.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/services/seo_helper.dart';
 import 'package:truthworld/core/widgets/deep_link_loader_widget.dart';
 import 'package:truthworld/theme/app_theme.dart';
 

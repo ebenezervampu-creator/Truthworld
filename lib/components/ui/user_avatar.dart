@@ -1,19 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 
 class UserAvatar extends StatelessWidget {
-  final String? photoUrl;
-  final String? displayName;
-  final double radius;
-  final Color? backgroundColor;
-  final Color? textColor;
-  final double? fontSize;
-  final Color? borderColor;
-  final bool showBorder;
 
   const UserAvatar({
     super.key,
@@ -26,6 +17,14 @@ class UserAvatar extends StatelessWidget {
     this.borderColor,
     this.showBorder = true,
   });
+  final String? photoUrl;
+  final String? displayName;
+  final double radius;
+  final Color? backgroundColor;
+  final Color? textColor;
+  final double? fontSize;
+  final Color? borderColor;
+  final bool showBorder;
 
   @override
   Widget build(BuildContext context) {
@@ -34,8 +33,8 @@ class UserAvatar extends StatelessWidget {
     final effectiveTextColor = textColor ?? theme.colorScheme.primary;
     final effectiveFontSize = fontSize ?? (radius * 0.8);
 
-    String? effectivePhotoUrl = photoUrl;
-    String? effectiveDisplayName = displayName;
+    var effectivePhotoUrl = photoUrl;
+    var effectiveDisplayName = displayName;
 
     try {
       if (Get.isRegistered<AuthService>()) {
@@ -63,7 +62,7 @@ class UserAvatar extends StatelessWidget {
       }
     } catch (_) {}
 
-    final String initial = effectiveDisplayName?.isNotEmpty == true
+    final initial = effectiveDisplayName?.isNotEmpty ?? false
         ? effectiveDisplayName![0].toUpperCase()
         : 'U';
 
@@ -102,18 +101,15 @@ class UserAvatar extends StatelessWidget {
     return Center(
       child: Text(
         initial,
-        style: GoogleFonts.roboto(
-          textStyle: TextStyle(
-            color: textColor,
-            fontWeight: FontWeight.bold,
-            fontSize: fontSize,
-          ),
+        style: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.bold,
+          fontSize: fontSize,
         ),
       ),
     );
   }
 }
-
 
 
 

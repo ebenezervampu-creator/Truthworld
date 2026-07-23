@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Wraps [child] in a shimmer animation using the app's dark-theme palette.
 class SkeletonBase extends StatelessWidget {
-  final Widget child;
 
-  const SkeletonBase({super.key, required this.child});
+  const SkeletonBase({required this.child, super.key});
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
       baseColor: const Color(0xFF1A1A2E),
       highlightColor: const Color(0xFF2A2A4E),
-      period: const Duration(milliseconds: 1500),
       child: child,
     );
   }
@@ -20,9 +20,6 @@ class SkeletonBase extends StatelessWidget {
 
 /// A rectangular placeholder box used inside [SkeletonBase].
 class SkeletonBox extends StatelessWidget {
-  final double? width;
-  final double? height;
-  final double borderRadius;
 
   const SkeletonBox({
     super.key,
@@ -30,6 +27,9 @@ class SkeletonBox extends StatelessWidget {
     this.height,
     this.borderRadius = 8,
   });
+  final double? width;
+  final double? height;
+  final double borderRadius;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +37,7 @@ class SkeletonBox extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.textPrimary,
         borderRadius: BorderRadius.circular(borderRadius),
       ),
     );
@@ -46,9 +46,9 @@ class SkeletonBox extends StatelessWidget {
 
 /// A circular placeholder (avatars, profile pictures).
 class SkeletonCircle extends StatelessWidget {
-  final double size;
 
   const SkeletonCircle({super.key, this.size = 40});
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +56,7 @@ class SkeletonCircle extends StatelessWidget {
       width: size,
       height: size,
       decoration: const BoxDecoration(
-        color: Colors.white,
+        color: AppColors.textPrimary,
         shape: BoxShape.circle,
       ),
     );

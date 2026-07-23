@@ -1,6 +1,6 @@
+import 'package:flutter/foundation.dart';
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'package:universal_html/js.dart' as js;
-import 'package:flutter/foundation.dart';
 
 /// Service to handle video data injection from prerendered HTML pages.
 /// 

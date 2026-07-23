@@ -2,6 +2,53 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 
 class Comment {
+
+  Comment({
+    required this.id,
+    required this.videoId,
+    required this.userId,
+    required this.userName,
+    required this.userProfilePicUrl,
+    required this.channelId,
+    required this.text, required this.likeCount, required this.dislikeCount, required this.reportCount, required this.createdAt, this.channelName,
+    this.channelProfilePicUrl,
+    this.hasCreatorReply = false,
+    this.creatorReply,
+    this.isLikedByCurrentUser = false,
+    this.isDislikedByCurrentUser = false,
+    this.isHeartedByCreator = false,
+    this.creatorHeartName,
+  });
+
+  factory Comment.fromDocumentSnapshot(DocumentSnapshot doc) {
+    final data = doc.data()! as Map<String, dynamic>;
+    final extractedVideoId = (data['videoId'] != null && (data['videoId'] as String).isNotEmpty)
+        ? data['videoId'] as String
+        : (doc.reference.parent.parent?.id ?? '');
+
+    return Comment(
+      id: doc.id,
+      videoId: extractedVideoId,
+      userId: data['userId'] ?? '',
+      userName: data['userName'] ?? '',
+      userProfilePicUrl: data['userProfilePicUrl'] ?? '',
+      channelId: data['channelId'] ?? data['userId'] ?? '',
+      channelName: data['channelName'],
+      channelProfilePicUrl: data['channelProfilePicUrl'],
+      text: data['text'] ?? '',
+      likeCount: data['likeCount'] ?? 0,
+      dislikeCount: data['dislikeCount'] ?? 0,
+      reportCount: data['reportCount'] ?? 0,
+      createdAt: data['createdAt'] ?? Timestamp.now(),
+      hasCreatorReply: data['hasCreatorReply'] ?? false,
+      creatorReply: data['creatorReply'] != null
+          ? Reply.fromDocumentSnapshot(data['creatorReply'])
+          : null,
+      // likedBy/dislikedBy are no longer read from Firestore — check subcollection
+      isHeartedByCreator: data['isHeartedByCreator'] ?? false,
+      creatorHeartName: data['creatorHeartName'],
+    );
+  }
   final String id;
   final String videoId;
   final String userId;
@@ -31,28 +78,6 @@ class Comment {
   String get displayName => (channelName != null && channelName!.isNotEmpty) ? channelName! : userName;
   String get avatarUrl => (channelProfilePicUrl != null && channelProfilePicUrl!.isNotEmpty) ? channelProfilePicUrl! : userProfilePicUrl;
 
-  Comment({
-    required this.id,
-    required this.videoId,
-    required this.userId,
-    required this.userName,
-    required this.userProfilePicUrl,
-    required this.channelId,
-    this.channelName,
-    this.channelProfilePicUrl,
-    required this.text,
-    required this.likeCount,
-    required this.dislikeCount,
-    required this.reportCount,
-    required this.createdAt,
-    this.hasCreatorReply = false,
-    this.creatorReply,
-    this.isLikedByCurrentUser = false,
-    this.isDislikedByCurrentUser = false,
-    this.isHeartedByCreator = false,
-    this.creatorHeartName,
-  });
-
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -74,36 +99,6 @@ class Comment {
       'isHeartedByCreator': isHeartedByCreator,
       'creatorHeartName': creatorHeartName,
     };
-  }
-
-  factory Comment.fromDocumentSnapshot(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    final extractedVideoId = (data['videoId'] != null && (data['videoId'] as String).isNotEmpty)
-        ? data['videoId'] as String
-        : (doc.reference.parent.parent?.id ?? '');
-
-    return Comment(
-      id: doc.id,
-      videoId: extractedVideoId,
-      userId: data['userId'] ?? '',
-      userName: data['userName'] ?? '',
-      userProfilePicUrl: data['userProfilePicUrl'] ?? '',
-      channelId: data['channelId'] ?? data['userId'] ?? '',
-      channelName: data['channelName'],
-      channelProfilePicUrl: data['channelProfilePicUrl'],
-      text: data['text'] ?? '',
-      likeCount: data['likeCount'] ?? 0,
-      dislikeCount: data['dislikeCount'] ?? 0,
-      reportCount: data['reportCount'] ?? 0,
-      createdAt: data['createdAt'] ?? Timestamp.now(),
-      hasCreatorReply: data['hasCreatorReply'] ?? false,
-      creatorReply: data['creatorReply'] != null
-          ? Reply.fromDocumentSnapshot(data['creatorReply'])
-          : null,
-      // likedBy/dislikedBy are no longer read from Firestore — check subcollection
-      isHeartedByCreator: data['isHeartedByCreator'] ?? false,
-      creatorHeartName: data['creatorHeartName'],
-    );
   }
 
   Comment copyWith({

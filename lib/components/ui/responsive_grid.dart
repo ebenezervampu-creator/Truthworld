@@ -8,20 +8,9 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Consistent spacing using tokens
 /// - Accessibility support
 class ResponsiveGrid extends StatelessWidget {
-  final List<Widget> children;
-  final int columnsDesktop;
-  final int columnsTablet;
-  final int columnsMobile;
-  final double? spacing;
-  final double? horizontalPadding;
-  final EdgeInsetsGeometry? padding;
-  final ScrollController? scrollController;
-  final bool shrinkWrap;
-  final ScrollPhysics? physics;
 
   const ResponsiveGrid({
-    super.key,
-    required this.children,
+    required this.children, super.key,
     this.columnsDesktop = 4,
     this.columnsTablet = 3,
     this.columnsMobile = 2,
@@ -32,6 +21,16 @@ class ResponsiveGrid extends StatelessWidget {
     this.shrinkWrap = false,
     this.physics,
   });
+  final List<Widget> children;
+  final int columnsDesktop;
+  final int columnsTablet;
+  final int columnsMobile;
+  final double? spacing;
+  final double? horizontalPadding;
+  final EdgeInsetsGeometry? padding;
+  final ScrollController? scrollController;
+  final bool shrinkWrap;
+  final ScrollPhysics? physics;
 
   int _getColumns(BuildContext context) {
     final width = MediaQuery.of(context).size.width;

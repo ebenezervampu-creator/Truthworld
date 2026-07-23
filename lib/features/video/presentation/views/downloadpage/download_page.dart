@@ -1,11 +1,18 @@
-import 'package:flutter/material.dart';
-import 'package:truthworld/theme/app_theme.dart';
+import 'dart:typed_data';
+
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
+import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/offline.dart';
-import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/domain/database_helpers.dart';
+import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 // ==========================================================================
 // RESPONSIVE UTILITIES
@@ -48,8 +55,8 @@ class ResponsiveUtils {
 // ==========================================================================
 
 class DownloadsPage extends StatefulWidget {
-  final bool isDashboard;
   const DownloadsPage({super.key, this.isDashboard = false});
+  final bool isDashboard;
 
   @override
   State<DownloadsPage> createState() => _DownloadsPageState();
@@ -94,7 +101,7 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
                               onChanged: (value) =>
                                   controller.searchQuery.value = value,
                               style: const TextStyle(
-                                color: Colors.white,
+                                color: AppColors.textPrimary,
                                 fontSize: 14,
                               ),
                               decoration: InputDecoration(
@@ -133,7 +140,7 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
                       : Row(
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.arrow_back, color: Colors.white),
+                              icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
                               onPressed: () {
                                 if (widget.isDashboard) {
                                   Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexLibrary;
@@ -143,9 +150,9 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
                               },
                             ),
                             const SizedBox(width: 8),
-                            Text(
+                            const Text(
                               'Downloads',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontSize: 32,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.textPrimary,
@@ -161,7 +168,7 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
                           ? IconButton(
                               icon: const Icon(
                                 Icons.search,
-                                color: Colors.white,
+                                color: AppColors.textPrimary,
                               ),
                               onPressed: () =>
                                   controller.isSearchExpanded.value = true,
@@ -171,9 +178,9 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
                     IconButton(
                       icon: Obx(() => Icon(
                         controller.isListView.value ? Icons.grid_view_rounded : Icons.view_list_rounded,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       )),
-                      onPressed: () => controller.toggleView(),
+                      onPressed: controller.toggleView,
                     ),
                   ],
                 ),
@@ -200,7 +207,7 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
                   padding: const EdgeInsets.all(32),
                   child: Text(
                     'Error: ${controller.errorMessage.value}',
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: AppColors.textPrimary),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -209,49 +216,211 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
           }
 
           final videos = controller.filteredVideos;
-          if (videos.isEmpty) {
-            return const SliverFillRemaining(
-              child: Center(
-                child: Text(
-                  'No downloads found',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            );
-          }
-
           final groupedVideos = controller.groupVideosByDate(videos);
 
           return SliverList(
-            delegate: SliverChildBuilderDelegate((context, index) {
-              final dateKey = groupedVideos.keys.elementAt(index);
-              final dateVideos = groupedVideos[dateKey]!;
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            delegate: SliverChildListDelegate([
+              if (videos.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: const BoxDecoration(
+                            color: AppColors.bgSurfaceHover,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.file_download_outlined,
+                            size: 40,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No Downloads Yet',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Downloaded videos will appear here for offline playback.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                for (final entry in groupedVideos.entries) ...[
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
                     child: Text(
-                      dateKey,
-                      style: GoogleFonts.roboto(
+                      entry.key,
+                      style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
                       ),
                     ),
                   ),
-                  ...dateVideos.map(
-                    (video) =>
-                        _DownloadVideoListCard(video: video, controller: controller),
-                  ),
+                  for (final video in entry.value)
+                    _DownloadVideoListCard(video: video, controller: controller),
                 ],
-              );
-            }, childCount: groupedVideos.length),
+
+              const SizedBox(height: 28),
+              _buildRecommendedDownloadsSection(context),
+              const SizedBox(height: 40),
+            ]),
           );
         }),
       ],
     );
+  }
+
+  Widget _buildRecommendedDownloadsSection(BuildContext context) {
+    final mainController = Get.isRegistered<MainController>()
+        ? Get.find<MainController>()
+        : Get.put(MainController());
+
+    return Obx(() {
+      final allVideos = mainController.filteredVideos.isNotEmpty
+          ? mainController.filteredVideos
+          : mainController.videos;
+
+      final downloadedIds = controller.videos.map((v) => v.id).toSet();
+      final recommended = allVideos
+          .where((v) => !downloadedIds.contains(v.id))
+          .take(10)
+          .toList();
+
+      final displayList = recommended.isNotEmpty ? recommended : allVideos.take(10).toList();
+
+      if (displayList.isEmpty) {
+        return const SizedBox.shrink();
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.auto_awesome_rounded,
+                  color: AppColors.brand,
+                  size: 22,
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Recommended Downloads',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              'Popular videos you can save for offline watching',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: displayList.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final video = displayList[index];
+              return _RecommendedDownloadCard(
+                video: video,
+                isDownloaded: downloadedIds.contains(video.id),
+                onDownload: () => _downloadRecommendedVideo(video, context),
+              );
+            },
+          ),
+        ],
+      );
+    });
+  }
+
+  Future<void> _downloadRecommendedVideo(Video video, BuildContext context) async {
+    try {
+      final offlineVideo = OfflineVideo(
+        id: video.id,
+        title: video.title,
+        channelName: video.channelName,
+        channelImage: video.channelImage.isNotEmpty
+            ? video.channelImage
+            : video.channelAvatarUrl,
+        views: FormatUtils.formatCount(video.views),
+        thumbnailUrl: video.thumbnailUrl,
+        downloadedAt: DateTime.now(),
+      );
+
+      AppSnackbar.show(
+        'Downloading...',
+        "Starting download for '${video.title}'",
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.brand.withValues(alpha: 0.8),
+        colorText: AppColors.textPrimary,
+      );
+
+      var videoBytes = Uint8List(0);
+      final targetUrl = video.originalUrl.isNotEmpty ? video.originalUrl : video.videoUrl;
+      if (targetUrl.isNotEmpty && targetUrl.startsWith('http')) {
+        final res = await http.get(Uri.parse(targetUrl));
+        if (res.statusCode == 200) {
+          videoBytes = res.bodyBytes;
+        }
+      }
+
+      await saveOfflineVideoBytes(
+        video.id,
+        videoBytes,
+        offlineVideo,
+      );
+
+      if (Get.isRegistered<DownloadsController>()) {
+        await Get.find<DownloadsController>().loadVideos();
+      }
+
+      AppSnackbar.show(
+        'Download Complete',
+        "'${video.title}' downloaded successfully.",
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.success.withValues(alpha: 0.8),
+        colorText: AppColors.textPrimary,
+      );
+    } catch (e) {
+      AppSnackbar.show(
+        'Download Failed',
+        'Could not download video: $e',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: AppColors.error.withValues(alpha: 0.8),
+        colorText: AppColors.textPrimary,
+      );
+    }
   }
 
   Widget _buildCategoryChips() {
@@ -274,10 +443,10 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
                 onSelected: (selected) {
                   if (selected) controller.setCategory(category);
                 },
-                selectedColor: Colors.white,
+                selectedColor: AppColors.textPrimary,
                 backgroundColor: AppColors.bgSurfaceHover,
-                labelStyle: GoogleFonts.roboto(
-                  color: isSelected ? Colors.black : Colors.white,
+                labelStyle: TextStyle(
+                  color: isSelected ? AppColors.bgPage : AppColors.textPrimary,
                   fontWeight: FontWeight.w500,
                 ),
                 shape: RoundedRectangleBorder(
@@ -294,9 +463,9 @@ class _DownloadsPageState extends State<DownloadsPage> with TickerProviderStateM
 }
 
 class _DownloadVideoListCard extends StatelessWidget {
+  const _DownloadVideoListCard({required this.video, required this.controller});
   final OfflineVideo video;
   final DownloadsController controller;
-  const _DownloadVideoListCard({required this.video, required this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -333,17 +502,17 @@ class _DownloadVideoListCard extends StatelessWidget {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.8),
+                      color: AppColors.bgPage.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Row(
                       children: [
-                        Icon(Icons.download_done, color: Colors.white, size: 12),
+                        Icon(Icons.download_done, color: AppColors.textPrimary, size: 12),
                         SizedBox(width: 4),
                         Text(
                           'OFFLINE',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             fontSize: 9,
                             fontWeight: FontWeight.bold,
                           ),
@@ -368,7 +537,7 @@ class _DownloadVideoListCard extends StatelessWidget {
                           video.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.roboto(
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary,
@@ -378,7 +547,7 @@ class _DownloadVideoListCard extends StatelessWidget {
                       IconButton(
                         icon: const Icon(
                           Icons.more_vert,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           size: 20,
                         ),
                         onPressed: () => _showOptions(context),
@@ -390,14 +559,14 @@ class _DownloadVideoListCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${video.channelName} • ${video.views} views',
-                    style: GoogleFonts.roboto(
+                    style: const TextStyle(
                       fontSize: 13,
                       color: AppColors.textSecondary,
                     ),
                   ),
                   Text(
                     'Downloaded ${controller.formatTimeAgo(video.downloadedAt)}',
-                    style: GoogleFonts.roboto(
+                    style: const TextStyle(
                       fontSize: 12,
                       color: AppColors.textSecondary,
                     ),
@@ -427,14 +596,14 @@ class _DownloadVideoListCard extends StatelessWidget {
               height: 4,
               margin: const EdgeInsets.only(bottom: 24),
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: AppColors.textDisabled,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             _buildOptionItem(
               icon: Icons.delete_outline_rounded,
               label: 'Delete from downloads',
-              color: Colors.red,
+              color: AppColors.error,
               onTap: () {
                 Get.back();
                 _showDeleteConfirmation(context);
@@ -443,10 +612,7 @@ class _DownloadVideoListCard extends StatelessWidget {
             _buildOptionItem(
               icon: Icons.share_outlined,
               label: 'Share link',
-              onTap: () {
-                Get.back();
-                // Implement share
-              },
+              onTap: Get.back,
             ),
           ],
         ),
@@ -472,7 +638,7 @@ class _DownloadVideoListCard extends StatelessWidget {
       ),
       title: Text(
         label,
-        style: GoogleFonts.roboto(
+        style: TextStyle(
           color: textColor,
           fontWeight: FontWeight.w500,
           fontSize: 15,
@@ -488,23 +654,23 @@ class _DownloadVideoListCard extends StatelessWidget {
     Get.dialog(
       AlertDialog(
         backgroundColor: AppColors.bgSurface,
-        title: Text(
+        title: const Text(
           'Delete download?',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             color: AppColors.textPrimary,
             fontWeight: FontWeight.bold,
           ),
         ),
         content: Text(
           'Are you sure you want to delete "${video.title}" from your downloads?',
-          style: GoogleFonts.roboto(color: AppColors.textSecondary),
+          style: const TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
-            onPressed: () => Get.back(),
-            child: Text(
+            onPressed: Get.back,
+            child: const Text(
               'Cancel',
-              style: GoogleFonts.roboto(color: AppColors.textSecondary),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
           ),
           ElevatedButton(
@@ -514,13 +680,148 @@ class _DownloadVideoListCard extends StatelessWidget {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,
-              foregroundColor: Colors.white,
+              foregroundColor: AppColors.textPrimary,
               elevation: 0,
             ),
             child: const Text('Delete'),
           ),
         ],
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+    );
+  }
+}
+
+class _RecommendedDownloadCard extends StatefulWidget {
+
+  const _RecommendedDownloadCard({
+    required this.video,
+    required this.isDownloaded,
+    required this.onDownload,
+  });
+  final Video video;
+  final bool isDownloaded;
+  final VoidCallback onDownload;
+
+  @override
+  State<_RecommendedDownloadCard> createState() => _RecommendedDownloadCardState();
+}
+
+class _RecommendedDownloadCardState extends State<_RecommendedDownloadCard> {
+  bool isDownloading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        Get.toNamed('/watch?v=${widget.video.id}');
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Stack(
+                children: [
+                  CachedNetworkImage(
+                    imageUrl: widget.video.thumbnailUrl,
+                    width: 140,
+                    height: 80,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) =>
+                        Container(color: AppColors.bgSurfaceHover),
+                    errorWidget: (context, url, error) =>
+                        Container(color: AppColors.bgSurfaceHover),
+                  ),
+                  if (widget.video.duration.isNotEmpty)
+                    Positioned(
+                      bottom: 4,
+                      right: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.bgPage.withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          widget.video.duration,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.video.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${widget.video.channelName} • ${FormatUtils.formatCount(widget.video.views)} views',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              onPressed: (widget.isDownloaded || isDownloading)
+                  ? null
+                  : () async {
+                      setState(() {
+                        isDownloading = true;
+                      });
+                      widget.onDownload();
+                      if (mounted) {
+                        setState(() {
+                          isDownloading = false;
+                        });
+                      }
+                    },
+              icon: isDownloading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.brand,
+                      ),
+                    )
+                  : Icon(
+                      widget.isDownloaded
+                          ? Icons.download_done_rounded
+                          : Icons.download_for_offline_outlined,
+                      color: widget.isDownloaded
+                          ? AppColors.brand
+                          : AppColors.textPrimary,
+                      size: 26,
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }

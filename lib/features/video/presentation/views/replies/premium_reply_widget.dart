@@ -1,17 +1,12 @@
-import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:timeago/timeago.dart' as timeago;
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Premium reply display widget matching comment styling
 class PremiumReplyWidget extends StatefulWidget {
-  final Reply reply;
-  final CommentsController controller;
-  final Function(Reply)? onReportTap;
-  final bool isCreatorView;
 
   const PremiumReplyWidget({
     required this.reply,
@@ -20,6 +15,10 @@ class PremiumReplyWidget extends StatefulWidget {
     this.isCreatorView = false,
     super.key,
   });
+  final Reply reply;
+  final CommentsController controller;
+  final Function(Reply)? onReportTap;
+  final bool isCreatorView;
 
   @override
   State<PremiumReplyWidget> createState() => _PremiumReplyWidgetState();
@@ -37,7 +36,7 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
       duration: const Duration(milliseconds: 600),
       vsync: this,
     );
-    _likeScaleAnimation = Tween<double>(begin: 1.0, end: 1.3).animate(
+    _likeScaleAnimation = Tween<double>(begin: 1, end: 1.3).animate(
       CurvedAnimation(parent: _likeAnimationController, curve: Curves.elasticOut),
     );
   }
@@ -123,11 +122,11 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
                 height: 32,
                 fit: BoxFit.cover,
                 placeholder: (_, _) =>
-                    Container(color: Colors.grey[300]),
+                    Container(color: AppColors.textSecondary),
                 errorWidget: (_, _, _) =>
-                    Container(
-                      color: Colors.grey[300],
-                      child: const Icon(Icons.person, size: 16),
+                    const ColoredBox(
+                      color: AppColors.textSecondary,
+                      child: Icon(Icons.person, size: 16),
                     ),
               ),
             ),
@@ -144,10 +143,10 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
                 children: [
                   Text(
                     widget.reply.displayName,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: isMobile ? 12 : 13,
                       fontWeight: FontWeight.w500,
-                      color: isDark ? Colors.white : Colors.black87,
+                      color: isDark ? AppColors.textPrimary : AppColors.bgPage,
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -162,12 +161,12 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
                         color: AppColors.brand.withAlpha(180),
                         borderRadius: BorderRadius.circular(3),
                       ),
-                      child: Text(
+                      child: const Text(
                         'Creator',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                     ),
@@ -176,9 +175,9 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
               const SizedBox(height: 2),
               Text(
                 timeago.format(widget.reply.createdAt.toDate()),
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 11,
-                  color: isDark ? Colors.white54 : Colors.grey[600],
+                  color: isDark ? AppColors.textSecondary : AppColors.textSecondary,
                 ),
               ),
             ],
@@ -191,10 +190,10 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
   Widget _buildReplyText(bool isDark) {
     return Text(
       widget.reply.text,
-      style: GoogleFonts.roboto(
+      style: TextStyle(
         fontSize: 13,
         height: 1.4,
-        color: isDark ? Colors.white.withAlpha(220) : Colors.black87,
+        color: isDark ? AppColors.textPrimary.withAlpha(220) : AppColors.bgPage,
       ),
     );
   }
@@ -213,7 +212,7 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
                   if (widget.reply.likeCount > 0)
                     TextSpan(
                       text: '👍 ${widget.reply.likeCount}',
-                      style: GoogleFonts.roboto(
+                      style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
                         color: AppColors.brand,
@@ -223,7 +222,7 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
                     const TextSpan(text: '  '),
                     TextSpan(
                       text: '👎 ${widget.reply.dislikeCount}',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
                         color: context.colors.error,
@@ -243,10 +242,8 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
               icon: Icons.thumb_up_outlined,
               label: 'Like',
               isActive: false,
-              onTap: () {
-                _playLikeAnimation();
-              },
-              color: isDark ? Colors.white54 : Colors.grey[700] ?? Colors.grey,
+              onTap: _playLikeAnimation,
+              color: AppColors.textSecondary,
               activeColor: AppColors.brand,
               isMobile: isMobile,
             ),
@@ -258,7 +255,7 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
               label: 'Dislike',
               isActive: false,
               onTap: () {},
-              color: isDark ? Colors.white54 : Colors.grey[700] ?? Colors.grey,
+              color: AppColors.textSecondary,
               activeColor: context.colors.error,
               isMobile: isMobile,
             ),
@@ -273,7 +270,7 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
                   child: Icon(
                     Icons.flag_outlined,
                     size: 16,
-                    color: isDark ? Colors.white38 : Colors.grey[500],
+                    color: isDark ? AppColors.textTertiary : AppColors.textSecondary,
                   ),
                 ),
               ),
@@ -295,7 +292,7 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
     return InkWell(
       onTap: onTap,
       child: ScaleTransition(
-        scale: label == 'Like' ? _likeScaleAnimation : AlwaysStoppedAnimation(1.0),
+        scale: label == 'Like' ? _likeScaleAnimation : const AlwaysStoppedAnimation(1),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -308,7 +305,7 @@ class _PremiumReplyWidgetState extends State<PremiumReplyWidget>
               const SizedBox(width: 5),
               Text(
                 label,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
                   color: isActive ? activeColor : color,

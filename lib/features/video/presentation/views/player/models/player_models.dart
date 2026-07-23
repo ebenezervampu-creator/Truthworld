@@ -1,6 +1,7 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class PT {
@@ -17,54 +18,54 @@ class PT {
   static const double kDoubleTapRippleMs = 700;
   static const double kToastDurationMs = 2000;
   static const double kHudFadeMs = 1200;
-  static const double kProgressBarH = 4.0;
-  static const double kProgressBarHover = 5.0;
-  static const double kThumbRadius = 7.0;
-  static const double kThumbRadiusDrag = 9.0;
+  static const double kProgressBarH = 4;
+  static const double kProgressBarHover = 5;
+  static const double kThumbRadius = 7;
+  static const double kThumbRadiusDrag = 9;
 }
 
 // ── Text Style Cache ──────────────────────────────────────────────────────────
 // Pre-build expensive GoogleFonts lookups once.
 abstract class TS {
-  static final body = TextStyle(
-    fontFamily: 'Roboto',
+  static const body = TextStyle(
+    
     color: PT.text,
     fontSize: 14,
     fontWeight: FontWeight.w400,
   );
-  static final bodySm = TextStyle(
-    fontFamily: 'Roboto',
+  static const bodySm = TextStyle(
+    
     color: PT.textDim,
     fontSize: 12,
   );
-  static final bold = TextStyle(
-    fontFamily: 'Roboto',
+  static const bold = TextStyle(
+    
     color: PT.text,
     fontSize: 14,
     fontWeight: FontWeight.w700,
   );
-  static final title = TextStyle(
-    fontFamily: 'Roboto',
+  static const title = TextStyle(
+    
     color: PT.text,
     fontSize: 16,
     fontWeight: FontWeight.bold,
   );
-  static final badge = TextStyle(
-    fontFamily: 'Roboto',
+  static const badge = TextStyle(
+    
     color: PT.primary,
     fontSize: 11,
     fontWeight: FontWeight.bold,
     letterSpacing: 0.5,
   );
-  static final mono = TextStyle(
-    fontFamily: 'Roboto',
+  static const mono = TextStyle(
+    
     color: PT.text,
     fontSize: 11,
     fontWeight: FontWeight.w500,
   );
-  static final time = TextStyle(
-    fontFamily: 'Roboto',
-    color: Colors.white,
+  static const time = TextStyle(
+    
+    color: AppColors.textPrimary,
     fontSize: 13,
     fontWeight: FontWeight.w500,
   );
@@ -72,40 +73,43 @@ abstract class TS {
 
 // ── Subtitle / Audio / Chapter models (unchanged) ────────────────────────────
 class SubtitleTrack {
-  final String label, langCode, url;
-  final bool isDefault;
   const SubtitleTrack({
     required this.label,
     required this.langCode,
     this.url = '',
     this.isDefault = false,
   });
+  final String label;
+  final String langCode;
+  final String url;
+  final bool isDefault;
 }
 
 class SubtitleSegment {
-  final Duration start, end;
-  final String text;
   const SubtitleSegment({
     required this.start,
     required this.end,
     required this.text,
   });
+  final Duration start;
+  final Duration end;
+  final String text;
 }
 
 class AudioTrack {
-  final String label, langCode, type;
-  final String? url;
   const AudioTrack({
     required this.label,
     required this.langCode,
     this.type = 'Original',
     this.url,
   });
+  final String label;
+  final String langCode;
+  final String type;
+  final String? url;
 }
 
 class ContentMetadata {
-  final String rating, genre, releaseYear, duration, director, cast;
-  final List<String> advisories;
   const ContentMetadata({
     this.rating = 'U/A 16+',
     this.genre = '',
@@ -115,13 +119,20 @@ class ContentMetadata {
     this.cast = '',
     this.advisories = const [],
   });
+  final String rating;
+  final String genre;
+  final String releaseYear;
+  final String duration;
+  final String director;
+  final String cast;
+  final List<String> advisories;
 }
 
 class PlayerEvent {
+  PlayerEvent(this.type, {this.data = const {}}) : timestamp = DateTime.now();
   final String type;
   final DateTime timestamp;
   final Map<String, dynamic> data;
-  PlayerEvent(this.type, {this.data = const {}}) : timestamp = DateTime.now();
 }
 
 // ── Centralised timer bag — prevents all timer leaks ─────────────────────────
@@ -152,12 +163,6 @@ class TimerBag {
 }
 
 class MockAd {
-  final String videoUrl;
-  final String title;
-  final String description;
-  final String clickUrl;
-  final bool skippable;
-  final Duration duration;
 
   const MockAd({
     required this.videoUrl,
@@ -167,14 +172,15 @@ class MockAd {
     required this.skippable,
     required this.duration,
   });
+  final String videoUrl;
+  final String title;
+  final String description;
+  final String clickUrl;
+  final bool skippable;
+  final Duration duration;
 }
 
 class LanguageRequest {
-  final String id;
-  final String language;
-  final String type; // 'subtitle' or 'audio'
-  final Timestamp createdAt;
-  final int count;
 
   const LanguageRequest({
     required this.id,
@@ -187,11 +193,16 @@ class LanguageRequest {
   factory LanguageRequest.fromMap(Map<String, dynamic> map, String id) {
     return LanguageRequest(
       id: id,
-      language: map['language'] ?? '',
-      type: map['type'] ?? '',
+      language: (map['language'] as String?) ?? '',
+      type: (map['type'] as String?) ?? '',
       createdAt: map['createdAt'] as Timestamp? ?? Timestamp.now(),
       count: map['count'] as int? ?? 1,
     );
   }
+  final String id;
+  final String language;
+  final String type; // 'subtitle' or 'audio'
+  final Timestamp createdAt;
+  final int count;
 }
 

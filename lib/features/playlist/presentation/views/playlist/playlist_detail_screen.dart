@@ -1,19 +1,18 @@
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_detail_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
-import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
-import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 // ==========================================================================
 // YOUTUBE THEME COLORS
@@ -22,7 +21,7 @@ const Color ytBackground = AppColors.bgPage;
 const Color ytSurface = Color(0xFF1A1A1A);
 const Color ytSurfaceLight = Color(0xFF262626);
 const Color ytSurfaceHover = Color(0xFF3D3D3D);
-const Color ytTextPrimary = Colors.white;
+const Color ytTextPrimary = AppColors.textPrimary;
 const Color ytTextSecondary = AppColors.textSecondary;
 const Color ytTextTertiary = AppColors.textTertiary;
 const Color ytRed = Color(0xFFFF0000);
@@ -43,7 +42,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
     
     final args = Get.arguments;
     if (args == null || args['playlist'] is! PlaylistModel) {
-      return _buildErrorState('Playlist data is missing.', () => Get.back());
+      return _buildErrorState('Playlist data is missing.', Get.back);
     }
 
     final PlaylistModel playlist = args['playlist'];
@@ -58,8 +57,8 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   Widget _buildContent(BuildContext context, PlaylistModel playlist) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final bool isDesktop = constraints.maxWidth >= 1000;
-        final bool isTablet = constraints.maxWidth >= 600 && constraints.maxWidth < 1000;
+        final isDesktop = constraints.maxWidth >= 1000;
+        final isTablet = constraints.maxWidth >= 600 && constraints.maxWidth < 1000;
 
         if (isDesktop) {
           return _buildDesktopLayout(context, playlist);
@@ -121,17 +120,17 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   Widget _buildPlaylistSidebar(BuildContext context, PlaylistModel playlist, {bool isDesktop = false}) {
     return SingleChildScrollView(
-      padding: EdgeInsets.all(24),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Large thumbnail
           _buildLargeThumbnail(playlist),
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
           // Playlist title
           Text(
             playlist.playlistName,
-            style: GoogleFonts.roboto(
+            style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w700,
               color: ytTextPrimary,
@@ -139,16 +138,16 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           // Channel name with avatar
           _buildChannelInfo(playlist),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           // Stats
           _buildPlaylistStats(playlist),
-          SizedBox(height: 24),
+          const SizedBox(height: 24),
           // Action buttons
           _buildActionButtons(context, playlist, isDesktop: true),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           // Description
           if (playlist.description.isNotEmpty)
             _buildDescription(playlist),
@@ -170,7 +169,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
         children: [
           // Thumbnail
           _buildThumbnail(playlist, isTablet: isTablet),
-          SizedBox(width: 16),
+          const SizedBox(width: 16),
           // Info
           Expanded(
             child: Column(
@@ -178,7 +177,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
               children: [
                 Text(
                   playlist.playlistName,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: isTablet ? 22 : 20,
                     fontWeight: FontWeight.w700,
                     color: ytTextPrimary,
@@ -186,11 +185,11 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 _buildChannelInfo(playlist),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 _buildPlaylistStats(playlist),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 _buildActionButtons(context, playlist, isTablet: isTablet),
               ],
             ),
@@ -255,7 +254,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   }
 
   Widget _buildPlaceholder() {
-    return Container(
+    return const ColoredBox(
       color: ytSurfaceLight,
       child: Center(
         child: Icon(
@@ -277,11 +276,11 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
           .doc(playlist.channelId)
           .get(),
       builder: (context, snapshot) {
-        String channelName = 'Unknown Channel';
-        String avatarUrl = '';
+        var channelName = 'Unknown Channel';
+        var avatarUrl = '';
         
         if (snapshot.hasData && snapshot.data!.exists) {
-          final channelData = snapshot.data!.data() as Map<String, dynamic>;
+          final channelData = snapshot.data!.data()! as Map<String, dynamic>;
           channelName = (channelData['name'] ?? channelData['channelName']) ?? 'Unknown Channel';
           avatarUrl = channelData['avatarUrl'] ?? '';
         }
@@ -300,11 +299,11 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                 textColor: ytTextSecondary,
                 fontSize: 16,
               ),
-              SizedBox(width: 8),
+              const SizedBox(width: 8),
               Flexible(
                 child: Text(
                   channelName,
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     fontSize: 14,
                     color: ytTextSecondary,
                   ),
@@ -333,7 +332,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
 
         return Text(
           '$videoCount videos • ${_formatViews(viewCount)} views • Updated $lastUpdated',
-          style: GoogleFonts.roboto(
+          style: const TextStyle(
             fontSize: 12,
             color: ytTextTertiary,
           ),
@@ -362,14 +361,14 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
               child: InkWell(
                 onTap: () => _playAllVideos(playlist),
                 borderRadius: BorderRadius.circular(18),
-                child: Row(
+                child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(Icons.play_arrow, color: ytBackground, size: 20),
                     SizedBox(width: 4),
                     Text(
                       'Play all',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                         color: ytBackground,
@@ -381,7 +380,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
             ),
           ),
         ),
-        SizedBox(width: 8),
+        const SizedBox(width: 8),
         // Shuffle button (dark)
         Expanded(
           flex: 2,
@@ -396,14 +395,14 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
               child: InkWell(
                 onTap: () => _shuffleVideos(playlist),
                 borderRadius: BorderRadius.circular(18),
-                child: Row(
+                child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(Icons.shuffle, color: ytTextPrimary, size: 18),
                     SizedBox(width: 4),
                     Text(
                       'Shuffle',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                         color: ytTextPrimary,
@@ -416,14 +415,14 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
           ),
         ),
         if (isDesktop) ...[
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           // Download button (circular)
           _buildActionButtonIcon(
             icon: Icons.download,
             onTap: () => _downloadPlaylist(playlist),
             tooltip: 'Download',
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           // Share button (circular)
           _buildActionButtonIcon(
             icon: Icons.share,
@@ -437,7 +436,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
             tooltip: 'Share',
           ),
         ] else ...[
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           // Share button for mobile/tablet
           _buildActionButtonIcon(
             icon: Icons.share,
@@ -463,7 +462,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
     return Container(
       width: 36,
       height: 36,
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: ytSurfaceLight,
         shape: BoxShape.circle,
       ),
@@ -495,7 +494,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
       children: [
         Text(
           playlist.description,
-          style: GoogleFonts.roboto(
+          style: const TextStyle(
             fontSize: 14,
             color: ytTextSecondary,
             height: 1.4,
@@ -508,12 +507,12 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
             onPressed: () {},
             style: TextButton.styleFrom(
               padding: EdgeInsets.zero,
-              minimumSize: Size(0, 32),
+              minimumSize: const Size(0, 32),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            child: Text(
+            child: const Text(
               'Show more',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 12,
                 color: ytTextPrimary,
                 fontWeight: FontWeight.w500,
@@ -536,12 +535,12 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
 
       return Container(
         color: ytBackground,
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           children: filters.map((filter) {
             final isSelected = selectedFilter == filter;
             return Padding(
-              padding: EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(right: 8),
               child: ChoiceChip(
                 label: Text(filter),
                 selected: isSelected,
@@ -552,7 +551,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                 },
                 backgroundColor: ytSurface,
                 selectedColor: ytTextPrimary,
-                labelStyle: GoogleFonts.roboto(
+                labelStyle: TextStyle(
                   color: isSelected ? ytBackground : ytTextPrimary,
                   fontSize: 14,
                 ),
@@ -562,7 +561,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                     color: isSelected ? ytTextPrimary : Colors.transparent,
                   ),
                 ),
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               ),
             );
           }).toList(),
@@ -579,7 +578,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
       children: [
         // Filter tabs
         _buildFilterTabs(),
-        Divider(color: ytBorder, height: 1),
+        const Divider(color: ytBorder, height: 1),
         // Video list
         Expanded(
           child: _buildVideoList(context, playlist, isDesktop: isDesktop),
@@ -655,36 +654,23 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   }) {
     final thumbnailWidth = isDesktop ? 160.0 : (isTablet ? 200.0 : 140.0);
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        onTap: () {
-          MiniplayerNavigationHelper.navigateToVideoScreen(
-            video: video,
-            routeArguments: {"video": video},
-          );
-        },
+    return InkWell(
+      onTap: () {
+        MiniplayerNavigationHelper.navigateToVideoScreen(
+          video: video,
+          routeArguments: {'video': video},
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Number indicator
-            SizedBox(
-              width: 32,
-              child: Center(
-                child: Text(
-                  '$index',
-                  style: GoogleFonts.roboto(
-                    fontSize: 12,
-                    color: ytTextSecondary,
-                  ),
-                ),
-              ),
-            ),
-            // Thumbnail
+            // Thumbnail with Duration Overlay
             Stack(
               children: [
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                   child: CachedNetworkImage(
                     imageUrl: video.thumbnailUrl,
                     width: thumbnailWidth,
@@ -699,67 +685,78 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                       width: thumbnailWidth,
                       height: thumbnailWidth * 9 / 16,
                       color: ytSurfaceLight,
-                      child: Icon(Icons.play_circle_outline, color: ytTextSecondary),
+                      child: const Icon(Icons.play_circle_outline, color: ytTextSecondary),
                     ),
                   ),
                 ),
-                // Duration badge
+                // Duration overlay
                 Positioned(
                   bottom: 4,
                   right: 4,
                   child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.8),
+                      color: AppColors.bgPage.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       video.duration,
-                      style: GoogleFonts.roboto(
-                        color: Colors.white,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
                         fontSize: 10,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
                 ),
               ],
             ),
-            SizedBox(width: 12),
-            // Video info
+            const SizedBox(width: 12),
+            // Details (Title & Metadata)
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    video.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.roboto(
-                      color: ytTextPrimary,
-                      fontSize: isDesktop ? 16 : 14,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          video.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: ytTextPrimary,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.more_vert,
+                          color: ytTextPrimary,
+                          size: 18,
+                        ),
+                        onPressed: () => _showVideoOptions(context, video),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
-                    '${video.channelName} • ${_formatViews(video.views)} views • ${timeago.format(video.uploadedAt.toDate())}',
-                    style: GoogleFonts.roboto(
+                    '${video.channelName} • ${_formatViews(video.views)} views',
+                    style: const TextStyle(
+                      fontSize: 13,
                       color: ytTextSecondary,
-                      fontSize: 12,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
-            ),
-            // More options button
-            IconButton(
-              icon: Icon(Icons.more_vert, color: ytTextSecondary, size: 20),
-              onPressed: () => _showVideoOptions(context, video),
-              padding: EdgeInsets.zero,
-              constraints: BoxConstraints(),
             ),
           ],
         ),
@@ -775,13 +772,13 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
       baseColor: ytSurface,
       highlightColor: ytSurfaceLight,
       child: ListView.builder(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         itemCount: 5,
         itemBuilder: (context, index) => Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: Row(
             children: [
-              SizedBox(width: 32),
+              const SizedBox(width: 32),
               Container(
                 width: 140,
                 height: 79,
@@ -790,13 +787,13 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(height: 16, color: ytSurfaceLight),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Container(height: 12, width: 100, color: ytSurfaceLight),
                   ],
                 ),
@@ -809,7 +806,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   }
 
   Widget _buildEmptyState() {
-    return Center(
+    return const Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -817,7 +814,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
           SizedBox(height: 16),
           Text(
             'No videos found',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w500,
               color: ytTextPrimary,
@@ -826,7 +823,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
           SizedBox(height: 8),
           Text(
             'This playlist is empty',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 14,
               color: ytTextSecondary,
             ),
@@ -841,24 +838,24 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, size: 48, color: ytTextTertiary),
-          SizedBox(height: 16),
+          const Icon(Icons.error_outline, size: 48, color: ytTextTertiary),
+          const SizedBox(height: 16),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: GoogleFonts.roboto(
+            style: const TextStyle(
               fontSize: 16,
               color: ytTextSecondary,
             ),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           ElevatedButton(
             onPressed: onRetry,
             style: ElevatedButton.styleFrom(
               backgroundColor: ytTextPrimary,
               foregroundColor: ytBackground,
             ),
-            child: Text('Retry'),
+            child: const Text('Retry'),
           ),
         ],
       ),
@@ -887,11 +884,11 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
     showModalBottomSheet(
       context: context,
       backgroundColor: ytSurface,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
       builder: (context) => Container(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -903,25 +900,25 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             ListTile(
-              leading: Icon(Icons.play_arrow, color: ytTextPrimary),
-              title: Text('Play next', style: GoogleFonts.roboto(color: ytTextPrimary)),
+              leading: const Icon(Icons.play_arrow, color: ytTextPrimary),
+              title: const Text('Play next', style: TextStyle(color: ytTextPrimary)),
               onTap: () => Navigator.pop(context),
             ),
             ListTile(
-              leading: Icon(Icons.playlist_add, color: ytTextPrimary),
-              title: Text('Add to queue', style: GoogleFonts.roboto(color: ytTextPrimary)),
+              leading: const Icon(Icons.playlist_add, color: ytTextPrimary),
+              title: const Text('Add to queue', style: TextStyle(color: ytTextPrimary)),
               onTap: () => Navigator.pop(context),
             ),
             ListTile(
-              leading: Icon(Icons.download, color: ytTextPrimary),
-              title: Text('Download', style: GoogleFonts.roboto(color: ytTextPrimary)),
+              leading: const Icon(Icons.download, color: ytTextPrimary),
+              title: const Text('Download', style: TextStyle(color: ytTextPrimary)),
               onTap: () => Navigator.pop(context),
             ),
             ListTile(
-              leading: Icon(Icons.share, color: ytTextPrimary),
-              title: Text('Share', style: GoogleFonts.roboto(color: ytTextPrimary)),
+              leading: const Icon(Icons.share, color: ytTextPrimary),
+              title: const Text('Share', style: TextStyle(color: ytTextPrimary)),
               onTap: () => Navigator.pop(context),
             ),
           ],
@@ -942,19 +939,19 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
 
     if (videoIds.isEmpty) return [];
     
-    final List<Video> videos = [];
-    const int batchSize = 10;
+    final videos = <Video>[];
+    const batchSize = 10;
     for (var i = 0; i < videoIds.length; i += batchSize) {
       final batchIds = videoIds.skip(i).take(batchSize).toList();
       final snapshot = await FirebaseFirestore.instance
           .collection('videos')
           .where(FieldPath.documentId, whereIn: batchIds)
           .get();
-      videos.addAll(snapshot.docs.map((doc) => Video.fromDocumentSnapshot(doc)));
+      videos.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));
     }
     
     // Sort by original order
-    final videoMap = {for (var v in videos) v.id: v};
+    final videoMap = {for (final v in videos) v.id: v};
     return videoIds.map((id) => videoMap[id]).whereType<Video>().toList();
   }
 
@@ -972,10 +969,10 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
 // FILTER TAB DELEGATE
 // ==========================================================================
 class _FilterTabDelegate extends SliverPersistentHeaderDelegate {
-  final Widget child;
-  final double maxHeight;
 
   _FilterTabDelegate(this.child, {required this.maxHeight});
+  final Widget child;
+  final double maxHeight;
 
   @override
   double get minExtent => maxHeight;
@@ -988,7 +985,7 @@ class _FilterTabDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    return Container(
+    return ColoredBox(
       color: ytBackground,
       child: child,
     );

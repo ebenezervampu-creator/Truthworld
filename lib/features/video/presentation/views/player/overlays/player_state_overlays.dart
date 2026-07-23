@@ -1,24 +1,24 @@
 import 'dart:math';
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
-
-import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
-import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
-import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
-import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
-import 'package:truthworld/features/video/presentation/views/player/controls/player_controls.dart';
-import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
+import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
+import 'package:truthworld/features/video/presentation/views/player/controls/player_controls.dart';
+import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class SwitchingResolutionOverlay extends StatelessWidget {
   const SwitchingResolutionOverlay({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.black.withValues(alpha: 0.4),
+    return ColoredBox(
+      color: AppColors.bgPage.withValues(alpha: 0.4),
       child: Center(
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
@@ -27,9 +27,9 @@ class SwitchingResolutionOverlay extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.08),
+                color: AppColors.textPrimary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1)),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -42,7 +42,7 @@ class SwitchingResolutionOverlay extends StatelessWidget {
                       highlightColor: PT.primary,
                       child: const Icon(
                         Icons.settings_backup_restore_rounded,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         size: 40,
                       ),
                     ),
@@ -53,7 +53,7 @@ class SwitchingResolutionOverlay extends StatelessWidget {
                     style: TS.title.copyWith(letterSpacing: 0.5),
                   ),
                   const SizedBox(height: 4),
-                  Text('Switching to a better resolution', style: TS.bodySm),
+                  const Text('Switching to a better resolution', style: TS.bodySm),
                 ],
               ),
             ),
@@ -68,13 +68,13 @@ class SwitchingResolutionOverlay extends StatelessWidget {
 // AUDIO-ONLY OVERLAY
 // ─────────────────────────────────────────────────────────────────────────────
 class AudioOnlyOverlay extends StatelessWidget {
+  const AudioOnlyOverlay({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const AudioOnlyOverlay({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: Colors.black,
+      color: AppColors.bgPage,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -100,7 +100,7 @@ class AudioOnlyOverlay extends StatelessWidget {
                 child: Icon(
                   Icons.music_note_rounded,
                   size: 60,
-                  color: Colors.white70,
+                  color: AppColors.textSecondary,
                 ),
               ),
             ),
@@ -164,7 +164,6 @@ class _AudioWaveformState extends State<AudioWaveform>
         builder: (_, _) {
           return Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: List.generate(7, (i) {
               final h =
                   8 + 18 * ((sin(i * 0.4 + _anim.value * 2 * pi) + 1) / 2);
@@ -188,23 +187,23 @@ class _AudioWaveformState extends State<AudioWaveform>
 // STATE OVERLAY
 // ─────────────────────────────────────────────────────────────────────────────
 class StateOverlay extends StatelessWidget {
+  const StateOverlay({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const StateOverlay({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
+      ctrl.isAudioOnly.value; // Guarantee Rx access for Obx
       final state = ctrl.abr.playbackState.value;
       final buffering = ctrl.isBuffering.value;
       final hasError = ctrl.vv.hasError;
 
       // Suppress spinner for transparent auto-quality switches
-      bool isAutoSwitch = false;
+      var isAutoSwitch = false;
       try {
-        if (Get.isRegistered<VideoController>(tag: ctrl.tag)) {
-          isAutoSwitch = Get.find<VideoController>(
-            tag: ctrl.tag,
-          ).isAutoSwitching.value;
+        final vc = ctrl.videoController;
+        if (vc != null) {
+          isAutoSwitch = vc.isAutoSwitching.value;
         }
       } catch (_) {}
       if (isAutoSwitch) return const SizedBox.shrink();
@@ -227,7 +226,7 @@ class StateOverlay extends StatelessWidget {
         highlightColor: color,
         child: const Icon(
           Icons.play_circle_outline_rounded,
-          color: Colors.white,
+          color: AppColors.textPrimary,
           size: 48,
         ),
       ),
@@ -238,24 +237,22 @@ class StateOverlay extends StatelessWidget {
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        _buildSpinner(Colors.orange),
+        _buildSpinner(AppColors.warning),
         const SizedBox(height: 16),
-        Obx(
-          () => Text(
-            'Poor network · ${ctrl.abr.currentTier.label}',
-            style: TextStyle(
-              fontFamily: 'Roboto',
-              color: Colors.orange,
-              fontSize: 13,
-            ),
+        Text(
+          'Poor network · ${ctrl.abr.currentTier.label}',
+          style: const TextStyle(
+            color: AppColors.warning,
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ],
     ),
   );
 
-  Widget _buildError() => Container(
-    color: Colors.black87,
+  Widget _buildError() => ColoredBox(
+    color: AppColors.bgPage,
     child: Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -285,8 +282,8 @@ class StateOverlay extends StatelessWidget {
 // DOUBLE-TAP RIPPLE
 // ─────────────────────────────────────────────────────────────────────────────
 class DoubleTapRipple extends StatelessWidget {
+  const DoubleTapRipple({required this.isLeft, super.key});
   final bool isLeft;
-  const DoubleTapRipple({super.key, required this.isLeft});
 
   @override
   Widget build(BuildContext context) {
@@ -298,7 +295,7 @@ class DoubleTapRipple extends StatelessWidget {
       width: 160,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
           borderRadius: isLeft
               ? const BorderRadius.only(
                   topRight: Radius.circular(80),
@@ -315,12 +312,12 @@ class DoubleTapRipple extends StatelessWidget {
             children: [
               Icon(
                 isLeft ? Icons.replay_10_rounded : Icons.forward_10_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 44,
               ),
               Text(
                 '10 seconds',
-                style: TS.bodySm.copyWith(color: Colors.white70, fontSize: 12),
+                style: TS.bodySm.copyWith(color: AppColors.textSecondary, fontSize: 12),
               ),
             ],
           ),
@@ -334,13 +331,13 @@ class DoubleTapRipple extends StatelessWidget {
 // SEEK PREVIEW TOOLTIP
 // ─────────────────────────────────────────────────────────────────────────────
 class SeekPreviewTooltip extends StatelessWidget {
+  const SeekPreviewTooltip({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const SeekPreviewTooltip({super.key, required this.ctrl});
 
   String _fmt(Duration d) {
-    final h = d.inHours,
-        m = d.inMinutes.remainder(60).toString().padLeft(2, '0'),
-        s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    final h = d.inHours;
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return h > 0 ? '$h:$m:$s' : '$m:$s';
   }
 
@@ -348,18 +345,18 @@ class SeekPreviewTooltip extends StatelessWidget {
     switch (verdict.toLowerCase()) {
       case 'verified_true':
       case 'mostly_true':
-        return Colors.greenAccent;
+        return AppColors.success;
       case 'false_claim':
       case 'misleading':
       case 'disputed':
-        return Colors.redAccent;
+        return AppColors.error;
       case 'unproven':
       case 'inconclusive':
       case 'limited_support':
       case 'verification_timeout':
         return Colors.amberAccent;
       default:
-        return Colors.blueAccent;
+        return AppColors.info;
     }
   }
 
@@ -378,7 +375,7 @@ class SeekPreviewTooltip extends StatelessWidget {
       if (vc != null) {
         final claims = vc.video.uiReport?.keyClaims;
         if (claims != null && claims.isNotEmpty && dur.inMilliseconds > 0) {
-          final double thresholdMs =
+          final thresholdMs =
               dur.inMilliseconds * 0.015; // 1.5% hover snap
           for (final claim in claims) {
             if (claim.start != null) {
@@ -409,14 +406,14 @@ class SeekPreviewTooltip extends StatelessWidget {
                   bottom: 0,
                   child: Container(
                     width: hoveredClaim != null ? 320 : 160,
-                    padding: const EdgeInsets.all(8.0),
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: PT.surface,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: PT.border),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.65),
+                          color: AppColors.bgPage.withValues(alpha: 0.65),
                           blurRadius: 16,
                           spreadRadius: 2,
                         ),
@@ -429,7 +426,7 @@ class SeekPreviewTooltip extends StatelessWidget {
                         height: hoveredClaim != null ? 68 : 81,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.white12),
+                          border: Border.all(color: AppColors.bgDivider),
                           color: Colors.black45,
                         ),
                         child: ClipRRect(
@@ -439,11 +436,11 @@ class SeekPreviewTooltip extends StatelessWidget {
                                   thumbUrl,
                                   fit: BoxFit.cover,
                                   errorBuilder: (context, error, stackTrace) => const Center(
-                                    child: Icon(Icons.movie_creation_rounded, color: Colors.white30, size: 24),
+                                    child: Icon(Icons.movie_creation_rounded, color: AppColors.textTertiary, size: 24),
                                   ),
                                 )
                               : const Center(
-                                  child: Icon(Icons.movie_creation_rounded, color: Colors.white30, size: 24),
+                                  child: Icon(Icons.movie_creation_rounded, color: AppColors.textTertiary, size: 24),
                                 ),
                         ),
                       );
@@ -474,8 +471,8 @@ class SeekPreviewTooltip extends StatelessWidget {
                                     maxLines: 3,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
-                                      fontFamily: 'Roboto',
-                                      color: Colors.white,
+                                      
+                                      color: AppColors.textPrimary,
                                       fontSize: 11,
                                       fontWeight: FontWeight.w500,
                                       height: 1.3,
@@ -492,7 +489,7 @@ class SeekPreviewTooltip extends StatelessWidget {
                                     child: Text(
                                       hoveredClaim.verdict.toUpperCase().replaceAll('_', ' '),
                                       style: TextStyle(
-                                        fontFamily: 'Roboto',
+                                        
                                         color: _getVerdictColor(hoveredClaim.verdict),
                                         fontSize: 9,
                                         fontWeight: FontWeight.bold,
@@ -536,8 +533,8 @@ class SeekPreviewTooltip extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class PlayerToast extends StatelessWidget {
+  const PlayerToast({required this.message, super.key});
   final String message;
-  const PlayerToast({super.key, required this.message});
 
   @override
   Widget build(BuildContext context) {
@@ -545,7 +542,7 @@ class PlayerToast extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.75),
+          color: AppColors.bgPage.withValues(alpha: 0.75),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(color: PT.border),
         ),
@@ -563,9 +560,9 @@ class PlayerToast extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class SwipeHUD extends StatelessWidget {
+  const SwipeHUD({required this.isBrightness, required this.value, super.key});
   final bool isBrightness;
   final double value;
-  const SwipeHUD({super.key, required this.isBrightness, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -573,9 +570,9 @@ class SwipeHUD extends StatelessWidget {
       width: 50,
       height: 200,
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.75),
+        color: AppColors.bgPage.withValues(alpha: 0.75),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white12),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -587,7 +584,7 @@ class SwipeHUD extends StatelessWidget {
                 : value == 0
                 ? Icons.volume_mute_rounded
                 : Icons.volume_up_rounded,
-            color: Colors.white,
+            color: AppColors.textPrimary,
             size: 20,
           ),
           const SizedBox(height: 12),
@@ -600,7 +597,7 @@ class SwipeHUD extends StatelessWidget {
                   Container(
                     width: 4,
                     decoration: BoxDecoration(
-                      color: Colors.white24,
+                      color: AppColors.textDisabled,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -622,7 +619,7 @@ class SwipeHUD extends StatelessWidget {
           Text(
             '${(value * 100).toInt()}%',
             style: TS.mono.copyWith(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 11,
               fontWeight: FontWeight.bold,
             ),

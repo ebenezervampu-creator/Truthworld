@@ -5,24 +5,14 @@
 // across all device sizes with optimal column counts and spacing
 
 import 'package:flutter/material.dart';
+import 'package:truthworld/core/widgets/modern_video_card.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/core/widgets/modern_video_card.dart';
-
 class ResponsiveVideoGrid extends StatelessWidget {
-  final List<Video> videos;
-  final String? heroPrefix;
-  final Color? accentColor;
-  final bool showListView;
-  final int? maxColumns;
-  final double? childAspectRatio;
-  final EdgeInsets? padding;
-  final Function(Video)? onVideoTap;
 
   const ResponsiveVideoGrid({
-    super.key,
-    required this.videos,
+    required this.videos, super.key,
     this.heroPrefix,
     this.accentColor,
     this.showListView = false,
@@ -31,6 +21,14 @@ class ResponsiveVideoGrid extends StatelessWidget {
     this.padding,
     this.onVideoTap,
   });
+  final List<Video> videos;
+  final String? heroPrefix;
+  final Color? accentColor;
+  final bool showListView;
+  final int? maxColumns;
+  final double? childAspectRatio;
+  final EdgeInsets? padding;
+  final Function(Video)? onVideoTap;
 
   @override
   Widget build(BuildContext context) {
@@ -109,6 +107,17 @@ class ResponsiveVideoGrid extends StatelessWidget {
 // RESPONSIVE VIDEO LIST WITH HEADER
 // ==========================================================================
 class ResponsiveVideoListWithHeader extends StatelessWidget {
+
+  const ResponsiveVideoListWithHeader({
+    required this.title, required this.videos, super.key,
+    this.heroPrefix,
+    this.accentColor,
+    this.showViewAll = false,
+    this.onViewAll,
+    this.action,
+    this.showListView = false,
+    this.maxColumns,
+  });
   final String title;
   final List<Video> videos;
   final String? heroPrefix;
@@ -118,19 +127,6 @@ class ResponsiveVideoListWithHeader extends StatelessWidget {
   final Widget? action;
   final bool showListView;
   final int? maxColumns;
-
-  const ResponsiveVideoListWithHeader({
-    super.key,
-    required this.title,
-    required this.videos,
-    this.heroPrefix,
-    this.accentColor,
-    this.showViewAll = false,
-    this.onViewAll,
-    this.action,
-    this.showListView = false,
-    this.maxColumns,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -193,6 +189,15 @@ class ResponsiveVideoListWithHeader extends StatelessWidget {
 // RESPONSIVE VIDEO SECTION
 // ==========================================================================
 class ResponsiveVideoSection extends StatelessWidget {
+
+  const ResponsiveVideoSection({
+    required this.title, required this.videos, super.key,
+    this.heroPrefix,
+    this.accentColor,
+    this.showListView = false,
+    this.maxColumns = 4,
+    this.sectionPadding,
+  });
   final String title;
   final List<Video> videos;
   final String? heroPrefix;
@@ -200,17 +205,6 @@ class ResponsiveVideoSection extends StatelessWidget {
   final bool showListView;
   final int maxColumns;
   final EdgeInsets? sectionPadding;
-
-  const ResponsiveVideoSection({
-    super.key,
-    required this.title,
-    required this.videos,
-    this.heroPrefix,
-    this.accentColor,
-    this.showListView = false,
-    this.maxColumns = 4,
-    this.sectionPadding,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -250,20 +244,19 @@ class ResponsiveVideoSection extends StatelessWidget {
 // RESPONSIVE VIDEO CAROUSEL
 // ==========================================================================
 class ResponsiveVideoCarousel extends StatelessWidget {
-  final List<Video> videos;
-  final String? heroPrefix;
-  final Color? accentColor;
-  final double? height;
-  final bool showScrollbar;
 
   const ResponsiveVideoCarousel({
-    super.key,
-    required this.videos,
+    required this.videos, super.key,
     this.heroPrefix,
     this.accentColor,
     this.height,
     this.showScrollbar = false,
   });
+  final List<Video> videos;
+  final String? heroPrefix;
+  final Color? accentColor;
+  final double? height;
+  final bool showScrollbar;
 
   @override
   Widget build(BuildContext context) {

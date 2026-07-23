@@ -1,21 +1,23 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class RealTimeFactOverlayWidget extends StatelessWidget {
-  final ClaimResult claim;
 
-  const RealTimeFactOverlayWidget({super.key, required this.claim});
+  const RealTimeFactOverlayWidget({required this.claim, super.key});
+  final ClaimResult claim;
 
   Color _getVerdictColor(String verdict) {
     switch (verdict.toLowerCase()) {
       case 'verified_true':
       case 'mostly_true':
-        return Colors.greenAccent;
+        return AppColors.success;
       case 'false_claim':
       case 'misleading':
       case 'disputed':
-        return Colors.redAccent;
+        return AppColors.error;
       case 'unproven':
       case 'inconclusive':
       case 'limited_support':
@@ -24,9 +26,9 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
       case 'faith_based_claim':
       case 'not_historically_verifiable':
       case 'historical_tradition':
-        return Colors.purpleAccent;
+        return AppColors.brandHover;
       default:
-        return Colors.blueAccent;
+        return AppColors.info;
     }
   }
 
@@ -62,14 +64,14 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
   }
 
   Widget _buildDetailChip(String label, String value) {
-    Color valColor = Colors.white70;
+    var valColor = AppColors.textSecondary;
     final upperVal = value.toUpperCase();
     if (upperVal.contains('STRONG') || upperVal.contains('HIGH')) {
-      valColor = Colors.greenAccent;
+      valColor = AppColors.success;
     } else if (upperVal.contains('LIMITED') || upperVal.contains('MODERATE') || (upperVal.contains('NONE') == false && upperVal.contains('LOW'))) {
       valColor = Colors.amberAccent;
     } else if (upperVal.contains('NONE') || upperVal.contains('CONTRADICTED') || upperVal.contains('NO_') || upperVal.contains('NOT_APPLICABLE')) {
-      valColor = Colors.redAccent;
+      valColor = AppColors.error;
     }
 
     return Column(
@@ -77,7 +79,7 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(color: Colors.white54, fontSize: 9),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 9),
         ),
         Text(
           value.replaceAll('_', ' '),
@@ -104,11 +106,10 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 500),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.65),
+            color: AppColors.bgPage.withValues(alpha: 0.65),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: Colors.white.withValues(alpha: 0.12),
-              width: 1,
+              color: AppColors.textPrimary.withValues(alpha: 0.12),
             ),
           ),
           child: Row(
@@ -142,14 +143,14 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                         Text(
                           verdictLabel.toUpperCase(),
                           style: TextStyle(
-                            fontFamily: 'Roboto',
+                            
                             color: verdictColor,
                             fontWeight: FontWeight.bold,
                             fontSize: 11,
-                            letterSpacing: 1.0,
+                            letterSpacing: 1,
                           ),
                         ),
-                        if (claim.isLowRiskTrivia == true) ...[
+                        if (claim.isLowRiskTrivia ?? false) ...[
                           const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -157,18 +158,18 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                               vertical: 1.5,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.blue.withValues(alpha: 0.15),
+                              color: AppColors.info.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(4),
                               border: Border.all(
-                                color: Colors.blueAccent.withValues(alpha: 0.3),
+                                color: AppColors.info.withValues(alpha: 0.3),
                                 width: 0.5,
                               ),
                             ),
                             child: const Text(
                               'TRIVIA',
                               style: TextStyle(
-                                fontFamily: 'Roboto',
-                                color: Colors.blueAccent,
+                                
+                                color: AppColors.info,
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -183,18 +184,18 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                               vertical: 1.5,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.purple.withValues(alpha: 0.15),
+                              color: AppColors.brand.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(4),
                               border: Border.all(
-                                color: Colors.purpleAccent.withValues(alpha: 0.3),
+                                color: AppColors.brandHover.withValues(alpha: 0.3),
                                 width: 0.5,
                               ),
                             ),
                             child: Text(
                               '${claim.claimDomain}${claim.claimNature != null ? " / ${claim.claimNature}" : ""}',
                               style: const TextStyle(
-                                fontFamily: 'Roboto',
-                                color: Colors.purpleAccent,
+                                
+                                color: AppColors.brandHover,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -207,8 +208,8 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                     Text(
                       claim.text,
                       style: TextStyle(
-                        fontFamily: 'Roboto',
-                        color: Colors.white.withValues(alpha: 0.95),
+                        
+                        color: AppColors.textPrimary.withValues(alpha: 0.95),
                         fontSize: 12,
                         fontWeight: FontWeight.w400,
                         height: 1.25,
@@ -222,13 +223,13 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                         children: claim.verdictBasis!.map((basis) => Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.08),
+                            color: AppColors.textPrimary.withValues(alpha: 0.08),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             basis,
                             style: const TextStyle(
-                              color: Colors.white70,
+                              color: AppColors.textSecondary,
                               fontSize: 9,
                               fontWeight: FontWeight.w500,
                             ),
@@ -247,10 +248,10 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: Colors.purple.withValues(alpha: 0.15),
+                                  color: AppColors.brand.withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(
-                                    color: Colors.purpleAccent.withValues(alpha: 0.3),
+                                    color: AppColors.brandHover.withValues(alpha: 0.3),
                                     width: 0.5,
                                   ),
                                 ),
@@ -260,7 +261,7 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                                     const Text(
                                       'CLASSIFICATION',
                                       style: TextStyle(
-                                        color: Colors.purpleAccent,
+                                        color: AppColors.brandHover,
                                         fontSize: 9,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -269,7 +270,7 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                                     Text(
                                       '${(claim.classificationConfidence! * 100).toInt()}% Confidence',
                                       style: const TextStyle(
-                                        color: Colors.white,
+                                        color: AppColors.textPrimary,
                                         fontSize: 11,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -307,7 +308,7 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                                     Text(
                                       '${(claim.historicalEvidenceConfidence! * 100).toInt()}% Confidence',
                                       style: const TextStyle(
-                                        color: Colors.white,
+                                        color: AppColors.textPrimary,
                                         fontSize: 11,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -325,10 +326,10 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.04),
+                          color: AppColors.textPrimary.withValues(alpha: 0.04),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.08),
+                            color: AppColors.textPrimary.withValues(alpha: 0.08),
                             width: 0.5,
                           ),
                         ),
@@ -339,7 +340,7 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                               const Text(
                                 'EVIDENCE LEVELS',
                                 style: TextStyle(
-                                  color: Colors.white70,
+                                  color: AppColors.textSecondary,
                                   fontSize: 9,
                                   fontWeight: FontWeight.bold,
                                   letterSpacing: 0.5,
@@ -355,7 +356,7 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                               const Text(
                                 'EVIDENCE LEVELS',
                                 style: TextStyle(
-                                  color: Colors.white70,
+                                  color: AppColors.textSecondary,
                                   fontSize: 9,
                                   fontWeight: FontWeight.bold,
                                   letterSpacing: 0.5,
@@ -374,14 +375,14 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                             if (((claim.evidence != null && claim.evidence!.isNotEmpty) || claim.evidenceDetails != null) &&
                                 ((claim.consensus != null && claim.consensus!.isNotEmpty) || claim.consensusDetails != null))
                               const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 6.0),
-                                child: Divider(color: Colors.white12, height: 1),
+                                padding: EdgeInsets.symmetric(vertical: 6),
+                                child: Divider(color: AppColors.bgDivider, height: 1),
                               ),
                             if (claim.consensus != null && claim.consensus!.isNotEmpty) ...[
                               const Text(
                                 'CONSENSUS STATUS',
                                 style: TextStyle(
-                                  color: Colors.white70,
+                                  color: AppColors.textSecondary,
                                   fontSize: 9,
                                   fontWeight: FontWeight.bold,
                                   letterSpacing: 0.5,
@@ -397,7 +398,7 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                               const Text(
                                 'CONSENSUS STATUS',
                                 style: TextStyle(
-                                  color: Colors.white70,
+                                  color: AppColors.textSecondary,
                                   fontSize: 9,
                                   fontWeight: FontWeight.bold,
                                   letterSpacing: 0.5,
@@ -430,10 +431,10 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.06),
+                              color: AppColors.textPrimary.withValues(alpha: 0.06),
                               borderRadius: BorderRadius.circular(4),
                               border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.08),
+                                color: AppColors.textPrimary.withValues(alpha: 0.08),
                                 width: 0.5,
                               ),
                             ),
@@ -443,14 +444,14 @@ class RealTimeFactOverlayWidget extends StatelessWidget {
                                 const Icon(
                                   Icons.link_rounded,
                                   size: 9,
-                                  color: Colors.white54,
+                                  color: AppColors.textSecondary,
                                 ),
                                 const SizedBox(width: 3),
                                 Text(
                                   src.domain ?? src.title,
                                   style: const TextStyle(
-                                    fontFamily: 'Roboto',
-                                    color: Colors.white70,
+                                    
+                                    color: AppColors.textSecondary,
                                     fontSize: 11.5,
                                     fontWeight: FontWeight.w400,
                                   ),

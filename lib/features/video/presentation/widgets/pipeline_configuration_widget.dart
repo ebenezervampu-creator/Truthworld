@@ -1,28 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/features/video/presentation/controllers/pipeline_controller.dart';
 import 'package:truthworld/features/video/data/models/pipeline_config.dart';
+import 'package:truthworld/features/video/presentation/controllers/pipeline_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Pipeline Configuration Widget
 /// Allows users to select and configure pipeline features
 class PipelineConfigurationWidget extends StatefulWidget {
+
+  const PipelineConfigurationWidget({
+    required this.videoTitle, required this.videoDescription, required this.videoDuration, required this.videoCategory, required this.channelId, super.key,
+    this.onConfigChanged,
+  });
   final String videoTitle;
   final String videoDescription;
   final String videoDuration;
   final String videoCategory;
   final String channelId;
   final VoidCallback? onConfigChanged;
-
-  const PipelineConfigurationWidget({
-    super.key,
-    required this.videoTitle,
-    required this.videoDescription,
-    required this.videoDuration,
-    required this.videoCategory,
-    required this.channelId,
-    this.onConfigChanged,
-  });
 
   @override
   State<PipelineConfigurationWidget> createState() =>
@@ -72,7 +67,7 @@ class _PipelineConfigurationWidgetState
       children: [
         Text(
           'Quick Start Templates',
-          style: GoogleFonts.roboto(fontSize: 18, fontWeight: FontWeight.w500),
+          style: AppTextStyles.titleLarge,
         ),
         const SizedBox(height: 16),
         SizedBox(
@@ -83,7 +78,7 @@ class _PipelineConfigurationWidgetState
             itemBuilder: (context, index) {
               final template = controller.getTemplates()[index];
               return Padding(
-                padding: EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.only(right: 12),
                 child: _buildTemplateCard(template),
               );
             },
@@ -97,7 +92,7 @@ class _PipelineConfigurationWidgetState
     return InkWell(
       onTap: () {
         controller.loadTemplate(
-          template['id'],
+          template['id'].toString(),
           videoTitle: widget.videoTitle,
           videoDescription: widget.videoDescription,
           videoDuration: widget.videoDuration,
@@ -109,33 +104,28 @@ class _PipelineConfigurationWidgetState
       child: Container(
         width: 160,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.blue.shade400, Colors.blue.shade600],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          color: AppColors.bgSurface,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.bgDivider),
           boxShadow: [
             BoxShadow(
-              color: Colors.blue.withValues(alpha: 0.3),
+              color: AppColors.bgPage.withValues(alpha: 0.1),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
           ],
         ),
         child: Padding(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(template['icon'], style: TextStyle(fontSize: 32)),
+              Text((template['icon'] as String?) ?? '', style: const TextStyle(fontSize: 32)),
               const SizedBox(height: 8),
               Text(
-                template['name'],
-                style: GoogleFonts.roboto(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.white,
+                (template['name'] as String?) ?? '',
+                style: AppTextStyles.videoTitleSmall.copyWith(
+                  color: AppColors.textPrimary,
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
@@ -143,7 +133,7 @@ class _PipelineConfigurationWidgetState
               const Spacer(),
               Text(
                 '${template['tier']} Tier',
-                style: GoogleFonts.roboto(fontSize: 12, color: Colors.white70),
+                style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
               ),
             ],
           ),
@@ -159,8 +149,8 @@ class _PipelineConfigurationWidgetState
   Widget _buildTabs() {
     return Column(
       children: [
-        Container(
-          color: Colors.grey[100],
+        ColoredBox(
+          color: AppColors.textSecondary,
           child: TabBar(
             controller: tabController,
             tabs: const [
@@ -192,7 +182,7 @@ class _PipelineConfigurationWidgetState
 
   Widget _buildDubbingTab() {
     return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -214,10 +204,7 @@ class _PipelineConfigurationWidgetState
           if (controller.enablePath2.value) ...[
             Text(
               'Select Languages for Dubbing',
-              style: GoogleFonts.roboto(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
+              style: AppTextStyles.titleMedium,
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -235,10 +222,7 @@ class _PipelineConfigurationWidgetState
           // Subtitle Languages
           Text(
             'Select Languages for Subtitles',
-            style: GoogleFonts.roboto(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
+            style: AppTextStyles.titleMedium,
           ),
           const SizedBox(height: 12),
           Wrap(
@@ -246,7 +230,7 @@ class _PipelineConfigurationWidgetState
             runSpacing: 8,
             children: controller.supportedLanguages.entries
                 .map(
-                  (e) => _buildLanguageChip(e.key, e.value, isDubbing: false),
+                  (e) => _buildLanguageChip(e.key, e.value),
                 )
                 .toList(),
           ),
@@ -256,10 +240,7 @@ class _PipelineConfigurationWidgetState
           if (controller.enablePath2.value) ...[
             Text(
               'Voice Type',
-              style: GoogleFonts.roboto(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
+              style: AppTextStyles.titleMedium,
             ),
             const SizedBox(height: 12),
             Obx(
@@ -290,10 +271,7 @@ class _PipelineConfigurationWidgetState
             const SizedBox(height: 24),
             Text(
               'Dubbing Speed',
-              style: GoogleFonts.roboto(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
+              style: AppTextStyles.titleMedium,
             ),
             Obx(
               () => Slider(
@@ -318,7 +296,7 @@ class _PipelineConfigurationWidgetState
 
   Widget _buildCredibilityTab() {
     return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -356,10 +334,7 @@ class _PipelineConfigurationWidgetState
               // Scoring Method
               Text(
                 'Scoring Method',
-                style: GoogleFonts.roboto(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: AppTextStyles.titleMedium,
               ),
               const SizedBox(height: 12),
               Obx(
@@ -388,16 +363,11 @@ class _PipelineConfigurationWidgetState
               // Confidence Threshold
               Text(
                 'Confidence Threshold',
-                style: GoogleFonts.roboto(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: AppTextStyles.titleMedium,
               ),
               Obx(
                 () => Slider(
                   value: controller.confidenceThreshold.value,
-                  min: 0.0,
-                  max: 1.0,
                   divisions: 10,
                   label:
                       '${(controller.confidenceThreshold.value * 100).toStringAsFixed(0)}%',
@@ -434,7 +404,7 @@ class _PipelineConfigurationWidgetState
 
   Widget _buildAuxiliaryTab() {
     return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -494,7 +464,7 @@ class _PipelineConfigurationWidgetState
 
   Widget _buildSummaryTab() {
     return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -511,19 +481,17 @@ class _PipelineConfigurationWidgetState
   Widget _buildSummaryCard(String title, Widget content) {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!),
+        color: AppColors.bgSurface,
+        border: Border.all(color: AppColors.bgDivider),
         borderRadius: BorderRadius.circular(8),
       ),
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: GoogleFonts.roboto(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-            ),
+            style: AppTextStyles.titleMedium,
           ),
           const SizedBox(height: 12),
           content,
@@ -541,30 +509,29 @@ class _PipelineConfigurationWidgetState
             _buildFeatureItem(
               '✓',
               'Path 1: Credibility Analysis',
-              enabled: true,
             ),
           if (!controller.enablePath1.value && !controller.enablePath2.value)
-            _buildFeatureItem('✓', 'Path 0: Transcription Only', enabled: true),
+            _buildFeatureItem('✓', 'Path 0: Transcription Only'),
           if (controller.enablePath2.value)
-            _buildFeatureItem('✓', 'Path 2: Dubbing', enabled: true),
+            _buildFeatureItem('✓', 'Path 2: Dubbing'),
           if (controller.enableFactCheck.value)
-            _buildFeatureItem('✓', 'Fact-Checking', enabled: true),
+            _buildFeatureItem('✓', 'Fact-Checking'),
           if (controller.enableOCR.value)
-            _buildFeatureItem('✓', 'OCR', enabled: true),
+            _buildFeatureItem('✓', 'OCR'),
           if (controller.enableVisualContext.value)
-            _buildFeatureItem('✓', 'Visual Context', enabled: true),
+            _buildFeatureItem('✓', 'Visual Context'),
           if (controller.enableAudioEnhancement.value)
-            _buildFeatureItem('✓', 'Audio Enhancement', enabled: true),
+            _buildFeatureItem('✓', 'Audio Enhancement'),
           if (controller.enableChapters.value)
-            _buildFeatureItem('✓', 'Auto Chapters', enabled: true),
+            _buildFeatureItem('✓', 'Auto Chapters'),
         ],
       ),
     );
   }
 
-  Widget _buildFeatureItem(String icon, String label, {bool enabled = true}) {
+  Widget _buildFeatureItem(String icon, String label) {
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(children: [Text(icon), const SizedBox(width: 8), Text(label)]),
     );
   }
@@ -581,7 +548,7 @@ class _PipelineConfigurationWidgetState
           const SizedBox(height: 8),
           _buildCostLine(
             'Estimated Cost',
-            '\$${(_estimateCost()).toStringAsFixed(2)}',
+            '\$${_estimateCost().toStringAsFixed(2)}',
           ),
           const SizedBox(height: 8),
           _buildCostLine(
@@ -617,7 +584,7 @@ class _PipelineConfigurationWidgetState
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label),
-        Text(value, style: TextStyle(fontWeight: FontWeight.w500)),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
       ],
     );
   }
@@ -661,7 +628,7 @@ class _PipelineConfigurationWidgetState
     try {
       final videoDurationSeconds = int.tryParse(widget.videoDuration) ?? 0;
       return PipelineConfig.calculateCost(
-        tier: controller.userTier.value['tier'] ?? 'free',
+        tier: (controller.userTier.value['tier'] as String?) ?? 'free',
         enablePath1: controller.enablePath1.value,
         enablePath2: controller.enablePath2.value,
         dubbingLanguageCount: controller.selectedDubbingLanguages.length,
@@ -670,7 +637,7 @@ class _PipelineConfigurationWidgetState
         videoDuration: videoDurationSeconds.toString(),
       );
     } catch (e) {
-      return 0.0;
+      return 0;
     }
   }
 }

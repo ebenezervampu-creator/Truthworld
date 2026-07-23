@@ -1,12 +1,13 @@
 import 'dart:async';
-import 'package:get/get.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/services/comment_service.dart';
-import 'package:truthworld/core/services/logger_service.dart';
-import 'package:truthworld/core/base/base_controller.dart';
 
 /// Professional Dashboard Comments Controller (Industry Standard)
 ///
@@ -44,8 +45,16 @@ class DashboardCommentsController extends BaseController {
   final answeredComments = RxList<Comment>();
   final unansweredComments = RxList<Comment>();
   final commentsFilter = RxString('all'); // 'all', 'answered', 'unanswered'
+  final searchQuery = RxString('');
   final isLoadingComments = false.obs;
   final commentsError = Rx<String?>(null);
+
+  void setSearchQuery(String query) {
+    searchQuery.value = query;
+    _filterComments();
+  }
+
+  void loadCommentsForChannel() => _loadAllCommentsForChannel();
 
   /// User comment interactions state
   final userCommentInteractions = RxMap<String, Map<String, bool>>();
@@ -88,7 +97,7 @@ class DashboardCommentsController extends BaseController {
           .doc(currentUser.uid)
           .collection('comment_interactions')
           .get();
-      for (var doc in snap.docs) {
+      for (final doc in snap.docs) {
         final data = doc.data();
         final type = data['type'];
         userCommentInteractions[doc.id] = {
@@ -141,7 +150,7 @@ class DashboardCommentsController extends BaseController {
             .doc(currentUser.uid)
             .get();
         if (userDoc.exists) {
-          final data = userDoc.data() as Map<String, dynamic>;
+          final data = userDoc.data()!;
           userChannelId.value = data['channelId'] ?? currentUser.uid;
           userChannelName.value =
               data['channelName'] ?? currentUser.displayName ?? 'Your Channel';
@@ -254,7 +263,7 @@ class DashboardCommentsController extends BaseController {
       return;
     }
 
-    int completedStreams = 0;
+    var completedStreams = 0;
     for (final video in videosWithComments) {
       final sub = _commentService
           .getVideoCommentsForStudio(video.videoId)
@@ -328,11 +337,20 @@ class DashboardCommentsController extends BaseController {
 
   void _filterComments() {
     try {
-      final baseList = selectedVideoId.value == null
-          ? allComments
+      var baseList = selectedVideoId.value == null
+          ? allComments.toList()
           : allComments
                 .where((c) => c.videoId == selectedVideoId.value)
                 .toList();
+
+      if (searchQuery.value.isNotEmpty) {
+        final query = searchQuery.value.toLowerCase();
+        baseList = baseList
+            .where((c) =>
+                c.text.toLowerCase().contains(query) ||
+                c.displayName.toLowerCase().contains(query))
+            .toList();
+      }
 
       answeredComments.value = baseList
           .where((c) => c.hasCreatorReply == true)
@@ -555,13 +573,6 @@ class DashboardCommentsController extends BaseController {
 
 /// Model for displaying creator videos with comment counts
 class CreatorVideoWithComments {
-  final String videoId;
-  final String title;
-  final String thumbnail;
-  final String duration;
-  final int viewCount;
-  final int commentCount;
-  final DateTime createdAt;
 
   CreatorVideoWithComments({
     required this.videoId,
@@ -572,6 +583,13 @@ class CreatorVideoWithComments {
     required this.commentCount,
     required this.createdAt,
   });
+  final String videoId;
+  final String title;
+  final String thumbnail;
+  final String duration;
+  final int viewCount;
+  final int commentCount;
+  final DateTime createdAt;
 
   String get formattedCommentCount =>
       commentCount == 1 ? '1 comment' : '$commentCount comments';

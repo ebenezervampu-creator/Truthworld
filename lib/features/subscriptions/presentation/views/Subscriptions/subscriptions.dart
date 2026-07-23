@@ -1,19 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
-import 'package:truthworld/data/models/subscription_content.dart';
-import 'package:truthworld/components/ui/video_card.dart';
-import 'package:truthworld/components/ui/playlist_card.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
+import 'package:truthworld/components/ui/playlist_card.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
+import 'package:truthworld/data/models/subscription_content.dart';
+import 'package:truthworld/features/subscriptions/presentation/controllers/subscription_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 
 class SubscriptionsPage extends StatelessWidget {
-  final bool isDashboard;
   SubscriptionsPage({super.key, this.isDashboard = false});
+  final bool isDashboard;
 
   final SubscriptionController controller = Get.put(SubscriptionController());
 
@@ -28,7 +28,7 @@ class SubscriptionsPage extends StatelessWidget {
           backgroundColor: AppColors.bgPage,
           body: SafeArea(
             child: RefreshIndicator(
-              onRefresh: () => controller.refresh(),
+              onRefresh: controller.refresh,
               color: AppColors.brand,
               backgroundColor: AppColors.bgSurface,
               child: CustomScrollView(
@@ -76,6 +76,38 @@ class SubscriptionsPage extends StatelessWidget {
                       return _buildEmptyState();
                     }
 
+                    final isMobile = context.isMobile;
+                    if (isMobile) {
+                      return SliverPadding(
+                        padding: EdgeInsets.symmetric(horizontal: spacing),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) {
+                              final item = controller.filteredContent[index];
+                              if (item.type == ContentType.communityPost) {
+                                return CommunityPostCard(
+                                  post: item.communityPost!,
+                                );
+                              } else if (item.type == ContentType.video) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 16),
+                                  child: VideoCard(
+                                    video: item.video!,
+                                    heroPrefix: 'subs',
+                                  ),
+                                );
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: _buildContentCard(item),
+                              );
+                            },
+                            childCount: controller.filteredContent.length,
+                          ),
+                        ),
+                      );
+                    }
+
                     return SliverPadding(
                       padding: EdgeInsets.all(spacing),
                       sliver: SliverGrid(
@@ -112,7 +144,7 @@ class SubscriptionsPage extends StatelessWidget {
       return Container(
         height: 110,
         padding: EdgeInsets.symmetric(vertical: context.layoutSpacing / 2),
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           border: Border(bottom: BorderSide(color: AppColors.bgDivider, width: 0.5)),
         ),
         child: ListView.builder(
@@ -136,7 +168,7 @@ class SubscriptionsPage extends StatelessWidget {
                         photoUrl: channel.avatarUrl,
                         displayName: channel.name,
                         backgroundColor: AppColors.bgSurface,
-                        textColor: Colors.white,
+                        textColor: AppColors.textPrimary,
                         fontSize: 24,
                       ),
                       const SizedBox(height: 8),
@@ -147,7 +179,7 @@ class SubscriptionsPage extends StatelessWidget {
                           textAlign: TextAlign.center,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.roboto(
+                          style: const TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,
                             fontWeight: FontWeight.w500,
@@ -229,7 +261,7 @@ class SubscriptionsPage extends StatelessWidget {
           value: e,
           child: Text(
             e.name.capitalizeFirst!,
-            style: GoogleFonts.roboto(color: AppColors.textPrimary),
+            style: const TextStyle(color: AppColors.textPrimary),
           ),
         );
       }).toList(),
@@ -245,7 +277,7 @@ class SubscriptionsPage extends StatelessWidget {
           children: [
             Text(
               '$label: ${value.capitalizeFirst}',
-              style: GoogleFonts.roboto(
+              style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
@@ -274,6 +306,7 @@ class SubscriptionsPage extends StatelessWidget {
       case ContentType.communityPost:
         return CommunityPostCard(
           post: content.communityPost!,
+          isFullWidth: false,
         );
     }
   }
@@ -319,10 +352,10 @@ class SubscriptionsPage extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               controller.errorMessage.value,
-              style: GoogleFonts.roboto(color: AppColors.textSecondary),
+              style: const TextStyle(color: AppColors.textSecondary),
             ),
             TextButton(
-              onPressed: () => controller.refresh(),
+              onPressed: controller.refresh,
               child: const Text('Try Again', style: TextStyle(color: AppColors.brand)),
             ),
           ],
@@ -339,9 +372,9 @@ class SubscriptionsPage extends StatelessWidget {
           children: [
             const Icon(Icons.subscriptions_outlined, size: 48, color: AppColors.textTertiary),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'No content found for the selected filters',
-              style: GoogleFonts.roboto(color: AppColors.textSecondary),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
             TextButton(
               onPressed: () {
@@ -362,13 +395,13 @@ class SubscriptionsPage extends StatelessWidget {
 
 // ── Custom Persistent Header for Filter Bar ──
 class _SliverFilterBarDelegate extends SliverPersistentHeaderDelegate {
-  final Widget child;
   _SliverFilterBarDelegate({required this.child});
+  final Widget child;
 
   @override
-  double get minExtent => 60.0;
+  double get minExtent => 60;
   @override
-  double get maxExtent => 60.0;
+  double get maxExtent => 60;
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {

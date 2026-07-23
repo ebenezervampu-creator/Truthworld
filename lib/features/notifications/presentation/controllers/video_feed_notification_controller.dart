@@ -1,23 +1,25 @@
 import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/notifications/data/services/video_feed_notification_service.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class VideoFeedNotificationController extends GetxController {
   final VideoFeedNotificationService _service = VideoFeedNotificationService();
 
-  var notifications = <Video>[].obs;
-  var isLoading = true.obs;
-  var errorMessage = ''.obs;
-  var selectedTimeFilter = 'all'.obs;
-  var selectedSeenFilter = 'all'.obs;
-  var selectedCategory = 'all'.obs;
-  var searchQuery = ''.obs;
-  var isSearching = false.obs;
+  RxList<Video> notifications = <Video>[].obs;
+  RxBool isLoading = true.obs;
+  RxString errorMessage = ''.obs;
+  RxString selectedTimeFilter = 'all'.obs;
+  RxString selectedSeenFilter = 'all'.obs;
+  RxString selectedCategory = 'all'.obs;
+  RxString searchQuery = ''.obs;
+  RxBool isSearching = false.obs;
 
   StreamSubscription<List<Video>>? _subscription;
   final String userId = FirebaseAuth.instance.currentUser?.uid ?? 'guest_user';
@@ -87,7 +89,7 @@ class VideoFeedNotificationController extends GetxController {
     try {
       final videoIds = notifications.map((n) => n.id).toList();
       await _service.markAllAsSeen(userId, videoIds);
-      for (var notification in notifications) {
+      for (final notification in notifications) {
         notification.isSeen = true;
       }
       notifications.refresh();
@@ -96,7 +98,7 @@ class VideoFeedNotificationController extends GetxController {
         'All videos marked as seen',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: const Color(0xFF10B981),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         duration: const Duration(seconds: 2),
         margin: const EdgeInsets.all(16),
         borderRadius: 12,
@@ -107,7 +109,7 @@ class VideoFeedNotificationController extends GetxController {
         'Failed to mark all as seen',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: const Color(0xFFEF4444),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
       );
     }
   }
@@ -141,29 +143,24 @@ class VideoFeedNotificationController extends GetxController {
               n.uploadedAt.toDate().month == now.month &&
               n.uploadedAt.toDate().day == now.day;
         }).toList();
-        break;
       case 'this_week':
         final weekAgo = now.subtract(const Duration(days: 7));
         filtered = filtered
             .where((n) => n.uploadedAt.toDate().isAfter(weekAgo))
             .toList();
-        break;
       case 'this_month':
         filtered = filtered.where((n) {
           return n.uploadedAt.toDate().year == now.year &&
               n.uploadedAt.toDate().month == now.month;
         }).toList();
-        break;
     }
 
     // Seen filter
     switch (selectedSeenFilter.value) {
       case 'unseen':
         filtered = filtered.where((n) => !n.isSeen).toList();
-        break;
       case 'seen':
         filtered = filtered.where((n) => n.isSeen).toList();
-        break;
     }
 
     // Category filter

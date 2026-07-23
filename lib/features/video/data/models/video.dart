@@ -1,10 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
-import 'package:truthworld/features/video/data/models/video_chapter.dart';
+import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
-import 'package:truthworld/features/video/data/services/video_media_service.dart';
+import 'package:truthworld/features/video/data/models/video_chapter.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
+import 'package:truthworld/features/video/data/services/video_media_service.dart';
 
 enum VideoStatus {
   uploading,
@@ -17,11 +17,6 @@ enum VideoStatus {
 }
 
 class VideoResolutionV2 {
-  final String label; // e.g., "1080p", "720p"
-  final String url;
-  final int width;
-  final int height;
-  final int bitrate;
 
   VideoResolutionV2({
     required this.label,
@@ -31,14 +26,6 @@ class VideoResolutionV2 {
     required this.bitrate,
   });
 
-  Map<String, dynamic> toMap() => {
-    'label': label,
-    'url': url,
-    'width': width,
-    'height': height,
-    'bitrate': bitrate,
-  };
-
   factory VideoResolutionV2.fromMap(Map<String, dynamic> map) =>
       VideoResolutionV2(
         label: map['label'] ?? '',
@@ -47,146 +34,34 @@ class VideoResolutionV2 {
         height: map['height'] ?? 0,
         bitrate: map['bitrate'] ?? 0,
       );
+  final String label; // e.g., "1080p", "720p"
+  final String url;
+  final int width;
+  final int height;
+  final int bitrate;
+
+  Map<String, dynamic> toMap() => {
+    'label': label,
+    'url': url,
+    'width': width,
+    'height': height,
+    'bitrate': bitrate,
+  };
 }
 
 class Video {
-  final String id;
-  final String title;
-  final String titleLowercase; // For search efficiency
-  final String description;
-
-  // Storage & Streaming
-  final String originalUrl; // Raw upload for backup/download
-  final String hlsUrl; // Adaptive streaming manifest
-  final String dashUrl; // Alternative streaming
-  final List<VideoResolutionV2> adaptiveResolutions;
-
-  // Thumbnails & Previews
-  final String thumbnailUrl;
-  final List<String> thumbnailVariants; // [small, medium, large]
-  final String animatedPreviewUrl; // GIF or short MP4 for hover
-
-  // Ownership & Context
-  final String ownerId;
-  final String channelId;
-  final String channelName;
-  final String channelAvatarUrl;
-
-  // Engagement (Atomic Counters)
-  final int viewCount;
-  final int likeCount;
-  final int dislikeCount;
-  final int commentCount;
-  final int shareCount;
-  final int totalWatchTimeSeconds;
-
-  // Metadata
-  final Duration durationValue;
-  final Timestamp createdAt;
-  final Timestamp updatedAt;
-  final VideoStatus status;
-  final String visibility; // public, private, unlisted
-  final List<String> likedBy;
-
-  // Content Info
-  final String category;
-  final List<String> tags;
-  final List<String> topics;
-  final String language;
-  final bool isShort;
-  final bool isKidFriendly;
-
-  // Flags
-  final bool enableComments;
-  final bool isMonetized;
-  final bool allowRatings;
-  final double trustScore;
-  final double videoRating;
-  bool isSeen = false;
-
-  // v8.0 Credibility Fields (lightweight)
-  final String? trustLabel;
-
-  // Getters lookup from VideoMediaService static caches
-  Map<String, String> get mediaSubtitles =>
-      VideoMediaService.localizationCache[id]?.subtitles ?? const {};
-  Map<String, String> get dubbedVideos =>
-      VideoMediaService.localizationCache[id]?.dubbedVideos ?? const {};
-  Map<String, String> get audioTracks =>
-      VideoMediaService.localizationCache[id]?.audioTracks ?? const {};
-  List<VideoChapter> get chapters =>
-      VideoMediaService.streamingCache[id]?.chapters ?? const [];
-
-  ScoringFactors? get scoringFactors =>
-      VideoMediaService.credibilityCache[id]?.scoringFactors;
-  List<TrustDeduction> get deductions =>
-      VideoMediaService.credibilityCache[id]?.deductions ?? const [];
-  List<ContextualFlag> get contextualFlags =>
-      VideoMediaService.credibilityCache[id]?.contextualFlags ?? const [];
-  HonestyBreakdown? get honestyBreakdown =>
-      VideoMediaService.credibilityCache[id]?.honestyBreakdown;
-  bool get harmCapApplied =>
-      VideoMediaService.credibilityCache[id]?.harmCapApplied ?? false;
-  String? get harmCapReason =>
-      VideoMediaService.credibilityCache[id]?.harmCapReason;
-  Map<String, double>? get categoryWeightProfile =>
-      VideoMediaService.credibilityCache[id]?.categoryWeightProfile;
-  List<String> get confidenceNotes =>
-      VideoMediaService.credibilityCache[id]?.confidenceNotes ?? const [];
-  List<String> get diagnostics =>
-      VideoMediaService.credibilityCache[id]?.diagnostics ?? const [];
-  FactCheckStats? get factCheckStats =>
-      VideoMediaService.credibilityCache[id]?.factCheckStats;
-  String? get videoCategory =>
-      VideoMediaService.credibilityCache[id]?.videoCategory;
-
-  HardeningMetadata? get hardeningMetadata =>
-      VideoMediaService.credibilityCache[id]?.hardeningMetadata;
-  double? get intentToMisleadScore =>
-      VideoMediaService.credibilityCache[id]?.intentToMisleadScore;
-  String? get effectiveCategory =>
-      VideoMediaService.credibilityCache[id]?.effectiveCategory;
-  UIReport? get uiReport => VideoMediaService.credibilityCache[id]?.uiReport;
-  String get factCheckUrl =>
-      VideoMediaService.credibilityCache[id]?.factCheckUrl ?? '';
-  String get transcriptionUrl =>
-      VideoMediaService.credibilityCache[id]?.transcriptionUrl ?? '';
-
-  // Compatibility Getters
-  int get likes => likeCount;
-  int get views => viewCount;
-  double get trustIndex => trustScore;
-  Timestamp get uploadedAt => createdAt;
-  String get videoUrl => originalUrl;
-  String get channelImage => channelAvatarUrl;
-  String get duration => _formatDuration(durationValue);
-  List<ResolutionV2> get resolutions => [ResolutionV2(originalUrl)];
-  bool get isScheduled => status == VideoStatus.scheduled;
-
-  static String _formatDuration(Duration d) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final minutes = twoDigits(d.inMinutes.remainder(60));
-    final seconds = twoDigits(d.inSeconds.remainder(60));
-    if (d.inHours > 0) return "${twoDigits(d.inHours)}:$minutes:$seconds";
-    return "$minutes:$seconds";
-  }
 
   Video({
     required this.id,
     required this.title,
-    String? vTitleLowercase,
-    required this.description,
+    required this.description, required this.thumbnailUrl, required this.ownerId, required this.channelId, required this.channelName, required this.category, required this.tags, String? vTitleLowercase,
     String? originalUrl,
     String? videoUrl,
     this.hlsUrl = '',
     this.dashUrl = '',
     this.adaptiveResolutions = const [],
-    required this.thumbnailUrl,
     this.thumbnailVariants = const [],
     this.animatedPreviewUrl = '',
-    required this.ownerId,
-    required this.channelId,
-    required this.channelName,
     String? channelAvatarUrl,
     String? channelImage,
     int? viewCount,
@@ -203,8 +78,6 @@ class Video {
     dynamic updatedAt,
     dynamic status,
     dynamic visibility,
-    required this.category,
-    required this.tags,
     this.topics = const [],
     this.language = 'en',
     this.isShort = false,
@@ -235,18 +108,12 @@ class Video {
     String? videoCategory,
     HardeningMetadata? hardeningMetadata,
     double? intentToMisleadScore,
-    String? effectiveCategory,
     UIReport? uiReport,
-    // Ignored legacy fields
-    dynamic shares,
-    dynamic downloads,
-    dynamic reportCount,
-    dynamic reports,
-    dynamic isBlocked,
-    dynamic fileName,
     this.isSeen = false,
     this.totalWatchTimeSeconds = 0,
     this.trustLabel,
+    this.channelStatus,
+    this.scheduledPublishAt,
   }) : titleLowercase = (vTitleLowercase == null || vTitleLowercase.isEmpty)
            ? title.toLowerCase()
            : vTitleLowercase,
@@ -265,7 +132,9 @@ class Video {
                ? likes
                : (int.tryParse(likes?.toString() ?? '0') ?? 0)),
        durationValue =
-           vDurationValue ?? (duration is Duration ? duration : Duration.zero),
+           (vDurationValue != null && vDurationValue != Duration.zero)
+               ? vDurationValue
+               : parseDuration(duration),
        createdAt = TimestampUtils.parse(createdAt ?? uploadedAt),
        updatedAt = TimestampUtils.parse(updatedAt ?? createdAt ?? uploadedAt),
        status = status is VideoStatus ? status : VideoStatus.processing,
@@ -318,67 +187,8 @@ class Video {
     }
   }
 
-  OfflineVideo toOffline() {
-    return OfflineVideo(
-      id: id,
-      title: title,
-      channelName: channelName,
-      channelImage: channelAvatarUrl,
-      views: views.toString(),
-      thumbnailUrl: thumbnailUrl,
-      downloadedAt: DateTime.now(),
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'title': title,
-      'titleLowercase': titleLowercase,
-      'description': description,
-      'originalUrl': originalUrl,
-      'hlsUrl': hlsUrl,
-      'dashUrl': dashUrl,
-      'adaptiveResolutions': adaptiveResolutions.map((e) => e.toMap()).toList(),
-      'thumbnailUrl': thumbnailUrl,
-      'thumbnailVariants': thumbnailVariants,
-      'animatedPreviewUrl': animatedPreviewUrl,
-      'ownerId': ownerId,
-      'channelId': channelId,
-      'channelName': channelName,
-      'channelAvatarUrl': channelAvatarUrl,
-      'viewCount': viewCount,
-      'views': viewCount,
-      'likeCount': likeCount,
-      'dislikeCount': dislikeCount,
-      'commentCount': commentCount,
-      'shareCount': shareCount,
-      'durationMs': durationValue.inMilliseconds,
-      'createdAt': createdAt.millisecondsSinceEpoch,
-      'uploadedAt': createdAt.millisecondsSinceEpoch,
-      'updatedAt': updatedAt.millisecondsSinceEpoch,
-      'status': status.name,
-      'visibility': visibility,
-      'category': category,
-      'tags': tags,
-      'topics': topics,
-      'language': language,
-      'isShort': isShort,
-      'isKidFriendly': isKidFriendly,
-      'enableComments': enableComments,
-      'isMonetized': isMonetized,
-      'allowRatings': allowRatings,
-      'trustScore': trustScore,
-      'videoRating': videoRating,
-      'qualifiedViewCount': viewCount,
-      'totalWatchTimeSeconds': totalWatchTimeSeconds,
-      'likedBy': likedBy,
-      'trustLabel': trustLabel,
-    };
-  }
-
   factory Video.fromMap(Map<String, dynamic> data, [String? docId]) {
-    String finalId = docId ?? data['id'] ?? data['videoId'] ?? '';
+    final String finalId = docId ?? data['id'] ?? data['videoId'] ?? '';
     return Video(
       id: finalId,
       title: data['title'] ?? '',
@@ -455,6 +265,10 @@ class Video {
       likedBy: List<String>.from(data['likedBy'] ?? []),
       // v8.0
       trustLabel: data['trustLabel'],
+      channelStatus: data['channelStatus'],
+      scheduledPublishAt: data['scheduledPublishAt'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(data['scheduledPublishAt'])
+          : null,
       scoringFactors: data['scoringFactors'] != null
           ? ScoringFactors.fromMap(
               Map<String, dynamic>.from(data['scoringFactors']),
@@ -494,7 +308,6 @@ class Video {
             )
           : null,
       intentToMisleadScore: (data['intentToMisleadScore'] ?? 0).toDouble(),
-      effectiveCategory: data['effectiveCategory'],
       uiReport: data['uiReport'] != null
           ? UIReport.fromMap(Map<String, dynamic>.from(data['uiReport']))
           : null,
@@ -502,7 +315,7 @@ class Video {
   }
 
   factory Video.fromDocumentSnapshot(DocumentSnapshot doc) {
-    return Video.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+    return Video.fromMap(doc.data()! as Map<String, dynamic>, doc.id);
   }
 
   factory Video.fromOffline(OfflineVideo offline) {
@@ -517,7 +330,6 @@ class Video {
       channelAvatarUrl: offline.channelImage,
       category: 'Downloads',
       tags: [],
-      topics: const [],
       viewCount: int.tryParse(offline.views) ?? 0,
     );
   }
@@ -533,12 +345,230 @@ class Video {
       channelName: '',
       category: '',
       tags: [],
-      topics: const [],
     );
+  }
+  final String id;
+  final String title;
+  final String titleLowercase; // For search efficiency
+  final String description;
+
+  // Storage & Streaming
+  final String originalUrl; // Raw upload for backup/download
+  final String hlsUrl; // Adaptive streaming manifest
+  final String dashUrl; // Alternative streaming
+  final List<VideoResolutionV2> adaptiveResolutions;
+
+  // Thumbnails & Previews
+  final String thumbnailUrl;
+  final List<String> thumbnailVariants; // [small, medium, large]
+  final String animatedPreviewUrl; // GIF or short MP4 for hover
+
+  // Ownership & Context
+  final String ownerId;
+  final String channelId;
+  final String channelName;
+  final String channelAvatarUrl;
+
+  // Engagement (Atomic Counters)
+  final int viewCount;
+  final int likeCount;
+  final int dislikeCount;
+  final int commentCount;
+  final int shareCount;
+  final int totalWatchTimeSeconds;
+
+  // Metadata
+  final Duration durationValue;
+  final Timestamp createdAt;
+  final Timestamp updatedAt;
+  final VideoStatus status;
+  final String visibility; // public, private, unlisted
+  final List<String> likedBy;
+
+  // Content Info
+  final String category;
+  final List<String> tags;
+  final List<String> topics;
+  final String language;
+  final bool isShort;
+  final bool isKidFriendly;
+
+  // Flags
+  final bool enableComments;
+  final bool isMonetized;
+  final bool allowRatings;
+  final double trustScore;
+  final double videoRating;
+  bool isSeen = false;
+  final String? channelStatus;
+  final DateTime? scheduledPublishAt;
+
+  // v8.0 Credibility Fields (lightweight)
+  final String? trustLabel;
+
+  // Getters lookup from VideoMediaService static caches
+  Map<String, String> get mediaSubtitles =>
+      VideoMediaService.localizationCache[id]?.subtitles ?? const {};
+  Map<String, String> get dubbedVideos =>
+      VideoMediaService.localizationCache[id]?.dubbedVideos ?? const {};
+  Map<String, String> get audioTracks =>
+      VideoMediaService.localizationCache[id]?.audioTracks ?? const {};
+  List<VideoChapter> get chapters =>
+      VideoMediaService.streamingCache[id]?.chapters ?? const [];
+
+  ScoringFactors? get scoringFactors =>
+      VideoMediaService.credibilityCache[id]?.scoringFactors;
+  List<TrustDeduction> get deductions =>
+      VideoMediaService.credibilityCache[id]?.deductions ?? const [];
+  List<ContextualFlag> get contextualFlags =>
+      VideoMediaService.credibilityCache[id]?.contextualFlags ?? const [];
+  HonestyBreakdown? get honestyBreakdown =>
+      VideoMediaService.credibilityCache[id]?.honestyBreakdown;
+  bool get harmCapApplied =>
+      VideoMediaService.credibilityCache[id]?.harmCapApplied ?? false;
+  String? get harmCapReason =>
+      VideoMediaService.credibilityCache[id]?.harmCapReason;
+  Map<String, double>? get categoryWeightProfile =>
+      VideoMediaService.credibilityCache[id]?.categoryWeightProfile;
+  List<String> get confidenceNotes =>
+      VideoMediaService.credibilityCache[id]?.confidenceNotes ?? const [];
+  List<String> get diagnostics =>
+      VideoMediaService.credibilityCache[id]?.diagnostics ?? const [];
+  FactCheckStats? get factCheckStats =>
+      VideoMediaService.credibilityCache[id]?.factCheckStats;
+  String? get videoCategory =>
+      VideoMediaService.credibilityCache[id]?.videoCategory;
+
+  HardeningMetadata? get hardeningMetadata =>
+      VideoMediaService.credibilityCache[id]?.hardeningMetadata;
+  double? get intentToMisleadScore =>
+      VideoMediaService.credibilityCache[id]?.intentToMisleadScore;
+  String? get effectiveCategory =>
+      VideoMediaService.credibilityCache[id]?.effectiveCategory;
+  UIReport? get uiReport => VideoMediaService.credibilityCache[id]?.uiReport;
+  String get factCheckUrl =>
+      VideoMediaService.credibilityCache[id]?.factCheckUrl ?? '';
+  String get transcriptionUrl =>
+      VideoMediaService.credibilityCache[id]?.transcriptionUrl ?? '';
+
+  // Compatibility Getters
+  int get likes => likeCount;
+  int get views => viewCount;
+  double get trustIndex => trustScore;
+  Timestamp get uploadedAt => createdAt;
+  String get videoUrl => originalUrl;
+  String get channelImage => channelAvatarUrl;
+  String get duration => _formatDuration(durationValue);
+  List<ResolutionV2> get resolutions => [ResolutionV2(originalUrl)];
+  bool get isScheduled => status == VideoStatus.scheduled;
+
+  static Duration parseDuration(dynamic duration) {
+    if (duration is Duration) return duration;
+    if (duration == null) return Duration.zero;
+    if (duration is int) {
+      if (duration > 100000) {
+        return Duration(milliseconds: duration);
+      }
+      return Duration(seconds: duration);
+    }
+    if (duration is double) {
+      return Duration(seconds: duration.toInt());
+    }
+    if (duration is String) {
+      final str = duration.trim();
+      if (str.isEmpty) return Duration.zero;
+      final parts = str.split(':');
+      if (parts.length == 2) {
+        final m = int.tryParse(parts[0]) ?? 0;
+        final s = int.tryParse(parts[1]) ?? 0;
+        return Duration(minutes: m, seconds: s);
+      } else if (parts.length == 3) {
+        final h = int.tryParse(parts[0]) ?? 0;
+        final m = int.tryParse(parts[1]) ?? 0;
+        final s = int.tryParse(parts[2]) ?? 0;
+        return Duration(hours: h, minutes: m, seconds: s);
+      } else {
+        final val = int.tryParse(str);
+        if (val != null) {
+          if (val > 100000) return Duration(milliseconds: val);
+          return Duration(seconds: val);
+        }
+      }
+    }
+    return Duration.zero;
+  }
+
+  static String _formatDuration(Duration d) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(d.inMinutes.remainder(60));
+    final seconds = twoDigits(d.inSeconds.remainder(60));
+    if (d.inHours > 0) return '${twoDigits(d.inHours)}:$minutes:$seconds';
+    return '$minutes:$seconds';
+  }
+
+  OfflineVideo toOffline() {
+    return OfflineVideo(
+      id: id,
+      title: title,
+      channelName: channelName,
+      channelImage: channelAvatarUrl,
+      views: views.toString(),
+      thumbnailUrl: thumbnailUrl,
+      downloadedAt: DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'titleLowercase': titleLowercase,
+      'description': description,
+      'originalUrl': originalUrl,
+      'hlsUrl': hlsUrl,
+      'dashUrl': dashUrl,
+      'adaptiveResolutions': adaptiveResolutions.map((e) => e.toMap()).toList(),
+      'thumbnailUrl': thumbnailUrl,
+      'thumbnailVariants': thumbnailVariants,
+      'animatedPreviewUrl': animatedPreviewUrl,
+      'ownerId': ownerId,
+      'channelId': channelId,
+      'channelName': channelName,
+      'channelAvatarUrl': channelAvatarUrl,
+      'viewCount': viewCount,
+      'views': viewCount,
+      'likeCount': likeCount,
+      'dislikeCount': dislikeCount,
+      'commentCount': commentCount,
+      'shareCount': shareCount,
+      'durationMs': durationValue.inMilliseconds,
+      'createdAt': createdAt.millisecondsSinceEpoch,
+      'uploadedAt': createdAt.millisecondsSinceEpoch,
+      'updatedAt': updatedAt.millisecondsSinceEpoch,
+      'status': status.name,
+      'visibility': visibility,
+      'category': category,
+      'tags': tags,
+      'topics': topics,
+      'language': language,
+      'isShort': isShort,
+      'isKidFriendly': isKidFriendly,
+      'enableComments': enableComments,
+      'isMonetized': isMonetized,
+      'allowRatings': allowRatings,
+      'trustScore': trustScore,
+      'videoRating': videoRating,
+      'qualifiedViewCount': viewCount,
+      'totalWatchTimeSeconds': totalWatchTimeSeconds,
+      'likedBy': likedBy,
+      'trustLabel': trustLabel,
+      'channelStatus': channelStatus,
+      'scheduledPublishAt': scheduledPublishAt?.millisecondsSinceEpoch,
+    };
   }
 }
 
 class ResolutionV2 {
-  final String path;
   ResolutionV2(this.path);
+  final String path;
 }

@@ -1,22 +1,23 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 
 import 'package:chewie/chewie.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:video_player/video_player.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:http/http.dart' as http;
+import 'package:truthworld/components/ui/video_card.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
-import 'package:connectivity_plus/connectivity_plus.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/core/utils/route_redirect_middleware.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_playback_handoff.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
-import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
-import 'package:truthworld/components/ui/video_card.dart';
-import 'package:truthworld/core/utils/storage_utils.dart';
-import '../../../../../core/utils/route_redirect_middleware.dart';
+import 'package:truthworld/theme/app_theme.dart';
+import 'package:video_player/video_player.dart';
 
 /// Production-grade miniplayer controller.
 ///
@@ -167,7 +168,7 @@ class MiniplayerController extends GetxController
     // Reset error state
     error.value = '';
 
-    String url = overrideUrl ?? video.videoUrl;
+    var url = overrideUrl ?? video.videoUrl;
     if (url.isEmpty) {
       error.value = 'Video URL is empty';
       return;
@@ -204,15 +205,15 @@ class MiniplayerController extends GetxController
     }
 
     try {
-      VideoPlayerController? handoffVpc = VideoPlaybackHandoff.retrieveController(video.id);
+      final handoffVpc = VideoPlaybackHandoff.retrieveController(video.id);
       final VideoPlayerController vpc;
-      final bool wasHandoff = handoffVpc != null;
+      final wasHandoff = handoffVpc != null;
 
       if (wasHandoff) {
         debugPrint('[MiniplayerController] Found active handoff controller for: ${video.id}');
         vpc = handoffVpc;
         await vpc.setLooping(false); // Disable looping which was enabled for hover previews
-        await vpc.setVolume(1.0); // Reset volume to unmute
+        await vpc.setVolume(1); // Reset volume to unmute
       } else {
         // Resolve gs:// URLs if needed
         if (url.startsWith('gs://')) {
@@ -235,7 +236,6 @@ class MiniplayerController extends GetxController
       _chewie = ChewieController(
         videoPlayerController: vpc,
         autoPlay: true,
-        looping: false,
         showControls: false, // We render our own controls in the widget
         aspectRatio: vpc.value.aspectRatio,
         errorBuilder: (_, msg) => _errorWidget(msg),
@@ -301,7 +301,7 @@ class MiniplayerController extends GetxController
     }
   }
 
-  void _loadBestSubtitleTrack() async {
+  Future<void> _loadBestSubtitleTrack() async {
     final video = currentVideo.value;
     if (video == null) return;
 
@@ -309,7 +309,7 @@ class MiniplayerController extends GetxController
     if (subs.isEmpty) return;
 
     // Find the primary/first available subtitle track
-    String? selectedUrl = subs['en'] ?? subs.values.firstOrNull;
+    final selectedUrl = subs['en'] ?? subs.values.firstOrNull;
     if (selectedUrl == null) return;
 
     await fetchAndParseSubtitles(selectedUrl);
@@ -321,7 +321,7 @@ class MiniplayerController extends GetxController
       final resolvedUrl = StorageUtils.getFastDownloadUrl(url);
       final response = await http.get(Uri.parse(resolvedUrl));
       if (response.statusCode == 200) {
-        String content = utf8.decode(response.bodyBytes, allowMalformed: true);
+        var content = utf8.decode(response.bodyBytes, allowMalformed: true);
         if (content.startsWith('\uFEFF')) content = content.substring(1);
         subtitleSegments.assignAll(_parseSRT(content));
       }
@@ -332,8 +332,8 @@ class MiniplayerController extends GetxController
   }
 
   List<SubtitleSegment> _parseSRT(String content) {
-    final List<SubtitleSegment> segs = [];
-    String normalized = content.replaceAll('\r\n', '\n').trim();
+    final segs = <SubtitleSegment>[];
+    var normalized = content.replaceAll('\r\n', '\n').trim();
     if (normalized.startsWith('WEBVTT')) {
       normalized = normalized
           .replaceFirst(RegExp(r'^WEBVTT[^\n]*\n*'), '')
@@ -342,8 +342,8 @@ class MiniplayerController extends GetxController
     for (final block in normalized.split('\n\n')) {
       final lines = block.trim().split('\n');
       if (lines.length < 2) continue;
-      String timeLine = '';
-      int textStart = 0;
+      var timeLine = '';
+      var textStart = 0;
       if (lines[0].contains('-->')) {
         timeLine = lines[0];
         textStart = 1;
@@ -503,7 +503,7 @@ class MiniplayerController extends GetxController
   }
 
   Offset _defaultDockOffset(Size cardSize, Size screenSize) {
-    final inset = MiniplayerConfig.dockInset;
+    const inset = MiniplayerConfig.dockInset;
     return Offset(
       (screenSize.width - cardSize.width - inset).clamp(0.0, double.infinity),
       (screenSize.height - cardSize.height - inset).clamp(0.0, double.infinity),
@@ -531,7 +531,7 @@ class MiniplayerController extends GetxController
     }
 
     if (RouteStackObserver.hasRoute('/watch')) {
-      Get.until((route) => route.settings.name?.contains('/watch') == true);
+      Get.until((route) => route.settings.name?.contains('/watch') ?? false);
     } else {
       // Navigate first, then dismiss so the miniplayer doesn't flash
       Get.toNamed('/watch?v=${video.id}', arguments: {
@@ -610,10 +610,10 @@ class MiniplayerController extends GetxController
   }
 
   Widget _errorWidget(String msg) {
-    return Container(
-      color: Colors.black87,
-      child: const Center(
-        child: Icon(Icons.error_outline, color: Colors.white54, size: 32),
+    return const ColoredBox(
+      color: AppColors.bgPage,
+      child: Center(
+        child: Icon(Icons.error_outline, color: AppColors.textSecondary, size: 32),
       ),
     );
   }

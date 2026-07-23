@@ -2,14 +2,6 @@ import 'package:flutter/material.dart';
 
 /// Semantic motion and transition tokens.
 class TWMotion extends ThemeExtension<TWMotion> {
-  final Duration fast;
-  final Duration normal;
-  final Duration slow;
-
-  final Curve easeIn;
-  final Curve easeOut;
-  final Curve easeInOut;
-  final Curve emphasized;
 
   const TWMotion({
     required this.fast,
@@ -32,6 +24,14 @@ class TWMotion extends ThemeExtension<TWMotion> {
       emphasized: Curves.easeInOutCubic,
     );
   }
+  final Duration fast;
+  final Duration normal;
+  final Duration slow;
+
+  final Curve easeIn;
+  final Curve easeOut;
+  final Curve easeInOut;
+  final Curve emphasized;
 
   @override
   ThemeExtension<TWMotion> copyWith({

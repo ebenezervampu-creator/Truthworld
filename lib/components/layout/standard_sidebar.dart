@@ -2,10 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class SidebarItemData {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final bool isSelected;
 
   SidebarItemData({
     required this.icon,
@@ -13,21 +9,24 @@ class SidebarItemData {
     required this.onTap,
     this.isSelected = false,
   });
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool isSelected;
 }
 
 class StandardSidebar extends StatelessWidget {
-  final List<SidebarItemData> items;
-  final List<Widget>? channelItems;
-  final bool isExpanded;
-  final VoidCallback? onToggleExpanded;
 
   const StandardSidebar({
-    super.key,
-    required this.items,
+    required this.items, super.key,
     this.channelItems,
     this.isExpanded = true,
     this.onToggleExpanded,
   });
+  final List<SidebarItemData> items;
+  final List<Widget>? channelItems;
+  final bool isExpanded;
+  final VoidCallback? onToggleExpanded;
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +39,7 @@ class StandardSidebar extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppTheme.colors.surface,
         border: Border(
-          right: BorderSide(color: AppTheme.colors.border, width: 1.0),
+          right: BorderSide(color: AppTheme.colors.border),
         ),
       ),
       child: Column(
@@ -124,10 +123,10 @@ class StandardSidebar extends StatelessWidget {
 }
 
 class _SidebarItem extends StatelessWidget {
-  final SidebarItemData item;
-  final bool isExpanded;
 
   const _SidebarItem({required this.item, required this.isExpanded});
+  final SidebarItemData item;
+  final bool isExpanded;
 
   @override
   Widget build(BuildContext context) {

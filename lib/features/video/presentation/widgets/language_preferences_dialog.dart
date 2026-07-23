@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/user_languages_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
 
 class LanguagePreferencesDialog extends StatelessWidget {
   const LanguagePreferencesDialog({super.key});
@@ -14,9 +14,9 @@ class LanguagePreferencesDialog extends StatelessWidget {
       children: [
         Text(
           title,
-          style: TextStyle(
-            fontFamily: 'Roboto',
-            color: Colors.white70,
+          style: const TextStyle(
+            
+            color: AppColors.textSecondary,
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
@@ -28,10 +28,10 @@ class LanguagePreferencesDialog extends StatelessWidget {
             size: 14,
             color: AppColors.brand,
           ),
-          label: Text(
+          label: const Text(
             'Edit',
             style: TextStyle(
-              fontFamily: 'Roboto',
+              
               color: AppColors.brand,
               fontSize: 13,
             ),
@@ -54,18 +54,18 @@ class LanguagePreferencesDialog extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: AppColors.textPrimary.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             label,
-            style: TextStyle(
-              fontFamily: 'Roboto',
-              color: Colors.white,
+            style: const TextStyle(
+              
+              color: AppColors.textPrimary,
               fontSize: 13,
             ),
           ),
@@ -74,7 +74,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
             const Icon(
               Icons.lock_outline_rounded,
               size: 12,
-              color: Colors.white38,
+              color: AppColors.textTertiary,
             ),
           ] else if (onRemove != null) ...[
             const SizedBox(width: 6),
@@ -83,7 +83,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
               child: const Icon(
                 Icons.close_rounded,
                 size: 14,
-                color: Colors.white54,
+                color: AppColors.textSecondary,
               ),
             ),
           ],
@@ -116,7 +116,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
     // Ensure primary and secondaries are in known
     syncKnownList();
 
-    void editPrimary() async {
+    Future<void> editPrimary() async {
       final result = await Get.dialog<String>(
         const LanguageSelectionDialog(
           title: 'Select Primary Language',
@@ -130,7 +130,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
       }
     }
 
-    void editSecondaries() async {
+    Future<void> editSecondaries() async {
       final result = await Get.dialog<List<String>>(
         LanguageSelectionDialog(
           title: 'Select Secondary Languages',
@@ -146,7 +146,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
       }
     }
 
-    void editKnown() async {
+    Future<void> editKnown() async {
       final result = await Get.dialog<List<String>>(
         LanguageSelectionDialog(
           title: 'Select All Known Languages',
@@ -162,7 +162,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
       }
     }
 
-    void save() async {
+    Future<void> save() async {
       await UserLanguagesService.to.saveLanguages(
         primary: primary.value,
         secondaries: secondaries,
@@ -176,7 +176,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
       backgroundColor: const Color(0xFF161616),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+        side: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.08)),
       ),
       child: Container(
         width: 420,
@@ -193,28 +193,28 @@ class LanguagePreferencesDialog extends StatelessWidget {
                     color: AppColors.brand,
                   ),
                   const SizedBox(width: 12),
-                  Text(
+                  const Text(
                     'Preferred Languages',
                     style: TextStyle(
-                      fontFamily: 'Roboto',
-                      color: Colors.white,
+                      
+                      color: AppColors.textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   const Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white54),
-                    onPressed: () => Get.back(),
+                    icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                    onPressed: Get.back,
                   ),
                 ],
               ),
               const SizedBox(height: 12),
-              Text(
+              const Text(
                 'Set your language profile to automatically enable matched subtitles and dubs.',
                 style: TextStyle(
-                  fontFamily: 'Roboto',
-                  color: Colors.white38,
+                  
+                  color: AppColors.textTertiary,
                   fontSize: 13,
                 ),
               ),
@@ -234,11 +234,11 @@ class LanguagePreferencesDialog extends StatelessWidget {
               _buildSectionHeader('Secondary Languages', editSecondaries),
               const SizedBox(height: 8),
               if (secondaries.isEmpty)
-                Text(
+                const Text(
                   'None configured',
                   style: TextStyle(
-                    fontFamily: 'Roboto',
-                    color: Colors.white24,
+                    
+                    color: AppColors.textDisabled,
                     fontSize: 13,
                     fontStyle: FontStyle.italic,
                   ),
@@ -285,12 +285,12 @@ class LanguagePreferencesDialog extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: () => Get.back(),
-                    child: Text(
+                    onPressed: Get.back,
+                    child: const Text(
                       'Cancel',
                       style: TextStyle(
-                        fontFamily: 'Roboto',
-                        color: Colors.white54,
+                        
+                        color: AppColors.textSecondary,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -300,7 +300,7 @@ class LanguagePreferencesDialog extends StatelessWidget {
                     onPressed: save,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.brand,
-                      foregroundColor: Colors.white,
+                      foregroundColor: AppColors.textPrimary,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 12,
@@ -309,10 +309,10 @@ class LanguagePreferencesDialog extends StatelessWidget {
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    child: Text(
+                    child: const Text(
                       'Save Preferences',
                       style: TextStyle(
-                        fontFamily: 'Roboto',
+                        
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -328,20 +328,18 @@ class LanguagePreferencesDialog extends StatelessWidget {
 }
 
 class LanguageSelectionDialog extends StatelessWidget {
+
+  const LanguageSelectionDialog({
+    required this.title, required this.multiple, super.key,
+    this.initialSelection = const [],
+    this.exclude = const [],
+    this.locked = const [],
+  });
   final String title;
   final bool multiple;
   final List<String> initialSelection;
   final List<String> exclude;
   final List<String> locked;
-
-  const LanguageSelectionDialog({
-    super.key,
-    required this.title,
-    required this.multiple,
-    this.initialSelection = const [],
-    this.exclude = const [],
-    this.locked = const [],
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -395,9 +393,9 @@ class LanguageSelectionDialog extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: TextStyle(
-                    fontFamily: 'Roboto',
-                    color: Colors.white,
+                  style: const TextStyle(
+                    
+                    color: AppColors.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -406,7 +404,7 @@ class LanguageSelectionDialog extends StatelessWidget {
                 IconButton(
                   icon: const Icon(
                     Icons.close,
-                    color: Colors.white54,
+                    color: AppColors.textSecondary,
                     size: 18,
                   ),
                   onPressed: () {
@@ -420,17 +418,17 @@ class LanguageSelectionDialog extends StatelessWidget {
             TextField(
               controller: searchCtrl,
               onChanged: onSearch,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
               decoration: InputDecoration(
                 hintText: 'Search language...',
-                hintStyle: const TextStyle(color: Colors.white38, fontSize: 14),
+                hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 14),
                 prefixIcon: const Icon(
                   Icons.search,
-                  color: Colors.white38,
+                  color: AppColors.textTertiary,
                   size: 18,
                 ),
                 filled: true,
-                fillColor: Colors.white.withValues(alpha: 0.05),
+                fillColor: AppColors.textPrimary.withValues(alpha: 0.05),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 12,
@@ -459,8 +457,8 @@ class LanguageSelectionDialog extends StatelessWidget {
                       title: Text(
                         lang.name,
                         style: TextStyle(
-                          fontFamily: 'Roboto',
-                          color: isSelected ? AppColors.brand : Colors.white,
+                          
+                          color: isSelected ? AppColors.brand : AppColors.textPrimary,
                           fontWeight: isSelected
                               ? FontWeight.bold
                               : FontWeight.normal,
@@ -469,16 +467,16 @@ class LanguageSelectionDialog extends StatelessWidget {
                       ),
                       subtitle: Text(
                         lang.nativeName,
-                        style: TextStyle(
-                          fontFamily: 'Roboto',
-                          color: Colors.white30,
+                        style: const TextStyle(
+                          
+                          color: AppColors.textTertiary,
                           fontSize: 11,
                         ),
                       ),
                       trailing: isLocked
                           ? const Icon(
                               Icons.lock_outline_rounded,
-                              color: Colors.white30,
+                              color: AppColors.textTertiary,
                               size: 16,
                             )
                           : isSelected
@@ -503,11 +501,11 @@ class LanguageSelectionDialog extends StatelessWidget {
                     searchCtrl.dispose();
                     Get.back();
                   },
-                  child: Text(
+                  child: const Text(
                     'Cancel',
                     style: TextStyle(
-                      fontFamily: 'Roboto',
-                      color: Colors.white54,
+                      
+                      color: AppColors.textSecondary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -523,15 +521,15 @@ class LanguageSelectionDialog extends StatelessWidget {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brand,
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppColors.textPrimary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  child: Text(
+                  child: const Text(
                     'Confirm',
                     style: TextStyle(
-                      fontFamily: 'Roboto',
+                      
                       fontWeight: FontWeight.w600,
                     ),
                   ),

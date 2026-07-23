@@ -1,26 +1,25 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class EndScreenOverlay extends StatelessWidget {
+  const EndScreenOverlay({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const EndScreenOverlay({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       if (!ctrl.showEndScreen.value) return const SizedBox.shrink();
 
-      final bool isCountdownActive = ctrl.autoplayCountdown.value > 0;
+      final isCountdownActive = ctrl.autoplayCountdown.value > 0;
       
       // Extract recommended/next video
       Video? nextVideo;
-      List<Video> recommendations = [];
+      var recommendations = <Video>[];
       try {
         if (Get.isRegistered<VideoController>(tag: ctrl.tag)) {
           final vc = Get.find<VideoController>(tag: ctrl.tag);
@@ -44,13 +43,13 @@ class EndScreenOverlay extends StatelessWidget {
           // 1. Dimming background & cards layout (Only if NOT hidden)
           if (!isHidden)
             Positioned.fill(
-              child: Container(
-                color: Colors.black.withValues(alpha: 0.25),
+              child: ColoredBox(
+                color: AppColors.bgPage.withValues(alpha: 0.25),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final double width = constraints.maxWidth;
-                    final double height = constraints.maxHeight;
-                    final bool isCompact = width < 600 || height < 320;
+                    final width = constraints.maxWidth;
+                    final height = constraints.maxHeight;
+                    final isCompact = width < 600 || height < 320;
 
                     if (isCompact) {
                       return Padding(
@@ -128,11 +127,11 @@ class EndScreenOverlay extends StatelessWidget {
 
   Widget _buildHideShowButton() {
     return GestureDetector(
-      onTap: () => ctrl.isEndScreenOverlayHidden.toggle(),
+      onTap: ctrl.isEndScreenOverlayHidden.toggle,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: AppColors.textPrimary,
           borderRadius: BorderRadius.circular(20),
           boxShadow: const [
             BoxShadow(
@@ -149,14 +148,14 @@ class EndScreenOverlay extends StatelessWidget {
               ctrl.isEndScreenOverlayHidden.value
                   ? Icons.visibility
                   : Icons.visibility_off,
-              color: Colors.black,
+              color: AppColors.bgPage,
               size: 15,
             ),
             const SizedBox(width: 6),
             Text(
               ctrl.isEndScreenOverlayHidden.value ? 'Show' : 'Hide',
-              style: GoogleFonts.outfit(
-                color: Colors.black,
+              style: const TextStyle(
+                color: AppColors.bgPage,
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),
@@ -179,10 +178,10 @@ class EndScreenOverlay extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.3), width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
+                color: AppColors.bgPage.withValues(alpha: 0.3),
                 blurRadius: 8,
                 offset: const Offset(0, 4),
               ),
@@ -196,10 +195,10 @@ class EndScreenOverlay extends StatelessWidget {
                 CachedNetworkImage(
                   imageUrl: video.thumbnailUrl.replaceAll(' ', '%20'),
                   fit: BoxFit.cover,
-                  placeholder: (_, _) => Container(color: Colors.black54),
-                  errorWidget: (_, _, _) => Container(
-                    color: Colors.black54,
-                    child: const Icon(Icons.link, color: Colors.white30, size: 30),
+                  placeholder: (_, _) => Container(color: AppColors.bgPage54),
+                  errorWidget: (_, _, _) => const ColoredBox(
+                    color: AppColors.bgPage54,
+                    child: Icon(Icons.link, color: AppColors.textTertiary, size: 30),
                   ),
                 ),
                 // Open in new badge at bottom right
@@ -209,12 +208,12 @@ class EndScreenOverlay extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.75),
+                      color: AppColors.bgPage.withValues(alpha: 0.75),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Icon(
                       Icons.open_in_new,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       size: 14,
                     ),
                   ),
@@ -247,7 +246,7 @@ class EndScreenOverlay extends StatelessWidget {
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.4),
+              color: AppColors.bgPage.withValues(alpha: 0.4),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -258,31 +257,31 @@ class EndScreenOverlay extends StatelessWidget {
               ? CachedNetworkImage(
                   imageUrl: avatarUrl,
                   fit: BoxFit.cover,
-                  placeholder: (_, _) => Container(
-                    color: Colors.white.withValues(alpha: 0.1),
+                  placeholder: (_, _) => ColoredBox(
+                    color: AppColors.textPrimary.withValues(alpha: 0.1),
                     child: Center(
                       child: Text(
                         channelName.isNotEmpty ? channelName[0].toUpperCase() : '?',
-                        style: GoogleFonts.outfit(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 32, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
-                  errorWidget: (_, _, _) => Container(
-                    color: Colors.white.withValues(alpha: 0.1),
+                  errorWidget: (_, _, _) => ColoredBox(
+                    color: AppColors.textPrimary.withValues(alpha: 0.1),
                     child: Center(
                       child: Text(
                         channelName.isNotEmpty ? channelName[0].toUpperCase() : '?',
-                        style: GoogleFonts.outfit(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 32, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
                 )
-              : Container(
-                  color: Colors.white.withValues(alpha: 0.1),
+              : ColoredBox(
+                  color: AppColors.textPrimary.withValues(alpha: 0.1),
                   child: Center(
                     child: Text(
                       channelName.isNotEmpty ? channelName[0].toUpperCase() : '?',
-                      style: GoogleFonts.outfit(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 32, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
@@ -304,10 +303,10 @@ class EndScreenOverlay extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
+            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.3), width: 1.5),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.3),
+                color: AppColors.bgPage.withValues(alpha: 0.3),
                 blurRadius: 8,
                 offset: const Offset(0, 4),
               ),
@@ -321,10 +320,10 @@ class EndScreenOverlay extends StatelessWidget {
                 CachedNetworkImage(
                   imageUrl: video.thumbnailUrl.replaceAll(' ', '%20'),
                   fit: BoxFit.cover,
-                  placeholder: (_, _) => Container(color: Colors.black54),
-                  errorWidget: (_, _, _) => Container(
-                    color: Colors.black54,
-                    child: const Icon(Icons.video_library_outlined, color: Colors.white30, size: 40),
+                  placeholder: (_, _) => Container(color: AppColors.bgPage54),
+                  errorWidget: (_, _, _) => const ColoredBox(
+                    color: AppColors.bgPage54,
+                    child: Icon(Icons.video_library_outlined, color: AppColors.textTertiary, size: 40),
                   ),
                 ),
                 // Scrim
@@ -334,10 +333,10 @@ class EndScreenOverlay extends StatelessWidget {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.black.withValues(alpha: 0.65),
+                        AppColors.bgPage.withValues(alpha: 0.65),
                         Colors.transparent,
                         Colors.transparent,
-                        Colors.black.withValues(alpha: 0.65),
+                        AppColors.bgPage.withValues(alpha: 0.65),
                       ],
                       stops: const [0.0, 0.35, 0.65, 1.0],
                     ),
@@ -352,14 +351,14 @@ class EndScreenOverlay extends StatelessWidget {
                     video.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.outfit(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
                       height: 1.2,
                       shadows: [
                         Shadow(
-                          color: Colors.black.withValues(alpha: 0.8),
+                          color: AppColors.bgPage.withValues(alpha: 0.8),
                           offset: const Offset(1, 1),
                           blurRadius: 4,
                         ),
@@ -376,14 +375,14 @@ class EndScreenOverlay extends StatelessWidget {
                     video.channelName.toUpperCase(),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.roboto(
-                      color: Colors.white.withValues(alpha: 0.9),
+                    style: TextStyle(
+                      color: AppColors.textPrimary.withValues(alpha: 0.9),
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
                       letterSpacing: 0.5,
                       shadows: [
                         Shadow(
-                          color: Colors.black.withValues(alpha: 0.8),
+                          color: AppColors.bgPage.withValues(alpha: 0.8),
                           offset: const Offset(1, 1),
                           blurRadius: 2,
                         ),
@@ -398,13 +397,13 @@ class EndScreenOverlay extends StatelessWidget {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.85),
+                      color: AppColors.bgPage.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       _formatDuration(video.durationValue),
-                      style: GoogleFonts.roboto(
-                        color: Colors.white,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
@@ -426,7 +425,7 @@ class EndScreenOverlay extends StatelessWidget {
         child: FloatingActionButton(
           onPressed: ctrl.replayVideo,
           backgroundColor: AppColors.brand,
-          child: const Icon(Icons.replay_rounded, color: Colors.white),
+          child: const Icon(Icons.replay_rounded, color: AppColors.textPrimary),
         ),
       );
     }
@@ -438,12 +437,12 @@ class EndScreenOverlay extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             IconButton(
-              icon: const Icon(Icons.replay_rounded, color: Colors.white, size: 24),
+              icon: const Icon(Icons.replay_rounded, color: AppColors.textPrimary, size: 24),
               onPressed: ctrl.replayVideo,
             ),
-            Text(
+            const Text(
               'Replay',
-              style: GoogleFonts.outfit(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -465,9 +464,9 @@ class EndScreenOverlay extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: AppColors.textPrimary.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white10),
+                    border: Border.all(color: AppColors.bgDivider),
                   ),
                   child: Row(
                     children: [
@@ -479,7 +478,7 @@ class EndScreenOverlay extends StatelessWidget {
                             imageUrl: video.thumbnailUrl.replaceAll(' ', '%20'),
                             fit: BoxFit.cover,
                             placeholder: (_, _) => Container(color: Colors.black26),
-                            errorWidget: (_, _, _) => const Icon(Icons.video_library_outlined, color: Colors.white24),
+                            errorWidget: (_, _, _) => const Icon(Icons.video_library_outlined, color: AppColors.textDisabled),
                           ),
                         ),
                       ),
@@ -493,8 +492,8 @@ class EndScreenOverlay extends StatelessWidget {
                               video.title,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.outfit(
-                                color: Colors.white,
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -504,8 +503,8 @@ class EndScreenOverlay extends StatelessWidget {
                               video.channelName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.roboto(
-                                color: Colors.white54,
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
                                 fontSize: 11,
                               ),
                             ),
@@ -530,17 +529,17 @@ class EndScreenOverlay extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 24),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.85),
+          color: AppColors.bgPage.withValues(alpha: 0.85),
           borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: Colors.white10),
+          border: Border.all(color: AppColors.bgDivider),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
+            const Text(
               'Up Next: ',
-              style: GoogleFonts.outfit(
-                color: Colors.white54,
+              style: TextStyle(
+                color: AppColors.textSecondary,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
@@ -551,8 +550,8 @@ class EndScreenOverlay extends StatelessWidget {
                 nextVideo.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.outfit(
-                  color: Colors.white,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                 ),
@@ -561,7 +560,7 @@ class EndScreenOverlay extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               'in ${ctrl.autoplayCountdown.value}s',
-              style: GoogleFonts.outfit(
+              style: const TextStyle(
                 color: AppColors.brand,
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
@@ -570,10 +569,10 @@ class EndScreenOverlay extends StatelessWidget {
             const SizedBox(width: 12),
             GestureDetector(
               onTap: ctrl.cancelAutoplayCountdown,
-              child: Text(
+              child: const Text(
                 'CANCEL',
-                style: GoogleFonts.outfit(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: AppColors.textPrimary,
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 0.5,
@@ -583,9 +582,9 @@ class EndScreenOverlay extends StatelessWidget {
             const SizedBox(width: 12),
             GestureDetector(
               onTap: ctrl.playNextImmediately,
-              child: Text(
+              child: const Text(
                 'PLAY NOW',
-                style: GoogleFonts.outfit(
+                style: TextStyle(
                   color: AppColors.brand,
                   fontSize: 11,
                   fontWeight: FontWeight.bold,

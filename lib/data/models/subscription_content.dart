@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 
 enum ContentType {
   video,
@@ -10,22 +10,13 @@ enum ContentType {
 }
 
 class SubscriptionContent {
-  final String id;
-  final ContentType type;
-  final Video? video;
-  final PlaylistModel? playlist;
-  final CommunityPostModel? communityPost;
-  final double algorithmicScore;
-  final Timestamp createdAt;
 
   SubscriptionContent({
     required this.id,
     required this.type,
-    this.video,
+    required this.algorithmicScore, required this.createdAt, this.video,
     this.playlist,
     this.communityPost,
-    required this.algorithmicScore,
-    required this.createdAt,
   });
 
   factory SubscriptionContent.fromVideo(Video video) {
@@ -60,6 +51,13 @@ class SubscriptionContent {
       createdAt: Timestamp.fromDate(post.uploadedAt),
     );
   }
+  final String id;
+  final ContentType type;
+  final Video? video;
+  final PlaylistModel? playlist;
+  final CommunityPostModel? communityPost;
+  final double algorithmicScore;
+  final Timestamp createdAt;
 
   static double _calculateVideoScore(Video video) {
     final daysSinceUpload = DateTime.now().difference(video.createdAt.toDate()).inDays;
@@ -67,7 +65,7 @@ class SubscriptionContent {
     final viewsFactor = video.views > 0 ? (video.views / 1000).clamp(0, 10) : 0;
     final likesFactor = video.likes > 0 ? (video.likes / 100).clamp(0, 5) : 0;
     
-    return (recencyFactor * 5 + viewsFactor * 3 + likesFactor * 2);
+    return recencyFactor * 5 + viewsFactor * 3 + likesFactor * 2;
   }
 
   static double _calculatePlaylistScore(PlaylistModel playlist) {
@@ -75,7 +73,7 @@ class SubscriptionContent {
     final recencyFactor = 1.0 / (1 + daysSinceUpload * 0.1);
     final videoCountFactor = (playlist.videoCount / 10).clamp(0, 5);
     
-    return (recencyFactor * 5 + videoCountFactor * 3);
+    return recencyFactor * 5 + videoCountFactor * 3;
   }
 
   static double _calculateCommunityPostScore(CommunityPostModel post) {
@@ -84,7 +82,7 @@ class SubscriptionContent {
     final likesFactor = post.likes > 0 ? (post.likes / 50).clamp(0, 5) : 0;
     final viewsFactor = post.views > 0 ? (post.views / 500).clamp(0, 3) : 0;
     
-    return (recencyFactor * 5 + likesFactor * 3 + viewsFactor * 2);
+    return recencyFactor * 5 + likesFactor * 3 + viewsFactor * 2;
   }
 
   String get title {

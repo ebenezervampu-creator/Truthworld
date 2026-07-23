@@ -1,45 +1,47 @@
 import 'dart:async';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:truthworld/theme/app_theme.dart';
-
 import 'package:flutter/services.dart';
-import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:syncfusion_flutter_charts/charts.dart';
+import 'package:truthworld/core/exceptions/app_exceptions.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/utils/watch_time_formatter.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/analytics/presentation/pages/subscribers_page.dart';
+import 'package:truthworld/features/analytics/presentation/pages/views_page.dart';
+import 'package:truthworld/features/analytics/presentation/pages/watch_time_page.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/video_rating_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/analytics_screen.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_comments_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/audience_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/content_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/copyright_screen.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/studio_settings_page.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/creator_intelligence_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/customization_screen.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_comments_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/monetization_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/place_holder_screen.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/studio_settings_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles_page.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/audio_tracks_page.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/audience_page.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_rating_page.dart';
-import 'package:truthworld/features/dashboard/presentation/controllers/video_rating_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/topic_management_screen.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_rating_page.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/core/services/auth_service.dart';
-import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/core/exceptions/app_exceptions.dart';
-import 'package:truthworld/features/analytics/presentation/pages/watch_time_page.dart';
-import 'package:truthworld/features/analytics/presentation/pages/views_page.dart';
-import 'package:truthworld/features/analytics/presentation/pages/subscribers_page.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class AnalyticsData {
-  final DateTime date;
-  final int views;
 
   AnalyticsData(this.date, this.views);
+  final DateTime date;
+  final int views;
 }
 
 // ==========================================================================
@@ -47,25 +49,32 @@ class AnalyticsData {
 // ==========================================================================
 
 class DashboardController extends GetxController {
-  final String channelId;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   DashboardController({required this.channelId});
+  final String channelId;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   final Rx<Channel?> currentChannel = Rx<Channel?>(null);
   final RxBool showApprovalBanner = false.obs;
 
-  var selectedIndex = 1.obs;
-  var isDrawerExpanded = true.obs;
-  var isLoading = true.obs;
-  var errorMessage = ''.obs;
+  RxInt selectedIndex = 1.obs;
+  RxBool isDrawerExpanded = true.obs;
+  RxBool isLoading = true.obs;
+  RxString errorMessage = ''.obs;
 
-  var channelStats = <String, dynamic>{}.obs;
-  var recentVideos = <Video>[].obs;
-  var analyticsData = <AnalyticsData>[].obs;
-  var searchQuery = ''.obs;
+  RxMap<String, dynamic> channelStats = <String, dynamic>{}.obs;
+  RxList<Video> recentVideos = <Video>[].obs;
+  RxList<AnalyticsData> analyticsData = <AnalyticsData>[].obs;
+  RxString searchQuery = ''.obs;
 
-  var copyrightClaimsCount = 0.obs;
+  RxInt copyrightClaimsCount = 0.obs;
+  final RxInt totalWatchTimeSeconds = 0.obs;
+
+  double get watchMinutes => totalWatchTimeSeconds.value / 60.0;
+  double get watchHours => totalWatchTimeSeconds.value / 3600.0;
+
+  String get formattedWatchTime => WatchTimeFormatter.format(totalWatchTimeSeconds.value);
+  String get formattedWatchTimeCompact => WatchTimeFormatter.format(totalWatchTimeSeconds.value, compact: true);
 
   StreamSubscription? _statsSubscription;
   StreamSubscription? _videosSubscription;
@@ -96,7 +105,7 @@ class DashboardController extends GetxController {
       _initializeData();
     } else {
       isLoading.value = false;
-      errorMessage.value = "No channel provided.";
+      errorMessage.value = 'No channel provided.';
     }
   }
 
@@ -118,7 +127,7 @@ class DashboardController extends GetxController {
     _loadCopyrightStatus();
     // Use Future.delayed to set loading to false after a short period,
     // allowing streams to populate data.
-    Future.delayed(Duration(seconds: 2), () {
+    Future.delayed(const Duration(seconds: 2), () {
       if (isLoading.value) {
         isLoading.value = false;
       }
@@ -126,10 +135,19 @@ class DashboardController extends GetxController {
   }
 
   void _loadChannelStats() {
-    // 1. Listen to the main channel document for real-time totals (subs, views)
+    // 1. Listen to the main channel document for real-time totals (subs, views, watchTime)
     final channelRef = _firestore.collection('channels').doc(channelId);
     _channelSubscription = channelRef.snapshots().listen((snapshot) {
       if (snapshot.exists) {
+        final data = snapshot.data();
+        if (data != null) {
+          if (data.containsKey('totalWatchTimeSeconds')) {
+            totalWatchTimeSeconds.value = (data['totalWatchTimeSeconds'] as num).toInt();
+          } else if (data.containsKey('totalWatchTimeMinutes')) {
+            totalWatchTimeSeconds.value = (((data['totalWatchTimeMinutes'] as num).toDouble()) * 60).toInt();
+          }
+        }
+
         final channel = Channel.fromDocumentSnapshot(snapshot);
         currentChannel.value = channel;
 
@@ -143,20 +161,17 @@ class DashboardController extends GetxController {
           }
         }
 
-        // Only update if summary stats are missing or zeros
-        if (channelStats.isEmpty || (channelStats['views'] == '0' && channel.viewCount > 0)) {
-          channelStats.value = {
-            ...channelStats,
-            'views': _formatNumber(channel.viewCount),
-            'subscribers': _formatNumber(channel.subscriberCount),
-            'watchTime': _formatWatchTime(channel.metrics.totalWatchTimeMinutes),
-            'revenue': channelStats['revenue'] ?? '\$0.00',
-            'viewsChange': channelStats['viewsChange'] ?? '+0%',
-            'watchTimeChange': channelStats['watchTimeChange'] ?? '+0%',
-            'subscribersChange': channelStats['subscribersChange'] ?? '+0',
-            'revenueChange': channelStats['revenueChange'] ?? '+\$0.00',
-          };
-        }
+        channelStats.value = {
+          ...channelStats,
+          'views': _formatNumber(channel.viewCount),
+          'subscribers': _formatNumber(channel.subscriberCount),
+          'watchTime': formattedWatchTime,
+          'revenue': channelStats['revenue'] ?? r'$0.00',
+          'viewsChange': channelStats['viewsChange'] ?? '+0%',
+          'watchTimeChange': channelStats['watchTimeChange'] ?? '+0%',
+          'subscribersChange': channelStats['subscribersChange'] ?? '+0',
+          'revenueChange': channelStats['revenueChange'] ?? r'+$0.00',
+        };
       }
     });
 
@@ -169,21 +184,25 @@ class DashboardController extends GetxController {
     _statsSubscription = summaryRef.snapshots().listen(
       (snapshot) {
         if (snapshot.exists) {
-          final data = snapshot.data() as Map<String, dynamic>;
+          final data = snapshot.data()!;
+          if (data.containsKey('totalWatchTimeSeconds')) {
+            totalWatchTimeSeconds.value = (data['totalWatchTimeSeconds'] as num).toInt();
+          }
           channelStats.value = {
+            ...channelStats,
             'views': _formatNumber(data['totalViews'] ?? 0),
-            'watchTime': _formatWatchTime(data['totalWatchTimeMinutes'] ?? 0),
+            'watchTime': formattedWatchTime,
             'subscribers': _formatNumber(data['subscribers'] ?? 0),
-            'revenue': '\$0.00',
+            'revenue': r'$0.00',
             'viewsChange': '+0%',
             'watchTimeChange': '+0%',
             'subscribersChange': '+0',
-            'revenueChange': '+\$0.00',
+            'revenueChange': r'+$0.00',
           };
         }
       },
       onError: (error) {
-        errorMessage.value = "Failed to load channel stats.";
+        errorMessage.value = 'Failed to load channel stats.';
       },
     );
   }
@@ -197,12 +216,12 @@ class DashboardController extends GetxController {
     _videosSubscription = videosRef.snapshots().listen(
       (snapshot) {
         recentVideos.value = snapshot.docs
-            .map((doc) => Video.fromDocumentSnapshot(doc))
+            .map(Video.fromDocumentSnapshot)
             .toList();
             
         // Fallback view count from recent videos if still zero
         if ((channelStats['views'] == '0' || channelStats['views'] == null) && recentVideos.isNotEmpty) {
-          int totalViews = recentVideos.fold(0, (acc, v) => acc + v.viewCount);
+          final totalViews = recentVideos.fold(0, (acc, v) => acc + v.viewCount);
           if (totalViews > 0) {
             channelStats.value = {
               ...channelStats,
@@ -212,7 +231,7 @@ class DashboardController extends GetxController {
         }
       },
       onError: (error) {
-        errorMessage.value = "Failed to load recent videos.";
+        errorMessage.value = 'Failed to load recent videos.';
       },
     );
   }
@@ -235,8 +254,8 @@ class DashboardController extends GetxController {
     _analyticsSubscription = statsRef.snapshots().listen(
       (snapshot) {
         if (snapshot.docs.isNotEmpty) {
-          List<AnalyticsData> data = [];
-          for (int i = 0; i < 28; i++) {
+          final data = <AnalyticsData>[];
+          for (var i = 0; i < 28; i++) {
             final date = startDate.add(Duration(days: i));
             final dateString = DateFormat('yyyy-MM-dd').format(date);
             final doc = snapshot.docs.firstWhere(
@@ -255,7 +274,7 @@ class DashboardController extends GetxController {
         }
       },
       onError: (error) {
-        errorMessage.value = "Failed to load analytics data.";
+        errorMessage.value = 'Failed to load analytics data.';
       },
     );
   }
@@ -280,19 +299,7 @@ class DashboardController extends GetxController {
     return number.toString();
   }
 
-  String _formatWatchTime(dynamic minutes) {
-    if (minutes == null) return '0h';
-    double m = (minutes is num) ? minutes.toDouble() : 0.0;
 
-    if (m >= 60) {
-      double hours = m / 60;
-      if (hours >= 10) {
-        return '${hours.toStringAsFixed(0)}h';
-      }
-      return '${hours.toStringAsFixed(1)}h';
-    }
-    return '${m.toStringAsFixed(0)}m';
-  }
 
   void setSelectedIndex(int index) => selectedIndex.value = index;
   void toggleDrawer() => isDrawerExpanded.value = !isDrawerExpanded.value;
@@ -329,7 +336,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       _selectDefaultChannel();
     } else {
       isSelectingDefault.value = false;
-      String channelId = '';
+      var channelId = '';
       if (channelData is Map<String, dynamic> &&
           channelData.containsKey('id')) {
         channelId = channelData['id'];
@@ -372,7 +379,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         if (tabIndex != null) {
           args['tab'] = tabIndex;
         }
-        Get.offAndToNamed("/studio", arguments: args);
+        Get.offAndToNamed('/studio', arguments: args);
       } else {
         isSelectingDefault.value = false;
         // User has no channel -> Navigate to ChannelScreen to create one!
@@ -404,62 +411,62 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   void _initializeAnimations() {
     _staggeredAnimationController = AnimationController(
-      duration: Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
 
     _drawerAnimationController = AnimationController(
-      duration: Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 400),
       vsync: this,
     );
 
     _statsAnimationController = AnimationController(
-      duration: Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 800),
       vsync: this,
     );
 
     _chartAnimationController = AnimationController(
-      duration: Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1200),
       vsync: this,
     );
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
         parent: _staggeredAnimationController,
-        curve: Interval(0.0, 0.6, curve: Curves.easeOutCubic),
+        curve: const Interval(0, 0.6, curve: Curves.easeOutCubic),
       ),
     );
 
-    _slideAnimation = Tween<Offset>(begin: Offset(0, 0.3), end: Offset.zero)
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
         .animate(
           CurvedAnimation(
             parent: _staggeredAnimationController,
-            curve: Interval(0.2, 0.8, curve: Curves.easeOutBack),
+            curve: const Interval(0.2, 0.8, curve: Curves.easeOutBack),
           ),
         );
 
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1).animate(
       CurvedAnimation(
         parent: _staggeredAnimationController,
-        curve: Interval(0.4, 1.0, curve: Curves.elasticOut),
+        curve: const Interval(0.4, 1, curve: Curves.elasticOut),
       ),
     );
 
-    _drawerAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    _drawerAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
         parent: _drawerAnimationController,
         curve: Curves.easeInOut,
       ),
     );
 
-    _statsAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    _statsAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
         parent: _statsAnimationController,
         curve: Curves.easeOutCubic,
       ),
     );
 
-    _chartAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    _chartAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
         parent: _chartAnimationController,
         curve: Curves.easeOutCubic,
@@ -471,11 +478,11 @@ class _DashboardScreenState extends State<DashboardScreen>
     _staggeredAnimationController.forward();
     _drawerAnimationController.forward();
 
-    Future.delayed(Duration(milliseconds: 500), () {
+    Future.delayed(const Duration(milliseconds: 500), () {
       _statsAnimationController.forward();
     });
 
-    Future.delayed(Duration(milliseconds: 800), () {
+    Future.delayed(const Duration(milliseconds: 800), () {
       _chartAnimationController.forward();
     });
   }
@@ -499,9 +506,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   bool get isDesktop => MediaQuery.of(context).size.width >= 1024;
 
   double get horizontalPadding {
-    if (isDesktop) return 32.0;
-    if (isTablet) return 24.0;
-    return 16.0;
+    if (isDesktop) return 32;
+    if (isTablet) return 24;
+    return 16;
   }
 
   @override
@@ -512,10 +519,10 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
 
       if (isSelectingDefault.value) {
-        return Scaffold(
+        return const Scaffold(
           body: Center(
             child: CircularProgressIndicator(
-              valueColor: const AlwaysStoppedAnimation<Color>(
+              valueColor: AlwaysStoppedAnimation<Color>(
                 Color(0xFF6366F1),
               ),
             ),
@@ -552,65 +559,69 @@ class _DashboardScreenState extends State<DashboardScreen>
     required GlobalKey<ScaffoldState> scaffoldKey,
   }) {
     return AppBar(
-      backgroundColor: isDarkMode ? AppColors.bgInput : Colors.white,
+      backgroundColor: isDarkMode ? AppColors.bgInput : AppColors.textPrimary,
       elevation: 0,
       surfaceTintColor: Colors.transparent,
       toolbarHeight: 64,
       centerTitle: false,
+      titleSpacing: isMobile ? 4 : null,
       leading: isDesktop
           ? null
           : IconButton(
               icon: Icon(
                 Icons.menu_rounded,
-                color: isDarkMode ? Colors.white : AppColors.textPrimary,
+                color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
               ),
               onPressed: () => scaffoldKey.currentState?.openDrawer(),
               tooltip: 'Menu',
             ),
       title: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
             icon: Icon(Icons.arrow_back, size: 20,
-              color: isDarkMode ? Colors.white70 : AppColors.textSecondary,
+              color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
             ),
-            onPressed: () => Get.offAllNamed("/home"),
+            onPressed: () => Get.offAllNamed('/home'),
             tooltip: 'Back to Home',
           ),
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF6366F1).withValues(alpha: 0.3),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+          if (!isMobile) ...[
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-              ],
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.dashboard_rounded,
+                color: AppColors.textPrimary,
+                size: 20,
+              ),
             ),
-            child: const Icon(
-              Icons.dashboard_rounded,
-              color: Colors.white,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Text(
-            isMobile ? "Studio" : "Creator Studio",
-            overflow: TextOverflow.ellipsis,
-            maxLines: 1,
-            style: GoogleFonts.roboto(
-              fontSize: isMobile ? 18 : 20,
-              fontWeight: FontWeight.w700,
-              color: isDarkMode ? Colors.white : AppColors.textPrimary,
-              letterSpacing: -0.5,
+            const SizedBox(width: 12),
+          ],
+          Expanded(
+            child: Text(
+              isMobile ? 'Studio' : 'Creator Studio',
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: TextStyle(
+                fontSize: isMobile ? 18 : 20,
+                fontWeight: FontWeight.w700,
+                color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+                letterSpacing: -0.5,
+              ),
             ),
           ),
         ],
@@ -630,19 +641,19 @@ class _DashboardScreenState extends State<DashboardScreen>
           tooltip: 'Notifications',
         ),
 
-        const SizedBox(width: 8),
+        SizedBox(width: isMobile ? 4 : 8),
 
         // Upload Video Button
         _buildActionButton(
           icon: Icons.video_call_rounded,
           label: isDesktop ? 'Upload' : '',
-          onPressed: () => Get.toNamed('/uploadscreen'),
+          onPressed: () => Get.toNamed('/upload'),
           isDarkMode: isDarkMode,
           isPrimary: true,
           tooltip: 'Upload Video',
         ),
 
-        const SizedBox(width: 8),
+        SizedBox(width: isMobile ? 4 : 8),
 
         // Create Channel Button (only if user doesn't have one yet)
         if (!AuthService.to.hasChannel.value)
@@ -654,17 +665,12 @@ class _DashboardScreenState extends State<DashboardScreen>
             tooltip: 'Create a Channel',
           ),
 
-        const SizedBox(width: 12),
-
-        // Channel Selector
-        _buildChannelSelector(isDarkMode),
-
-        const SizedBox(width: 8),
+        SizedBox(width: isMobile ? 4 : 8),
 
         // Google Account Selector
         _buildGoogleAccountSelector(isDarkMode),
 
-        const SizedBox(width: 16),
+        SizedBox(width: isMobile ? 8 : 16),
       ],
     );
   }
@@ -675,33 +681,47 @@ class _DashboardScreenState extends State<DashboardScreen>
       width: 300,
       height: 40,
       decoration: BoxDecoration(
-        color: isDarkMode ? AppTheme.colors.surface : const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(20),
+        color: AppColors.bgSurfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(AppTokens.radius.lg),
         border: Border.all(
-          color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
-          width: 1,
+          color: AppColors.bgSurfaceContainerHighest,
         ),
       ),
       child: TextField(
         controller: _searchController,
-        style: GoogleFonts.roboto(
-          color: isDarkMode ? Colors.white : AppColors.textPrimary,
+        style: TextStyle(
+          color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
           fontSize: 14,
         ),
+        onChanged: (value) {
+          controller.setSearchQuery(value);
+        },
         decoration: InputDecoration(
           hintText: 'Search your content...',
-          hintStyle: GoogleFonts.roboto(
-            color: isDarkMode ? Colors.white60 : AppColors.textSecondary,
+          hintStyle: TextStyle(
+            color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
           ),
           prefixIcon: Icon(
             Icons.search_rounded,
-            color: isDarkMode ? Colors.white60 : AppColors.textSecondary,
+            color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
             size: 20,
           ),
+          suffixIcon: Obx(() => controller.searchQuery.value.isNotEmpty
+              ? IconButton(
+                  icon: Icon(
+                    Icons.clear_rounded,
+                    color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                    size: 18,
+                  ),
+                  onPressed: () {
+                    _searchController.clear();
+                    controller.setSearchQuery('');
+                  },
+                )
+              : const SizedBox.shrink()),
           border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         ),
-        onChanged: (value) => controller.setSearchQuery(value),
       ),
     );
   }
@@ -709,9 +729,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   // Action Button Widget
   Widget _buildActionButton({
     required IconData icon,
-    String label = '',
-    required VoidCallback onPressed,
-    required bool isDarkMode,
+    required VoidCallback onPressed, required bool isDarkMode, String label = '',
     bool isPrimary = false,
     String? tooltip,
   }) {
@@ -719,8 +737,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         ? const Color(0xFF6366F1)
         : (isDarkMode ? AppTheme.colors.surface : const Color(0xFFF1F5F9));
     final textColor = isPrimary
-        ? Colors.white
-        : (isDarkMode ? Colors.white : AppColors.textPrimary);
+        ? AppColors.textPrimary
+        : (isDarkMode ? AppColors.textPrimary : AppColors.textPrimary);
 
     // Icon-only button
     if (label.isEmpty) {
@@ -767,7 +785,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             HapticFeedback.lightImpact();
           },
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -775,7 +793,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 const SizedBox(width: 8),
                 Text(
                   label,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: textColor,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -789,179 +807,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
-  // Channel Selector Widget
-  Widget _buildChannelSelector(bool isDarkMode) {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      return const SizedBox.shrink();
-    }
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('channels')
-          .where('ownerId', isEqualTo: user.uid)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Container(
-            width: 40,
-            height: 40,
-            margin: EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: isDarkMode
-                  ? AppTheme.colors.surface
-                  : const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Center(
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF6366F1)),
-                ),
-              ),
-            ),
-          );
-        }
-
-        if (snapshot.hasError) {
-          return Tooltip(
-            message: 'Error loading channels',
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: isDarkMode
-                    ? AppTheme.colors.surface
-                    : const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(
-                Icons.error_rounded,
-                color: Color(0xFFEF4444),
-                size: 20,
-              ),
-            ),
-          );
-        }
-
-        final channels = snapshot.data?.docs ?? [];
-
-        return PopupMenuButton<dynamic>(
-          tooltip: 'Select Channel',
-          offset: const Offset(0, 50),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          color: isDarkMode ? AppColors.textPrimary : Colors.white,
-          onSelected: (selectedChannel) {
-            final channelMap = {
-              'id': selectedChannel.id,
-              ...selectedChannel.data(),
-            };
-            Get.offAndToNamed("/studio", arguments: {'channel': channelMap});
-            HapticFeedback.lightImpact();
-          },
-          itemBuilder: (context) => channels.isEmpty
-              ? [
-                  PopupMenuItem(
-                    enabled: false,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        'No channels available',
-                        style: GoogleFonts.roboto(
-                          color: isDarkMode
-                              ? Colors.white70
-                              : AppColors.textSecondary,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ),
-                ]
-              : channels.map((doc) {
-                  final channelData = doc.data() as Map<String, dynamic>;
-                  final channelName = channelData['channelName'] ?? 'Unknown';
-
-                  return PopupMenuItem<dynamic>(
-                    value: doc,
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        children: [
-                          CircleAvatar(
-                            radius: 16,
-                            backgroundColor: const Color(0xFF6366F1),
-                            child: Text(
-                              channelName[0].toUpperCase(),
-                              style: GoogleFonts.roboto(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              channelName,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.roboto(
-                                color: isDarkMode
-                                    ? Colors.white
-                                    : AppColors.textPrimary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }).toList(),
-          child: Container(
-            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: isDarkMode
-                  ? AppTheme.colors.surface
-                  : const Color(0xFFF1F5F9),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isDarkMode
-                    ? const Color(0xFF374151)
-                    : AppColors.bgDivider,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: const Color(0xFF6366F1),
-                  child: Icon(
-                    Icons.workspaces_rounded,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  color: isDarkMode ? Colors.white : AppColors.textPrimary,
-                  size: 18,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 
   // Google Account Selector Widget
   Widget _buildGoogleAccountSelector(bool isDarkMode) {
@@ -973,10 +818,10 @@ class _DashboardScreenState extends State<DashboardScreen>
       return Tooltip(
         message: 'Sign in with Google',
         child: Material(
-          color: Colors.white,
+          color: AppColors.textPrimary,
           borderRadius: BorderRadius.circular(20),
           elevation: 2,
-          shadowColor: Colors.black.withValues(alpha: 0.1),
+          shadowColor: AppColors.bgPage.withValues(alpha: 0.1),
           child: InkWell(
             borderRadius: BorderRadius.circular(20),
             onTap: () {
@@ -984,7 +829,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               _handleGoogleSignIn();
             },
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -994,9 +839,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                     height: 18,
                   ),
                   const SizedBox(width: 8),
-                  Text(
+                  const Text(
                     'Sign in',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: AppColors.textPrimary,
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
@@ -1015,13 +860,12 @@ class _DashboardScreenState extends State<DashboardScreen>
       tooltip: 'Account',
       offset: const Offset(0, 50),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      color: isDarkMode ? AppColors.textPrimary : Colors.white,
+      color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
       onSelected: (value) {
         HapticFeedback.lightImpact();
         switch (value) {
           case 'signout':
             _handleSignOut();
-            break;
         }
       },
       itemBuilder: (context) => [
@@ -1043,8 +887,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                         ? Text(
                             (AuthService.to.activeDisplayName.isNotEmpty ? AuthService.to.activeDisplayName : (user.email ?? 'U'))[0]
                                 .toUpperCase(),
-                            style: GoogleFonts.roboto(
-                              color: Colors.white,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
                               fontWeight: FontWeight.bold,
                               fontSize: 16,
                             ),
@@ -1059,9 +903,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         Text(
                           AuthService.to.activeDisplayName.isNotEmpty ? AuthService.to.activeDisplayName : 'User',
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             color: isDarkMode
-                                ? Colors.white
+                                ? AppColors.textPrimary
                                 : AppColors.textPrimary,
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -1071,9 +915,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                         Text(
                           user.email ?? '',
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             color: isDarkMode
-                                ? Colors.white60
+                                ? AppColors.textSecondary
                                 : AppColors.textSecondary,
                             fontSize: 12,
                           ),
@@ -1095,7 +939,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         ),
       ],
       child: Container(
-        padding: EdgeInsets.all(4),
+        padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
           color: isDarkMode ? AppTheme.colors.surface : const Color(0xFFF1F5F9),
           borderRadius: BorderRadius.circular(50),
@@ -1115,8 +959,8 @@ class _DashboardScreenState extends State<DashboardScreen>
           child: AuthService.to.activePhotoUrl.isEmpty
               ? Text(
                   (AuthService.to.activeDisplayName.isNotEmpty ? AuthService.to.activeDisplayName : (user.email ?? 'U'))[0].toUpperCase(),
-                  style: GoogleFonts.roboto(
-                    color: Colors.white,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
@@ -1139,8 +983,8 @@ class _DashboardScreenState extends State<DashboardScreen>
           'Signed in as ${user.email}',
           snackPosition: SnackPosition.BOTTOM,
           backgroundColor: const Color(0xFF10B981),
-          colorText: Colors.white,
-          margin: EdgeInsets.all(16),
+          colorText: AppColors.textPrimary,
+          margin: const EdgeInsets.all(16),
           borderRadius: 8,
         );
         await _selectDefaultChannel();
@@ -1149,7 +993,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
     } catch (e) {
       isSelectingDefault.value = false;
-      String message = 'Failed to sign in';
+      var message = 'Failed to sign in';
       if (e is GoogleSignInException) {
         message = e.getDisplayMessage();
       }
@@ -1159,8 +1003,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         message,
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: const Color(0xFFEF4444),
-        colorText: Colors.white,
-        margin: EdgeInsets.all(16),
+        colorText: AppColors.textPrimary,
+        margin: const EdgeInsets.all(16),
         borderRadius: 8,
       );
     }
@@ -1177,8 +1021,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         'You have been successfully signed out',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.blueGrey[800],
-        colorText: Colors.white,
-        margin: EdgeInsets.all(16),
+        colorText: AppColors.textPrimary,
+        margin: const EdgeInsets.all(16),
         borderRadius: 8,
       );
     } catch (e) {
@@ -1187,8 +1031,8 @@ class _DashboardScreenState extends State<DashboardScreen>
         'Failed to sign out: $e',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: const Color(0xFFEF4444),
-        colorText: Colors.white,
-        margin: EdgeInsets.all(16),
+        colorText: AppColors.textPrimary,
+        margin: const EdgeInsets.all(16),
         borderRadius: 8,
       );
     }
@@ -1201,11 +1045,10 @@ class _DashboardScreenState extends State<DashboardScreen>
         return Container(
           width: controller.isDrawerExpanded.value ? 280 : 80,
           decoration: BoxDecoration(
-            color: isDarkMode ? AppColors.bgInput : Colors.white,
+            color: isDarkMode ? AppColors.bgInput : AppColors.textPrimary,
             border: Border(
               right: BorderSide(
-                color: isDarkMode ? Color(0xFF374151) : AppColors.bgDivider,
-                width: 1,
+                color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
               ),
             ),
           ),
@@ -1223,14 +1066,14 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildSidebarHeader(bool isDarkMode) {
     return Obx(
       () => Container(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: controller.isDrawerExpanded.value
             ? Row(
                 children: [
                   IconButton(
                     icon: Icon(
                       Icons.chevron_left_rounded,
-                      color: isDarkMode ? Colors.white60 : AppColors.textSecondary,
+                      color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
                     ),
                     onPressed: () {
                       controller.toggleDrawer();
@@ -1243,7 +1086,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 child: IconButton(
                   icon: Icon(
                     Icons.chevron_right_rounded,
-                    color: isDarkMode ? Colors.white60 : AppColors.textSecondary,
+                    color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
                   ),
                   onPressed: () {
                     controller.toggleDrawer();
@@ -1261,44 +1104,44 @@ class _DashboardScreenState extends State<DashboardScreen>
       {
         'icon': Icons.grid_view_rounded,
         'label': 'Studio Home',
-        'color': Color(0xFF6366F1),
+        'color': const Color(0xFF6366F1),
         'action': 'select',
         'target': 1,
       },
       {
         'icon': Icons.video_library_rounded,
         'label': 'Content',
-        'color': Color(0xFF10B981),
+        'color': const Color(0xFF10B981),
         'action': 'select',
         'target': 2,
       },
       {
         'icon': Icons.upload_rounded,
         'label': 'Upload',
-        'color': Color(0xFFF59E0B),
+        'color': const Color(0xFFF59E0B),
         'action': 'route',
-        'route': '/uploadscreen',
+        'route': '/upload',
       },
 
       // Analytics & Engagement
       {
         'icon': Icons.insights_rounded,
         'label': 'Analytics',
-        'color': Color(0xFF3B82F6),
+        'color': const Color(0xFF3B82F6),
         'action': 'select',
         'target': 3,
       },
       {
         'icon': Icons.forum_rounded,
         'label': 'Comments',
-        'color': Color(0xFF8B5CF6),
+        'color': const Color(0xFF8B5CF6),
         'action': 'select',
         'target': 4,
       },
       {
         'icon': Icons.people_rounded,
         'label': 'Audience',
-        'color': Color(0xFF14B8A6),
+        'color': const Color(0xFF14B8A6),
         'action': 'select',
         'target': 12,
       },
@@ -1307,14 +1150,14 @@ class _DashboardScreenState extends State<DashboardScreen>
       {
         'icon': Icons.attach_money_rounded,
         'label': 'Earnings',
-        'color': Color(0xFF059669),
+        'color': const Color(0xFF059669),
         'action': 'select',
         'target': 5,
       },
       {
         'icon': Icons.copyright_rounded,
         'label': 'Copyright',
-        'color': Color(0xFFDC2626),
+        'color': const Color(0xFFDC2626),
         'target': 9,
       },
 
@@ -1322,50 +1165,64 @@ class _DashboardScreenState extends State<DashboardScreen>
       {
         'icon': Icons.spatial_audio_rounded,
         'label': 'Audio Tracks & Dubs',
-        'color': Color(0xFF10B981),
+        'color': const Color(0xFF10B981),
         'action': 'select',
         'target': 7,
       },
       {
         'icon': Icons.color_lens_rounded,
         'label': 'Customization',
-        'color': Color(0xFFEC4899),
+        'color': const Color(0xFFEC4899),
         'action': 'select',
         'target': 6,
       },
       {
         'icon': Icons.edit_note_rounded,
         'label': 'Subtitles',
-        'color': Color(0xFF7C3AED),
+        'color': const Color(0xFF7C3AED),
         'action': 'select',
         'target': 10,
       },
       {
         'icon': Icons.star_rounded,
         'label': 'Video Ratings',
-        'color': Color(0xFFFF9800),
+        'color': const Color(0xFFFF9800),
         'action': 'select',
         'target': 13,
       },
       {
         'icon': Icons.topic_rounded,
         'label': 'Topics',
-        'color': Color(0xFFE11D48),
+        'color': const Color(0xFFE11D48),
         'action': 'select',
         'target': 14,
+      },
+      {
+        'icon': Icons.verified_user_rounded,
+        'label': 'Truth Verification',
+        'color': const Color(0xFF10B981),
+        'action': 'select',
+        'target': 15,
+      },
+      {
+        'icon': Icons.insights_rounded,
+        'label': 'Creator Intelligence',
+        'color': const Color(0xFF9B30FF),
+        'action': 'select',
+        'target': 16,
       },
     ];
 
     return ListView.builder(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       itemCount: menuItems.length + 2, // +2 for divider and settings
       itemBuilder: (context, index) {
         // Divider before settings
         if (index == menuItems.length) {
           return Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
+            padding: const EdgeInsets.symmetric(vertical: 12),
             child: Divider(
-              color: isDarkMode ? Color(0xFF374151) : Color(0xFFE5E7EB),
+              color: isDarkMode ? const Color(0xFF374151) : const Color(0xFFE5E7EB),
               thickness: 1,
               height: 1,
             ),
@@ -1377,7 +1234,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           return _buildSidebarItem(
             icon: Icons.settings_rounded,
             label: 'Settings',
-            color: Color(0xFF6B7280),
+            color: const Color(0xFF6B7280),
             isSelected: controller.selectedIndex.value == 8,
             onTap: () => controller.setSelectedIndex(8),
             isDarkMode: isDarkMode,
@@ -1387,12 +1244,12 @@ class _DashboardScreenState extends State<DashboardScreen>
         // Regular menu items: perform action based on item['action']
         final item = menuItems[index];
         final action = item['action'] as String? ?? 'select';
-        final icon = item['icon'] as IconData;
-        final label = item['label'] as String;
-        final color = item['color'] as Color;
+        final icon = item['icon']! as IconData;
+        final label = item['label']! as String;
+        final color = item['color']! as Color;
 
         VoidCallback onTapCallback;
-        bool isSelected = false;
+        var isSelected = false;
 
         if (action == 'select') {
           final target = item['target'] as int? ?? (index + 1);
@@ -1439,7 +1296,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   }) {
     return Obx(
       () => Container(
-        margin: EdgeInsets.symmetric(vertical: 2),
+        margin: const EdgeInsets.symmetric(vertical: 2),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
@@ -1459,7 +1316,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
                 border: isSelected
-                    ? Border.all(color: color.withValues(alpha: 0.3), width: 1)
+                    ? Border.all(color: color.withValues(alpha: 0.3))
                     : null,
               ),
               child: controller.isDrawerExpanded.value
@@ -1470,19 +1327,19 @@ class _DashboardScreenState extends State<DashboardScreen>
                           color: isSelected
                               ? color
                               : (isDarkMode
-                                    ? Colors.white60
+                                    ? AppColors.textSecondary
                                     : AppColors.textSecondary),
                           size: 20,
                         ),
-                        SizedBox(width: 12),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             label,
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               color: isSelected
                                   ? color
                                   : (isDarkMode
-                                        ? Colors.white
+                                        ? AppColors.textPrimary
                                         : AppColors.textPrimary),
                               fontWeight: isSelected
                                   ? FontWeight.w500
@@ -1498,7 +1355,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                         icon,
                         color: isSelected
                             ? color
-                            : (isDarkMode ? Colors.white60 : AppColors.textSecondary),
+                            : (isDarkMode ? AppColors.textSecondary : AppColors.textSecondary),
                         size: 20,
                       ),
                     ),
@@ -1511,11 +1368,11 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   Widget _buildMobileDrawer(bool isDarkMode) {
     return Drawer(
-      backgroundColor: isDarkMode ? AppColors.bgInput : Colors.white,
+      backgroundColor: isDarkMode ? AppColors.bgInput : AppColors.textPrimary,
       child: Column(
         children: [
           DrawerHeader(
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               gradient: LinearGradient(
                 colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
                 begin: Alignment.topLeft,
@@ -1528,23 +1385,23 @@ class _DashboardScreenState extends State<DashboardScreen>
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
+                    color: AppColors.textPrimary.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.dashboard_rounded,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     size: 28,
                   ),
                 ),
-                SizedBox(width: 16),
-                Expanded(
+                const SizedBox(width: 16),
+                const Expanded(
                   child: Text(
                     'Creator Studio',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ),
@@ -1601,16 +1458,16 @@ class _DashboardScreenState extends State<DashboardScreen>
                 }
                 return _buildNoChannelSelected(isDarkMode);
               case 4:
-                return DashboardCommentsPage();
+                return const DashboardCommentsPage();
               case 5:
                 return MonetizationScreen(isDarkMode: isDarkMode);
               case 6:
                 final currentChannel = channel;
                 if (currentChannel != null) {
-                  final String channelId = currentChannel is Map
+                  final channelId = currentChannel is Map
                       ? (currentChannel['id'] ?? '') as String
                       : (currentChannel as DocumentSnapshot).id;
-                  final String ownerId = currentChannel is Map
+                  final ownerId = currentChannel is Map
                       ? (currentChannel['ownerId'] ?? '') as String
                       : ((currentChannel as DocumentSnapshot).data()
                               as Map<String, dynamic>?)?['ownerId'] as String? ??
@@ -1636,7 +1493,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 }
                 return _buildNoChannelSelected(isDarkMode);
               case 8:
-                return StudioSettingsPage();
+                return const StudioSettingsPage();
               case 9:
                 final currentChannel = channel;
                 if (currentChannel != null) {
@@ -1703,6 +1560,37 @@ class _DashboardScreenState extends State<DashboardScreen>
                   );
                 }
                 return _buildNoChannelSelected(isDarkMode);
+              case 15:
+                final currentChannel = channel;
+                if (currentChannel != null) {
+                  final channelId =
+                      (currentChannel is Map
+                              ? currentChannel['id']
+                              : (currentChannel as DocumentSnapshot).id)
+                          as String;
+                  return TruthVerificationDashboardPage(
+                    channelId: channelId,
+                    isDarkMode: isDarkMode,
+                  );
+                }
+                return _buildNoChannelSelected(isDarkMode);
+              case 16:
+                final currentChannel = channel;
+                if (currentChannel != null) {
+                  final channelId = currentChannel is Map
+                      ? (currentChannel['id'] ?? '') as String
+                      : (currentChannel as DocumentSnapshot).id;
+                  final ownerId = currentChannel is Map
+                      ? (currentChannel['ownerId'] ?? '') as String
+                      : ((currentChannel as DocumentSnapshot).data()
+                              as Map<String, dynamic>?)?['ownerId'] as String? ??
+                          '';
+                  return CreatorIntelligencePage(
+                    channelId: channelId,
+                    creatorId: ownerId,
+                  );
+                }
+                return _buildNoChannelSelected(isDarkMode);
               default:
                 return _buildDashboardContent(isDarkMode);
             }
@@ -1723,8 +1611,8 @@ class _DashboardScreenState extends State<DashboardScreen>
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  Color(0xFF6366F1).withValues(alpha: 0.2),
-                  Color(0xFF8B5CF6).withValues(alpha: 0.1),
+                  const Color(0xFF6366F1).withValues(alpha: 0.2),
+                  const Color(0xFF8B5CF6).withValues(alpha: 0.1),
                 ],
               ),
               borderRadius: BorderRadius.circular(isMobile ? 60 : 80),
@@ -1732,24 +1620,24 @@ class _DashboardScreenState extends State<DashboardScreen>
             child: Icon(
               Icons.info_outline_rounded,
               size: isMobile ? 60 : 80,
-              color: Color(0xFF6366F1),
+              color: const Color(0xFF6366F1),
             ),
           ),
           SizedBox(height: isMobile ? 24 : 32),
           Text(
             'No Channel Selected',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: isMobile ? 24 : 32,
               fontWeight: FontWeight.bold,
-              color: isDarkMode ? Colors.white : AppColors.textPrimary,
+              color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
             ),
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Text(
             'Please select a channel from the menu to continue.',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: isMobile ? 14 : 16,
-              color: isDarkMode ? Colors.white70 : AppColors.textSecondary,
+              color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
             ),
             textAlign: TextAlign.center,
           ),
@@ -1786,20 +1674,20 @@ class _DashboardScreenState extends State<DashboardScreen>
             if (controller.copyrightClaimsCount.value > 0) {
               return Column(
                 children: [
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
                   _buildChannelViolationsCard(isDarkMode),
                 ],
               );
             }
-            return SizedBox.shrink();
+            return const SizedBox.shrink();
           }),
-          SizedBox(height: 32),
+          const SizedBox(height: 32),
           _buildRecentPerformanceSection(isDarkMode),
-          SizedBox(height: 32),
+          const SizedBox(height: 32),
           _buildRecommendationsSection(isDarkMode),
-          SizedBox(height: 32),
+          const SizedBox(height: 32),
           _buildLatestContentSection(isDarkMode),
-          SizedBox(height: 32),
+          const SizedBox(height: 32),
           _buildQuickActionsSection(isDarkMode),
         ],
       ),
@@ -1807,15 +1695,15 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildImageVerificationBanner(bool isDarkMode, Channel channel) {
-    final List<Widget> banners = [];
+    final banners = <Widget>[];
 
     // Avatar status
-    if (channel.avatarStatus == "PENDING") {
+    if (channel.avatarStatus == 'PENDING') {
       banners.add(
         _buildVerificationAlertCard(
           isDarkMode: isDarkMode,
-          title: "Avatar Verification Pending",
-          subtitle: "Google Vision AI is currently validating your channel avatar image. This will complete in a few moments.",
+          title: 'Avatar Verification Pending',
+          subtitle: 'Google Vision AI is currently validating your channel avatar image. This will complete in a few moments.',
           color: const Color(0xFF3B82F6),
           icon: Icons.sync_rounded,
           isPending: true,
@@ -1827,37 +1715,37 @@ class _DashboardScreenState extends State<DashboardScreen>
                 'updatedAt': DateTime.now().millisecondsSinceEpoch,
               });
               if (channel.avatarFileId != null && channel.avatarFileId!.isNotEmpty) {
-                await FirebaseFirestore.instance.collection('image_verification').doc(channel.avatarFileId!).set({
+                await FirebaseFirestore.instance.collection('image_verification').doc(channel.avatarFileId).set({
                   'status': 'APPROVED',
                   'reason': 'Bypassed in local/debug environment.',
                   'category': 'avatar',
                   'processedAt': FieldValue.serverTimestamp(),
                 }, SetOptions(merge: true));
               }
-              Get.snackbar("Bypassed", "Avatar approved successfully.", backgroundColor: Colors.green, colorText: Colors.white);
+              Get.snackbar('Bypassed', 'Avatar approved successfully.', backgroundColor: AppColors.success, colorText: AppColors.textPrimary);
             } catch (e) {
-              Get.snackbar("Error", e.toString(), backgroundColor: Colors.red, colorText: Colors.white);
+              Get.snackbar('Error', e.toString(), backgroundColor: AppColors.error, colorText: AppColors.textPrimary);
             }
           },
         ),
       );
-    } else if (channel.avatarStatus == "REJECTED") {
+    } else if (channel.avatarStatus == 'REJECTED') {
       banners.add(
         _buildVerificationAlertCard(
           isDarkMode: isDarkMode,
-          title: "Avatar Image Rejected",
-          subtitle: "Your uploaded avatar image did not pass our automated content verification guidelines. Please go to Customization to upload a new one.",
+          title: 'Avatar Image Rejected',
+          subtitle: 'Your uploaded avatar image did not pass our automated content verification guidelines. Please go to Customization to upload a new one.',
           color: const Color(0xFFEF4444),
           icon: Icons.error_outline_rounded,
           showCustomizationButton: true,
         ),
       );
-    } else if (channel.avatarStatus == "FLAGGED") {
+    } else if (channel.avatarStatus == 'FLAGGED') {
       banners.add(
         _buildVerificationAlertCard(
           isDarkMode: isDarkMode,
-          title: "Avatar Review Needed",
-          subtitle: "Your avatar image was flagged for potential guidelines violations. It is currently queued for manual review.",
+          title: 'Avatar Review Needed',
+          subtitle: 'Your avatar image was flagged for potential guidelines violations. It is currently queued for manual review.',
           color: const Color(0xFFF59E0B),
           icon: Icons.warning_amber_rounded,
           showCustomizationButton: true,
@@ -1866,12 +1754,12 @@ class _DashboardScreenState extends State<DashboardScreen>
     }
 
     // Banner status
-    if (channel.bannerStatus == "PENDING") {
+    if (channel.bannerStatus == 'PENDING') {
       banners.add(
         _buildVerificationAlertCard(
           isDarkMode: isDarkMode,
-          title: "Banner Verification Pending",
-          subtitle: "Google Vision AI is currently validating your channel banner image. This will complete in a few moments.",
+          title: 'Banner Verification Pending',
+          subtitle: 'Google Vision AI is currently validating your channel banner image. This will complete in a few moments.',
           color: const Color(0xFF3B82F6),
           icon: Icons.sync_rounded,
           isPending: true,
@@ -1883,37 +1771,37 @@ class _DashboardScreenState extends State<DashboardScreen>
                 'updatedAt': DateTime.now().millisecondsSinceEpoch,
               });
               if (channel.bannerFileId != null && channel.bannerFileId!.isNotEmpty) {
-                await FirebaseFirestore.instance.collection('image_verification').doc(channel.bannerFileId!).set({
+                await FirebaseFirestore.instance.collection('image_verification').doc(channel.bannerFileId).set({
                   'status': 'APPROVED',
                   'reason': 'Bypassed in local/debug environment.',
                   'category': 'banner',
                   'processedAt': FieldValue.serverTimestamp(),
                 }, SetOptions(merge: true));
               }
-              Get.snackbar("Bypassed", "Banner approved successfully.", backgroundColor: Colors.green, colorText: Colors.white);
+              Get.snackbar('Bypassed', 'Banner approved successfully.', backgroundColor: AppColors.success, colorText: AppColors.textPrimary);
             } catch (e) {
-              Get.snackbar("Error", e.toString(), backgroundColor: Colors.red, colorText: Colors.white);
+              Get.snackbar('Error', e.toString(), backgroundColor: AppColors.error, colorText: AppColors.textPrimary);
             }
           },
         ),
       );
-    } else if (channel.bannerStatus == "REJECTED") {
+    } else if (channel.bannerStatus == 'REJECTED') {
       banners.add(
         _buildVerificationAlertCard(
           isDarkMode: isDarkMode,
-          title: "Banner Image Rejected",
-          subtitle: "Your uploaded banner image did not pass our automated content verification guidelines. Please go to Customization to upload a new one.",
+          title: 'Banner Image Rejected',
+          subtitle: 'Your uploaded banner image did not pass our automated content verification guidelines. Please go to Customization to upload a new one.',
           color: const Color(0xFFEF4444),
           icon: Icons.error_outline_rounded,
           showCustomizationButton: true,
         ),
       );
-    } else if (channel.bannerStatus == "FLAGGED") {
+    } else if (channel.bannerStatus == 'FLAGGED') {
       banners.add(
         _buildVerificationAlertCard(
           isDarkMode: isDarkMode,
-          title: "Banner Review Needed",
-          subtitle: "Your banner image was flagged for potential guidelines violations. It is currently queued for manual review.",
+          title: 'Banner Review Needed',
+          subtitle: 'Your banner image was flagged for potential guidelines violations. It is currently queued for manual review.',
           color: const Color(0xFFF59E0B),
           icon: Icons.warning_amber_rounded,
           showCustomizationButton: true,
@@ -1974,7 +1862,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: color,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -1983,8 +1871,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                 const SizedBox(height: 6),
                 Text(
                   subtitle,
-                  style: GoogleFonts.roboto(
-                    color: isDarkMode ? Colors.white70 : AppColors.textSecondary,
+                  style: TextStyle(
+                    color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
                     fontSize: 14,
                     height: 1.4,
                   ),
@@ -1999,7 +1887,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     label: const Text('Go to Customization'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: color,
-                      foregroundColor: Colors.white,
+                      foregroundColor: AppColors.textPrimary,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -2015,8 +1903,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                     icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
                     label: const Text('Bypass Verification (Local Dev/Test)'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
+                      backgroundColor: AppColors.success,
+                      foregroundColor: AppColors.textPrimary,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -2037,19 +1925,18 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildChannelViolationsCard(bool isDarkMode) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDarkMode ? AppTheme.colors.surface : Colors.white,
+        color: isDarkMode ? AppTheme.colors.surface : AppColors.textPrimary,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: AppColors.error.withValues(alpha: 0.5),
-          width: 1,
         ),
         boxShadow: [
           BoxShadow(
             color: AppColors.error.withValues(alpha: 0.05),
             blurRadius: 10,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -2058,43 +1945,43 @@ class _DashboardScreenState extends State<DashboardScreen>
         children: [
           Row(
             children: [
-              Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 24),
-              SizedBox(width: 12),
+              const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 24),
+              const SizedBox(width: 12),
               Text(
                 'Channel violations',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: isDarkMode ? Colors.white : AppColors.textPrimary,
+                  color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
                 ),
               ),
             ],
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Text(
             'Copyright claims',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w600,
-              color: isDarkMode ? Colors.white : AppColors.textPrimary,
+              color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
             ),
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
             'Your channel has ${controller.copyrightClaimsCount.value} active copyright claims. This may affect your visibility or monetization.',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 14,
-              color: isDarkMode ? Colors.white70 : AppColors.textSecondary,
+              color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
             ),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           InkWell(
             onTap: () {
               controller.selectedIndex.value = 9; // Navigate to Copyright Screen
             },
-            child: Text(
+            child: const Text(
               'VIEW DETAILS',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
                 color: AppColors.brand,
@@ -2119,18 +2006,18 @@ class _DashboardScreenState extends State<DashboardScreen>
                 children: [
                   Text(
                     'Channel Overview',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: isMobile ? 24 : 32,
                       fontWeight: FontWeight.bold,
-                      color: isDarkMode ? Colors.white : AppColors.textPrimary,
+                      color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
                     ),
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text(
                     'Last 28 days',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 14,
-                      color: isDarkMode ? Colors.white70 : AppColors.textSecondary,
+                      color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
                     ),
                   ),
                 ],
@@ -2138,9 +2025,9 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
             if (channel != null)
               Container(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
+                  gradient: const LinearGradient(
                     colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
                   ),
                   borderRadius: BorderRadius.circular(20),
@@ -2148,16 +2035,16 @@ class _DashboardScreenState extends State<DashboardScreen>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.verified_rounded, color: Colors.white, size: 16),
-                    SizedBox(width: 8),
+                    const Icon(Icons.verified_rounded, color: AppColors.textPrimary, size: 16),
+                    const SizedBox(width: 8),
                     Text(
                       (channel is Map
                               ? (channel['channelName'] ?? channel['name'])
                               : (channel as DocumentSnapshot)['name'] ??
                                   (channel as DocumentSnapshot)['channelName']) ??
                           'Unknown Channel',
-                      style: GoogleFonts.roboto(
-                        color: Colors.white,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
                         fontWeight: FontWeight.w500,
                         fontSize: 14,
                       ),
@@ -2168,7 +2055,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           ],
         ),
         if (isMobile) ...[
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           _buildMobileSearchField(isDarkMode),
         ],
       ],
@@ -2184,7 +2071,7 @@ class _DashboardScreenState extends State<DashboardScreen>
     IconData icon;
     String title;
     String subtitle;
-    bool showButton = false;
+    var showButton = false;
 
     if (channel.status == ChannelStatus.underReview) {
       bannerColor = const Color(0xFF3B82F6); // Blue
@@ -2235,7 +2122,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: bannerColor,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -2244,8 +2131,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                 const SizedBox(height: 6),
                 Text(
                   subtitle,
-                  style: GoogleFonts.roboto(
-                    color: isDarkMode ? Colors.white70 : AppColors.textSecondary,
+                  style: TextStyle(
+                    color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
                     fontSize: 14,
                     height: 1.4,
                   ),
@@ -2263,7 +2150,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     label: const Text('Review Community Guidelines'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: bannerColor,
-                      foregroundColor: Colors.white,
+                      foregroundColor: AppColors.textPrimary,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -2281,7 +2168,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildApprovalBanner(bool isDarkMode) {
-    final bannerColor = const Color(0xFF10B981); // Emerald green
+    const bannerColor = Color(0xFF10B981); // Emerald green
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 24),
@@ -2297,16 +2184,16 @@ class _DashboardScreenState extends State<DashboardScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.check_circle_outline_rounded, color: bannerColor, size: 28),
+          const Icon(Icons.check_circle_outline_rounded, color: bannerColor, size: 28),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
+                const Text(
                   'Branding Approved by Gemini AI!',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: bannerColor,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -2315,8 +2202,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                 const SizedBox(height: 6),
                 Text(
                   'Congratulations! Your channel details are approved. You can now customize your channel and upload videos.',
-                  style: GoogleFonts.roboto(
-                    color: isDarkMode ? Colors.white70 : AppColors.textSecondary,
+                  style: TextStyle(
+                    color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
                     fontSize: 14,
                     height: 1.4,
                   ),
@@ -2329,7 +2216,7 @@ class _DashboardScreenState extends State<DashboardScreen>
               controller.showApprovalBanner.value = false;
             },
             icon: const Icon(Icons.close_rounded),
-            color: isDarkMode ? Colors.white54 : Colors.black54,
+            color: isDarkMode ? AppColors.textSecondary : AppColors.bgPage54,
             iconSize: 20,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
@@ -2343,32 +2230,47 @@ class _DashboardScreenState extends State<DashboardScreen>
     return Container(
       height: 48,
       decoration: BoxDecoration(
-        color: isDarkMode ? AppTheme.colors.surface : Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(24),
+        color: AppColors.bgSurfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(AppTokens.radius.lg),
         border: Border.all(
-          color: isDarkMode ? Color(0xFF374151) : AppColors.bgDivider,
+          color: AppColors.bgSurfaceContainerHighest,
         ),
       ),
       child: TextField(
         controller: _searchController,
-        style: GoogleFonts.roboto(
-          color: isDarkMode ? Colors.white : AppColors.textPrimary,
+        style: TextStyle(
+          color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
           fontSize: 14,
         ),
+        onChanged: (value) {
+          controller.setSearchQuery(value);
+        },
         decoration: InputDecoration(
           hintText: 'Search your content...',
-          hintStyle: GoogleFonts.roboto(
-            color: isDarkMode ? Colors.white60 : AppColors.textSecondary,
+          hintStyle: TextStyle(
+            color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
           ),
           prefixIcon: Icon(
             Icons.search_rounded,
-            color: isDarkMode ? Colors.white60 : AppColors.textSecondary,
+            color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
             size: 20,
           ),
+          suffixIcon: Obx(() => controller.searchQuery.value.isNotEmpty
+              ? IconButton(
+                  icon: Icon(
+                    Icons.clear_rounded,
+                    color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                    size: 18,
+                  ),
+                  onPressed: () {
+                    _searchController.clear();
+                    controller.setSearchQuery('');
+                  },
+                )
+              : const SizedBox.shrink()),
           border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),
-        onChanged: (value) => controller.setSearchQuery(value),
       ),
     );
   }
@@ -2387,12 +2289,105 @@ class _DashboardScreenState extends State<DashboardScreen>
                 return _buildStatsLoadingGrid(isDarkMode);
               }
 
+              if (isMobile) {
+                return Column(
+                  children: [
+                    _buildStatCard(
+                      'Views',
+                      controller.channelStats['views'] ?? '0',
+                      controller.channelStats['viewsChange'] ?? '+0%',
+                      Icons.visibility_rounded,
+                      const Color(0xFF10B981),
+                      isDarkMode,
+                      onTap: () {
+                        final channelData = channel;
+                        if (channelData != null) {
+                          final channelId = (channelData is Map
+                              ? channelData['id']
+                              : (channelData as DocumentSnapshot).id) as String;
+                          final channelName = (channelData is Map
+                              ? channelData['channelName']
+                              : (channelData as DocumentSnapshot)['channelName']) as String? ?? 'My Channel';
+                          
+                          Get.to(() => const ViewsPage(), arguments: {
+                            'channelId': channelId,
+                            'channelName': channelName,
+                            'viewsChange': controller.channelStats['viewsChange'] ?? '+0%',
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildStatCard(
+                      'Watch Time',
+                      controller.channelStats['watchTime'] ?? '0h',
+                      controller.channelStats['watchTimeChange'] ?? '+0%',
+                      Icons.timer_rounded,
+                      const Color(0xFF3B82F6),
+                      isDarkMode,
+                      onTap: () {
+                        final channelData = channel;
+                        if (channelData != null) {
+                          final channelId = (channelData is Map
+                              ? channelData['id']
+                              : (channelData as DocumentSnapshot).id) as String;
+                          final channelName = (channelData is Map
+                              ? channelData['channelName']
+                              : (channelData as DocumentSnapshot)['channelName']) as String? ?? 'My Channel';
+                          
+                          Get.to(() => const WatchTimePage(), arguments: {
+                            'channelId': channelId,
+                            'channelName': channelName,
+                            'watchTimeChange': controller.channelStats['watchTimeChange'] ?? '+0%',
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildStatCard(
+                      'Subscribers',
+                      controller.channelStats['subscribers'] ?? '0',
+                      controller.channelStats['subscribersChange'] ?? '+0',
+                      Icons.people_rounded,
+                      const Color(0xFF8B5CF6),
+                      isDarkMode,
+                      onTap: () {
+                        final channelData = channel;
+                        if (channelData != null) {
+                          final channelId = (channelData is Map
+                              ? channelData['id']
+                              : (channelData as DocumentSnapshot).id) as String;
+                          final channelName = (channelData is Map
+                              ? channelData['channelName']
+                              : (channelData as DocumentSnapshot)['channelName']) as String? ?? 'My Channel';
+                          
+                          Get.to(() => const SubscribersPage(), arguments: {
+                            'channelId': channelId,
+                            'channelName': channelName,
+                            'subscribersChange': controller.channelStats['subscribersChange'] ?? '+0',
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    _buildStatCard(
+                      'Revenue',
+                      controller.channelStats['revenue'] ?? r'$0.00',
+                      controller.channelStats['revenueChange'] ?? r'+$0.00',
+                      Icons.attach_money_rounded,
+                      const Color(0xFFF59E0B),
+                      isDarkMode,
+                    ),
+                  ],
+                );
+              }
+
               return GridView.count(
                 crossAxisCount: isDesktop ? 4 : (isTablet ? 2 : 1),
                 crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
                 shrinkWrap: true,
-                physics: NeverScrollableScrollPhysics(),
+                physics: const NeverScrollableScrollPhysics(),
                 childAspectRatio: isDesktop ? 1.2 : (isTablet ? 1.5 : 2.5),
                 children: [
                   _buildStatCard(
@@ -2472,8 +2467,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
                   _buildStatCard(
                     'Revenue',
-                    controller.channelStats['revenue'] ?? '\$0.00',
-                    controller.channelStats['revenueChange'] ?? '+\$0.00',
+                    controller.channelStats['revenue'] ?? r'$0.00',
+                    controller.channelStats['revenueChange'] ?? r'+$0.00',
                     Icons.attach_money_rounded,
                     const Color(0xFFF59E0B),
                     isDarkMode,
@@ -2488,12 +2483,23 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildStatsLoadingGrid(bool isDarkMode) {
+    if (isMobile) {
+      return Column(
+        children: List.generate(
+          4,
+          (index) => Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: _buildStatCardSkeleton(isDarkMode),
+          ),
+        ),
+      );
+    }
     return GridView.count(
       crossAxisCount: isDesktop ? 4 : (isTablet ? 2 : 1),
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
       shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(),
       childAspectRatio: isDesktop ? 1.2 : (isTablet ? 1.5 : 2.5),
       children: List.generate(4, (index) => _buildStatCardSkeleton(isDarkMode)),
     );
@@ -2502,17 +2508,17 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildStatCardSkeleton(bool isDarkMode) {
     return Container(
       decoration: BoxDecoration(
-        color: isDarkMode ? AppTheme.colors.surface : Colors.white,
+        color: isDarkMode ? AppTheme.colors.surface : AppColors.textPrimary,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDarkMode ? Color(0xFF374151) : AppColors.bgDivider,
+          color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
         ),
       ),
       child: Shimmer.fromColors(
-        baseColor: isDarkMode ? Color(0xFF374151) : AppColors.bgDivider,
-        highlightColor: isDarkMode ? Color(0xFF4B5563) : Color(0xFFF1F5F9),
+        baseColor: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
+        highlightColor: isDarkMode ? const Color(0xFF4B5563) : const Color(0xFFF1F5F9),
         child: Padding(
-          padding: EdgeInsets.all(20),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -2523,7 +2529,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     width: 60,
                     height: 16,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
@@ -2531,27 +2537,27 @@ class _DashboardScreenState extends State<DashboardScreen>
                     width: 24,
                     height: 24,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ],
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Container(
                 width: 80,
                 height: 24,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               Container(
                 width: 50,
                 height: 16,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
@@ -2574,24 +2580,24 @@ class _DashboardScreenState extends State<DashboardScreen>
     final isPositive = change.startsWith('+');
 
     return TweenAnimationBuilder<double>(
-      duration: Duration(milliseconds: 600),
-      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 600),
+      tween: Tween(begin: 0, end: 1),
       builder: (context, animationValue, child) {
         return Transform.scale(
           scale: 0.8 + (0.2 * animationValue),
           child: Container(
             decoration: BoxDecoration(
-              color: isDarkMode ? AppTheme.colors.surface : Colors.white,
+              color: isDarkMode ? AppTheme.colors.surface : AppColors.textPrimary,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isDarkMode ? Color(0xFF374151) : AppColors.bgDivider,
+                color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
               ),
               boxShadow: [
                 BoxShadow(
                   color: isDarkMode ? Colors.black26 : Colors.black38,
                   blurRadius: 20,
                   spreadRadius: 2,
-                  offset: Offset(0, 4),
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
@@ -2604,7 +2610,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   if (onTap != null) onTap();
                 },
                 child: Padding(
-                  padding: EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(20),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -2613,16 +2619,16 @@ class _DashboardScreenState extends State<DashboardScreen>
                         children: [
                           Text(
                             title,
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               color: isDarkMode
-                                  ? Colors.white70
+                                  ? AppColors.textSecondary
                                   : AppColors.textSecondary,
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
                           Container(
-                            padding: EdgeInsets.all(8),
+                            padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
                               color: color.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
@@ -2631,27 +2637,27 @@ class _DashboardScreenState extends State<DashboardScreen>
                           ),
                         ],
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                       Text(
                         value,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: isMobile ? 20 : 24,
                           fontWeight: FontWeight.bold,
-                          color: isDarkMode ? Colors.white : AppColors.textPrimary,
+                          color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
                         ),
                       ),
-                      SizedBox(height: 12),
+                      const SizedBox(height: 12),
                       Row(
                         children: [
                           Container(
-                            padding: EdgeInsets.symmetric(
+                            padding: const EdgeInsets.symmetric(
                               horizontal: 6,
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
                               color: isPositive
-                                  ? Color(0xFF10B981).withValues(alpha: 0.1)
-                                  : Color(0xFFEF4444).withValues(alpha: 0.1),
+                                  ? const Color(0xFF10B981).withValues(alpha: 0.1)
+                                  : const Color(0xFFEF4444).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Row(
@@ -2663,16 +2669,16 @@ class _DashboardScreenState extends State<DashboardScreen>
                                       : Icons.trending_down_rounded,
                                   size: 14,
                                   color: isPositive
-                                      ? Color(0xFF10B981)
-                                      : Color(0xFFEF4444),
+                                      ? const Color(0xFF10B981)
+                                      : const Color(0xFFEF4444),
                                 ),
-                                SizedBox(width: 4),
+                                const SizedBox(width: 4),
                                 Text(
                                   change,
-                                  style: GoogleFonts.roboto(
+                                  style: TextStyle(
                                     color: isPositive
-                                        ? Color(0xFF10B981)
-                                        : Color(0xFFEF4444),
+                                        ? const Color(0xFF10B981)
+                                        : const Color(0xFFEF4444),
                                     fontSize: 12,
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -2709,29 +2715,29 @@ class _DashboardScreenState extends State<DashboardScreen>
                   children: [
                     Text(
                       'Recent Performance',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: isMobile ? 20 : 24,
                         fontWeight: FontWeight.bold,
-                        color: isDarkMode ? Colors.white : AppColors.textPrimary,
+                        color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
                       ),
                     ),
                     Container(
-                      padding: EdgeInsets.symmetric(
+                      padding: const EdgeInsets.symmetric(
                         horizontal: 12,
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
                         color: isDarkMode
                             ? AppTheme.colors.surface
-                            : Color(0xFFF1F5F9),
+                            : const Color(0xFFF1F5F9),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
                           color: isDarkMode
-                              ? Color(0xFF374151)
+                              ? const Color(0xFF374151)
                               : AppColors.bgDivider,
                         ),
                       ),
-                      child: Row(
+                      child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
@@ -2742,7 +2748,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                           SizedBox(width: 6),
                           Text(
                             'Last 28 days',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               color: Color(0xFF6366F1),
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
@@ -2753,22 +2759,22 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ),
                   ],
                 ),
-                SizedBox(height: 20),
+                const SizedBox(height: 20),
                 Container(
                   height: 300,
-                  padding: EdgeInsets.all(20),
+                  padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: isDarkMode ? AppTheme.colors.surface : Colors.white,
+                    color: isDarkMode ? AppTheme.colors.surface : AppColors.textPrimary,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: isDarkMode ? Color(0xFF374151) : AppColors.bgDivider,
+                      color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
                     ),
                     boxShadow: [
                       BoxShadow(
                         color: isDarkMode ? Colors.black26 : Colors.black38,
                         blurRadius: 20,
                         spreadRadius: 2,
-                        offset: Offset(0, 4),
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
@@ -2787,9 +2793,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       if (controller.analyticsData.isEmpty) {
         return Center(
           child: Text(
-            "No analytics data yet.",
+            'No analytics data yet.',
             style: TextStyle(
-              color: isDarkMode ? Colors.white54 : Colors.black45,
+              color: isDarkMode ? AppColors.textSecondary : Colors.black45,
             ),
           ),
         );
@@ -2798,25 +2804,24 @@ class _DashboardScreenState extends State<DashboardScreen>
       return SfCartesianChart(
         plotAreaBorderWidth: 0,
         primaryXAxis: DateTimeAxis(
-          majorGridLines: MajorGridLines(width: 0),
+          majorGridLines: const MajorGridLines(width: 0),
           labelStyle: TextStyle(
-            color: isDarkMode ? Colors.white70 : AppColors.textSecondary,
+            color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
           ),
           axisLine: AxisLine(
-            width: 1,
-            color: isDarkMode ? Color(0xFF374151) : AppColors.bgDivider,
+            color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
           ),
         ),
         primaryYAxis: NumericAxis(
           labelStyle: TextStyle(
-            color: isDarkMode ? Colors.white70 : AppColors.textSecondary,
+            color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
           ),
-          axisLine: AxisLine(width: 0),
-          majorTickLines: MajorTickLines(width: 0),
+          axisLine: const AxisLine(width: 0),
+          majorTickLines: const MajorTickLines(width: 0),
           majorGridLines: MajorGridLines(
             width: 1,
-            color: isDarkMode ? Color(0xFF374151) : AppColors.bgDivider,
-            dashArray: [5, 5],
+            color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
+            dashArray: const [5, 5],
           ),
         ),
         tooltipBehavior: TooltipBehavior(enable: true),
@@ -2827,14 +2832,14 @@ class _DashboardScreenState extends State<DashboardScreen>
             yValueMapper: (AnalyticsData data, _) => data.views,
             gradient: LinearGradient(
               colors: [
-                Color(0xFF6366F1).withValues(alpha: 0.3),
-                Color(0xFF6366F1).withValues(alpha: 0.1),
+                const Color(0xFF6366F1).withValues(alpha: 0.3),
+                const Color(0xFF6366F1).withValues(alpha: 0.1),
               ],
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
             ),
             borderWidth: 3,
-            borderColor: Color(0xFF6366F1),
+            borderColor: const Color(0xFF6366F1),
             name: 'Views',
           ),
         ],
@@ -2849,7 +2854,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         'description':
             'A refreshed banner can increase your channel visibility by up to 25%',
         'icon': Icons.image_rounded,
-        'color': Color(0xFF10B981),
+        'color': const Color(0xFF10B981),
         'action': 'Update Now',
       },
       {
@@ -2857,7 +2862,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         'description':
             'Your recent video thumbnails can be improved to increase CTR',
         'icon': Icons.filter_rounded,
-        'color': Color(0xFF3B82F6),
+        'color': const Color(0xFF3B82F6),
         'action': 'Learn More',
       },
       {
@@ -2865,7 +2870,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         'description':
             'Try to maintain a consistent upload schedule for better engagement',
         'icon': Icons.schedule_rounded,
-        'color': Color(0xFFF59E0B),
+        'color': const Color(0xFFF59E0B),
         'action': 'Set Schedule',
       },
     ];
@@ -2875,13 +2880,13 @@ class _DashboardScreenState extends State<DashboardScreen>
       children: [
         Text(
           'Recommendations',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: isMobile ? 20 : 24,
             fontWeight: FontWeight.bold,
-            color: isDarkMode ? Colors.white : AppColors.textPrimary,
+            color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
           ),
         ),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
         GridView.builder(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: isDesktop ? 3 : (isTablet ? 2 : 1),
@@ -2890,13 +2895,13 @@ class _DashboardScreenState extends State<DashboardScreen>
             childAspectRatio: isDesktop ? 1.0 : (isTablet ? 1.2 : 1.5),
           ),
           shrinkWrap: true,
-          physics: NeverScrollableScrollPhysics(),
+          physics: const NeverScrollableScrollPhysics(),
           itemCount: recommendations.length,
           itemBuilder: (context, index) {
             final rec = recommendations[index];
             return TweenAnimationBuilder<double>(
               duration: Duration(milliseconds: 600 + (index * 200)),
-              tween: Tween(begin: 0.0, end: 1.0),
+              tween: Tween(begin: 0, end: 1),
               builder: (context, value, child) {
                 return Transform.translate(
                   offset: Offset(0, 50 * (1 - value)),
@@ -2919,17 +2924,17 @@ class _DashboardScreenState extends State<DashboardScreen>
   ) {
     return Container(
       decoration: BoxDecoration(
-        color: isDarkMode ? AppTheme.colors.surface : Colors.white,
+        color: isDarkMode ? AppTheme.colors.surface : AppColors.textPrimary,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDarkMode ? Color(0xFF374151) : AppColors.bgDivider,
+          color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
         ),
         boxShadow: [
           BoxShadow(
             color: isDarkMode ? Colors.black26 : Colors.black38,
             blurRadius: 20,
             spreadRadius: 2,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -2937,9 +2942,9 @@ class _DashboardScreenState extends State<DashboardScreen>
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => HapticFeedback.lightImpact(),
+          onTap: HapticFeedback.lightImpact,
           child: Padding(
-            padding: EdgeInsets.all(20),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -2958,43 +2963,43 @@ class _DashboardScreenState extends State<DashboardScreen>
                     size: 24,
                   ),
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 Text(
                   recommendation['title'] as String,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: isDarkMode ? Colors.white : AppColors.textPrimary,
+                    color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
                   ),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Expanded(
                   child: Text(
                     recommendation['description'] as String,
-                    style: GoogleFonts.roboto(
-                      color: isDarkMode ? Colors.white70 : AppColors.textSecondary,
+                    style: TextStyle(
+                      color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
                       fontSize: 14,
                       height: 1.4,
                     ),
                   ),
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () => HapticFeedback.lightImpact(),
+                    onPressed: HapticFeedback.lightImpact,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: recommendation['color'] as Color,
-                      foregroundColor: Colors.white,
+                      foregroundColor: AppColors.textPrimary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      padding: EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       elevation: 0,
                     ),
                     child: Text(
                       recommendation['action'] as String,
-                      style: GoogleFonts.roboto(
+                      style: const TextStyle(
                         fontWeight: FontWeight.w500,
                         fontSize: 14,
                       ),
@@ -3018,22 +3023,22 @@ class _DashboardScreenState extends State<DashboardScreen>
           children: [
             Text(
               'Latest Content',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: isMobile ? 20 : 24,
                 fontWeight: FontWeight.bold,
-                color: isDarkMode ? Colors.white : AppColors.textPrimary,
+                color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
               ),
             ),
             TextButton.icon(
               onPressed: () => controller.setSelectedIndex(2),
-              icon: Icon(
+              icon: const Icon(
                 Icons.arrow_forward_rounded,
                 color: Color(0xFF6366F1),
                 size: 16,
               ),
-              label: Text(
+              label: const Text(
                 'View all',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   color: Color(0xFF6366F1),
                   fontWeight: FontWeight.w500,
                 ),
@@ -3041,27 +3046,27 @@ class _DashboardScreenState extends State<DashboardScreen>
             ),
           ],
         ),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
         Obx(() {
           final filtered = controller.filteredVideos;
           if (filtered.isEmpty) {
             return Center(
               child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 40),
+                padding: const EdgeInsets.symmetric(vertical: 40),
                 child: Column(
                   children: [
                     Icon(
                       Icons.search_off_rounded,
                       size: 48,
-                      color: isDarkMode ? Colors.white30 : Color(0xFFCBD5E1),
+                      color: isDarkMode ? AppColors.textTertiary : const Color(0xFFCBD5E1),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     Text(
                       controller.searchQuery.value.isEmpty
                           ? 'No content yet'
                           : 'No matching content found',
-                      style: GoogleFonts.roboto(
-                        color: isDarkMode ? Colors.white60 : AppColors.textSecondary,
+                      style: TextStyle(
+                        color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
                         fontSize: 16,
                       ),
                     ),
@@ -3072,14 +3077,14 @@ class _DashboardScreenState extends State<DashboardScreen>
           }
           return ListView.separated(
             shrinkWrap: true,
-            physics: NeverScrollableScrollPhysics(),
+            physics: const NeverScrollableScrollPhysics(),
             itemCount: filtered.length,
-            separatorBuilder: (context, index) => SizedBox(height: 16),
+            separatorBuilder: (context, index) => const SizedBox(height: 16),
             itemBuilder: (context, index) {
               final video = filtered[index];
               return TweenAnimationBuilder<double>(
                 duration: Duration(milliseconds: 400 + (index * 150)),
-                tween: Tween(begin: 0.0, end: 1.0),
+                tween: Tween(begin: 0, end: 1),
                 builder: (context, value, child) {
                   return Transform.translate(
                     offset: Offset(30 * (1 - value), 0),
@@ -3100,17 +3105,17 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildContentCard(Video video, bool isDarkMode) {
     return Container(
       decoration: BoxDecoration(
-        color: isDarkMode ? AppTheme.colors.surface : Colors.white,
+        color: isDarkMode ? AppTheme.colors.surface : AppColors.textPrimary,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDarkMode ? Color(0xFF374151) : AppColors.bgDivider,
+          color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
         ),
         boxShadow: [
           BoxShadow(
             color: isDarkMode ? Colors.black26 : Colors.black38,
             blurRadius: 20,
             spreadRadius: 2,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -3118,9 +3123,9 @@ class _DashboardScreenState extends State<DashboardScreen>
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () => HapticFeedback.lightImpact(),
+          onTap: HapticFeedback.lightImpact,
           child: Padding(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             child: Row(
               children: [
                 Container(
@@ -3128,7 +3133,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                   height: isMobile ? 68 : 90,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    color: isDarkMode ? Color(0xFF374151) : Color(0xFFF1F5F9),
+                    color: isDarkMode ? const Color(0xFF374151) : const Color(0xFFF1F5F9),
                   ),
                   child: Stack(
                     children: [
@@ -3139,26 +3144,26 @@ class _DashboardScreenState extends State<DashboardScreen>
                           width: double.infinity,
                           height: double.infinity,
                           fit: BoxFit.cover,
-                          placeholder: (context, url) => Container(
+                          placeholder: (context, url) => ColoredBox(
                             color: isDarkMode
-                                ? Color(0xFF374151)
-                                : Color(0xFFF1F5F9),
+                                ? const Color(0xFF374151)
+                                : const Color(0xFFF1F5F9),
                             child: Icon(
                               Icons.play_circle_outline_rounded,
                               color: isDarkMode
-                                  ? Colors.white60
+                                  ? AppColors.textSecondary
                                   : AppColors.textSecondary,
                               size: 32,
                             ),
                           ),
-                          errorWidget: (context, url, error) => Container(
+                          errorWidget: (context, url, error) => ColoredBox(
                             color: isDarkMode
-                                ? Color(0xFF374151)
-                                : Color(0xFFF1F5F9),
+                                ? const Color(0xFF374151)
+                                : const Color(0xFFF1F5F9),
                             child: Icon(
                               Icons.play_circle_outline_rounded,
                               color: isDarkMode
-                                  ? Colors.white60
+                                  ? AppColors.textSecondary
                                   : AppColors.textSecondary,
                               size: 32,
                             ),
@@ -3169,18 +3174,18 @@ class _DashboardScreenState extends State<DashboardScreen>
                         bottom: 8,
                         right: 8,
                         child: Container(
-                          padding: EdgeInsets.symmetric(
+                          padding: const EdgeInsets.symmetric(
                             horizontal: 6,
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.8),
+                            color: AppColors.bgPage.withValues(alpha: 0.8),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             video.duration,
-                            style: GoogleFonts.roboto(
-                              color: Colors.white,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
                               fontSize: 10,
                               fontWeight: FontWeight.w500,
                             ),
@@ -3190,58 +3195,58 @@ class _DashboardScreenState extends State<DashboardScreen>
                     ],
                   ),
                 ),
-                SizedBox(width: 16),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         video.title,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
-                          color: isDarkMode ? Colors.white : AppColors.textPrimary,
+                          color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
                           height: 1.3,
                         ),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Row(
                         children: [
                           Icon(
                             Icons.visibility_rounded,
                             size: 14,
                             color: isDarkMode
-                                ? Colors.white60
+                                ? AppColors.textSecondary
                                 : AppColors.textSecondary,
                           ),
-                          SizedBox(width: 4),
+                          const SizedBox(width: 4),
                           Text(
                             '${video.views} views',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               color: isDarkMode
-                                  ? Colors.white60
+                                  ? AppColors.textSecondary
                                   : AppColors.textSecondary,
                               fontSize: 12,
                             ),
                           ),
-                          SizedBox(width: 12),
+                          const SizedBox(width: 12),
                           Icon(
                             Icons.access_time_rounded,
                             size: 14,
                             color: isDarkMode
-                                ? Colors.white60
+                                ? AppColors.textSecondary
                                 : AppColors.textSecondary,
                           ),
-                          SizedBox(width: 4),
+                          const SizedBox(width: 4),
                           Text(
                             DateFormat(
                               'MMM d, yyyy',
                             ).format(video.uploadedAt.toDate()),
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               color: isDarkMode
-                                  ? Colors.white60
+                                  ? AppColors.textSecondary
                                   : AppColors.textSecondary,
                               fontSize: 12,
                             ),
@@ -3253,7 +3258,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 ),
                 Icon(
                   Icons.more_vert_rounded,
-                  color: isDarkMode ? Colors.white60 : AppColors.textSecondary,
+                  color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
                   size: 20,
                 ),
               ],
@@ -3269,25 +3274,25 @@ class _DashboardScreenState extends State<DashboardScreen>
       {
         'title': 'Upload Video',
         'icon': Icons.cloud_upload_rounded,
-        'color': Color(0xFF10B981),
-        'onTap': () => Get.toNamed('/uploadscreen'),
+        'color': const Color(0xFF10B981),
+        'onTap': () => Get.toNamed('/upload'),
       },
       {
         'title': 'Go Live',
         'icon': Icons.videocam_rounded,
-        'color': Color(0xFFEF4444),
+        'color': const Color(0xFFEF4444),
         'onTap': () => Get.toNamed('/live'),
       },
       {
         'title': 'Create Post',
         'icon': Icons.edit_rounded,
-        'color': Color(0xFF3B82F6),
+        'color': const Color(0xFF3B82F6),
         'onTap': () => Get.toNamed('/create-post'),
       },
       {
         'title': 'View Analytics',
         'icon': Icons.bar_chart_rounded,
-        'color': Color(0xFF8B5CF6),
+        'color': const Color(0xFF8B5CF6),
         'onTap': () => controller.setSelectedIndex(3),
       },
     ];
@@ -3297,13 +3302,13 @@ class _DashboardScreenState extends State<DashboardScreen>
       children: [
         Text(
           'Quick Actions',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: isMobile ? 20 : 24,
             fontWeight: FontWeight.bold,
-            color: isDarkMode ? Colors.white : AppColors.textPrimary,
+            color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
           ),
         ),
-        SizedBox(height: 20),
+        const SizedBox(height: 20),
         GridView.builder(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: isDesktop ? 4 : (isTablet ? 2 : 2),
@@ -3312,13 +3317,13 @@ class _DashboardScreenState extends State<DashboardScreen>
             childAspectRatio: isDesktop ? 1.5 : (isTablet ? 1.8 : 1.5),
           ),
           shrinkWrap: true,
-          physics: NeverScrollableScrollPhysics(),
+          physics: const NeverScrollableScrollPhysics(),
           itemCount: actions.length,
           itemBuilder: (context, index) {
             final action = actions[index];
             return TweenAnimationBuilder<double>(
               duration: Duration(milliseconds: 400 + (index * 100)),
-              tween: Tween(begin: 0.0, end: 1.0),
+              tween: Tween(begin: 0, end: 1),
               builder: (context, value, child) {
                 return Transform.scale(
                   scale: 0.8 + (0.2 * value),
@@ -3338,17 +3343,17 @@ class _DashboardScreenState extends State<DashboardScreen>
   Widget _buildQuickActionCard(Map<String, dynamic> action, bool isDarkMode) {
     return Container(
       decoration: BoxDecoration(
-        color: isDarkMode ? AppTheme.colors.surface : Colors.white,
+        color: isDarkMode ? AppTheme.colors.surface : AppColors.textPrimary,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDarkMode ? Color(0xFF374151) : AppColors.bgDivider,
+          color: isDarkMode ? const Color(0xFF374151) : AppColors.bgDivider,
         ),
         boxShadow: [
           BoxShadow(
             color: isDarkMode ? Colors.black26 : Colors.black38,
             blurRadius: 20,
             spreadRadius: 2,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -3361,7 +3366,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             HapticFeedback.lightImpact();
           },
           child: Padding(
-            padding: EdgeInsets.all(20),
+            padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -3378,13 +3383,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                     size: 24,
                   ),
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 Text(
                   action['title'] as String,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: isDarkMode ? Colors.white : AppColors.textPrimary,
+                    color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -3403,7 +3408,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       backgroundColor: const Color(0xFF0D0014),
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -3413,20 +3418,20 @@ class _DashboardScreenState extends State<DashboardScreen>
                 size: 80,
               ),
               const SizedBox(height: 24),
-              Text(
+              const Text(
                 'Creator Studio',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(height: 12),
-              Text(
+              const Text(
                 'Please sign in to access your Creator Studio dashboard.',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 16,
-                  color: Colors.white70,
+                  color: AppColors.textSecondary,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -3440,7 +3445,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                 label: const Text('Sign In with Google'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6366F1),
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppColors.textPrimary,
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),

@@ -1,13 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 import 'package:truthworld/features/notifications/data/services/user_notification_service.dart';
 
-import 'package:truthworld/core/services/auth_service.dart';
-
 class MentionsHelper {
-  static final RegExp _mentionRegExp = RegExp(r'@([a-zA-Z0-9_-]+)');
+  static final RegExp _mentionRegExp = RegExp('@([a-zA-Z0-9_-]+)');
 
   /// Extracts unique lowercase handles from text without the @ prefix.
   static List<String> extractHandles(String text) {
@@ -52,8 +51,8 @@ class MentionsHelper {
 
           // Don't notify the user themselves
           if (ownerId != null && ownerId.isNotEmpty && ownerId != currentUserId) {
-            String title = '';
-            String message = '';
+            var title = '';
+            var message = '';
             
             if (commentId != null) {
               if (replyId != null) {

@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:truthworld/theme/app_theme.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
+import 'package:truthworld/theme/app_theme.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// 🏛 Source Credibility Section (v15.0)
 ///
@@ -23,16 +23,15 @@ class SourceCredibilityController extends GetxController {
 }
 
 class SourceCredibilitySection extends StatelessWidget {
-  final List<UISource> sources;
-  final List<ClaimResult> claims;
-  final bool isCompact;
 
   const SourceCredibilitySection({
-    super.key,
-    required this.sources,
+    required this.sources, super.key,
     this.claims = const [],
     this.isCompact = false,
   });
+  final List<UISource> sources;
+  final List<ClaimResult> claims;
+  final bool isCompact;
 
   int get _highCount => sources.where((s) {
     final lvl = s.trustLevel.toLowerCase();
@@ -85,10 +84,10 @@ class SourceCredibilitySection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'EVIDENCE SOURCES',
           style: TextStyle(
-            fontFamily: 'Roboto',
+            
             fontSize: 12,
             fontWeight: FontWeight.w700,
             color: AppColors.textTertiary,
@@ -133,18 +132,18 @@ class SourceCredibilitySection extends StatelessWidget {
                   children: [
                     Text(
                       '$_uniqueDomains',
-                      style: TextStyle(
-                        fontFamily: 'Roboto',
+                      style: const TextStyle(
+                        
                         fontSize: 24,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
+                    const Text(
                       'INDEPENDENT SOURCES',
                       style: TextStyle(
-                        fontFamily: 'Roboto',
+                        
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                         color: AppColors.textTertiary,
@@ -168,7 +167,7 @@ class SourceCredibilitySection extends StatelessWidget {
                       child: Text(
                         _diversityLabel.toUpperCase(),
                         style: TextStyle(
-                          fontFamily: 'Roboto',
+                          
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                           color: _diversityColor,
@@ -177,10 +176,10 @@ class SourceCredibilitySection extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
+                    const Text(
                       'Evidence Diversity',
                       style: TextStyle(
-                        fontFamily: 'Roboto',
+                        
                         fontSize: 11,
                         color: AppColors.textSecondary,
                       ),
@@ -195,11 +194,11 @@ class SourceCredibilitySection extends StatelessWidget {
             children: [
               Text(
                 '${sources.fold<int>(0, (sum, s) => sum + s.citationCount)}',
-                style: TextStyle(
-                  fontFamily: 'Roboto',
+                style: const TextStyle(
+                  
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
               Text(
@@ -229,7 +228,7 @@ class SourceCredibilitySection extends StatelessWidget {
         const SizedBox(width: 8),
         _buildQualityPill('MODERATE', _mediumCount, total, AppColors.warning),
         const SizedBox(width: 8),
-        _buildQualityPill('LIMITED', _lowCount, total, Colors.orangeAccent),
+        _buildQualityPill('LIMITED', _lowCount, total, AppColors.warning),
       ],
     );
   }
@@ -253,7 +252,7 @@ class SourceCredibilitySection extends StatelessWidget {
                 Text(
                   '$count',
                   style: TextStyle(
-                    fontFamily: 'Roboto',
+                    
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: color,
@@ -261,8 +260,8 @@ class SourceCredibilitySection extends StatelessWidget {
                 ),
                 Text(
                   '${(fraction * 100).toInt()}%',
-                  style: TextStyle(
-                    fontFamily: 'Roboto',
+                  style: const TextStyle(
+                    
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textTertiary,
@@ -276,7 +275,7 @@ class SourceCredibilitySection extends StatelessWidget {
               borderRadius: BorderRadius.circular(2),
               child: LinearProgressIndicator(
                 value: fraction,
-                backgroundColor: Colors.white.withValues(alpha: 0.05),
+                backgroundColor: AppColors.textPrimary.withValues(alpha: 0.05),
                 color: color.withValues(alpha: 0.6),
                 minHeight: 3,
               ),
@@ -318,9 +317,9 @@ class SourceCredibilitySection extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.02),
+        color: AppColors.textPrimary.withValues(alpha: 0.02),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.05)),
       ),
       child: Material(
         color: Colors.transparent,
@@ -352,17 +351,17 @@ class SourceCredibilitySection extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontFamily: 'Roboto',
+                          
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: Colors.white.withValues(alpha: 0.9),
+                          color: AppColors.textPrimary.withValues(alpha: 0.9),
                         ),
                       ),
                       const SizedBox(height: 2),
                       Row(
                         children: [
                           if (source.domain != null) ...[
-                            Icon(
+                            const Icon(
                               Icons.language,
                               size: 10,
                               color: AppColors.textTertiary,
@@ -370,8 +369,8 @@ class SourceCredibilitySection extends StatelessWidget {
                             const SizedBox(width: 4),
                             Text(
                               source.domain!,
-                              style: TextStyle(
-                                fontFamily: 'Roboto',
+                              style: const TextStyle(
+                                
                                 fontSize: 11,
                                 color: AppColors.textTertiary,
                               ),
@@ -386,7 +385,7 @@ class SourceCredibilitySection extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontFamily: 'Roboto',
+                                  
                                   fontSize: 11,
                                   color: AppColors.textTertiary.withValues(
                                     alpha: 0.6,
@@ -410,8 +409,8 @@ class SourceCredibilitySection extends StatelessWidget {
                     if (source.citationCount > 1)
                       Text(
                         '${source.citationCount} claims',
-                        style: TextStyle(
-                          fontFamily: 'Roboto',
+                        style: const TextStyle(
+                          
                           fontSize: 11,
                           color: AppColors.textTertiary,
                           fontWeight: FontWeight.w500,
@@ -458,7 +457,7 @@ class SourceCredibilitySection extends StatelessWidget {
       icon: const Icon(Icons.expand_more_rounded, size: 16),
       label: Text(
         'Show all ${sources.length} sources',
-        style: TextStyle(fontFamily: 'Roboto', fontSize: 12),
+        style: const TextStyle( fontSize: 12),
       ),
       style: TextButton.styleFrom(
         foregroundColor: AppColors.textTertiary,
@@ -471,9 +470,9 @@ class SourceCredibilitySection extends StatelessWidget {
     return TextButton.icon(
       onPressed: controller.toggleExpanded,
       icon: const Icon(Icons.expand_less_rounded, size: 16),
-      label: Text(
+      label: const Text(
         'Show fewer',
-        style: TextStyle(fontFamily: 'Roboto', fontSize: 12),
+        style: TextStyle( fontSize: 12),
       ),
       style: TextButton.styleFrom(
         foregroundColor: AppColors.textTertiary,

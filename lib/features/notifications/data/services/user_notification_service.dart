@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/features/notifications/data/models/user_notification.dart';
 
 class UserNotificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -24,7 +24,7 @@ class UserNotificationService {
         .limit(limit)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => UserNotification.fromDocumentSnapshot(doc))
+            .map(UserNotification.fromDocumentSnapshot)
             .toList());
   }
 

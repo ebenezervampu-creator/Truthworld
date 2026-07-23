@@ -1,23 +1,16 @@
-import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:timeago/timeago.dart' as timeago;
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/features/community/data/models/community_post_model.dart';
-import 'package:truthworld/theme/app_theme.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class CommunityPostReactionState {
-  final int likes;
-  final int dislikes;
-  final List<String> likedBy;
-  final List<String> dislikedBy;
-  final bool isLiked;
-  final bool isDisliked;
 
   const CommunityPostReactionState({
     required this.likes,
@@ -27,6 +20,12 @@ class CommunityPostReactionState {
     required this.isLiked,
     required this.isDisliked,
   });
+  final int likes;
+  final int dislikes;
+  final List<String> likedBy;
+  final List<String> dislikedBy;
+  final bool isLiked;
+  final bool isDisliked;
 }
 
 class CommunityPostCardReactionEngine {
@@ -104,24 +103,23 @@ class CommunityPostCardReactionEngine {
 }
 
 class CommunityPostCard extends StatefulWidget {
-  final CommunityPostModel post;
-  final VoidCallback? onTap;
-  final bool isFullWidth;
 
   const CommunityPostCard({
-    super.key,
-    required this.post,
+    required this.post, super.key,
     this.onTap,
     this.isFullWidth = true,
   });
+  final CommunityPostModel post;
+  final VoidCallback? onTap;
+  final bool isFullWidth;
 
   @override
   State<CommunityPostCard> createState() => _CommunityPostCardState();
 }
 
 class _CommunityPostCardState extends State<CommunityPostCard> {
-  int _currentPage = 0;
-  late CommunityPostReactionState _reactionState;
+  final RxInt _currentPage = 0.obs;
+  late final Rx<CommunityPostReactionState> _reactionState;
   int _commentCount = 0;
   List<Map<String, dynamic>> _comments = const [];
   final _commentController = TextEditingController();
@@ -130,7 +128,17 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
   @override
   void initState() {
     super.initState();
-    _syncFromPost();
+    final likedBy = List<String>.from(widget.post.likedBy);
+    final dislikedBy = List<String>.from(widget.post.dislikedBy);
+    _reactionState = CommunityPostReactionState(
+      likes: widget.post.likes,
+      dislikes: widget.post.dislikes,
+      likedBy: likedBy,
+      dislikedBy: dislikedBy,
+      isLiked: _currentUid != null && likedBy.contains(_currentUid),
+      isDisliked: _currentUid != null && dislikedBy.contains(_currentUid),
+    ).obs;
+    _commentCount = widget.post.commentCount;
   }
 
   @override
@@ -144,7 +152,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
   void _syncFromPost() {
     final likedBy = List<String>.from(widget.post.likedBy);
     final dislikedBy = List<String>.from(widget.post.dislikedBy);
-    _reactionState = CommunityPostReactionState(
+    _reactionState.value = CommunityPostReactionState(
       likes: widget.post.likes,
       dislikes: widget.post.dislikes,
       likedBy: likedBy,
@@ -157,13 +165,13 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
 
   Future<void> _toggleLike() async {
     if (_currentUid == null) {
-      Get.snackbar("Authentication Required", "Please sign in to like posts.");
+      Get.snackbar('Authentication Required', 'Please sign in to like posts.');
       return;
     }
 
-    final previousState = _reactionState;
-    final nextState = CommunityPostCardReactionEngine.toggleLike(previousState, _currentUid!);
-    setState(() => _reactionState = nextState);
+    final previousState = _reactionState.value;
+    final nextState = CommunityPostCardReactionEngine.toggleLike(previousState, _currentUid);
+    _reactionState.value = nextState;
 
     try {
       final docRef = FirebaseFirestore.instance.collection('Community').doc(widget.post.id);
@@ -189,20 +197,20 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
         await docRef.update(updates);
       }
     } catch (e) {
-      debugPrint("Error updating like status: $e");
-      setState(() => _reactionState = previousState);
+      debugPrint('Error updating like status: $e');
+      _reactionState.value = previousState;
     }
   }
 
   Future<void> _toggleDislike() async {
     if (_currentUid == null) {
-      Get.snackbar("Authentication Required", "Please sign in to dislike posts.");
+      Get.snackbar('Authentication Required', 'Please sign in to dislike posts.');
       return;
     }
 
-    final previousState = _reactionState;
-    final nextState = CommunityPostCardReactionEngine.toggleDislike(previousState, _currentUid!);
-    setState(() => _reactionState = nextState);
+    final previousState = _reactionState.value;
+    final nextState = CommunityPostCardReactionEngine.toggleDislike(previousState, _currentUid);
+    _reactionState.value = nextState;
 
     try {
       final docRef = FirebaseFirestore.instance.collection('Community').doc(widget.post.id);
@@ -228,8 +236,8 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
         await docRef.update(updates);
       }
     } catch (e) {
-      debugPrint("Error updating dislike status: $e");
-      setState(() => _reactionState = previousState);
+      debugPrint('Error updating dislike status: $e');
+      _reactionState.value = previousState;
     }
   }
 
@@ -237,7 +245,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
     final text = _commentController.text.trim();
     if (text.isEmpty) return;
     if (_currentUid == null) {
-      Get.snackbar("Authentication Required", "Please sign in to comment.");
+      Get.snackbar('Authentication Required', 'Please sign in to comment.');
       return;
     }
 
@@ -259,9 +267,9 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
         'commentCount': FieldValue.increment(1),
       });
 
-      Get.snackbar("Success", "Comment posted successfully!");
+      Get.snackbar('Success', 'Comment posted successfully!');
     } catch (e) {
-      Get.snackbar("Error", "Failed to post comment: $e");
+      Get.snackbar('Error', 'Failed to post comment: $e');
     }
   }
 
@@ -298,7 +306,6 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
             child: Row(
               children: [
                 UserAvatar(
-                  radius: 20,
                   photoUrl: widget.post.channelImage,
                   displayName: widget.post.channelName,
                   fontSize: 14,
@@ -310,16 +317,16 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                     children: [
                       Text(
                         widget.post.channelName,
-                        style: GoogleFonts.roboto(
+                        style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         timeStr,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 12,
                           color: AppTheme.colors.textSecondary,
                         ),
@@ -328,7 +335,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.more_vert, color: Colors.white),
+                  icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
                   onPressed: () {
                     // Show post options menu
                   },
@@ -344,9 +351,9 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
                 widget.post.description,
-                style: GoogleFonts.roboto(
+                style: const TextStyle(
                   fontSize: 14,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   height: 1.4,
                 ),
               ),
@@ -360,38 +367,40 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
           // Interaction buttons (Like, Dislike, Share, Comment)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: Icon(
-                    _reactionState.isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
-                    color: _reactionState.isLiked ? AppTheme.colors.primary : Colors.white,
-                    size: 20,
+            child: Obx(() {
+              final state = _reactionState.value;
+              return Row(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      state.isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
+                      color: state.isLiked ? AppTheme.colors.primary : AppColors.textPrimary,
+                      size: 20,
+                    ),
+                    onPressed: _toggleLike,
                   ),
-                  onPressed: _toggleLike,
-                ),
-                Text(
-                  FormatUtils.formatCount(_reactionState.likes),
-                  style: GoogleFonts.roboto(color: Colors.white, fontSize: 13),
-                ),
-                const SizedBox(width: 12),
-                IconButton(
-                  icon: Icon(
-                    _reactionState.isDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
-                    color: _reactionState.isDisliked ? Colors.redAccent : Colors.white,
-                    size: 20,
+                  Text(
+                    FormatUtils.formatCount(state.likes),
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
                   ),
-                  onPressed: _toggleDislike,
-                ),
-                Text(
-                  FormatUtils.formatCount(_reactionState.dislikes),
-                  style: GoogleFonts.roboto(color: Colors.white, fontSize: 13),
-                ),
-                const Spacer(),
+                  const SizedBox(width: 12),
+                  IconButton(
+                    icon: Icon(
+                      state.isDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
+                      color: state.isDisliked ? AppColors.error : AppColors.textPrimary,
+                      size: 20,
+                    ),
+                    onPressed: _toggleDislike,
+                  ),
+                  Text(
+                    FormatUtils.formatCount(state.dislikes),
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                  ),
+                  const Spacer(),
                 IconButton(
                   icon: const Icon(
                     Icons.share_outlined,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     size: 20,
                   ),
                   onPressed: () {},
@@ -400,20 +409,22 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                 IconButton(
                   icon: const Icon(
                     Icons.comment_outlined,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     size: 20,
                   ),
-                  onPressed: () {
-                    FocusScope.of(context).requestFocus(FocusNode());
-                  },
+                  onPressed: () => _openCommentsPopup(context),
                 ),
-                Text(
-                  FormatUtils.formatCount(_commentCount),
-                  style: GoogleFonts.roboto(color: Colors.white, fontSize: 13),
+                GestureDetector(
+                  onTap: () => _openCommentsPopup(context),
+                  child: Text(
+                    FormatUtils.formatCount(_commentCount),
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                  ),
                 ),
               ],
-            ),
-          ),
+            );
+          }),
+        ),
 
           _buildCommentsBox(),
         ],
@@ -430,9 +441,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
           PageView.builder(
             itemCount: images.length,
             onPageChanged: (index) {
-              setState(() {
-                _currentPage = index;
-              });
+              _currentPage.value = index;
             },
             itemBuilder: (context, index) {
               return CachedNetworkImage(
@@ -444,9 +453,9 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                   highlightColor: AppTheme.colors.border,
                   child: Container(color: AppTheme.colors.surface),
                 ),
-                errorWidget: (context, url, error) => Container(
+                errorWidget: (context, url, error) => ColoredBox(
                   color: AppTheme.colors.surface,
-                  child: const Icon(Icons.error, color: Colors.white),
+                  child: const Icon(Icons.error, color: AppColors.textPrimary),
                 ),
               );
             },
@@ -458,17 +467,17 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.7),
+                  color: AppColors.bgPage.withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(
-                  '${_currentPage + 1}/${images.length}',
-                  style: GoogleFonts.roboto(
-                    color: Colors.white,
+                child: Obx(() => Text(
+                  '${_currentPage.value + 1}/${images.length}',
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
-                ),
+                )),
               ),
             ),
         ],
@@ -507,10 +516,10 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
             children: [
               Row(
                 children: [
-                  Text(
+                  const Text(
                     'Comments',
-                    style: GoogleFonts.roboto(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
                       fontWeight: FontWeight.bold,
                       fontSize: 13,
                     ),
@@ -518,7 +527,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                   const Spacer(),
                   Text(
                     FormatUtils.formatCount(_commentCount),
-                    style: GoogleFonts.roboto(color: Colors.grey, fontSize: 12),
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   ),
                 ],
               ),
@@ -535,12 +544,12 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                   Expanded(
                     child: TextField(
                       controller: _commentController,
-                      style: GoogleFonts.roboto(color: Colors.white, fontSize: 13),
-                      decoration: InputDecoration(
+                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                      decoration: const InputDecoration(
                         hintText: 'Add a comment...',
-                        hintStyle: GoogleFonts.roboto(color: Colors.grey, fontSize: 13),
+                        hintStyle: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                         isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                        contentPadding: EdgeInsets.symmetric(vertical: 6),
                         border: InputBorder.none,
                         enabledBorder: InputBorder.none,
                         focusedBorder: InputBorder.none,
@@ -551,7 +560,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                   ),
                   if (_commentController.text.isNotEmpty)
                     IconButton(
-                      icon: const Icon(Icons.send, color: Colors.blue, size: 16),
+                      icon: const Icon(Icons.send, color: AppColors.info, size: 16),
                       onPressed: _submitComment,
                     ),
                 ],
@@ -583,8 +592,8 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                             children: [
                               Text(
                                 userName,
-                                style: GoogleFonts.roboto(
-                                  color: Colors.white,
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
                                   fontWeight: FontWeight.w600,
                                   fontSize: 12,
                                 ),
@@ -592,7 +601,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                               const SizedBox(height: 2),
                               Text(
                                 text,
-                                style: GoogleFonts.roboto(color: Colors.white70, fontSize: 12),
+                                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                               ),
                             ],
                           ),
@@ -655,7 +664,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
     if (widget.post.images.isEmpty) {
       return SizedBox(
         height: 120,
-        child: Container(
+        child: ColoredBox(
           color: AppTheme.colors.surface,
           child: Icon(
             Icons.article,
@@ -680,7 +689,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
             highlightColor: AppTheme.colors.border,
             child: Container(color: AppTheme.colors.surface),
           ),
-          errorWidget: (context, url, error) => Container(
+          errorWidget: (context, url, error) => ColoredBox(
             color: AppTheme.colors.surface,
             child: const Icon(Icons.error),
           ),
@@ -709,7 +718,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                 highlightColor: AppTheme.colors.border,
                 child: Container(color: AppTheme.colors.surface),
               ),
-              errorWidget: (context, url, error) => Container(
+              errorWidget: (context, url, error) => ColoredBox(
                 color: AppTheme.colors.surface,
                 child: const Icon(Icons.error),
               ),
@@ -761,7 +770,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
         Row(
           children: [
             Icon(Icons.thumb_up_outlined, size: 14, color: AppTheme.colors.textTertiary),
-            SizedBox(width: 4),
+            const SizedBox(width: 4),
             Text(
               '${widget.post.likes}',
               style: AppTheme.typography.caption.copyWith(
@@ -770,7 +779,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
             ),
             SizedBox(width: AppTheme.spacing.sm),
             Icon(Icons.thumb_down_outlined, size: 14, color: AppTheme.colors.textTertiary),
-            SizedBox(width: 4),
+            const SizedBox(width: 4),
             Text(
               '${widget.post.dislikeCount}',
               style: AppTheme.typography.caption.copyWith(
@@ -779,7 +788,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
             ),
             SizedBox(width: AppTheme.spacing.sm),
             Icon(Icons.comment_outlined, size: 14, color: AppTheme.colors.textTertiary),
-            SizedBox(width: 4),
+            const SizedBox(width: 4),
             Text(
               '${widget.post.commentCount}',
               style: AppTheme.typography.caption.copyWith(
@@ -788,7 +797,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
             ),
             SizedBox(width: AppTheme.spacing.sm),
             Icon(Icons.visibility_outlined, size: 14, color: AppTheme.colors.textTertiary),
-            SizedBox(width: 4),
+            const SizedBox(width: 4),
             Text(
               '${widget.post.views}',
               style: AppTheme.typography.caption.copyWith(
@@ -798,6 +807,240 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
           ],
         ),
       ],
+    );
+  }
+
+  void _openCommentsPopup(BuildContext context) {
+    final textController = TextEditingController();
+
+    Get.bottomSheet(
+      Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.8,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.bgPage,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border.all(
+            color: AppColors.bgDivider,
+          ),
+        ),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.textDisabled.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.mode_comment_outlined,
+                        color: AppColors.brand,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Comments (${FormatUtils.formatCount(_commentCount)})',
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  IconButton(
+                    onPressed: Get.back,
+                    icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1, color: Color(0xFF2E2E2E)),
+            Expanded(
+              child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: FirebaseFirestore.instance
+                    .collection('Community')
+                    .doc(widget.post.id)
+                    .collection('comments')
+                    .orderBy('createdAt', descending: true)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(color: AppColors.brand),
+                    );
+                  }
+                  final docs = snapshot.data?.docs ?? [];
+                  if (docs.isEmpty) {
+                    return const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.chat_bubble_outline_rounded,
+                            size: 40,
+                            color: AppColors.textTertiary,
+                          ),
+                          SizedBox(height: 12),
+                          Text(
+                            'No comments yet. Be the first to comment!',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: docs.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 14),
+                    itemBuilder: (context, index) {
+                      final comment = docs[index].data();
+                      final text = comment['text']?.toString() ?? '';
+                      final userName = comment['userName']?.toString() ?? 'User';
+                      final userImage = comment['userImage']?.toString() ?? '';
+                      final ts = comment['createdAt'] as Timestamp?;
+                      final timeStr = ts != null
+                          ? timeago.format(ts.toDate())
+                          : '';
+
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          UserAvatar(
+                            radius: 16,
+                            photoUrl: userImage,
+                            displayName: userName,
+                            fontSize: 11,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      userName,
+                                      style: const TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    if (timeStr.isNotEmpty) ...[
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        timeStr,
+                                        style: const TextStyle(
+                                          color: AppColors.textTertiary,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  text,
+                                  style: const TextStyle(
+                                    color: AppColors.textPrimary,
+                                    fontSize: 13,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+            const Divider(height: 1, color: Color(0xFF2E2E2E)),
+            Container(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 10,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 10,
+              ),
+              color: const Color(0xFF181818),
+              child: Row(
+                children: [
+                  UserAvatar(
+                    radius: 16,
+                    photoUrl: FirebaseAuth.instance.currentUser?.photoURL ?? '',
+                    displayName: FirebaseAuth.instance.currentUser?.displayName ?? 'User',
+                    fontSize: 11,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: textController,
+                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+                      decoration: const InputDecoration(
+                        hintText: 'Add a comment...',
+                        hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 14),
+                        border: InputBorder.none,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.send_rounded, color: AppColors.brand, size: 20),
+                    onPressed: () async {
+                      final text = textController.text.trim();
+                      if (text.isEmpty) return;
+                      final user = FirebaseAuth.instance.currentUser;
+                      if (user == null) {
+                        Get.snackbar('Authentication Required', 'Please sign in to comment.');
+                        return;
+                      }
+                      textController.clear();
+                      try {
+                        final postDoc = FirebaseFirestore.instance.collection('Community').doc(widget.post.id);
+                        await postDoc.collection('comments').add({
+                          'text': text,
+                          'userId': user.uid,
+                          'userName': user.displayName ?? 'User',
+                          'userImage': user.photoURL ?? '',
+                          'createdAt': FieldValue.serverTimestamp(),
+                        });
+                        await postDoc.update({'commentCount': FieldValue.increment(1)});
+                        setState(() {
+                          _commentCount += 1;
+                        });
+                      } catch (e) {
+                        Get.snackbar('Error', 'Failed to post comment: $e');
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
     );
   }
 }

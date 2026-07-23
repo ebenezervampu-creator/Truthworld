@@ -1,8 +1,8 @@
 
-library;
 
 /// Enhanced exception handling utilities for consistent error reporting
 /// Implements industry standards for exception handling and logging
+library;
 import 'package:truthworld/core/services/logger_service.dart';
 
 /// Exception handler mixin for controllers and services
@@ -78,23 +78,19 @@ mixin ExceptionHandlerMixin {
 
 /// Validate input and return cleaned value or throw structured exception
 class ValidationException implements Exception {
-  final String fieldName;
-  final String message;
 
   ValidationException({
     required this.fieldName,
     required this.message,
   });
+  final String fieldName;
+  final String message;
 
   @override
   String toString() => 'Validation Error on $fieldName: $message';
 }
 
 class AppException implements Exception {
-  final String message;
-  final String? code;
-  final Object? originalException;
-  final StackTrace? stackTrace;
 
   AppException({
     required this.message,
@@ -102,6 +98,10 @@ class AppException implements Exception {
     this.originalException,
     this.stackTrace,
   });
+  final String message;
+  final String? code;
+  final Object? originalException;
+  final StackTrace? stackTrace;
 
   @override
   String toString() => message;
@@ -109,11 +109,11 @@ class AppException implements Exception {
 
 /// Time an operation and log the duration
 class PerformanceTimer {
+
+  PerformanceTimer(this.name, {this.tag});
   final String name;
   final String? tag;
   final DateTime _startTime = DateTime.now();
-
-  PerformanceTimer(this.name, {this.tag});
 
   /// Finish timing and log
   void finish({String? additional}) {

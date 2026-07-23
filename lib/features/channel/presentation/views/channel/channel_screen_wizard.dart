@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/features/category/presentation/views/category/tandc_for_channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/analytics/availability_indicator_widget.dart';
-import 'package:truthworld/features/category/presentation/views/category/tandc_for_channel.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class ChannelScreen extends StatelessWidget {
@@ -94,10 +93,10 @@ class ChannelScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
-        color: isDarkMode ? AppColors.bgInput : Colors.white,
+        color: isDarkMode ? AppColors.bgInput : AppColors.textPrimary,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: AppColors.bgPage.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -110,7 +109,7 @@ class ChannelScreen extends StatelessWidget {
               IconButton(
                 icon: Icon(
                   Icons.close,
-                  color: isDarkMode ? Colors.white70 : const Color(0xFF718096),
+                  color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
                 ),
                 onPressed: () => _handleClose(isDarkMode),
               ),
@@ -118,11 +117,11 @@ class ChannelScreen extends StatelessWidget {
                 child: Obx(
                   () => Text(
                     _getStepTitle(currentStep.value),
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: isDarkMode
-                          ? Colors.white
+                          ? AppColors.textPrimary
                           : const Color(0xFF2D3748),
                     ),
                     textAlign: TextAlign.center,
@@ -132,7 +131,7 @@ class ChannelScreen extends StatelessWidget {
               PopupMenuButton<String>(
                 icon: Icon(
                   Icons.more_vert,
-                  color: isDarkMode ? Colors.white70 : const Color(0xFF718096),
+                  color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
                 ),
                 onSelected: (value) async {
                   if (value == 'save_draft') {
@@ -210,18 +209,18 @@ class ChannelScreen extends StatelessWidget {
                   children: [
                     Text(
                       'Step ${currentStep.value + 1} of 3',
-                      style: GoogleFonts.roboto(
+                      style: const TextStyle(
                         fontSize: 13,
-                        color: const Color(0xFF6B46C1),
+                        color: Color(0xFF6B46C1),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     Text(
                       '${((currentStep.value + 1) * 33.3).toInt()}% Complete',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 13,
                         color: isDarkMode
-                            ? Colors.white60
+                            ? AppColors.textSecondary
                             : const Color(0xFF718096),
                       ),
                     ),
@@ -312,13 +311,10 @@ class ChannelScreen extends StatelessWidget {
               const SizedBox(height: 24),
             ],
           );
-          break;
         case 1:
           stepWidget = _buildStepSocial(isDarkMode);
-          break;
         case 2:
           stepWidget = _buildStepReview(isDarkMode);
-          break;
         default:
           stepWidget = _buildStepBasics(isDarkMode);
       }
@@ -342,7 +338,7 @@ class ChannelScreen extends StatelessWidget {
       children: [
         _buildStepHeader(
           'Basic Information',
-          'Let\'s start with the essentials for your channel',
+          "Let's start with the essentials for your channel",
           Icons.edit_rounded,
           isDarkMode,
         ),
@@ -350,8 +346,8 @@ class ChannelScreen extends StatelessWidget {
         Obx(
           () => AvailabilityTextField(
             controller: controller.channelName,
-            labelText: "Channel Name",
-            hintText: "Enter a unique channel name",
+            labelText: 'Channel Name',
+            hintText: 'Enter a unique channel name',
             icon: Icons.video_camera_back_rounded,
             isDarkMode: isDarkMode,
             onChanged: (value) {},
@@ -380,13 +376,13 @@ class ChannelScreen extends StatelessWidget {
         Obx(
           () => AvailabilityTextField(
             controller: controller.customUrl,
-            labelText: "Channel Handle",
-            hintText: "your-unique-handle",
+            labelText: 'Channel Handle',
+            hintText: 'your-unique-handle',
             icon: Icons.alternate_email_rounded,
             isDarkMode: isDarkMode,
             prefixText: '@',
             inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_-]')),
+              FilteringTextInputFormatter.allow(RegExp('[a-zA-Z0-9_-]')),
             ],
             onChanged: (value) {},
             availabilityStatus: controller.customUrlAvailability.value,
@@ -420,10 +416,10 @@ class ChannelScreen extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 'Suggested Handles:',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
-                  color: isDarkMode ? Colors.white60 : const Color(0xFF718096),
+                  color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
                 ),
               ),
               const SizedBox(height: 8),
@@ -433,14 +429,14 @@ class ChannelScreen extends StatelessWidget {
                 child: Row(
                   children: controller.handleSuggestions.map((suggestion) {
                     return Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
+                      padding: const EdgeInsets.only(right: 8),
                       child: ActionChip(
                         label: Text(
                           '@$suggestion',
-                          style: GoogleFonts.roboto(
+                          style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: const Color(0xFF6B46C1),
+                            color: Color(0xFF6B46C1),
                           ),
                         ),
                         backgroundColor: const Color(0xFF6B46C1).withValues(alpha: 0.1),
@@ -465,8 +461,8 @@ class ChannelScreen extends StatelessWidget {
         const SizedBox(height: 24),
         _buildModernTextField(
           controller: controller.description,
-          labelText: "Description",
-          hintText: "Tell others what this channel is about",
+          labelText: 'Description',
+          hintText: 'Tell others what this channel is about',
           icon: Icons.description_outlined,
           maxLines: 4,
           isDarkMode: isDarkMode,
@@ -478,8 +474,8 @@ class ChannelScreen extends StatelessWidget {
         const SizedBox(height: 24),
         _buildModernTextField(
           controller: controller.tags,
-          labelText: "Tags",
-          hintText: "gaming, tutorial (comma-separated)",
+          labelText: 'Tags',
+          hintText: 'gaming, tutorial (comma-separated)',
           icon: Icons.tag_rounded,
           isDarkMode: isDarkMode,
         ),
@@ -502,23 +498,23 @@ class ChannelScreen extends StatelessWidget {
         ),
         const SizedBox(height: 32),
         Text(
-          "Channel Banner (16:9)",
-          style: GoogleFonts.roboto(
+          'Channel Banner (16:9)',
+          style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w500,
-            color: isDarkMode ? Colors.white : const Color(0xFF2D3748),
+            color: isDarkMode ? AppColors.textPrimary : const Color(0xFF2D3748),
           ),
         ),
         const SizedBox(height: 12),
         _buildBannerPicker(controller, isDarkMode),
         Obx(() {
-          if (controller.bannerStatus.value == "PENDING" &&
+          if (controller.bannerStatus.value == 'PENDING' &&
               controller.bannerUrl.value.isNotEmpty) {
-            return Padding(
-              padding: const EdgeInsets.only(top: 8.0),
+            return const Padding(
+              padding: EdgeInsets.only(top: 8),
               child: Row(
                 children: [
-                  const SizedBox(
+                  SizedBox(
                     width: 14,
                     height: 14,
                     child: CircularProgressIndicator(
@@ -526,11 +522,11 @@ class ChannelScreen extends StatelessWidget {
                       valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Text(
-                    "Banner verification pending",
-                    style: GoogleFonts.roboto(
-                      color: const Color(0xFF3B82F6),
+                    'Banner verification pending',
+                    style: TextStyle(
+                      color: Color(0xFF3B82F6),
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
@@ -538,18 +534,18 @@ class ChannelScreen extends StatelessWidget {
                 ],
               ),
             );
-          } else if (controller.bannerStatus.value == "REJECTED") {
+          } else if (controller.bannerStatus.value == 'REJECTED') {
             return Padding(
-              padding: const EdgeInsets.only(top: 8.0),
+              padding: const EdgeInsets.only(top: 8),
               child: Row(
                 children: [
                   const Icon(Icons.error_rounded, color: Color(0xFFEF4444), size: 16),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      "Banner rejected: ${controller.bannerStatusReason.value}",
-                      style: GoogleFonts.roboto(
-                        color: const Color(0xFFEF4444),
+                      'Banner rejected: ${controller.bannerStatusReason.value}',
+                      style: const TextStyle(
+                        color: Color(0xFFEF4444),
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -558,18 +554,18 @@ class ChannelScreen extends StatelessWidget {
                 ],
               ),
             );
-          } else if (controller.bannerStatus.value == "FLAGGED") {
+          } else if (controller.bannerStatus.value == 'FLAGGED') {
             return Padding(
-              padding: const EdgeInsets.only(top: 8.0),
+              padding: const EdgeInsets.only(top: 8),
               child: Row(
                 children: [
                   const Icon(Icons.warning_rounded, color: Color(0xFFF59E0B), size: 16),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      "Banner review needed: ${controller.bannerStatusReason.value}",
-                      style: GoogleFonts.roboto(
-                        color: const Color(0xFFF59E0B),
+                      'Banner review needed: ${controller.bannerStatusReason.value}',
+                      style: const TextStyle(
+                        color: Color(0xFFF59E0B),
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -583,23 +579,23 @@ class ChannelScreen extends StatelessWidget {
         }),
         const SizedBox(height: 32),
         Text(
-          "Channel Avatar (1:1)",
-          style: GoogleFonts.roboto(
+          'Channel Avatar (1:1)',
+          style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w500,
-            color: isDarkMode ? Colors.white : const Color(0xFF2D3748),
+            color: isDarkMode ? AppColors.textPrimary : const Color(0xFF2D3748),
           ),
         ),
         const SizedBox(height: 12),
         _buildAvatarPicker(controller, isDarkMode),
         Obx(() {
-          if (controller.avatarStatus.value == "PENDING" &&
+          if (controller.avatarStatus.value == 'PENDING' &&
               controller.avatarUrl.value.isNotEmpty) {
-            return Padding(
-              padding: const EdgeInsets.only(top: 8.0),
+            return const Padding(
+              padding: EdgeInsets.only(top: 8),
               child: Row(
                 children: [
-                  const SizedBox(
+                  SizedBox(
                     width: 14,
                     height: 14,
                     child: CircularProgressIndicator(
@@ -607,11 +603,11 @@ class ChannelScreen extends StatelessWidget {
                       valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                   Text(
-                    "Avatar verification pending",
-                    style: GoogleFonts.roboto(
-                      color: const Color(0xFF3B82F6),
+                    'Avatar verification pending',
+                    style: TextStyle(
+                      color: Color(0xFF3B82F6),
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
@@ -619,18 +615,18 @@ class ChannelScreen extends StatelessWidget {
                 ],
               ),
             );
-          } else if (controller.avatarStatus.value == "REJECTED") {
+          } else if (controller.avatarStatus.value == 'REJECTED') {
             return Padding(
-              padding: const EdgeInsets.only(top: 8.0),
+              padding: const EdgeInsets.only(top: 8),
               child: Row(
                 children: [
                   const Icon(Icons.error_rounded, color: Color(0xFFEF4444), size: 16),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      "Avatar rejected: ${controller.avatarStatusReason.value}",
-                      style: GoogleFonts.roboto(
-                        color: const Color(0xFFEF4444),
+                      'Avatar rejected: ${controller.avatarStatusReason.value}',
+                      style: const TextStyle(
+                        color: Color(0xFFEF4444),
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -639,18 +635,18 @@ class ChannelScreen extends StatelessWidget {
                 ],
               ),
             );
-          } else if (controller.avatarStatus.value == "FLAGGED") {
+          } else if (controller.avatarStatus.value == 'FLAGGED') {
             return Padding(
-              padding: const EdgeInsets.only(top: 8.0),
+              padding: const EdgeInsets.only(top: 8),
               child: Row(
                 children: [
                   const Icon(Icons.warning_rounded, color: Color(0xFFF59E0B), size: 16),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      "Avatar review needed: ${controller.avatarStatusReason.value}",
-                      style: GoogleFonts.roboto(
-                        color: const Color(0xFFF59E0B),
+                      'Avatar review needed: ${controller.avatarStatusReason.value}',
+                      style: const TextStyle(
+                        color: Color(0xFFF59E0B),
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                       ),
@@ -724,8 +720,8 @@ class ChannelScreen extends StatelessWidget {
             Expanded(
               child: _buildModernTextField(
                 controller: controller.contactEmail,
-                labelText: "Contact Email",
-                hintText: "contact@example.com",
+                labelText: 'Contact Email',
+                hintText: 'contact@example.com',
                 icon: Icons.email_outlined,
                 isDarkMode: isDarkMode,
                 validator: (value) {
@@ -743,8 +739,8 @@ class ChannelScreen extends StatelessWidget {
               Expanded(
                 child: _buildModernTextField(
                   controller: controller.websiteUrl,
-                  labelText: "Website URL",
-                  hintText: "https://example.com",
+                  labelText: 'Website URL',
+                  hintText: 'https://example.com',
                   icon: Icons.web_rounded,
                   isDarkMode: isDarkMode,
                   validator: (value) {
@@ -764,8 +760,8 @@ class ChannelScreen extends StatelessWidget {
           const SizedBox(height: 16),
           _buildModernTextField(
             controller: controller.websiteUrl,
-            labelText: "Website URL",
-            hintText: "https://example.com",
+            labelText: 'Website URL',
+            hintText: 'https://example.com',
             icon: Icons.web_rounded,
             isDarkMode: isDarkMode,
             validator: (value) {
@@ -870,19 +866,19 @@ class ChannelScreen extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: isDarkMode ? Colors.white : const Color(0xFF2D3748),
+                    color: isDarkMode ? AppColors.textPrimary : const Color(0xFF2D3748),
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 14,
                     color: isDarkMode
-                        ? Colors.white60
+                        ? AppColors.textSecondary
                         : const Color(0xFF718096),
                   ),
                 ),
@@ -906,14 +902,14 @@ class ChannelScreen extends StatelessWidget {
 
       return Container(
         decoration: BoxDecoration(
-          color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+          color: isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: const Color(0xFF6B46C1).withValues(alpha: 0.2),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
+              color: AppColors.bgPage.withValues(alpha: 0.1),
               blurRadius: 20,
               spreadRadius: 5,
             ),
@@ -935,18 +931,18 @@ class ChannelScreen extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.visibility_rounded,
-                    color: const Color(0xFF6B46C1),
+                    color: Color(0xFF6B46C1),
                     size: 20,
                   ),
                   const SizedBox(width: 8),
-                  Text(
+                  const Text(
                     'Live Preview',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
-                      color: const Color(0xFF6B46C1),
+                      color: Color(0xFF6B46C1),
                     ),
                   ),
                   const Spacer(),
@@ -970,12 +966,12 @@ class ChannelScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        Text(
+                        const Text(
                           'LIVE',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: const Color(0xFF6B46C1),
+                            color: Color(0xFF6B46C1),
                           ),
                         ),
                       ],
@@ -1003,7 +999,7 @@ class ChannelScreen extends StatelessWidget {
                       child: Icon(
                         Icons.image_outlined,
                         size: 48,
-                        color: isDarkMode ? Colors.white24 : Colors.black26,
+                        color: isDarkMode ? AppColors.textDisabled : Colors.black26,
                       ),
                     ),
             ),
@@ -1027,7 +1023,7 @@ class ChannelScreen extends StatelessWidget {
                           border: Border.all(
                             color: isDarkMode
                                 ? const Color(0xFF1E1E1E)
-                                : Colors.white,
+                                : AppColors.textPrimary,
                             width: 4,
                           ),
                         ),
@@ -1043,7 +1039,7 @@ class ChannelScreen extends StatelessWidget {
                                 Icons.person_outline,
                                 size: 40,
                                 color: isDarkMode
-                                    ? Colors.white24
+                                    ? AppColors.textDisabled
                                     : Colors.black26,
                               ),
                       ),
@@ -1056,15 +1052,15 @@ class ChannelScreen extends StatelessWidget {
                               hasName
                                   ? controller.channelName.text
                                   : 'Your Channel Name',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.bold,
                                 color: hasName
                                     ? (isDarkMode
-                                          ? Colors.white
+                                          ? AppColors.textPrimary
                                           : const Color(0xFF2D3748))
                                     : (isDarkMode
-                                          ? Colors.white24
+                                          ? AppColors.textDisabled
                                           : Colors.black26),
                               ),
                               maxLines: 2,
@@ -1074,9 +1070,9 @@ class ChannelScreen extends StatelessWidget {
                               const SizedBox(height: 2),
                               Text(
                                 '@${controller.customUrl.text}',
-                                style: GoogleFonts.roboto(
+                                style: const TextStyle(
                                   fontSize: 14,
-                                  color: const Color(0xFF6B46C1),
+                                  color: Color(0xFF6B46C1),
                                   fontWeight: FontWeight.w500,
                                 ),
                                 maxLines: 1,
@@ -1092,7 +1088,7 @@ class ChannelScreen extends StatelessWidget {
                                       : Icons.lock,
                                   size: 14,
                                   color: isDarkMode
-                                      ? Colors.white38
+                                      ? AppColors.textTertiary
                                       : const Color(0xFF718096),
                                 ),
                                 const SizedBox(width: 4),
@@ -1100,10 +1096,10 @@ class ChannelScreen extends StatelessWidget {
                                   controller.isPublic.value
                                       ? 'Public'
                                       : 'Private',
-                                  style: GoogleFonts.roboto(
+                                  style: TextStyle(
                                     fontSize: 13,
                                     color: isDarkMode
-                                        ? Colors.white38
+                                        ? AppColors.textTertiary
                                         : const Color(0xFF718096),
                                   ),
                                 ),
@@ -1118,10 +1114,10 @@ class ChannelScreen extends StatelessWidget {
                     const SizedBox(height: 16),
                     Text(
                       controller.description.text,
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 14,
                         color: isDarkMode
-                            ? Colors.white70
+                            ? AppColors.textSecondary
                             : const Color(0xFF718096),
                         height: 1.5,
                       ),
@@ -1140,7 +1136,7 @@ class ChannelScreen extends StatelessWidget {
                         return Chip(
                           label: Text(
                             category,
-                            style: GoogleFonts.roboto(
+                            style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
                             ),
@@ -1170,10 +1166,10 @@ class ChannelScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
-        color: isDarkMode ? AppColors.bgInput : Colors.white,
+        color: isDarkMode ? AppColors.bgInput : AppColors.textPrimary,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: AppColors.bgPage.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -1199,7 +1195,7 @@ class ChannelScreen extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     side: BorderSide(
                       color: isDarkMode
-                          ? Colors.white24
+                          ? AppColors.textDisabled
                           : AppColors.bgDivider,
                     ),
                     shape: RoundedRectangleBorder(
@@ -1210,17 +1206,17 @@ class ChannelScreen extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(Icons.arrow_back, color: isDarkMode
-                            ? Colors.white
+                            ? AppColors.textPrimary
                             : const Color(0xFF2D3748),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         'Back',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                           color: isDarkMode
-                              ? Colors.white
+                              ? AppColors.textPrimary
                               : const Color(0xFF2D3748),
                         ),
                       ),
@@ -1259,26 +1255,26 @@ class ChannelScreen extends StatelessWidget {
                   elevation: canProceed ? 2 : 0,
                 ),
                 child: isCreating
-                    ? Row(
+                    ? const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const SizedBox(
+                          SizedBox(
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               valueColor: AlwaysStoppedAnimation<Color>(
-                                Colors.white,
+                                AppColors.textPrimary,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          SizedBox(width: 12),
                           Text(
                             'Creating...',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                             ),
                           ),
                         ],
@@ -1288,13 +1284,13 @@ class ChannelScreen extends StatelessWidget {
                         children: [
                           Text(
                             isLastStep ? 'Create Channel' : 'Next',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: canProceed
-                                  ? Colors.white
+                                  ? AppColors.textPrimary
                                   : (isDarkMode
-                                        ? Colors.white24
+                                        ? AppColors.textDisabled
                                         : Colors.black26),
                             ),
                           ),
@@ -1304,9 +1300,9 @@ class ChannelScreen extends StatelessWidget {
                                 ? Icons.rocket_launch
                                 : Icons.arrow_forward,
                             color: canProceed
-                                ? Colors.white
+                                ? AppColors.textPrimary
                                 : (isDarkMode
-                                      ? Colors.white24
+                                      ? AppColors.textDisabled
                                       : Colors.black26),
                           ),
                         ],
@@ -1347,14 +1343,14 @@ class ChannelScreen extends StatelessWidget {
   void _handleCreateChannel() {
     if (!controller.canCreateMoreChannels) {
       Get.snackbar(
-        "Limit Reached",
-        "You can only create one channel per Google account.",
+        'Limit Reached',
+        'You can only create one channel per Google account.',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: const Color(0xFFE53E3E),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         borderRadius: 12,
         margin: const EdgeInsets.all(16),
-        icon: const Icon(Icons.warning_amber_rounded, color: Colors.white),
+        icon: const Icon(Icons.warning_amber_rounded, color: AppColors.textPrimary),
       );
       return;
     }
@@ -1384,24 +1380,23 @@ class ChannelScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: const Color(0xFF6B46C1).withValues(alpha: 0.3),
-            width: 1,
           ),
         ),
         child: Column(
           children: [
             Text(
               'Ready to go?',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: isDarkMode ? Colors.white70 : const Color(0xFF4A5568),
+                color: isDarkMode ? AppColors.textSecondary : const Color(0xFF4A5568),
               ),
             ),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () => _handleCreateChannel(),
+                onPressed: _handleCreateChannel,
                 icon: const Icon(Icons.flash_on_rounded, size: 20),
                 label: const Text('Quick Create (Skip optional steps)'),
                 style: ElevatedButton.styleFrom(
@@ -1464,22 +1459,22 @@ class ChannelScreen extends StatelessWidget {
                         filterQuality: FilterQuality.high,
                       ),
                       if (isUploading)
-                        Container(
-                          color: Colors.black54,
+                        ColoredBox(
+                          color: AppColors.bgPage54,
                           child: Center(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 CircularProgressIndicator(
                                   value: progress,
-                                  color: Colors.white,
+                                  color: AppColors.textPrimary,
                                   strokeWidth: 3,
                                 ),
                                 const SizedBox(height: 12),
                                 Text(
                                   '${(progress * 100).toInt()}%',
-                                  style: GoogleFonts.roboto(
-                                    color: Colors.white,
+                                  style: const TextStyle(
+                                    color: AppColors.textPrimary,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -1500,8 +1495,8 @@ class ChannelScreen extends StatelessWidget {
                   )
                 : _buildPickerPlaceholder(
                     icon: Icons.add_photo_alternate_outlined,
-                    title: "Select Banner",
-                    subtitle: "16:9 • Max: 5MB",
+                    title: 'Select Banner',
+                    subtitle: '16:9 • Max: 5MB',
                     isDarkMode: isDarkMode,
                   ),
           ),
@@ -1549,12 +1544,12 @@ class ChannelScreen extends StatelessWidget {
                           filterQuality: FilterQuality.high,
                         ),
                         if (isUploading)
-                          Container(
-                            color: Colors.black54,
+                          ColoredBox(
+                            color: AppColors.bgPage54,
                             child: Center(
                               child: CircularProgressIndicator(
                                 value: progress,
-                                color: Colors.white,
+                                color: AppColors.textPrimary,
                                 strokeWidth: 3,
                               ),
                             ),
@@ -1573,8 +1568,8 @@ class ChannelScreen extends StatelessWidget {
                     )
                   : _buildPickerPlaceholder(
                       icon: Icons.person_add_alt_1_outlined,
-                      title: "Avatar",
-                      subtitle: "1:1 • 2MB",
+                      title: 'Avatar',
+                      subtitle: '1:1 • 2MB',
                       iconSize: 36,
                       isDarkMode: isDarkMode,
                     ),
@@ -1595,26 +1590,22 @@ class ChannelScreen extends StatelessWidget {
     String label;
 
     switch (status) {
-      case "APPROVED":
+      case 'APPROVED':
         color = const Color(0xFF10B981);
         icon = Icons.check_circle_rounded;
-        label = "Approved";
-        break;
-      case "REJECTED":
+        label = 'Approved';
+      case 'REJECTED':
         color = const Color(0xFFEF4444);
         icon = Icons.error_rounded;
-        label = "Rejected";
-        break;
-      case "FLAGGED":
+        label = 'Rejected';
+      case 'FLAGGED':
         color = const Color(0xFFF59E0B);
         icon = Icons.warning_rounded;
-        label = "Review Needed";
-        break;
-      case "PENDING":
+        label = 'Review Needed';
+      case 'PENDING':
         color = const Color(0xFF3B82F6);
         icon = Icons.sync_rounded;
-        label = "Verifying...";
-        break;
+        label = 'Verifying...';
       default:
         return const SizedBox.shrink();
     }
@@ -1638,24 +1629,24 @@ class ChannelScreen extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (status == "PENDING")
+          if (status == 'PENDING')
             SizedBox(
               width: small ? 10 : 12,
               height: small ? 10 : 12,
-              child: CircularProgressIndicator(
+              child: const CircularProgressIndicator(
                 strokeWidth: 2,
-                valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
               ),
             )
           else
-            Icon(icon, size: small ? 10 : 12, color: Colors.white),
+            Icon(icon, size: small ? 10 : 12, color: AppColors.textPrimary),
           if (!small) ...[
             const SizedBox(width: 6),
             Text(
               label,
-              style: GoogleFonts.roboto(
+              style: const TextStyle(
                 fontSize: 10,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1664,7 +1655,7 @@ class ChannelScreen extends StatelessWidget {
       ),
     );
 
-    if (status == "REJECTED" && !small) {
+    if (status == 'REJECTED' && !small) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
@@ -1675,17 +1666,17 @@ class ChannelScreen extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 160),
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.8),
+              color: AppColors.bgPage.withValues(alpha: 0.8),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.1),
+                color: AppColors.textPrimary.withValues(alpha: 0.1),
                 width: 0.5,
               ),
             ),
             child: Text(
               reason,
-              style: GoogleFonts.roboto(
-                color: Colors.white,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
               ),
@@ -1703,9 +1694,8 @@ class ChannelScreen extends StatelessWidget {
   Widget _buildPickerPlaceholder({
     required IconData icon,
     required String title,
-    String? subtitle,
+    required bool isDarkMode, String? subtitle,
     double iconSize = 48,
-    required bool isDarkMode,
   }) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -1721,19 +1711,19 @@ class ChannelScreen extends StatelessWidget {
         const SizedBox(height: 12),
         Text(
           title,
-          style: GoogleFonts.roboto(
+          style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: const Color(0xFF6B46C1),
+            color: Color(0xFF6B46C1),
           ),
         ),
         if (subtitle != null) ...[
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 12,
-              color: isDarkMode ? Colors.white60 : const Color(0xFF718096),
+              color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
             ),
           ),
         ],
@@ -1750,9 +1740,9 @@ class ChannelScreen extends StatelessWidget {
   ) {
     return TextFormField(
       initialValue: controller.socialLinks[key],
-      style: GoogleFonts.roboto(
+      style: TextStyle(
         fontSize: 14,
-        color: isDarkMode ? Colors.white : const Color(0xFF2D3748),
+        color: isDarkMode ? AppColors.textPrimary : const Color(0xFF2D3748),
       ),
       decoration: InputDecoration(
         labelText: label,
@@ -1766,17 +1756,17 @@ class ChannelScreen extends StatelessWidget {
           ),
           child: Icon(icon, color: const Color(0xFF6B46C1), size: 16),
         ),
-        labelStyle: GoogleFonts.roboto(
-          color: isDarkMode ? Colors.white70 : const Color(0xFF718096),
+        labelStyle: TextStyle(
+          color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
           fontWeight: FontWeight.w500,
           fontSize: 14,
         ),
-        hintStyle: GoogleFonts.roboto(
-          color: isDarkMode ? Colors.white38 : const Color(0xFFA0AEC0),
+        hintStyle: TextStyle(
+          color: isDarkMode ? AppColors.textTertiary : const Color(0xFFA0AEC0),
           fontSize: 14,
         ),
         filled: true,
-        fillColor: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        fillColor: isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -1799,8 +1789,7 @@ class ChannelScreen extends StatelessWidget {
     required String labelText,
     required String hintText,
     required IconData icon,
-    int maxLines = 1,
-    required bool isDarkMode,
+    required bool isDarkMode, int maxLines = 1,
     bool isRequired = false,
     String? Function(String?)? validator,
   }) {
@@ -1811,7 +1800,7 @@ class ChannelScreen extends StatelessWidget {
           BoxShadow(
             color: isDarkMode
                 ? Colors.black26
-                : Colors.black.withValues(alpha: 0.08),
+                : AppColors.bgPage.withValues(alpha: 0.08),
             blurRadius: 12,
             spreadRadius: 2,
             offset: const Offset(0, 4),
@@ -1821,9 +1810,9 @@ class ChannelScreen extends StatelessWidget {
       child: TextFormField(
         controller: controller,
         maxLines: maxLines,
-        style: GoogleFonts.roboto(
+        style: TextStyle(
           fontSize: 16,
-          color: isDarkMode ? Colors.white : const Color(0xFF2D3748),
+          color: isDarkMode ? AppColors.textPrimary : const Color(0xFF2D3748),
           fontWeight: FontWeight.w500,
         ),
         decoration: InputDecoration(
@@ -1838,15 +1827,15 @@ class ChannelScreen extends StatelessWidget {
             ),
             child: Icon(icon, color: const Color(0xFF6B46C1), size: 20),
           ),
-          labelStyle: GoogleFonts.roboto(
-            color: isDarkMode ? Colors.white70 : const Color(0xFF718096),
+          labelStyle: TextStyle(
+            color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
             fontWeight: FontWeight.w500,
           ),
-          hintStyle: GoogleFonts.roboto(
-            color: isDarkMode ? Colors.white38 : const Color(0xFFA0AEC0),
+          hintStyle: TextStyle(
+            color: isDarkMode ? AppColors.textTertiary : const Color(0xFFA0AEC0),
           ),
           filled: true,
-          fillColor: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+          fillColor: isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide.none,
@@ -1880,13 +1869,13 @@ class ChannelScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        color: isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
             color: isDarkMode
                 ? Colors.black26
-                : Colors.black.withValues(alpha: 0.08),
+                : AppColors.bgPage.withValues(alpha: 0.08),
             blurRadius: 12,
             spreadRadius: 2,
             offset: const Offset(0, 4),
@@ -1918,23 +1907,23 @@ class ChannelScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    "Channel Visibility",
-                    style: GoogleFonts.roboto(
+                    'Channel Visibility',
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                       color: isDarkMode
-                          ? Colors.white
+                          ? AppColors.textPrimary
                           : const Color(0xFF2D3748),
                     ),
                   ),
                   Text(
                     controller.isPublic.value
-                        ? "Public - Anyone can find and view"
-                        : "Private - Only you can view",
-                    style: GoogleFonts.roboto(
+                        ? 'Public - Anyone can find and view'
+                        : 'Private - Only you can view',
+                    style: TextStyle(
                       fontSize: 14,
                       color: isDarkMode
-                          ? Colors.white60
+                          ? AppColors.textSecondary
                           : const Color(0xFF718096),
                     ),
                   ),
@@ -1967,7 +1956,7 @@ class ChannelScreen extends StatelessWidget {
             BoxShadow(
               color: isDarkMode
                   ? Colors.black26
-                  : Colors.black.withValues(alpha: 0.08),
+                  : AppColors.bgPage.withValues(alpha: 0.08),
               blurRadius: 12,
               spreadRadius: 2,
               offset: const Offset(0, 4),
@@ -1977,7 +1966,7 @@ class ChannelScreen extends StatelessWidget {
         child: DropdownButtonFormField<String>(
           initialValue: controller.language.value,
           decoration: InputDecoration(
-            labelText: "Language",
+            labelText: 'Language',
             prefixIcon: Container(
               margin: const EdgeInsets.all(12),
               padding: const EdgeInsets.all(8),
@@ -1991,12 +1980,12 @@ class ChannelScreen extends StatelessWidget {
                 size: 20,
               ),
             ),
-            labelStyle: GoogleFonts.roboto(
-              color: isDarkMode ? Colors.white70 : const Color(0xFF718096),
+            labelStyle: TextStyle(
+              color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
               fontWeight: FontWeight.w500,
             ),
             filled: true,
-            fillColor: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+            fillColor: isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide.none,
@@ -2010,9 +1999,9 @@ class ChannelScreen extends StatelessWidget {
               vertical: 20,
             ),
           ),
-          dropdownColor: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
-          style: GoogleFonts.roboto(
-            color: isDarkMode ? Colors.white : const Color(0xFF2D3748),
+          dropdownColor: isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
+          style: TextStyle(
+            color: isDarkMode ? AppColors.textPrimary : const Color(0xFF2D3748),
             fontSize: 16,
           ),
           items: controller.languages
@@ -2036,8 +2025,8 @@ class ChannelScreen extends StatelessWidget {
     return AnimatedBuilder(
       animation: controller.successScaleAnimation,
       builder: (context, child) {
-        return Container(
-          color: Colors.black.withValues(alpha: 0.8),
+        return ColoredBox(
+          color: AppColors.bgPage.withValues(alpha: 0.8),
           child: Center(
             child: Transform.scale(
               scale: controller.successScaleAnimation.value,
@@ -2045,11 +2034,11 @@ class ChannelScreen extends StatelessWidget {
                 margin: const EdgeInsets.all(32),
                 padding: const EdgeInsets.all(40),
                 decoration: BoxDecoration(
-                  color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+                  color: isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.3),
+                      color: AppColors.bgPage.withValues(alpha: 0.3),
                       blurRadius: 30,
                       spreadRadius: 5,
                     ),
@@ -2073,11 +2062,11 @@ class ChannelScreen extends StatelessWidget {
                     const SizedBox(height: 24),
                     Text(
                       'Channel Created!',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
                         color: isDarkMode
-                            ? Colors.white
+                            ? AppColors.textPrimary
                             : const Color(0xFF2D3748),
                       ),
                     ),
@@ -2085,10 +2074,10 @@ class ChannelScreen extends StatelessWidget {
                     Text(
                       'Your channel is ready.\nYou can now start uploading content!',
                       textAlign: TextAlign.center,
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 16,
                         color: isDarkMode
-                            ? Colors.white70
+                            ? AppColors.textSecondary
                             : const Color(0xFF718096),
                         height: 1.5,
                       ),
@@ -2113,21 +2102,21 @@ class ChannelScreen extends StatelessWidget {
         controller.selectedCategories.isNotEmpty) {
       Get.dialog(
         AlertDialog(
-          backgroundColor: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+          backgroundColor: isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
           title: Text(
             'Save your progress?',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: isDarkMode ? Colors.white : const Color(0xFF2D3748),
+              color: isDarkMode ? AppColors.textPrimary : const Color(0xFF2D3748),
             ),
           ),
           content: Text(
             'You have unsaved changes. Would you like to save as draft before leaving?',
-            style: GoogleFonts.roboto(
-              color: isDarkMode ? Colors.white70 : const Color(0xFF718096),
+            style: TextStyle(
+              color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
             ),
           ),
           actions: [
@@ -2137,9 +2126,9 @@ class ChannelScreen extends StatelessWidget {
                 _isExiting.value = true;
                 Get.back(); // Close wizard
               },
-              child: Text(
+              child: const Text(
                 'Discard',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   color: AppColors.error,
                   fontWeight: FontWeight.w500,
                 ),
@@ -2152,10 +2141,10 @@ class ChannelScreen extends StatelessWidget {
                 _isExiting.value = true;
                 Get.back(); // Close wizard
               },
-              child: Text(
+              child: const Text(
                 'Save Draft',
-                style: GoogleFonts.roboto(
-                  color: const Color(0xFF6B46C1),
+                style: TextStyle(
+                  color: Color(0xFF6B46C1),
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -2165,35 +2154,35 @@ class ChannelScreen extends StatelessWidget {
       );
     } else {
       _isExiting.value = true;
-      Future.delayed(Duration.zero, () => Get.back());
+      Future.delayed(Duration.zero, Get.back);
     }
   }
 
   void _showDeleteDraftDialog(bool isDarkMode) {
     Get.dialog(
       AlertDialog(
-        backgroundColor: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        backgroundColor: isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Delete Draft?',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontWeight: FontWeight.bold,
-            color: isDarkMode ? Colors.white : const Color(0xFF2D3748),
+            color: isDarkMode ? AppColors.textPrimary : const Color(0xFF2D3748),
           ),
         ),
         content: Text(
           'This will permanently delete your draft and any uploaded images. This action cannot be undone.',
-          style: GoogleFonts.roboto(
-            color: isDarkMode ? Colors.white70 : const Color(0xFF718096),
+          style: TextStyle(
+            color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Get.back(),
+            onPressed: Get.back,
             child: Text(
               'Cancel',
-              style: GoogleFonts.roboto(
-                color: isDarkMode ? Colors.white70 : const Color(0xFF718096),
+              style: TextStyle(
+                color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -2204,9 +2193,9 @@ class ChannelScreen extends StatelessWidget {
               await controller.deleteDraft();
               controller.formChangeTrigger.value++;
             },
-            child: Text(
+            child: const Text(
               'Delete',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 color: AppColors.error,
                 fontWeight: FontWeight.w500,
               ),
@@ -2235,7 +2224,7 @@ class ChannelScreen extends StatelessWidget {
       PopScope(
         canPop: false,
         child: AlertDialog(
-          backgroundColor: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+          backgroundColor: isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
           ),
@@ -2257,10 +2246,10 @@ class ChannelScreen extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Continue Draft?',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 20,
-                    color: isDarkMode ? Colors.white : const Color(0xFF2D3748),
+                    color: isDarkMode ? AppColors.textPrimary : const Color(0xFF2D3748),
                   ),
                 ),
               ),
@@ -2272,9 +2261,9 @@ class ChannelScreen extends StatelessWidget {
             children: [
               Text(
                 'You have an unfinished channel creation draft.',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 15,
-                  color: isDarkMode ? Colors.white70 : const Color(0xFF718096),
+                  color: isDarkMode ? AppColors.textSecondary : const Color(0xFF718096),
                   height: 1.5,
                 ),
               ),
@@ -2305,10 +2294,10 @@ class ChannelScreen extends StatelessWidget {
                           Expanded(
                             child: Text(
                               controller.channelName.text,
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontWeight: FontWeight.w500,
                                 color: isDarkMode
-                                    ? Colors.white
+                                    ? AppColors.textPrimary
                                     : const Color(0xFF2D3748),
                               ),
                               maxLines: 1,
@@ -2329,10 +2318,10 @@ class ChannelScreen extends StatelessWidget {
                         const SizedBox(width: 6),
                         Text(
                           'Last saved: ${_formatDraftTime()}',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 13,
                             color: isDarkMode
-                                ? Colors.white60
+                                ? AppColors.textSecondary
                                 : const Color(0xFF718096),
                           ),
                         ),
@@ -2350,9 +2339,9 @@ class ChannelScreen extends StatelessWidget {
                 await controller.deleteDraft();
                 controller.formChangeTrigger.value++;
               },
-              child: Text(
+              child: const Text(
                 'Start Fresh',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   color: AppColors.error,
                   fontWeight: FontWeight.w500,
                   fontSize: 15,
@@ -2361,9 +2350,7 @@ class ChannelScreen extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             ElevatedButton(
-              onPressed: () {
-                Get.back(); // Close dialog and continue with loaded draft
-              },
+              onPressed: Get.back,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF6B46C1),
                 padding: const EdgeInsets.symmetric(
@@ -2374,10 +2361,10 @@ class ChannelScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: Text(
+              child: const Text(
                 'Continue Draft',
-                style: GoogleFonts.roboto(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: AppColors.textPrimary,
                   fontWeight: FontWeight.bold,
                   fontSize: 15,
                 ),

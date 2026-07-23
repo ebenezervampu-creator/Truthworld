@@ -2,6 +2,35 @@ import 'package:file_picker/file_picker.dart';
 import 'package:truthworld/data/models/channel.dart';
 
 class UploadState {
+
+  const UploadState({
+    required this.scheduledDate, this.selectedCategory = 'Music',
+    this.selectedChannel,
+    this.selectedVisibility = 'public',
+    this.isKidFriendly = false,
+    this.isShort = false,
+    this.uploadQuality = 'Auto',
+    this.enableComments = true,
+    this.allowRatings = false,
+    this.selectedPlaylist = '',
+    this.isScheduled = false,
+    
+    this.aiTranscriptEnabled = true,
+    this.aiChaptersEnabled = false,
+    this.aiGenerateSubtitles = false,
+    this.aiGenerateDubbing = false,
+    this.aiDiarizationEnabled = false,
+    this.aiSummaryEnabled = false,
+    this.aiSubtitleLanguages = const [],
+    this.aiDubbingLanguages = const [],
+    this.aiTTSEnabled = false,
+    this.aiTTSVoiceType = 'default',
+    this.aiFactCheckEnabled = false,
+    this.voiceSampleFile,
+
+    this.pickedImage,
+    this.pickedVideo,
+  });
   final String selectedCategory;
   final Channel? selectedChannel;
   final String selectedVisibility;
@@ -31,36 +60,6 @@ class UploadState {
   // Media
   final PlatformFile? pickedImage;
   final PlatformFile? pickedVideo;
-
-  const UploadState({
-    this.selectedCategory = "Music",
-    this.selectedChannel,
-    this.selectedVisibility = 'public',
-    this.isKidFriendly = false,
-    this.isShort = false,
-    this.uploadQuality = 'Auto',
-    this.enableComments = true,
-    this.allowRatings = false,
-    this.selectedPlaylist = '',
-    this.isScheduled = false,
-    required this.scheduledDate,
-    
-    this.aiTranscriptEnabled = true,
-    this.aiChaptersEnabled = false,
-    this.aiGenerateSubtitles = false,
-    this.aiGenerateDubbing = false,
-    this.aiDiarizationEnabled = false,
-    this.aiSummaryEnabled = false,
-    this.aiSubtitleLanguages = const [],
-    this.aiDubbingLanguages = const [],
-    this.aiTTSEnabled = false,
-    this.aiTTSVoiceType = 'default',
-    this.aiFactCheckEnabled = false,
-    this.voiceSampleFile,
-
-    this.pickedImage,
-    this.pickedVideo,
-  });
 
   UploadState copyWith({
     String? selectedCategory,

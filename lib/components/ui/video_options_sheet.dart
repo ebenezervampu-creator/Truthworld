@@ -1,24 +1,34 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:http/http.dart' as http;
+import 'package:truthworld/components/ui/share_bottom_sheet.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/show_diaglog.dart';
-import 'package:truthworld/components/ui/share_bottom_sheet.dart';
-import 'package:truthworld/data/models/offline.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/domain/database_helpers.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class VideoOptionsSheet extends StatelessWidget {
+
+  const VideoOptionsSheet({
+    required this.video, super.key,
+    this.onRemoveFromHistory,
+  });
   final Video video;
+  final VoidCallback? onRemoveFromHistory;
 
-  const VideoOptionsSheet({super.key, required this.video});
-
-  static void show(BuildContext context, Video video) {
+  static void show(
+    BuildContext context,
+    Video video, {
+    VoidCallback? onRemoveFromHistory,
+  }) {
     Get.bottomSheet(
-      VideoOptionsSheet(video: video),
+      VideoOptionsSheet(video: video, onRemoveFromHistory: onRemoveFromHistory),
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       enterBottomSheetDuration: const Duration(milliseconds: 250),
@@ -30,7 +40,7 @@ class VideoOptionsSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Material(
           color: const Color(0xFF1E1E1E), // Premium dark theme matching screenshot
           borderRadius: BorderRadius.circular(16),
@@ -43,9 +53,23 @@ class VideoOptionsSheet extends StatelessWidget {
                 physics: const NeverScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
+                  if (onRemoveFromHistory != null)
+                    _buildMenuItem(
+                      context,
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        color: AppColors.error,
+                        size: 24,
+                      ),
+                      title: 'Remove from watch history',
+                      onTap: () {
+                        Get.back();
+                        onRemoveFromHistory!();
+                      },
+                    ),
                   _buildMenuItem(
                     context,
-                    icon: const Icon(Icons.watch_later_outlined, color: Colors.white, size: 24),
+                    icon: const Icon(Icons.watch_later_outlined, color: AppColors.textPrimary, size: 24),
                     title: 'Save to Watch later',
                     onTap: () async {
                       Get.back();
@@ -58,7 +82,7 @@ class VideoOptionsSheet extends StatelessWidget {
                   ),
                   _buildMenuItem(
                     context,
-                    icon: const Icon(Icons.bookmark_outline_rounded, color: Colors.white, size: 24),
+                    icon: const Icon(Icons.bookmark_outline_rounded, color: AppColors.textPrimary, size: 24),
                     title: 'Save to playlist',
                     onTap: () {
                       Get.back();
@@ -67,10 +91,20 @@ class VideoOptionsSheet extends StatelessWidget {
                   ),
                   _buildMenuItem(
                     context,
-                    icon: const Icon(Icons.download_outlined, color: Colors.white, size: 24),
+                    icon: const Icon(Icons.download_outlined, color: AppColors.textPrimary, size: 24),
                     title: 'Download video',
                     onTap: () async {
                       Get.back();
+                      if (Get.isRegistered<VideoController>() && Get.find<VideoController>().video.id == video.id) {
+                        final vc = Get.find<VideoController>();
+                        if (vc.currentResolution.value != null) {
+                          await vc.saveVideoOffline(vc.currentResolution.value!);
+                          if (Get.isRegistered<DownloadsController>()) {
+                            Get.find<DownloadsController>().loadVideos();
+                          }
+                          return;
+                        }
+                      }
                       try {
                         final offlineVideo = OfflineVideo(
                           id: video.id,
@@ -84,11 +118,18 @@ class VideoOptionsSheet extends StatelessWidget {
                           downloadedAt: DateTime.now(),
                         );
 
+                        var videoBytes = Uint8List(0);
+                        final targetUrl = video.originalUrl.isNotEmpty ? video.originalUrl : video.videoUrl;
+                        if (targetUrl.isNotEmpty && targetUrl.startsWith('http')) {
+                          final res = await http.get(Uri.parse(targetUrl));
+                          if (res.statusCode == 200) {
+                            videoBytes = res.bodyBytes;
+                          }
+                        }
+
                         await saveOfflineVideoBytes(
                           video.id,
-                          Uint8List(
-                            0,
-                          ), // empty bytes for lightweight local playback representation
+                          videoBytes,
                           offlineVideo,
                         );
 
@@ -97,21 +138,21 @@ class VideoOptionsSheet extends StatelessWidget {
                         }
 
                         AppSnackbar.show(
-                          "Download Complete",
+                          'Download Complete',
                           "'${video.title}' downloaded successfully for offline viewing.",
                           snackPosition: SnackPosition.BOTTOM,
                           backgroundColor: AppColors.success.withValues(alpha: 0.8),
-                          colorText: Colors.white,
+                          colorText: AppColors.textPrimary,
                           margin: const EdgeInsets.all(20),
                           borderRadius: 16,
                         );
                       } catch (e) {
                         AppSnackbar.show(
-                          "Download Failed",
-                          "Could not download video: $e",
+                          'Download Failed',
+                          'Could not download video: $e',
                           snackPosition: SnackPosition.BOTTOM,
                           backgroundColor: AppColors.error.withValues(alpha: 0.8),
-                          colorText: Colors.white,
+                          colorText: AppColors.textPrimary,
                           margin: const EdgeInsets.all(20),
                           borderRadius: 16,
                         );
@@ -122,7 +163,7 @@ class VideoOptionsSheet extends StatelessWidget {
                     context,
                     icon: Transform.flip(
                       flipX: true,
-                      child: const Icon(Icons.reply_outlined, color: Colors.white, size: 24),
+                      child: const Icon(Icons.reply_outlined, color: AppColors.textPrimary, size: 24),
                     ),
                     title: 'Share',
                     onTap: () {
@@ -139,12 +180,12 @@ class VideoOptionsSheet extends StatelessWidget {
                   ),
                   _buildMenuItem(
                     context,
-                    icon: const Icon(Icons.block_outlined, color: Colors.white, size: 24),
+                    icon: const Icon(Icons.block_outlined, color: AppColors.textPrimary, size: 24),
                     title: 'Not interested',
                     onTap: () {
                       Get.back();
                       AppSnackbar.show(
-                        "Not interested",
+                        'Not interested',
                         "We won't recommend this video anymore.",
                         snackPosition: SnackPosition.BOTTOM,
                         backgroundColor: AppColors.bgSurfaceHover,
@@ -155,13 +196,13 @@ class VideoOptionsSheet extends StatelessWidget {
                           onPressed: () {
                             if (Get.isSnackbarOpen) Get.back();
                             AppSnackbar.show(
-                              "Restored",
-                              "Video recommendation restored.",
+                              'Restored',
+                              'Video recommendation restored.',
                               snackPosition: SnackPosition.BOTTOM,
                             );
                           },
                           child: const Text(
-                            "Undo",
+                            'Undo',
                             style: TextStyle(
                               color: AppColors.brand,
                               fontWeight: FontWeight.bold,
@@ -173,7 +214,7 @@ class VideoOptionsSheet extends StatelessWidget {
                   ),
                   _buildMenuItem(
                     context,
-                    icon: const Icon(Icons.no_accounts_outlined, color: Colors.white, size: 24),
+                    icon: const Icon(Icons.no_accounts_outlined, color: AppColors.textPrimary, size: 24),
                     title: "Don't recommend channel",
                     onTap: () {
                       Get.back();
@@ -189,13 +230,13 @@ class VideoOptionsSheet extends StatelessWidget {
                           onPressed: () {
                             if (Get.isSnackbarOpen) Get.back();
                             AppSnackbar.show(
-                              "Restored",
-                              "Channel recommendations restored.",
+                              'Restored',
+                              'Channel recommendations restored.',
                               snackPosition: SnackPosition.BOTTOM,
                             );
                           },
                           child: const Text(
-                            "Undo",
+                            'Undo',
                             style: TextStyle(
                               color: AppColors.brand,
                               fontWeight: FontWeight.bold,
@@ -207,7 +248,7 @@ class VideoOptionsSheet extends StatelessWidget {
                   ),
                   _buildMenuItem(
                     context,
-                    icon: const Icon(Icons.flag_outlined, color: Colors.white, size: 24),
+                    icon: const Icon(Icons.flag_outlined, color: AppColors.textPrimary, size: 24),
                     title: 'Report',
                     onTap: () {
                       Get.back();
@@ -244,9 +285,9 @@ class VideoOptionsSheet extends StatelessWidget {
               Text(
                 title,
                 style: const TextStyle(
-                  fontFamily: 'Roboto',
+                  
                   fontSize: 16,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   fontWeight: FontWeight.w400,
                 ),
               ),
@@ -279,10 +320,10 @@ class VideoOptionsSheet extends StatelessWidget {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
-            title: Text(
+            title: const Text(
               'Report Video',
               style: TextStyle(
-                fontFamily: 'Roboto',
+                
                 color: AppColors.textPrimary,
                 fontWeight: FontWeight.bold,
               ),
@@ -293,8 +334,8 @@ class VideoOptionsSheet extends StatelessWidget {
                 return RadioListTile<String>(
                   title: Text(
                     reason,
-                    style: TextStyle(
-                      fontFamily: 'Roboto',
+                    style: const TextStyle(
+                      
                       color: AppColors.textPrimary,
                       fontSize: 15,
                     ),
@@ -314,7 +355,7 @@ class VideoOptionsSheet extends StatelessWidget {
             actions: [
               TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: Text(
+                child: const Text(
                   'Cancel',
                   style: TextStyle(
                     color: AppColors.textSecondary,
@@ -328,24 +369,24 @@ class VideoOptionsSheet extends StatelessWidget {
                     : () {
                         Navigator.of(context).pop();
                         AppSnackbar.show(
-                          "Thank you",
-                          "We have received your report and will review this video.",
+                          'Thank you',
+                          'We have received your report and will review this video.',
                           snackPosition: SnackPosition.BOTTOM,
                           backgroundColor: AppColors.brand.withValues(
                             alpha: 0.8,
                           ),
-                          colorText: Colors.white,
+                          colorText: AppColors.textPrimary,
                           margin: const EdgeInsets.all(20),
                           borderRadius: 16,
                         );
                       },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.brand,
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppColors.textPrimary,
                   disabledBackgroundColor: AppColors.brand.withValues(
                     alpha: 0.3,
                   ),
-                  disabledForegroundColor: Colors.white54,
+                  disabledForegroundColor: AppColors.textSecondary,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),

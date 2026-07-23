@@ -4,8 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart'
     show
         GoogleSignInException,
-        GoogleSignInUserCancelledException,
-        GoogleSignInFailedException;
+        GoogleSignInFailedException,
+        GoogleSignInUserCancelledException;
 
 /// A utility class that converts raw Firebase and Platform exceptions
 /// into structured [GoogleSignInException] instances with consistent codes,
@@ -31,12 +31,12 @@ final class GoogleSignInExceptionHandler {
     dynamic exception,
   ) {
     return switch (exception) {
-      FirebaseAuthException e => _fromFirebaseAuth(e),
-      PlatformException e => _fromPlatformException(e),
-      GoogleSignInUserCancelledException e => _fromUserCancelled(e),
-      GoogleSignInFailedException e => _fromGoogleSignInFailed(e),
+      final FirebaseAuthException e => _fromFirebaseAuth(e),
+      final PlatformException e => _fromPlatformException(e),
+      final GoogleSignInUserCancelledException e => _fromUserCancelled(e),
+      final GoogleSignInFailedException e => _fromGoogleSignInFailed(e),
       _ => GoogleSignInException(
-          message: 'An unexpected error occurred: ${exception.toString()}',
+          message: 'An unexpected error occurred: $exception',
           code: 'unknown',
           isRetryable: true,
           originalException: exception,
@@ -91,7 +91,6 @@ final class GoogleSignInExceptionHandler {
       'too-many-requests' => GoogleSignInException(
           message: 'Too many requests. Please try again later.',
           code: e.code,
-          isRetryable: false,
           originalException: e,
         ),
       'network-request-failed' => GoogleSignInException(

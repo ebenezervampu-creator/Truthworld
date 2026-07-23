@@ -1361,6 +1361,7 @@ async function _fanOutSubscriberNotifications(video: any, videoId: string): Prom
       const topicTitle = topicDoc.data().title || "Followed Topic";
       const savedSnap = await db.collectionGroup("savedTopics").where("topicId", "==", topicDoc.id).limit(500).get();
       const topicNotifs = savedSnap.docs
+        .filter(d => d.data()?.notificationSetting !== "none")
         .map(d => d.ref.path.split("/")[1])
         .filter(uid => uid && uid !== creatorId)
         .map(uid => notifyUser({
@@ -1453,7 +1454,8 @@ export {
 
 export {
   getNotifications,
-  markNotificationRead
+  markNotificationRead,
+  updateTopicNotificationSettings
 } from "./notifications/notifications";
 
 export {
@@ -1591,8 +1593,10 @@ export const syncJobToShard = onDocumentWritten(
   }
 );
 
-// ─── SEO Server Cloud Function ───────────────────────────────────────────────
+// ─── SEO Server & Indexing Cloud Functions ───────────────────────────────────
 export { seoServer } from "./seo/seoServer";
+export { rebuildDirtySitemapsScheduler } from "./seo/sitemap/sitemapScheduler";
+export { onVideoSeoWritten, onChannelSeoWritten } from "./seo/indexing/indexingTriggers";
 
 export { onAdCampaignWritten } from "./ads/ads";
 

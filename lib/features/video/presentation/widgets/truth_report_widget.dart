@@ -1,16 +1,16 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/widgets/credibility_label_widget.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class TruthReportWidget extends StatelessWidget {
-  final Video video;
 
-  const TruthReportWidget({super.key, required this.video});
+  const TruthReportWidget({required this.video, super.key});
+  final Video video;
 
   @override
   Widget build(BuildContext context) {
@@ -26,10 +26,10 @@ class TruthReportWidget extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.bgPage.withValues(alpha: 0.98),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.5),
+            color: AppColors.bgPage.withValues(alpha: 0.5),
             blurRadius: 40,
             spreadRadius: 10,
           ),
@@ -55,7 +55,7 @@ class TruthReportWidget extends StatelessWidget {
                     _buildConfidenceSection(context, report),
                     const SizedBox(height: 24),
                     if (report.riskNote.isNotEmpty &&
-                        !report.riskNote.contains("No harmful"))
+                        !report.riskNote.contains('No harmful'))
                       _buildRiskBanner(report.riskNote),
                     const SizedBox(height: 24),
                     _buildNarrativeSection(report),
@@ -103,18 +103,18 @@ class TruthReportWidget extends StatelessWidget {
                 color: AppColors.brand.withValues(alpha: 0.3),
               ),
           const SizedBox(height: 16),
-          Text(
+          const Text(
             'Analysis Pending',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
-          Text(
+          const Text(
             'TruthWorld is currently evaluating this content.',
-            style: GoogleFonts.roboto(color: AppColors.textSecondary),
+            style: TextStyle(color: AppColors.textSecondary),
           ),
         ],
       ),
@@ -126,7 +126,7 @@ class TruthReportWidget extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05)),
+          bottom: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.05)),
         ),
       ),
       child: Column(
@@ -135,19 +135,19 @@ class TruthReportWidget extends StatelessWidget {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.white24,
+              color: AppColors.textDisabled,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
           const SizedBox(height: 16),
           Row(
             children: [
-              Column(
+              const Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'TRUTH REPORT',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w700,
                       color: AppColors.brand,
@@ -156,15 +156,15 @@ class TruthReportWidget extends StatelessWidget {
                   ),
                   Row(
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.verified_user,
                         size: 10,
                         color: AppColors.success,
                       ),
-                      const SizedBox(width: 4),
+                      SizedBox(width: 4),
                       Text(
                         'VERIFIED ANALYSIS',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 8,
                           fontWeight: FontWeight.w700,
                           color: AppColors.textTertiary,
@@ -191,9 +191,9 @@ class TruthReportWidget extends StatelessWidget {
                   size: 16,
                   color: AppColors.textTertiary,
                 ),
-                label: Text(
+                label: const Text(
                   'ADVANCED',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textTertiary,
@@ -222,10 +222,10 @@ class TruthReportWidget extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.05)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
+            color: AppColors.bgPage.withValues(alpha: 0.2),
             blurRadius: 20,
             offset: const Offset(0, 10),
           ),
@@ -247,13 +247,13 @@ class TruthReportWidget extends StatelessWidget {
               _buildMetricRing(
                 label: 'HONESTY',
                 score: report.honestyScore,
-                color: Colors.blueAccent,
+                color: AppColors.info,
                 icon: Icons.face_outlined,
               ),
               _buildMetricRing(
                 label: 'RATIONALITY',
                 score: report.rationalityScore,
-                color: Colors.purpleAccent,
+                color: AppColors.brandHover,
                 icon: Icons.psychology_outlined,
               ),
             ],
@@ -266,16 +266,16 @@ class TruthReportWidget extends StatelessWidget {
               else ...[
                 Text(
                   compositeRating?.toStringAsFixed(1) ?? 'N/A',
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     fontSize: 48,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
                     letterSpacing: -1,
                   ),
                 ),
-                Text(
+                const Text(
                   'COMPOSITE RATING',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.w700,
                     color: AppColors.textTertiary,
@@ -287,7 +287,7 @@ class TruthReportWidget extends StatelessWidget {
               Text(
                 report.label,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: themeColor,
@@ -344,7 +344,7 @@ class TruthReportWidget extends StatelessWidget {
         const SizedBox(height: 12),
         Text(
           score?.toStringAsFixed(1) ?? 'N/A',
-          style: GoogleFonts.roboto(
+          style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.bold,
             color: AppColors.textPrimary,
@@ -352,7 +352,7 @@ class TruthReportWidget extends StatelessWidget {
         ),
         Text(
           label,
-          style: GoogleFonts.roboto(
+          style: const TextStyle(
             fontSize: 8,
             fontWeight: FontWeight.w700,
             color: AppColors.textTertiary,
@@ -367,24 +367,24 @@ class TruthReportWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.1),
+        color: AppColors.warning.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
           const Icon(
             Icons.auto_awesome,
-            color: Colors.orange,
+            color: AppColors.warning,
             size: 20,
           ).animate(onPlay: (c) => c.repeat()).shimmer(duration: 2.seconds),
           const SizedBox(height: 4),
-          Text(
+          const Text(
             'DEVELOPING STORY',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w700,
-              color: Colors.orange,
+              color: AppColors.warning,
               letterSpacing: 1,
             ),
           ),
@@ -409,7 +409,7 @@ class TruthReportWidget extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             level.toUpperCase(),
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w700,
               color: color,
@@ -423,7 +423,7 @@ class TruthReportWidget extends StatelessWidget {
 
   Widget _buildConfidenceSection(BuildContext context, UIReport report) {
     final level = report.confidence.toLowerCase();
-    double value = 0.3;
+    var value = 0.3;
     if (level == 'high') value = 0.95;
     if (level == 'medium') value = 0.65;
 
@@ -435,9 +435,9 @@ class TruthReportWidget extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
+            const Text(
               'ANALYSIS CONFIDENCE',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 color: AppColors.textTertiary,
@@ -446,7 +446,7 @@ class TruthReportWidget extends StatelessWidget {
             ),
             Text(
               '${(value * 100).toInt()}%',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
                 color: color,
@@ -459,7 +459,7 @@ class TruthReportWidget extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           _getConfidenceInterpretation(value),
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 11,
             color: color.withValues(alpha: 0.8),
             fontWeight: FontWeight.bold,
@@ -507,7 +507,6 @@ class TruthReportWidget extends StatelessWidget {
                     BoxShadow(
                       color: color.withValues(alpha: 0.3),
                       blurRadius: 8,
-                      spreadRadius: 0,
                     ),
                   ],
                 ),
@@ -520,54 +519,54 @@ class TruthReportWidget extends StatelessWidget {
 
   String _getConfidenceInterpretation(double c) {
     if (c >= 0.85) {
-      return "High confidence — results are strongly supported by institutional data.";
+      return 'High confidence — results are strongly supported by institutional data.';
     }
     if (c >= 0.6) {
-      return "Moderate confidence — some uncertainty remains in claim verification.";
+      return 'Moderate confidence — some uncertainty remains in claim verification.';
     }
-    return "Low confidence — limited data available; treat results cautiously.";
+    return 'Low confidence — limited data available; treat results cautiously.';
   }
 
   Widget _buildWhyThisMattersSection(BuildContext context, UIReport report) {
     final category =
         video.videoCategory?.toLowerCase() ?? video.category.toLowerCase();
-    String matterLine =
-        "This affects how much you can rely on this video for real-world decisions.";
+    var matterLine =
+        'This affects how much you can rely on this video for real-world decisions.';
 
     if (category.contains('health')) {
       matterLine =
-          "Critical: This information could impact personal medical decisions or health outcomes.";
+          'Critical: This information could impact personal medical decisions or health outcomes.';
     } else if (category.contains('news') || category.contains('politics')) {
       matterLine =
-          "Insight: These claims may influence public understanding or democratic participation.";
+          'Insight: These claims may influence public understanding or democratic participation.';
     } else if (category.contains('finance')) {
       matterLine =
-          "Caution: Financial claims detected. This may impact investment or economic security.";
+          'Caution: Financial claims detected. This may impact investment or economic security.';
     } else if (category.contains('religion')) {
       matterLine =
-          "Note: This content pertains to cultural or faith-based beliefs; interpret through context.";
+          'Note: This content pertains to cultural or faith-based beliefs; interpret through context.';
     }
 
     return Container(
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.blueAccent.withValues(alpha: 0.05),
+        color: AppColors.info.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.1)),
+        border: Border.all(color: AppColors.info.withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [
           const Icon(
             Icons.lightbulb_outline,
-            color: Colors.blueAccent,
+            color: AppColors.info,
             size: 18,
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               'Why this matters: $matterLine',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 12,
                 color: AppColors.textPrimary.withValues(alpha: 0.7),
                 fontStyle: FontStyle.italic,
@@ -582,23 +581,23 @@ class TruthReportWidget extends StatelessWidget {
   Widget _buildRecommendationSection(BuildContext context, UIReport report) {
     final category =
         video.videoCategory?.toLowerCase() ?? video.category.toLowerCase();
-    String recommendation = "Use additional sources to confirm key claims.";
-    IconData icon = Icons.info_outline;
-    Color color = AppColors.textTertiary;
+    var recommendation = 'Use additional sources to confirm key claims.';
+    var icon = Icons.info_outline;
+    var color = AppColors.textTertiary;
 
     if (category.contains('health')) {
       recommendation =
-          "Do not rely on this video for medical decisions without consulting a professional.";
+          'Do not rely on this video for medical decisions without consulting a professional.';
       icon = Icons.medical_services_outlined;
       color = AppColors.warning;
     } else if (category.contains('news') || category.contains('politics')) {
       recommendation =
-          "Cross-reference these claims with primary news sources for full context.";
+          'Cross-reference these claims with primary news sources for full context.';
       icon = Icons.newspaper_outlined;
-      color = Colors.blueAccent;
+      color = AppColors.info;
     } else if (category.contains('finance')) {
       recommendation =
-          "Consult a licensed financial advisor before taking action on these claims.";
+          'Consult a licensed financial advisor before taking action on these claims.';
       icon = Icons.account_balance_outlined;
       color = AppColors.success;
     }
@@ -619,7 +618,7 @@ class TruthReportWidget extends StatelessWidget {
               const SizedBox(width: 10),
               Text(
                 'RECOMMENDATION',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   color: color,
@@ -631,7 +630,7 @@ class TruthReportWidget extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             recommendation,
-            style: GoogleFonts.roboto(
+            style: const TextStyle(
               fontSize: 14,
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w500,
@@ -658,7 +657,7 @@ class TruthReportWidget extends StatelessWidget {
           Expanded(
             child: Text(
               note,
-              style: GoogleFonts.roboto(
+              style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
@@ -674,9 +673,9 @@ class TruthReportWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'SUMMARY ANALYSIS',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
             color: AppColors.textTertiary,
@@ -687,13 +686,13 @@ class TruthReportWidget extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.03),
+            color: AppColors.textPrimary.withValues(alpha: 0.03),
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.05)),
           ),
           child: Text(
             report.narrative,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 15,
               color: AppColors.textPrimary.withValues(alpha: 0.9),
               height: 1.6,
@@ -708,9 +707,9 @@ class TruthReportWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'KEY TRUST DRIVERS',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
             color: AppColors.textTertiary,
@@ -759,7 +758,7 @@ class TruthReportWidget extends StatelessWidget {
               Expanded(
                 child: Text(
                   driver.text,
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -779,7 +778,7 @@ class TruthReportWidget extends StatelessWidget {
                   ),
                   child: Text(
                     'HIGH',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 8,
                       fontWeight: FontWeight.w700,
                       color: color,
@@ -800,9 +799,9 @@ class TruthReportWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'VERIFIED SOURCES',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
             color: AppColors.textTertiary,
@@ -836,7 +835,7 @@ class TruthReportWidget extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.bgSurface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.05)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -855,7 +854,7 @@ class TruthReportWidget extends StatelessWidget {
                     ),
                     child: Text(
                       source.trustLevel.toUpperCase(),
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 8,
                         fontWeight: FontWeight.w700,
                         color: tierColor,
@@ -864,7 +863,7 @@ class TruthReportWidget extends StatelessWidget {
                   ),
                   Text(
                     source.type,
-                    style: GoogleFonts.roboto(
+                    style: const TextStyle(
                       fontSize: 8,
                       color: AppColors.textTertiary,
                       fontWeight: FontWeight.bold,
@@ -877,7 +876,7 @@ class TruthReportWidget extends StatelessWidget {
                 source.title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.roboto(
+                style: const TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: AppColors.textPrimary,
@@ -886,7 +885,7 @@ class TruthReportWidget extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 source.domain ?? 'verified-link',
-                style: GoogleFonts.roboto(
+                style: const TextStyle(
                   fontSize: 10,
                   color: AppColors.textTertiary,
                 ),
@@ -917,9 +916,9 @@ class TruthReportWidget extends StatelessWidget {
             size: 32,
           ),
           const SizedBox(height: 16),
-          Text(
+          const Text(
             'CONCLUSION',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: AppColors.brand,
@@ -930,7 +929,7 @@ class TruthReportWidget extends StatelessWidget {
           Text(
             report.conclusion,
             textAlign: TextAlign.center,
-            style: GoogleFonts.roboto(
+            style: const TextStyle(
               fontSize: 15,
               color: AppColors.textPrimary,
               fontWeight: FontWeight.w500,
@@ -946,9 +945,9 @@ class TruthReportWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'DISPUTED CLAIMS',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
             color: AppColors.warning,
@@ -978,7 +977,7 @@ class TruthReportWidget extends StatelessWidget {
                 Expanded(
                   child: Text(
                     signal,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 12,
                       color: AppColors.textPrimary.withValues(alpha: 0.8),
                     ),
@@ -1000,9 +999,9 @@ class TruthReportWidget extends StatelessWidget {
         onPressed: () {
           // Future: Implement review request logic
         },
-        child: Text(
+        child: const Text(
           'Think this is incorrect? Request a review',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 12,
             color: AppColors.textTertiary,
             decoration: TextDecoration.underline,
@@ -1016,8 +1015,8 @@ class TruthReportWidget extends StatelessWidget {
     final showAlways =
         report.rating != null && report.rating! < 0.5; // Always for low scores
     final isSensitive =
-        video.videoCategory?.toLowerCase().contains('health') == true ||
-        video.videoCategory?.toLowerCase().contains('finance') == true;
+        (video.videoCategory?.toLowerCase().contains('health') ?? false) ||
+        (video.videoCategory?.toLowerCase().contains('finance') ?? false);
 
     if (!showAlways &&
         !isSensitive &&
@@ -1025,14 +1024,14 @@ class TruthReportWidget extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    return Opacity(
+    return const Opacity(
       opacity: 0.5,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: EdgeInsets.symmetric(horizontal: 16),
         child: Text(
           'DISCLAIMER: This analysis is AI-generated based on available public data. It is intended as a guidance tool and should not be considered a definitive judgment or professional advice.',
           textAlign: TextAlign.center,
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 10,
             color: AppColors.textTertiary,
             height: 1.4,
@@ -1046,7 +1045,7 @@ class TruthReportWidget extends StatelessWidget {
     if (rating >= 8.5) return AppColors.success;
     if (rating >= 7.0) return const Color(0xFFA3E635);
     if (rating >= 5.5) return AppColors.warning;
-    if (rating >= 4.0) return Colors.orangeAccent;
+    if (rating >= 4.0) return AppColors.warning;
     return AppColors.error;
   }
 
@@ -1065,8 +1064,8 @@ class TruthReportWidget extends StatelessWidget {
 }
 
 class DashedBarPainter extends CustomPainter {
-  final Color color;
   DashedBarPainter({required this.color});
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {

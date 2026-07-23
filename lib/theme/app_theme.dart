@@ -1,32 +1,32 @@
 import 'package:flutter/material.dart';
-import 'app_colors.dart';
-import 'tw_colors.dart';
-import 'tw_typography.dart';
-import 'tw_spacing.dart';
-import 'tw_radius.dart';
-import 'tw_motion.dart';
-import 'tw_shadows.dart';
-import 'tw_gradients.dart';
-import 'tw_layout_tokens.dart';
-import 'tw_breakpoints.dart';
-import 'device_state.dart';
+import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/theme/device_state.dart';
+import 'package:truthworld/theme/tw_breakpoints.dart';
+import 'package:truthworld/theme/tw_colors.dart';
+import 'package:truthworld/theme/tw_gradients.dart';
+import 'package:truthworld/theme/tw_layout_tokens.dart';
+import 'package:truthworld/theme/tw_motion.dart';
+import 'package:truthworld/theme/tw_radius.dart';
+import 'package:truthworld/theme/tw_shadows.dart';
+import 'package:truthworld/theme/tw_spacing.dart';
+import 'package:truthworld/theme/tw_typography.dart';
 
 export 'app_colors.dart';
-export 'responsive_helpers.dart';
 export 'compatibility_layer.dart';
+export 'responsive_helpers.dart';
 export 'tw_colors.dart';
-export 'tw_typography.dart';
-export 'tw_spacing.dart';
-export 'tw_radius.dart';
-export 'tw_motion.dart';
-export 'tw_shadows.dart';
 export 'tw_gradients.dart';
 export 'tw_layout_tokens.dart';
+export 'tw_motion.dart';
+export 'tw_radius.dart';
+export 'tw_shadows.dart';
+export 'tw_spacing.dart';
+export 'tw_typography.dart';
 
 ThemeData buildAppTheme({DeviceState? device}) {
   return ThemeData(
     useMaterial3: true,
-    fontFamily: 'Roboto',
+    
     brightness: Brightness.dark,
     primaryColor: AppColors.brand,
     scaffoldBackgroundColor: AppColors.bgPage,
@@ -70,7 +70,7 @@ ThemeData buildAppTheme({DeviceState? device}) {
       TWShadows.defaults(),
       TWGradients.defaults(),
       if (device != null) TWLayoutTokens.fromDevice(device)
-      else TWLayoutTokens.fromDevice(const DeviceState(width: 375, height: 812, type: DeviceType.mobile, fontScale: 1.0)),
+      else TWLayoutTokens.fromDevice(const DeviceState(width: 375, height: 812, type: DeviceType.mobile, fontScale: 1)),
     ],
     
     colorScheme: const ColorScheme.dark(
@@ -88,21 +88,21 @@ ThemeData buildAppTheme({DeviceState? device}) {
     ),
 
     textTheme: const TextTheme(
-      displayLarge: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary),
-      displayMedium: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary),
-      displaySmall: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary),
-      headlineLarge: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-      headlineMedium: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-      headlineSmall: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary, fontWeight: FontWeight.bold),
-      titleLarge: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary, fontWeight: FontWeight.w500),
-      titleMedium: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary, fontWeight: FontWeight.w500),
-      titleSmall: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary, fontWeight: FontWeight.w500),
-      bodyLarge: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary),
-      bodyMedium: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary),
-      bodySmall: TextStyle(fontFamily: 'Roboto', color: AppColors.textSecondary),
-      labelLarge: TextStyle(fontFamily: 'Roboto', color: AppColors.textPrimary),
-      labelMedium: TextStyle(fontFamily: 'Roboto', color: AppColors.textSecondary),
-      labelSmall: TextStyle(fontFamily: 'Roboto', color: AppColors.textTertiary),
+      displayLarge: TextStyle( color: AppColors.textPrimary),
+      displayMedium: TextStyle( color: AppColors.textPrimary),
+      displaySmall: TextStyle( color: AppColors.textPrimary),
+      headlineLarge: TextStyle( color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+      headlineMedium: TextStyle( color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+      headlineSmall: TextStyle( color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+      titleLarge: TextStyle( color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+      titleMedium: TextStyle( color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+      titleSmall: TextStyle( color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+      bodyLarge: TextStyle( color: AppColors.textPrimary),
+      bodyMedium: TextStyle( color: AppColors.textPrimary),
+      bodySmall: TextStyle( color: AppColors.textSecondary),
+      labelLarge: TextStyle( color: AppColors.textPrimary),
+      labelMedium: TextStyle( color: AppColors.textSecondary),
+      labelSmall: TextStyle( color: AppColors.textTertiary),
     ),
 
     iconTheme: const IconThemeData(color: AppColors.iconDefault),
@@ -138,11 +138,11 @@ ThemeData buildAppTheme({DeviceState? device}) {
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: AppColors.searchBorder, width: 1),
+        borderSide: const BorderSide(color: AppColors.searchBorder),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: AppColors.brand, width: 1),
+        borderSide: const BorderSide(color: AppColors.brand),
       ),
       hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 14),
     ),

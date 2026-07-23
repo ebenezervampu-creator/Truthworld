@@ -1,15 +1,16 @@
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
-import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/data/models/channel.dart';
-
 import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class PlaylistController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -18,9 +19,9 @@ class PlaylistController extends GetxController {
   // Use a getter to safely retrieve the current user ID
   String get user => FirebaseAuth.instance.currentUser?.uid ?? '';
 
-  var channels = <Channel>[].obs;
-  var playlists = <PlaylistModel>[].obs;
-  var publicPlaylists = <PlaylistModel>[].obs; // For upload screen
+  RxList<Channel> channels = <Channel>[].obs;
+  RxList<PlaylistModel> playlists = <PlaylistModel>[].obs;
+  RxList<PlaylistModel> publicPlaylists = <PlaylistModel>[].obs; // For upload screen
   Rx<Channel?> selectedChannel = Rx<Channel?>(null);
   RxBool isLoading = false.obs;
   final RxBool isPlaylistsLoaded = false.obs;
@@ -77,8 +78,21 @@ class PlaylistController extends GetxController {
 
   void refreshPlaylistsTick() => refreshTick.value++;
 
+  List<PlaylistModel> get allUserPlaylists {
+    final map = <String, PlaylistModel>{};
+    for (final p in playlists) {
+      map[p.id] = p;
+    }
+    for (final p in publicPlaylists) {
+      if (user.isEmpty || p.ownerId == user || (selectedChannel.value != null && p.channelId == selectedChannel.value!.channelId)) {
+        map[p.id] = p;
+      }
+    }
+    return map.values.toList();
+  }
+
   Iterable<PlaylistModel> get userCreatedPlaylists {
-    final filtered = playlists.where((p) {
+    final filtered = allUserPlaylists.where((p) {
       final name = p.playlistName.toLowerCase().trim();
       // Filter out watch later playlists (various spellings)
       final isWatchLater =
@@ -126,14 +140,13 @@ class PlaylistController extends GetxController {
       ownerId: user,
       channelId: '',
       createdAt: DateTime.now(),
-      thumbnailUrl: '',
     );
   }
 
   /// Toggle video in "Watch Later" playlist
   Future<void> toggleWatchLater(String videoId) async {
     if (user.isEmpty) {
-      Get.snackbar("Auth required", "Please sign in to update Watch Later");
+      Get.snackbar('Auth required', 'Please sign in to update Watch Later');
       return;
     }
     try {
@@ -147,16 +160,16 @@ class PlaylistController extends GetxController {
       final isAlreadyIn = watchLaterVideoIds.contains(videoId);
       if (isAlreadyIn) {
         await ref.delete();
-        Get.snackbar("Success", "Removed from Watch Later");
+        Get.snackbar('Success', 'Removed from Watch Later');
       } else {
         await ref.set({
           'createdAt': FieldValue.serverTimestamp(),
         });
-        Get.snackbar("Success", "Added to Watch Later");
+        Get.snackbar('Success', 'Added to Watch Later');
       }
     } catch (e) {
-      logger.debug("❌ Error toggling Watch Later: $e");
-      Get.snackbar("Error", "Failed to update Watch Later");
+      logger.debug('❌ Error toggling Watch Later: $e');
+      Get.snackbar('Error', 'Failed to update Watch Later');
     } finally {
       isLoading.value = false;
     }
@@ -240,7 +253,7 @@ class PlaylistController extends GetxController {
       final currentCount = playlists.length;
 
       // Get channel ID - try selected channel first, then find user's channel
-      String channelId = selectedChannel.value?.channelId ?? '';
+      var channelId = selectedChannel.value?.channelId ?? '';
       if (channelId.isEmpty && channels.isNotEmpty) {
         // Find channel owned by current user
         final userChannel = channels.firstWhere(
@@ -264,15 +277,12 @@ class PlaylistController extends GetxController {
         updatedAt: DateTime.now(),
         thumbnailUrl: thumbnailUrl ?? '',
         sortIndex: currentCount,
-        status: 'underReview',
-        geminiApproved: null,
-        moderationReason: null,
       );
 
       await playlistRef.set(playlist.toMap());
 
       // Write video items to the subcollection
-      for (int i = 0; i < videoIds.length; i++) {
+      for (var i = 0; i < videoIds.length; i++) {
         await playlistRef.collection('items').doc(videoIds[i]).set({
           'videoId': videoIds[i],
           'addedAt': FieldValue.serverTimestamp(),
@@ -281,6 +291,9 @@ class PlaylistController extends GetxController {
       }
 
       // Add to local list immediately for UI update
+      if (isPublic) {
+        publicPlaylists.add(playlist);
+      }
       playlists.add(playlist);
 
       // Refresh to ensure consistency
@@ -291,17 +304,17 @@ class PlaylistController extends GetxController {
       );
 
       Get.snackbar(
-        "Success",
-        "Playlist created successfully!",
+        'Success',
+        'Playlist created successfully!',
         snackPosition: SnackPosition.BOTTOM,
       );
 
       return playlist;
     } catch (e) {
-      logger.debug("❌ Error creating playlist: $e");
+      logger.debug('❌ Error creating playlist: $e');
       Get.snackbar(
-        "Error",
-        "Failed to create playlist!",
+        'Error',
+        'Failed to create playlist!',
         snackPosition: SnackPosition.BOTTOM,
       );
       return null;
@@ -322,15 +335,15 @@ class PlaylistController extends GetxController {
       await ref.delete();
 
       Get.snackbar(
-        "Success",
-        "Playlist deleted successfully!",
+        'Success',
+        'Playlist deleted successfully!',
         snackPosition: SnackPosition.BOTTOM,
       );
     } catch (e) {
-      logger.debug("❌ Error deleting playlist: $e");
+      logger.debug('❌ Error deleting playlist: $e');
       Get.snackbar(
-        "Error",
-        "Failed to delete playlist!",
+        'Error',
+        'Failed to delete playlist!',
         snackPosition: SnackPosition.BOTTOM,
       );
     }
@@ -375,7 +388,7 @@ class PlaylistController extends GetxController {
       final snapshot = await ref.collection('items').orderBy('addedAt').get();
       return snapshot.docs.map((doc) => doc.id).toList();
     } catch (e) {
-      logger.debug("❌ Error fetching playlist video IDs: $e");
+      logger.debug('❌ Error fetching playlist video IDs: $e');
       return [];
     }
   }
@@ -396,14 +409,14 @@ class PlaylistController extends GetxController {
                 .doc(playlistId);
 
       final snapshot = await ref.get();
-      if (!snapshot.exists) throw "Playlist not found";
+      if (!snapshot.exists) throw 'Playlist not found';
 
       final currentVideoIds = List<String>.from(snapshot.data()?['videoIds'] ?? []);
-      int addedCount = 0;
+      var addedCount = 0;
       
       final currentTotalCount = snapshot.data()?['videoCount'] ?? 0;
 
-      for (var vid in videoIdsToAdd) {
+      for (final vid in videoIdsToAdd) {
         final itemDoc = await ref.collection('items').doc(vid).get();
         if (!itemDoc.exists) {
           await ref.collection('items').doc(vid).set({
@@ -432,27 +445,27 @@ class PlaylistController extends GetxController {
           await _updateThumbnail(ref, currentVideoIds);
         }
         Get.snackbar(
-          "Success",
-          "Videos added to playlist!",
+          'Success',
+          'Videos added to playlist!',
           snackPosition: SnackPosition.BOTTOM,
           backgroundColor: const Color(0xFF1DB954).withValues(alpha: 0.8),
-          colorText: Colors.white,
+          colorText: AppColors.textPrimary,
         );
       } else {
         Get.snackbar(
-          "Info",
-          "All selected videos are already in the playlist!",
+          'Info',
+          'All selected videos are already in the playlist!',
           snackPosition: SnackPosition.BOTTOM,
         );
       }
     } catch (e) {
-      logger.debug("❌ Error adding videos: $e");
+      logger.debug('❌ Error adding videos: $e');
       Get.snackbar(
-        "Error",
-        "Failed to add videos: $e",
+        'Error',
+        'Failed to add videos: $e',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.8),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
       );
     }
   }
@@ -473,7 +486,7 @@ class PlaylistController extends GetxController {
                 .doc(playlistId);
 
       final snapshot = await ref.get();
-      if (!snapshot.exists) throw "Playlist not found";
+      if (!snapshot.exists) throw 'Playlist not found';
 
       final itemDoc = await ref.collection('items').doc(videoId).get();
       if (!itemDoc.exists) {
@@ -503,22 +516,22 @@ class PlaylistController extends GetxController {
         }
 
         Get.snackbar(
-          "Success",
-          "Video added to playlist!",
+          'Success',
+          'Video added to playlist!',
           snackPosition: SnackPosition.BOTTOM,
         );
       } else {
         Get.snackbar(
-          "Warning",
-          "Video already in playlist!",
+          'Warning',
+          'Video already in playlist!',
           snackPosition: SnackPosition.BOTTOM,
         );
       }
     } catch (e) {
-      logger.debug("❌ Error adding video: $e");
+      logger.debug('❌ Error adding video: $e');
       Get.snackbar(
-        "Error",
-        "Failed to add video!",
+        'Error',
+        'Failed to add video!',
         snackPosition: SnackPosition.BOTTOM,
       );
     }
@@ -540,7 +553,7 @@ class PlaylistController extends GetxController {
                 .doc(playlistId);
 
       final snapshot = await ref.get();
-      if (!snapshot.exists) throw "Playlist not found";
+      if (!snapshot.exists) throw 'Playlist not found';
 
       final itemDoc = await ref.collection('items').doc(videoId).get();
       if (itemDoc.exists) {
@@ -564,16 +577,16 @@ class PlaylistController extends GetxController {
         await _updateThumbnail(ref, newCachedIds);
 
         Get.snackbar(
-          "Success",
-          "Video removed from playlist!",
+          'Success',
+          'Video removed from playlist!',
           snackPosition: SnackPosition.BOTTOM,
         );
       }
     } catch (e) {
-      logger.debug("❌ Error removing video: $e");
+      logger.debug('❌ Error removing video: $e');
       Get.snackbar(
-        "Error",
-        "Failed to remove video!",
+        'Error',
+        'Failed to remove video!',
         snackPosition: SnackPosition.BOTTOM,
       );
     }
@@ -588,7 +601,7 @@ class PlaylistController extends GetxController {
           .collection('playlists')
           .get();
 
-      for (var doc in userPlaylists.docs) {
+      for (final doc in userPlaylists.docs) {
         final itemDoc = await doc.reference.collection('items').doc(videoId).get();
         if (itemDoc.exists) {
           await doc.reference.collection('items').doc(videoId).delete();
@@ -610,7 +623,7 @@ class PlaylistController extends GetxController {
           .collection('public_playlists')
           .limit(50)
           .get();
-      for (var doc in publicPlaylists.docs) {
+      for (final doc in publicPlaylists.docs) {
         final itemDoc = await doc.reference.collection('items').doc(videoId).get();
         if (itemDoc.exists) {
           await doc.reference.collection('items').doc(videoId).delete();
@@ -629,12 +642,12 @@ class PlaylistController extends GetxController {
       }
 
       Get.snackbar(
-        "Success",
-        "Video removed from all playlists!",
+        'Success',
+        'Video removed from all playlists!',
         snackPosition: SnackPosition.BOTTOM,
       );
     } catch (e) {
-      logger.debug("❌ Error deleting video from playlists: $e");
+      logger.debug('❌ Error deleting video from playlists: $e');
     }
   }
 
@@ -692,14 +705,14 @@ class PlaylistController extends GetxController {
               .doc(playlistId)
               .get();
 
-    if (!doc.exists) throw Exception("Playlist not found");
+    if (!doc.exists) throw Exception('Playlist not found');
     return PlaylistModel.fromDocumentSnapshot(doc);
   }
 
   Future<List<Video>> fetchVideos(List<String> videoIds) async {
     if (videoIds.isEmpty) return [];
-    const int batchSize = 10;
-    List<Video> videos = [];
+    const batchSize = 10;
+    final videos = <Video>[];
 
     for (var i = 0; i < videoIds.length; i += batchSize) {
       final batchIds = videoIds.skip(i).take(batchSize).toList();
@@ -710,7 +723,7 @@ class PlaylistController extends GetxController {
       videos.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));
     }
 
-    final Map<String, Video> videoMap = {for (var v in videos) v.id: v};
+    final videoMap = <String, Video>{for (final v in videos) v.id: v};
     return videoIds
         .map((id) => videoMap[id] ?? _getPlaceholderVideo(id))
         .toList();
@@ -719,13 +732,13 @@ class PlaylistController extends GetxController {
   Video _getPlaceholderVideo(String id) {
     return Video(
       id: id,
-      title: "Video not found",
-      description: "",
-      thumbnailUrl: "",
-      ownerId: "",
-      channelId: "",
-      channelName: "",
-      category: "",
+      title: 'Video not found',
+      description: '',
+      thumbnailUrl: '',
+      ownerId: '',
+      channelId: '',
+      channelName: '',
+      category: '',
       tags: [],
     );
   }
@@ -756,7 +769,7 @@ class PlaylistController extends GetxController {
       );
     } catch (e, stackTrace) {
       logger.error(
-        "❌ Error sharing playlist",
+        '❌ Error sharing playlist',
         error: e,
         stackTrace: stackTrace,
       );
@@ -790,22 +803,22 @@ class PlaylistController extends GetxController {
       refreshPlaylistsTick();
 
       Get.snackbar(
-        "Success",
-        "Playlist renamed successfully!",
+        'Success',
+        'Playlist renamed successfully!',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: const Color(0xFF1DB954).withValues(alpha: 0.8),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         margin: const EdgeInsets.all(20),
         borderRadius: 16,
       );
     } catch (e) {
-      logger.debug("❌ Error editing playlist: $e");
+      logger.debug('❌ Error editing playlist: $e');
       Get.snackbar(
-        "Error",
-        "Failed to rename playlist!",
+        'Error',
+        'Failed to rename playlist!',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.8),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         margin: const EdgeInsets.all(20),
         borderRadius: 16,
       );
@@ -832,7 +845,7 @@ class PlaylistController extends GetxController {
 
       refreshPlaylistsTick();
     } catch (e) {
-      logger.debug("❌ Error updating sort index: $e");
+      logger.debug('❌ Error updating sort index: $e');
     }
   }
 
@@ -887,15 +900,15 @@ class PlaylistController extends GetxController {
             .delete();
       }
       Get.snackbar(
-        "Success",
-        "Playlist visibility updated!",
+        'Success',
+        'Playlist visibility updated!',
         snackPosition: SnackPosition.BOTTOM,
       );
     } catch (e) {
-      logger.debug("❌ Error toggling visibility: $e");
+      logger.debug('❌ Error toggling visibility: $e');
       Get.snackbar(
-        "Error",
-        "Failed to update visibility!",
+        'Error',
+        'Failed to update visibility!',
         snackPosition: SnackPosition.BOTTOM,
       );
     }
@@ -914,7 +927,7 @@ class PlaylistController extends GetxController {
     }
 
     _channelsSubscription = _firestore
-        .collection("channels")
+        .collection('channels')
         .where('ownerId', isEqualTo: user)
         .snapshots()
         .listen(
@@ -949,7 +962,7 @@ class PlaylistController extends GetxController {
     }
 
     _playlistsSubscription = _firestore
-        .collection("users")
+        .collection('users')
         .doc(user)
         .collection('playlists')
         .snapshots()
@@ -996,7 +1009,7 @@ class PlaylistController extends GetxController {
 
     try {
       final snapshot = await _firestore
-          .collection("users")
+          .collection('users')
           .doc(user)
           .collection('playlists')
           .get();

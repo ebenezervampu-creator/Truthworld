@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'package:universal_html/html.dart' as html;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:idb_shim/idb_browser.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -10,18 +10,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_video_info/flutter_video_info.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
-import 'package:idb_shim/idb_browser.dart';
-import 'package:truthworld/core/services/deep_link_service.dart';
-import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
-
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart'
     as app_exceptions;
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
+import 'package:universal_html/html.dart' as html;
 
 // ========================================================================
 // EXTENSION: Stream Retry Logic
@@ -143,11 +143,13 @@ class MainController extends BaseController {
   Stream<List<Video>> streamVideos() {
     return _firestore
         .collection(_videosCollection)
+        .orderBy('uploadedAt', descending: true)
+        .limit(50)
         .snapshots()
         .map((snapshot) {
           try {
             return snapshot.docs
-                .map((doc) => Video.fromDocumentSnapshot(doc))
+                .map(Video.fromDocumentSnapshot)
                 .toList();
           } catch (e) {
             if (kDebugMode) {
@@ -194,9 +196,8 @@ class MainController extends BaseController {
             withData: true,
           ).timeout(
             _filePickerTimeout,
-            onTimeout: () => throw app_exceptions.TimeoutException(
+            onTimeout: () => throw const app_exceptions.TimeoutException(
               message: 'Image picker timeout',
-              originalException: null,
             ),
           );
 
@@ -240,9 +241,8 @@ class MainController extends BaseController {
             withData: true,
           ).timeout(
             _filePickerTimeout,
-            onTimeout: () => throw app_exceptions.TimeoutException(
+            onTimeout: () => throw const app_exceptions.TimeoutException(
               message: 'Video picker timeout',
-              originalException: null,
             ),
           );
 
@@ -258,9 +258,8 @@ class MainController extends BaseController {
             );
           }
         } else {
-          throw app_exceptions.ValidationException(
+          throw const app_exceptions.ValidationException(
             message: 'Failed to load video bytes',
-            originalException: null,
           );
         }
       } else {
@@ -570,6 +569,36 @@ class MainController extends BaseController {
     }
   }
 
+  /// Share topic functionality
+  Future<void> shareTopic(
+    String slugOrHandle,
+    String topicTitle, {
+    String? thumbnailUrl,
+    int? videoCount,
+    int? followerCount,
+    String? subtitle,
+  }) async {
+    try {
+      final url = DeepLinkService.topicUrl(slugOrHandle);
+
+      ShareBottomSheet.show(
+        title: topicTitle,
+        url: url,
+        thumbnailUrl: thumbnailUrl,
+        followerCount: followerCount,
+        videoCount: videoCount,
+        handle: slugOrHandle,
+        subtitle: subtitle,
+        type: 'topic',
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Error sharing topic: $e');
+      }
+      showWarning('Failed to share topic');
+    }
+  }
+
   /// Internal dislike implementation
   Future<void> _dislikeCommentInternal({
     required String videoId,
@@ -623,7 +652,7 @@ class MainController extends BaseController {
   }) async {
     try {
       // Get creator name (could be optimized by caching channel name)
-      String creatorName = 'Creator';
+      var creatorName = 'Creator';
       final userDoc = await _firestore.collection('users').doc(userId).get();
       if (userDoc.exists) {
         creatorName = userDoc.data()?['name'] ?? 'Creator';
@@ -874,9 +903,8 @@ class MainController extends BaseController {
   }) async {
     try {
       if (text.trim().isEmpty) {
-        throw app_exceptions.ValidationException(
+        throw const app_exceptions.ValidationException(
           message: 'Comment cannot be empty',
-          originalException: null,
         );
       }
 
@@ -967,9 +995,8 @@ class MainController extends BaseController {
   }) async {
     try {
       if (text.trim().isEmpty) {
-        throw app_exceptions.ValidationException(
+        throw const app_exceptions.ValidationException(
           message: 'Reply cannot be empty',
-          originalException: null,
         );
       }
 
@@ -1034,7 +1061,6 @@ class MainController extends BaseController {
   Future<void> deleteComment(String videoId, String commentId) async {
     await safeExecute(
       () => _deleteCommentInternal(videoId, commentId),
-      showLoading: true,
       loadingMessage: 'Deleting comment...',
     );
   }
@@ -1054,7 +1080,7 @@ class MainController extends BaseController {
 
       final batch = _firestore.batch();
 
-      for (var doc in repliesSnapshot.docs) {
+      for (final doc in repliesSnapshot.docs) {
         batch.delete(doc.reference);
       }
 
@@ -1093,7 +1119,6 @@ class MainController extends BaseController {
         commentId: commentId,
         replyId: replyId,
       ),
-      showLoading: true,
       loadingMessage: 'Deleting reply...',
     );
   }
@@ -1138,7 +1163,7 @@ class MainController extends BaseController {
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
-              .map((doc) => Comment.fromDocumentSnapshot(doc))
+              .map(Comment.fromDocumentSnapshot)
               .toList(),
         );
   }
@@ -1155,7 +1180,7 @@ class MainController extends BaseController {
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
-              .map((doc) => Reply.fromDocumentSnapshot(doc))
+              .map(Reply.fromDocumentSnapshot)
               .toList(),
         );
   }
@@ -1182,14 +1207,13 @@ class MainController extends BaseController {
             final snapshot = await transaction.get(videoRef);
 
             if (!snapshot.exists) {
-              throw app_exceptions.FirestoreException(
+              throw const app_exceptions.FirestoreException(
                 message: 'Video not found',
-                originalException: null,
               );
             }
 
             final shares = List<String>.from(
-              (snapshot.data() as Map<String, dynamic>)['shares'] as List? ??
+              snapshot.data()!['shares'] as List? ??
                   [],
             );
             shares.add(share);
@@ -1306,8 +1330,8 @@ class MainController extends BaseController {
     if (videoId.isEmpty) return false;
 
     try {
-      final String? userId = _auth.currentUser?.uid;
-      final String sessionId = "session_${videoId}_${userId ?? 'anon'}";
+      final userId = _auth.currentUser?.uid;
+      final sessionId = "session_${videoId}_${userId ?? 'anon'}";
 
       // Idempotency key: unique per event emission.
       // If Cloud Function retries, it checks this key and skips duplicates.
@@ -1459,11 +1483,11 @@ class MainController extends BaseController {
       if (response.statusCode != 200) {
         throw app_exceptions.ValidationException(
           message: 'Failed to download video (HTTP ${response.statusCode})',
-          originalException: null,
         );
       }
 
-      final dbFactory = getIdbFactory()!;
+      final dbFactory = getIdbFactory();
+      if (dbFactory == null) return;
       final db = await dbFactory.open(
         'video_db',
         version: 1,
@@ -1524,7 +1548,6 @@ class MainController extends BaseController {
         reason: reason,
         comment: comment,
       ),
-      showLoading: true,
       loadingMessage: 'Submitting report...',
     );
   }
@@ -1539,16 +1562,14 @@ class MainController extends BaseController {
     try {
       final user = _auth.currentUser;
       if (user == null) {
-        throw app_exceptions.AuthException(
+        throw const app_exceptions.AuthException(
           message: 'User not authenticated',
-          originalException: null,
         );
       }
 
       if (reason.isEmpty) {
-        throw app_exceptions.ValidationException(
+        throw const app_exceptions.ValidationException(
           message: 'Please select a report reason',
-          originalException: null,
         );
       }
 

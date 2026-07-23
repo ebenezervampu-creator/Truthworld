@@ -1,4 +1,5 @@
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
@@ -7,34 +8,35 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/video/presentation/widgets/full_screen_helper.dart';
-import 'package:video_player/video_player.dart';
+import 'package:truthworld/theme/app_theme.dart';
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'package:universal_html/html.dart' as html;
+import 'package:video_player/video_player.dart';
 
 class CustomController extends GetxController {
   VideoPlayerController? videoPlayerController;
-  var isPlaying = false.obs;
-  var isMuted = false.obs;
-  var isLooping = false.obs;
-  var isFullScreen = false.obs;
-  var isInitialized = false.obs;
-  var isBuffering = false.obs;
-  var errorMessage = ''.obs;
-  var duration = Duration.zero.obs;
-  var position = Duration.zero.obs;
-  var volume = 1.0.obs;
-  var videoQuality = 'Auto'.obs;
-  var showControls = true.obs;
+  RxBool isPlaying = false.obs;
+  RxBool isMuted = false.obs;
+  RxBool isLooping = false.obs;
+  RxBool isFullScreen = false.obs;
+  RxBool isInitialized = false.obs;
+  RxBool isBuffering = false.obs;
+  RxString errorMessage = ''.obs;
+  Rx<Duration> duration = Duration.zero.obs;
+  Rx<Duration> position = Duration.zero.obs;
+  RxDouble volume = 1.0.obs;
+  RxString videoQuality = 'Auto'.obs;
+  RxBool showControls = true.obs;
   Timer? _hideControlsTimer;
   Timer? _singleTapTimer;
   DateTime? _lastTapDownTime;
   static const speedOptions = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
-  var playbackSpeed = 1.0.obs;
+  RxDouble playbackSpeed = 1.0.obs;
 
-  var showRewindOverlay = false.obs;
-  var showForwardOverlay = false.obs;
-  var showCenterOverlay = false.obs;
-  var centerOverlayIcon = Icons.play_arrow.obs;
+  RxBool showRewindOverlay = false.obs;
+  RxBool showForwardOverlay = false.obs;
+  RxBool showCenterOverlay = false.obs;
+  Rx<IconData> centerOverlayIcon = Icons.play_arrow.obs;
 
   // Sample quality-to-URL mapping for HLS (replace with actual URLs)
   /// Stores dynamically fetched resolution URLs from Firestore
@@ -52,14 +54,14 @@ class CustomController extends GetxController {
         return;
       }
 
-      final List<dynamic>? resolutions =
+      final resolutions =
           doc.data()?['resolutions'] as List<dynamic>?;
       if (resolutions == null || resolutions.isEmpty) {
         errorMessage.value = 'No resolutions found';
         return;
       }
 
-      final Map<String, String> urls = {};
+      final urls = <String, String>{};
 
       // defaultStorage = FirebaseStorage.instance (uses default bucket)
       final storage = FirebaseStorage.instance;
@@ -134,7 +136,7 @@ class CustomController extends GetxController {
     if (_qualityUrls.isEmpty) return 'Auto';
 
     // Define minimum speed requirements (roughly)
-    final Map<String, double> qualityMinSpeed = {
+    final qualityMinSpeed = <String, double>{
       '144p': 0.3,
       '240p': 0.5,
       '360p': 1.0,
@@ -146,7 +148,7 @@ class CustomController extends GetxController {
     };
 
     final available = _qualityUrls.keys.toList();
-    String best = available.first;
+    var best = available.first;
 
     for (final q in available) {
       final reqSpeed = qualityMinSpeed[q] ?? 0;
@@ -211,7 +213,7 @@ class CustomController extends GetxController {
   }
 
   void handleFullScreenChange() {
-    final bool currentFullScreenState = html.document.fullscreenElement != null;
+    final currentFullScreenState = html.document.fullscreenElement != null;
     if (isFullScreen.value != currentFullScreenState) {
       isFullScreen.value = currentFullScreenState;
       if (isFullScreen.value) {
@@ -242,7 +244,7 @@ class CustomController extends GetxController {
     }
   }
 
-  void toggleFullScreen() async {
+  Future<void> toggleFullScreen() async {
     if (videoPlayerController == null) return;
     try {
       if (isFullScreen.value) {
@@ -282,7 +284,7 @@ class CustomController extends GetxController {
   }
 
   void _handleSingleTap() {
-    bool isMobile = !kIsWeb;
+    var isMobile = !kIsWeb;
     if (kIsWeb) {
       final userAgent = html.window.navigator.userAgent.toLowerCase();
       isMobile = userAgent.contains('mobi');
@@ -585,8 +587,8 @@ class CustomController extends GetxController {
     final hours = totalSeconds ~/ 3600;
     final minutes = (totalSeconds % 3600) ~/ 60;
     final seconds = totalSeconds % 60;
-    String minutesStr = minutes.toString().padLeft(2, '0');
-    String secondsStr = seconds.toString().padLeft(2, '0');
+    final minutesStr = minutes.toString().padLeft(2, '0');
+    final secondsStr = seconds.toString().padLeft(2, '0');
     if (hours > 0) {
       return '$hours:$minutesStr:$secondsStr';
     } else {
@@ -615,10 +617,10 @@ class CustomController extends GetxController {
     switch (quality) {
       case '144p':
       case '240p':
-        return Colors.redAccent;
+        return AppColors.error;
       case '360p':
       case '480p':
-        return Colors.orangeAccent;
+        return AppColors.warning;
       case '720p':
         return Colors.lightGreenAccent;
       case '1080p':
@@ -627,7 +629,7 @@ class CustomController extends GetxController {
       case '4K':
         return Colors.lightBlueAccent;
       default:
-        return Colors.white70;
+        return AppColors.textSecondary;
     }
   }
 
@@ -656,7 +658,7 @@ class CustomController extends GetxController {
 }
 
 class VideoSettingsSheet extends StatelessWidget {
-  const VideoSettingsSheet({super.key, required this.tag});
+  const VideoSettingsSheet({required this.tag, super.key});
 
   final String tag;
 
@@ -664,16 +666,16 @@ class VideoSettingsSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = Get.find<CustomController>(tag: tag);
     return Material(
-      color: Colors.black.withValues(alpha: 0.9),
+      color: AppColors.bgPage.withValues(alpha: 0.9),
       borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
       clipBehavior: Clip.antiAlias,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: Colors.white24)),
+              border: Border(bottom: BorderSide(color: AppColors.textDisabled)),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -681,14 +683,14 @@ class VideoSettingsSheet extends StatelessWidget {
                 const Text(
                   'Settings',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontSize: 18,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white),
-                  onPressed: () => Get.back(),
+                  icon: const Icon(Icons.close, color: AppColors.textPrimary),
+                  onPressed: Get.back,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(
                     minWidth: 30,
@@ -701,7 +703,7 @@ class VideoSettingsSheet extends StatelessWidget {
           ),
           Expanded(
             child: SingleChildScrollView(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -732,22 +734,22 @@ class VideoSettingsSheet extends StatelessWidget {
               const Text(
                 'Playback Speed',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
                 ),
               ),
               Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.redAccent.withValues(alpha: 0.2),
+                  color: AppColors.error.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.redAccent, width: 1),
+                  border: Border.all(color: AppColors.error),
                 ),
                 child: Text(
                   '${controller.playbackSpeed.toStringAsFixed(2).replaceFirst('.00', '')}x',
-                  style: TextStyle(
-                    color: Colors.redAccent,
+                  style: const TextStyle(
+                    color: AppColors.error,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
@@ -757,20 +759,20 @@ class VideoSettingsSheet extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
             child: SliderTheme(
               data: SliderTheme.of(Get.context!).copyWith(
-                activeTrackColor: Colors.redAccent,
-                inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
-                thumbColor: Colors.redAccent,
-                overlayColor: Colors.redAccent.withValues(alpha: 0.2),
+                activeTrackColor: AppColors.error,
+                inactiveTrackColor: AppColors.textPrimary.withValues(alpha: 0.2),
+                thumbColor: AppColors.error,
+                overlayColor: AppColors.error.withValues(alpha: 0.2),
                 trackHeight: 4,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 10),
+                thumbShape: const RoundSliderThumbShape(),
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
                 valueIndicatorShape: const PaddleSliderValueIndicatorShape(),
-                valueIndicatorColor: Colors.redAccent,
-                valueIndicatorTextStyle: TextStyle(
-                  color: Colors.white,
+                valueIndicatorColor: AppColors.error,
+                valueIndicatorTextStyle: const TextStyle(
+                  color: AppColors.textPrimary,
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                 ),
@@ -787,7 +789,7 @@ class VideoSettingsSheet extends StatelessWidget {
                 label:
                     '${controller.playbackSpeed.toStringAsFixed(2).replaceFirst('.00', '')}x',
                 onChanged: (value) {
-                  double roundedValue = (value * 4).round() / 4;
+                  final roundedValue = (value * 4).round() / 4;
                   controller.setPlaybackSpeed(roundedValue);
                 },
               ),
@@ -803,21 +805,20 @@ class VideoSettingsSheet extends StatelessWidget {
               return InkWell(
                 onTap: () => controller.setPlaybackSpeed(speed),
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? Colors.redAccent
-                        : Colors.white.withValues(alpha: 0.1),
+                        ? AppColors.error
+                        : AppColors.textPrimary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                      color: isSelected ? Colors.redAccent : Colors.white24,
-                      width: 1,
+                      color: isSelected ? AppColors.error : AppColors.textDisabled,
                     ),
                   ),
                   child: Text(
                     '${speed.toStringAsFixed(2).replaceFirst('.00', '')}x',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       fontSize: 13,
                       fontWeight: isSelected
                           ? FontWeight.w500
@@ -841,7 +842,7 @@ class VideoSettingsSheet extends StatelessWidget {
           const Text(
             'Quality',
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w500,
             ),
@@ -849,19 +850,19 @@ class VideoSettingsSheet extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.1),
+              color: AppColors.textPrimary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.white24),
+              border: Border.all(color: AppColors.textDisabled),
             ),
             child: DropdownButton<String>(
               value: controller.videoQuality.value,
-              dropdownColor: Colors.black87,
-              iconEnabledColor: Colors.white,
+              dropdownColor: AppColors.bgPage,
+              iconEnabledColor: AppColors.textPrimary,
               underline: const SizedBox(),
               isDense: true,
-              style: TextStyle(color: Colors.white, fontSize: 14),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
               items: controller.availableQualities
                   .map(
                     (quality) => DropdownMenuItem(
@@ -873,7 +874,7 @@ class VideoSettingsSheet extends StatelessWidget {
                             const Icon(
                               Icons.auto_fix_high,
                               size: 16,
-                              color: Colors.white70,
+                              color: AppColors.textSecondary,
                             ),
                           if (quality != 'Auto')
                             Icon(
@@ -882,7 +883,7 @@ class VideoSettingsSheet extends StatelessWidget {
                               color: controller.getQualityColor(quality),
                             ),
                           const SizedBox(width: 8),
-                          Text(quality, style: TextStyle(color: Colors.white)),
+                          Text(quality, style: const TextStyle(color: AppColors.textPrimary)),
                         ],
                       ),
                     ),
@@ -916,7 +917,7 @@ class VideoSettingsSheet extends StatelessWidget {
           const Text(
             'Loop Video',
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w500,
             ),
@@ -924,9 +925,9 @@ class VideoSettingsSheet extends StatelessWidget {
           Switch(
             value: controller.isLooping.value,
             onChanged: controller.toggleLooping,
-            activeThumbColor: Colors.redAccent,
-            inactiveThumbColor: Colors.white54,
-            inactiveTrackColor: Colors.white12,
+            activeThumbColor: AppColors.error,
+            inactiveThumbColor: AppColors.textSecondary,
+            inactiveTrackColor: AppColors.bgDivider,
           ),
         ],
       );
@@ -935,14 +936,12 @@ class VideoSettingsSheet extends StatelessWidget {
 }
 
 class MyCustomControls extends StatefulWidget {
-  final String videoId;
-  final VideoPlayerController videoPlayerController;
 
   const MyCustomControls({
-    super.key,
-    required this.videoId,
-    required this.videoPlayerController,
+    required this.videoId, required this.videoPlayerController, super.key,
   });
+  final String videoId;
+  final VideoPlayerController videoPlayerController;
 
   @override
   State<MyCustomControls> createState() => _MyCustomControlsState();
@@ -1011,24 +1010,24 @@ class _MyCustomControlsState extends State<MyCustomControls> {
       child: Obx(() {
         if (!controller.isInitialized.value) {
           return const Center(
-            child: CircularProgressIndicator(color: Colors.redAccent),
+            child: CircularProgressIndicator(color: AppColors.error),
           );
         }
         if (controller.errorMessage.value.isNotEmpty) {
           return Center(
             child: Text(
               'Error: ${controller.errorMessage.value}',
-              style: TextStyle(color: Colors.redAccent),
+              style: const TextStyle(color: AppColors.error),
             ),
           );
         }
         if (controller.isBuffering.value) {
           return const Center(
-            child: CircularProgressIndicator(color: Colors.redAccent),
+            child: CircularProgressIndicator(color: AppColors.error),
           );
         }
-        final bool isPlaying = controller.isPlaying.value;
-        final bool shouldShowControls = controller.showControls.value;
+        final isPlaying = controller.isPlaying.value;
+        final shouldShowControls = controller.showControls.value;
         final currentPosition = controller.position.value;
         final totalDuration = controller.duration.value;
         final formattedCurrentTime = controller.formatDuration(currentPosition);
@@ -1079,7 +1078,7 @@ class _MyCustomControlsState extends State<MyCustomControls> {
                         return Align(
                           alignment: Alignment.centerLeft,
                           child: Padding(
-                            padding: EdgeInsets.only(left: 32),
+                            padding: const EdgeInsets.only(left: 32),
                             child: AnimatedOpacity(
                               opacity: controller.showRewindOverlay.value
                                   ? 1.0
@@ -1087,22 +1086,22 @@ class _MyCustomControlsState extends State<MyCustomControls> {
                               duration: const Duration(milliseconds: 300),
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.5),
+                                  color: AppColors.bgPage.withValues(alpha: 0.5),
                                   shape: BoxShape.circle,
                                 ),
-                                padding: EdgeInsets.all(20),
-                                child: Row(
+                                padding: const EdgeInsets.all(20),
+                                child: const Row(
                                   mainAxisSize: MainAxisSize.min,
-                                  children: const [
+                                  children: [
                                     Icon(
                                       Icons.replay_10,
-                                      color: Colors.white,
+                                      color: AppColors.textPrimary,
                                       size: 40,
                                     ),
                                     Text(
                                       '10',
                                       style: TextStyle(
-                                        color: Colors.white,
+                                        color: AppColors.textPrimary,
                                         fontSize: 30,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -1122,7 +1121,7 @@ class _MyCustomControlsState extends State<MyCustomControls> {
                         return Align(
                           alignment: Alignment.centerRight,
                           child: Padding(
-                            padding: EdgeInsets.only(right: 32),
+                            padding: const EdgeInsets.only(right: 32),
                             child: AnimatedOpacity(
                               opacity: controller.showForwardOverlay.value
                                   ? 1.0
@@ -1130,22 +1129,22 @@ class _MyCustomControlsState extends State<MyCustomControls> {
                               duration: const Duration(milliseconds: 300),
                               child: Container(
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withValues(alpha: 0.5),
+                                  color: AppColors.bgPage.withValues(alpha: 0.5),
                                   shape: BoxShape.circle,
                                 ),
-                                padding: EdgeInsets.all(20),
-                                child: Row(
+                                padding: const EdgeInsets.all(20),
+                                child: const Row(
                                   mainAxisSize: MainAxisSize.min,
-                                  children: const [
+                                  children: [
                                     Icon(
                                       Icons.forward_10,
-                                      color: Colors.white,
+                                      color: AppColors.textPrimary,
                                       size: 40,
                                     ),
                                     Text(
                                       '10',
                                       style: TextStyle(
-                                        color: Colors.white,
+                                        color: AppColors.textPrimary,
                                         fontSize: 30,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -1170,7 +1169,7 @@ class _MyCustomControlsState extends State<MyCustomControls> {
                             duration: const Duration(milliseconds: 300),
                             child: Icon(
                               controller.centerOverlayIcon.value,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                               size: 100,
                             ),
                           ),
@@ -1193,7 +1192,7 @@ class _MyCustomControlsState extends State<MyCustomControls> {
                                 end: Alignment.bottomCenter,
                                 colors: [
                                   Colors.transparent,
-                                  Colors.black.withValues(alpha: 0.7),
+                                  AppColors.bgPage.withValues(alpha: 0.7),
                                 ],
                               ),
                             ),
@@ -1210,7 +1209,7 @@ class _MyCustomControlsState extends State<MyCustomControls> {
                                       Text(
                                         formattedCurrentTime,
                                         style: GoogleFonts.robotoMono(
-                                          color: Colors.white,
+                                          color: AppColors.textPrimary,
                                           fontSize: fontSize,
                                           fontWeight: FontWeight.w400,
                                         ),
@@ -1221,9 +1220,9 @@ class _MyCustomControlsState extends State<MyCustomControls> {
                                           controller.videoPlayerController!,
                                           allowScrubbing: true,
                                           colors: const VideoProgressColors(
-                                            playedColor: Colors.redAccent,
-                                            bufferedColor: Colors.white30,
-                                            backgroundColor: Colors.white12,
+                                            playedColor: AppColors.error,
+                                            bufferedColor: AppColors.textTertiary,
+                                            backgroundColor: AppColors.bgDivider,
                                           ),
                                           padding: EdgeInsets.zero,
                                         ),
@@ -1232,7 +1231,7 @@ class _MyCustomControlsState extends State<MyCustomControls> {
                                       Text(
                                         formattedTotalDuration,
                                         style: GoogleFonts.robotoMono(
-                                          color: Colors.white,
+                                          color: AppColors.textPrimary,
                                           fontSize: fontSize,
                                           fontWeight: FontWeight.w400,
                                         ),
@@ -1269,18 +1268,16 @@ class _MyCustomControlsState extends State<MyCustomControls> {
                                                           overlayRadius: 12,
                                                         ),
                                                     activeTrackColor:
-                                                        Colors.redAccent,
+                                                        AppColors.error,
                                                     inactiveTrackColor:
-                                                        Colors.white30,
+                                                        AppColors.textTertiary,
                                                     thumbColor:
-                                                        Colors.redAccent,
+                                                        AppColors.error,
                                                     overlayColor: Colors
                                                         .redAccent
                                                         .withValues(alpha: 0.2),
                                                   ),
                                                   child: Slider(
-                                                    min: 0.0,
-                                                    max: 1.0,
                                                     value:
                                                         controller.volume.value,
                                                     onChanged:
@@ -1292,7 +1289,6 @@ class _MyCustomControlsState extends State<MyCustomControls> {
                                           ),
                                         ),
                                       Align(
-                                        alignment: Alignment.center,
                                         child: _buildControlButton(
                                           icon: isPlaying
                                               ? Icons.pause
@@ -1328,8 +1324,6 @@ class _MyCustomControlsState extends State<MyCustomControls> {
                                                     tag:
                                                         'video_${widget.videoId}',
                                                   ),
-                                                  isDismissible: true,
-                                                  enableDrag: true,
                                                   backgroundColor:
                                                       Colors.transparent,
                                                 ).then((_) {
@@ -1384,18 +1378,18 @@ class _MyCustomControlsState extends State<MyCustomControls> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: AppColors.bgPage.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
+            color: AppColors.bgPage.withValues(alpha: 0.2),
             blurRadius: 4,
             offset: const Offset(0, 2),
           ),
         ],
       ),
       child: IconButton(
-        icon: Icon(icon, color: Colors.white, size: size),
+        icon: Icon(icon, color: AppColors.textPrimary, size: size),
         onPressed: onPressed,
         padding: EdgeInsets.all(size / 3),
         constraints: BoxConstraints(

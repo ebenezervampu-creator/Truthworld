@@ -5,13 +5,14 @@
 // Standard: Matches Spotify/YouTube Music audio pipeline
 // ============================================================
 
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'package:universal_html/html.dart' as html;
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'package:universal_html/js.dart' show context, JsObject;
-import 'dart:async';
-import 'package:flutter/foundation.dart';
-import 'package:get/get.dart';
+import 'package:universal_html/js.dart' show JsObject, context;
 
 /// Web Audio API wrapper for true audio-only playback
 /// This bypasses the video decoder entirely — only the audio
@@ -94,12 +95,12 @@ class AudioOnlyService extends GetxService {
       if (_mediaSession == null) return;
 
       // Register action handlers for OS media controls
-      _registerMediaSessionAction('play', () => play());
-      _registerMediaSessionAction('pause', () => pause());
+      _registerMediaSessionAction('play', play);
+      _registerMediaSessionAction('pause', pause);
       _registerMediaSessionAction('seekbackward', () => seekRelative(-10));
       _registerMediaSessionAction('seekforward', () => seekRelative(10));
-      _registerMediaSessionAction('previoustrack', () => _onPreviousTrack());
-      _registerMediaSessionAction('nexttrack', () => _onNextTrack());
+      _registerMediaSessionAction('previoustrack', _onPreviousTrack);
+      _registerMediaSessionAction('nexttrack', _onNextTrack);
 
       debugPrint('[AudioOnly] Media Session API registered');
     } catch (e) {
@@ -147,7 +148,7 @@ class AudioOnlyService extends GetxService {
       _audioElement?.load();
 
       if (startPosition != null && startPosition > Duration.zero) {
-        _audioElement?.currentTime = startPosition.inSeconds.toDouble();
+        _audioElement?.currentTime = startPosition.inMilliseconds / 1000.0;
       }
 
       await _audioElement?.play();
@@ -196,9 +197,9 @@ class AudioOnlyService extends GetxService {
     _audioElement?.pause();
   }
 
-  Future<void> seekTo(Duration position) async {
+  Future<void> seekTo(Duration pos) async {
     if (_audioElement == null) return;
-    _audioElement!.currentTime = position.inSeconds.toDouble();
+    _audioElement!.currentTime = pos.inMilliseconds / 1000.0;
   }
 
   Future<void> seekRelative(int seconds) async {
@@ -227,16 +228,24 @@ class AudioOnlyService extends GetxService {
   /// Sync position with video player when switching modes
   void syncPosition(Duration pos) {
     if (_audioElement == null) return;
-    _audioElement!.currentTime = pos.inSeconds.toDouble();
+    _audioElement!.currentTime = pos.inMilliseconds / 1000.0;
   }
 
-  /// Deactivate audio-only — return to video mode
-  void deactivate() {
+  /// Get current exact position as Duration
+  Duration get currentPosition {
+    final secs = _audioElement?.currentTime ?? position.value;
+    return Duration(milliseconds: (secs * 1000).round());
+  }
+
+  /// Deactivate audio-only — return to video mode with current position
+  Duration deactivate() {
+    final currentPos = currentPosition;
     _audioElement?.pause();
     isAudioOnly.value = false;
     isActive.value = false;
     _stopPositionTracking();
-    debugPrint('[AudioOnly] Deactivated, returning to video mode');
+    debugPrint('[AudioOnly] Deactivated at $currentPos, returning to video mode');
+    return currentPos;
   }
 
   // ── Position Tracking ──────────────────────────────────────

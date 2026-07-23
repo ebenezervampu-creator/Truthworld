@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 // Conditionally import platform implementations
-import 'audio_extractor_stub.dart'
+import 'package:truthworld/core/utils/audio_extractor_stub.dart'
     if (dart.library.html) 'audio_extractor_web.dart';
 
 /// Pure client-side Audio Extractor for Web & Fallback Platforms.

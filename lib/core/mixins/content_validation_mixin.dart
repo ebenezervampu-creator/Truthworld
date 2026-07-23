@@ -1,14 +1,13 @@
 import 'package:get/get.dart';
-import 'package:profanity_filter/profanity_filter.dart';
 import 'package:multi_lang_bad_words_filter/multi_lang_bad_words_filter.dart';
-import 'package:safe_text/safe_text.dart';
+import 'package:profanity_filter/profanity_filter.dart';
 
 /// Result of a content validation check.
 class ContentValidationResult {
-  final bool isValid;
-  final String message;
 
   const ContentValidationResult({required this.isValid, required this.message});
+  final bool isValid;
+  final String message;
 }
 
 /// Shared content validation mixin for upload controllers.
@@ -18,7 +17,9 @@ class ContentValidationResult {
 mixin ContentValidationMixin on GetxController {
   // ── Filters ──────────────────────────────────────────────────────────────
 
-  final ProfanityFilter profanityFilter = ProfanityFilter();
+  final ProfanityFilter profanityFilter = ProfanityFilter.filterAdditionally(
+    _extraOffensiveWords,
+  );
   late final BadWordFilter multiLangFilter;
 
   static const int maxTitleLength = 100;
@@ -31,8 +32,6 @@ mixin ContentValidationMixin on GetxController {
       languages: ['en', 'fa', 'ar', 'tr', 'de', 'fr', 'es', 'ru'],
       includeSensitiveTopics: true,
       matchInsideWords: true,
-      censorCharacter: '*',
-      caseSensitive: false,
     );
   }
 
@@ -87,26 +86,15 @@ mixin ContentValidationMixin on GetxController {
       );
     }
 
-    // LAYER 3: safe_text
-    final containsBadWord = await SafeTextFilter.containsBadWord(
-      text: normalized,
-      extraWords: _extraOffensiveWords,
-    );
-    if (containsBadWord) {
-      return ContentValidationResult(
-        isValid: false,
-        message: 'Your $fieldName contains inappropriate language.',
-      );
-    }
+    // LAYER 3: Custom offensive words (previously safe_text)
+    // Now handled by profanityFilter.filterAdditionally in constructor
 
     // LAYER 4: Phone numbers
     if (checkPhoneNumbers) {
-      final containsPhone = await PhoneNumberChecker.containsPhoneNumber(
-        text: normalized,
-        minLength: 7,
-        maxLength: 15,
+      final phonePattern = RegExp(
+        r'(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{2,4}\)?[-.\s]?)?\d{3,4}[-.\s]?\d{3,4}',
       );
-      if (containsPhone) {
+      if (phonePattern.hasMatch(normalized)) {
         return ContentValidationResult(
           isValid: false,
           message:
@@ -157,7 +145,7 @@ mixin ContentValidationMixin on GetxController {
       );
     }
     if (tags.length > maxTags) {
-      return ContentValidationResult(
+      return const ContentValidationResult(
         isValid: false,
         message: 'Maximum $maxTags tags allowed',
       );
@@ -197,8 +185,8 @@ mixin ContentValidationMixin on GetxController {
 
   bool _hasProhibitedPatterns(String text) {
     const patterns = [
-      r'(pornhub|xvideos|xhamster|onlyfans|chaturbate)',
-      r'(click here|free money|buy now|limited offer|act now)',
+      '(pornhub|xvideos|xhamster|onlyfans|chaturbate)',
+      '(click here|free money|buy now|limited offer|act now)',
       r'(bit\.ly|tinyurl|goo\.gl)',
       r'\b(18\+|21\+|adult only|mature content)\b',
     ];
@@ -214,9 +202,9 @@ mixin ContentValidationMixin on GetxController {
   bool _hasSuspiciousUrls(String text) {
     const patterns = [
       r'bit\.ly',
-      r'tinyurl',
-      r'free.*download',
-      r'click.*here',
+      'tinyurl',
+      'free.*download',
+      'click.*here',
       r'\d+\s*(dollars?|usd|€|£)',
     ];
     for (final pattern in patterns) {

@@ -42,6 +42,58 @@ enum StageStatus {
 }
 
 class PipelineJobStatus {
+
+  PipelineJobStatus({
+    required this.jobId,
+    required this.userId,
+    required this.currentStage,
+    required this.overallProgress,
+    required this.startedAt, this.stageProgress = const {},
+    this.stageStatuses = const {},
+    this.eta,
+    this.errorMessage,
+    this.completedAt,
+    this.estimatedCompletionAt,
+    this.pipelineConfig = const {},
+    this.path1Results,
+    this.path2Results,
+    this.finalOutput,
+    this.warnings = const [],
+  });
+
+  /// Create from Map (from API/Firestore)
+  factory PipelineJobStatus.fromMap(Map<String, dynamic> map) {
+    return PipelineJobStatus(
+      jobId: map['jobId'] ?? '',
+      userId: map['userId'] ?? '',
+      currentStage: PipelineStage.fromString(map['currentStage'] ?? 'pending'),
+      overallProgress: (map['overallProgress'] ?? 0.0).toDouble(),
+      stageProgress: Map<String, double>.from(
+        map['stageProgress']?.cast<String, double>() ?? {},
+      ),
+      stageStatuses:
+          (map['stageStatuses'] as Map<String, dynamic>?)
+              ?.map((k, v) => MapEntry(k, StageStatus.fromString(v)))
+              .cast<String, StageStatus>() ??
+          {},
+      eta: map['eta'],
+      errorMessage: map['errorMessage'],
+      startedAt: DateTime.fromMillisecondsSinceEpoch(
+        map['startedAt'] ?? DateTime.now().millisecondsSinceEpoch,
+      ),
+      completedAt: map['completedAt'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(map['completedAt'])
+          : null,
+      estimatedCompletionAt: map['estimatedCompletionAt'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(map['estimatedCompletionAt'])
+          : null,
+      pipelineConfig: map['pipelineConfig'] ?? {},
+      path1Results: map['path1Results'],
+      path2Results: map['path2Results'],
+      finalOutput: map['finalOutput'],
+      warnings: List<String>.from(map['warnings'] ?? []),
+    );
+  }
   /// Unique job identifier
   final String jobId;
 
@@ -89,25 +141,6 @@ class PipelineJobStatus {
 
   /// Warnings/info messages
   final List<String> warnings;
-
-  PipelineJobStatus({
-    required this.jobId,
-    required this.userId,
-    required this.currentStage,
-    required this.overallProgress,
-    this.stageProgress = const {},
-    this.stageStatuses = const {},
-    this.eta,
-    this.errorMessage,
-    required this.startedAt,
-    this.completedAt,
-    this.estimatedCompletionAt,
-    this.pipelineConfig = const {},
-    this.path1Results,
-    this.path2Results,
-    this.finalOutput,
-    this.warnings = const [],
-  });
 
   /// Get human-readable current stage name
   String get currentStageName => _stageName(currentStage);
@@ -165,40 +198,6 @@ class PipelineJobStatus {
     };
   }
 
-  /// Create from Map (from API/Firestore)
-  factory PipelineJobStatus.fromMap(Map<String, dynamic> map) {
-    return PipelineJobStatus(
-      jobId: map['jobId'] ?? '',
-      userId: map['userId'] ?? '',
-      currentStage: PipelineStage.fromString(map['currentStage'] ?? 'pending'),
-      overallProgress: (map['overallProgress'] ?? 0.0).toDouble(),
-      stageProgress: Map<String, double>.from(
-        map['stageProgress']?.cast<String, double>() ?? {},
-      ),
-      stageStatuses:
-          (map['stageStatuses'] as Map<String, dynamic>?)
-              ?.map((k, v) => MapEntry(k, StageStatus.fromString(v)))
-              .cast<String, StageStatus>() ??
-          {},
-      eta: map['eta'],
-      errorMessage: map['errorMessage'],
-      startedAt: DateTime.fromMillisecondsSinceEpoch(
-        map['startedAt'] ?? DateTime.now().millisecondsSinceEpoch,
-      ),
-      completedAt: map['completedAt'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(map['completedAt'])
-          : null,
-      estimatedCompletionAt: map['estimatedCompletionAt'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(map['estimatedCompletionAt'])
-          : null,
-      pipelineConfig: map['pipelineConfig'] ?? {},
-      path1Results: map['path1Results'],
-      path2Results: map['path2Results'],
-      finalOutput: map['finalOutput'],
-      warnings: List<String>.from(map['warnings'] ?? []),
-    );
-  }
-
   String _stageName(PipelineStage stage) {
     switch (stage) {
       case PipelineStage.pending:
@@ -223,14 +222,6 @@ class PipelineJobStatus {
 
 /// Real-time status update from Pub/Sub
 class PipelineStatusUpdate {
-  final String jobId;
-  final String userId;
-  final PipelineStage stage;
-  final double progress;
-  final StageStatus status;
-  final String? message;
-  final DateTime timestamp;
-  final int? eta;
 
   PipelineStatusUpdate({
     required this.jobId,
@@ -238,8 +229,7 @@ class PipelineStatusUpdate {
     required this.stage,
     required this.progress,
     required this.status,
-    this.message,
-    required this.timestamp,
+    required this.timestamp, this.message,
     this.eta,
   });
 
@@ -257,6 +247,14 @@ class PipelineStatusUpdate {
       eta: map['eta'],
     );
   }
+  final String jobId;
+  final String userId;
+  final PipelineStage stage;
+  final double progress;
+  final StageStatus status;
+  final String? message;
+  final DateTime timestamp;
+  final int? eta;
 }
 
 

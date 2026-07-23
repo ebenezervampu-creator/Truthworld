@@ -15,6 +15,14 @@ import 'package:flutter/material.dart';
 /// }
 /// ```
 class StaggeredFadeSlide extends StatefulWidget {
+
+  const StaggeredFadeSlide({
+    required this.index, required this.child, super.key,
+    this.staggerDelay = const Duration(milliseconds: 50),
+    this.duration = const Duration(milliseconds: 350),
+    this.slideOffset = 24.0,
+    this.maxAnimatedItems = 20,
+  });
   /// Index of this item in the list — used to calculate stagger delay.
   final int index;
 
@@ -33,16 +41,6 @@ class StaggeredFadeSlide extends StatefulWidget {
   /// Maximum number of items to animate (prevents long delays for
   /// items far down the list that are likely off-screen).
   final int maxAnimatedItems;
-
-  const StaggeredFadeSlide({
-    super.key,
-    required this.index,
-    required this.child,
-    this.staggerDelay = const Duration(milliseconds: 50),
-    this.duration = const Duration(milliseconds: 350),
-    this.slideOffset = 24.0,
-    this.maxAnimatedItems = 20,
-  });
 
   @override
   State<StaggeredFadeSlide> createState() => _StaggeredFadeSlideState();

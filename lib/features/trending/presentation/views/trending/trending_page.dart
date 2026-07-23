@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/features/trending/presentation/controllers/trending_controller.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/core/widgets/responsive_video_grid.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
+import 'package:truthworld/features/trending/presentation/controllers/trending_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class TrendingVideosPage extends GetView<TrendingController> {
-  final bool isDashboard;
   const TrendingVideosPage({super.key, this.isDashboard = false});
+  final bool isDashboard;
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +32,7 @@ class TrendingVideosPage extends GetView<TrendingController> {
   ) {
     return AppBar(
       title: Text(
-        "Trending Videos",
+        'Trending Videos',
         style: AppTextStyles.headlineSmall.copyWith(
           fontSize:
               (AppTextStyles.headlineSmall.fontSize ?? 24) * context.fontScale,
@@ -92,7 +92,7 @@ class TrendingVideosPage extends GetView<TrendingController> {
       child: Padding(
         padding: EdgeInsets.symmetric(horizontal: context.layoutSpacing, vertical: 16),
         child: deviceType == DeviceType.mobile
-            ? buildShimmerVideoList(count: 6)
+            ? buildShimmerVideoList()
             : buildShimmerVideoGrid(
                 crossAxisCount: deviceType == DeviceType.tablet ? 3 : 4,
                 count: 8,
@@ -116,7 +116,7 @@ class TrendingVideosPage extends GetView<TrendingController> {
             ),
             SizedBox(height: context.layoutSpacing),
             Text(
-              "No trending videos available",
+              'No trending videos available',
               style: AppTextStyles.headlineSmall.copyWith(
                 fontSize:
                     (AppTextStyles.headlineSmall.fontSize ?? 24) *
@@ -128,7 +128,7 @@ class TrendingVideosPage extends GetView<TrendingController> {
             ),
             SizedBox(height: context.layoutSpacing / 2),
             Text(
-              "Check back later for the latest trending content",
+              'Check back later for the latest trending content',
               style: AppTextStyles.bodyMedium.copyWith(
                 fontSize:
                     (AppTextStyles.bodyMedium.fontSize ?? 14) *
@@ -142,7 +142,7 @@ class TrendingVideosPage extends GetView<TrendingController> {
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: () => controller.refreshTrending(),
-              child: const Text("Refresh"),
+              child: const Text('Refresh'),
             ),
           ],
         ),
@@ -157,13 +157,13 @@ class TrendingVideosPage extends GetView<TrendingController> {
         children: [
           const Icon(
             Icons.local_fire_department,
-            color: Colors.orange,
+            color: AppColors.warning,
             size: 24,
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              "🔥 Hot Right Now",
+              '🔥 Hot Right Now',
               style: AppTextStyles.titleLarge.copyWith(
                 fontSize:
                     (AppTextStyles.titleLarge.fontSize ?? 22) *
@@ -178,16 +178,16 @@ class TrendingVideosPage extends GetView<TrendingController> {
               vertical: 4,
             ),
             decoration: BoxDecoration(
-              color: Colors.orange.withValues(alpha: 0.1),
+              color: AppColors.warning.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              "${controller.trendingVideos.length} videos",
+              '${controller.trendingVideos.length} videos',
               style: AppTextStyles.labelSmall.copyWith(
                 fontSize:
                     (AppTextStyles.labelSmall.fontSize ?? 11) *
                     context.fontScale,
-                color: Colors.orange,
+                color: AppColors.warning,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -201,7 +201,7 @@ class TrendingVideosPage extends GetView<TrendingController> {
     return ResponsiveVideoGrid(
       videos: controller.trendingVideos,
       heroPrefix: 'trending',
-      accentColor: Colors.orange,
+      accentColor: AppColors.warning,
       showListView: deviceType == DeviceType.mobile,
       maxColumns: deviceType == DeviceType.mobile
           ? 2

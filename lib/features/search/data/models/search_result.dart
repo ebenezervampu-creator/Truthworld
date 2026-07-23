@@ -6,15 +6,6 @@ enum ResultType { video, channel, playlist, topic }
 /// Lightweight search result model (only essential fields)
 /// Purpose: Minimize payload size for fast network transfers
 class SearchResult {
-  final String id;
-  final String title;
-  final String thumbnail;
-  final int views;
-  final String channelName;
-  final String channelImage;
-  final Timestamp createdAt;
-  final ResultType type;
-  final int? durationMs;
 
   SearchResult({
     required this.id,
@@ -26,21 +17,15 @@ class SearchResult {
     required this.createdAt,
     this.type = ResultType.video,
     this.durationMs,
+    this.relevanceScore = 0.0,
   });
-
-  // Getters for compatibility with EnhancedSearchController
-  int get viewCount => views;
-  DateTime get uploadedAt => createdAt.toDate();
-  int? get duration => durationMs != null ? (durationMs! ~/ 1000) : null;
-  String? get quality => null; // SearchResult is lightweight, quality might not be present
-  int? get videoCount => type == ResultType.playlist || type == ResultType.topic ? views : null;
 
   /// Convert Firestore document to SearchResult
   factory SearchResult.fromFirestore(
     DocumentSnapshot doc, {
     ResultType type = ResultType.video,
   }) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = doc.data()! as Map<String, dynamic>;
 
     switch (type) {
       case ResultType.channel:
@@ -88,7 +73,6 @@ class SearchResult {
           channelName: data['channelName'] as String? ?? 'Unknown',
           channelImage: data['channelImage'] as String? ?? '',
           createdAt: TimestampUtils.parse(data['uploadedAt'] ?? data['createdAt']),
-          type: ResultType.video,
           durationMs: (data['durationMs'] as num?)?.toInt(),
         );
     }
@@ -111,6 +95,23 @@ class SearchResult {
       durationMs: (map['durationMs'] as num?)?.toInt(),
     );
   }
+  final String id;
+  final String title;
+  final String thumbnail;
+  final int views;
+  final String channelName;
+  final String channelImage;
+  final Timestamp createdAt;
+  final ResultType type;
+  final int? durationMs;
+  double relevanceScore;
+
+  // Getters for compatibility with EnhancedSearchController
+  int get viewCount => views;
+  DateTime get uploadedAt => createdAt.toDate();
+  int? get duration => durationMs != null ? (durationMs! ~/ 1000) : null;
+  String? get quality => null; // SearchResult is lightweight, quality might not be present
+  int? get videoCount => type == ResultType.playlist || type == ResultType.topic ? views : null;
 
   /// Convert to map for testing
   Map<String, dynamic> toMap() => {

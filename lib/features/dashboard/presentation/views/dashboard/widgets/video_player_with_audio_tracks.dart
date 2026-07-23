@@ -1,8 +1,9 @@
+import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:chewie/chewie.dart';
-import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/multi_audio_player_controller.dart';
+import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Drop-in YouTube-style video player with multi-language dubbed audio support.
 ///
@@ -18,20 +19,18 @@ import 'package:truthworld/features/dashboard/presentation/controllers/multi_aud
 /// )
 /// ```
 class VideoPlayerWithAudioTracks extends StatefulWidget {
+
+  const VideoPlayerWithAudioTracks({
+    required this.videoUrl, required this.tracks, super.key,
+    this.preferredTrackCode,
+    this.autoPlay = true,
+    this.aspectRatio = 16 / 9,
+  });
   final String videoUrl;
   final List<AudioTrackOption> tracks;
   final String? preferredTrackCode;
   final bool autoPlay;
   final double aspectRatio;
-
-  const VideoPlayerWithAudioTracks({
-    super.key,
-    required this.videoUrl,
-    required this.tracks,
-    this.preferredTrackCode,
-    this.autoPlay = true,
-    this.aspectRatio = 16 / 9,
-  });
 
   @override
   State<VideoPlayerWithAudioTracks> createState() =>
@@ -71,10 +70,10 @@ class _VideoPlayerWithAudioTracksState
       if (_ctrl.isInitializing.value) {
         return AspectRatio(
           aspectRatio: widget.aspectRatio,
-          child: Container(
-            color: Colors.black,
-            child: const Center(
-              child: CircularProgressIndicator(color: Colors.white),
+          child: const ColoredBox(
+            color: AppColors.bgPage,
+            child: Center(
+              child: CircularProgressIndicator(color: AppColors.textPrimary),
             ),
           ),
         );
@@ -83,23 +82,23 @@ class _VideoPlayerWithAudioTracksState
       if (_ctrl.hasError.value) {
         return AspectRatio(
           aspectRatio: widget.aspectRatio,
-          child: Container(
-            color: Colors.black,
+          child: const ColoredBox(
+            color: AppColors.bgPage,
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.error_outline,
-                    color: Colors.white54,
+                    color: AppColors.textSecondary,
                     size: 48,
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Text(
                     'Could not load video',
                     style: TextStyle(
-                      fontFamily: 'Roboto',
-                      color: Colors.white70,
+                      
+                      color: AppColors.textSecondary,
                       fontSize: 14,
                     ),
                   ),
@@ -135,20 +134,20 @@ class _VideoPlayerWithAudioTracksState
 
             // ── Track-changing overlay ───────────────────────────────────────
             if (_ctrl.isChangingTrack.value)
-              Positioned.fill(
-                child: Container(
-                  color: Colors.black54,
+              const Positioned.fill(
+                child: ColoredBox(
+                  color: AppColors.bgPage54,
                   child: Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const CircularProgressIndicator(color: Colors.white),
-                        const SizedBox(height: 12),
+                        CircularProgressIndicator(color: AppColors.textPrimary),
+                        SizedBox(height: 12),
                         Text(
                           'Switching audio track…',
                           style: TextStyle(
-                            fontFamily: 'Roboto',
-                            color: Colors.white,
+                            
+                            color: AppColors.textPrimary,
                             fontSize: 13,
                           ),
                         ),
@@ -178,9 +177,9 @@ class _VideoPlayerWithAudioTracksState
 // Controls layer
 // ─────────────────────────────────────────────────────────────────────────────
 class _PlayerControls extends StatelessWidget {
-  final MultiAudioPlayerController ctrl;
 
-  const _PlayerControls({super.key, required this.ctrl});
+  const _PlayerControls({required this.ctrl, super.key});
+  final MultiAudioPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
@@ -215,8 +214,8 @@ class _PlayerControls extends StatelessWidget {
 }
 
 class _TopBar extends StatelessWidget {
-  final MultiAudioPlayerController ctrl;
   const _TopBar({required this.ctrl});
+  final MultiAudioPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
@@ -248,23 +247,23 @@ class _TopBar extends StatelessWidget {
                     const Icon(
                       Icons.spatial_audio_rounded,
                       size: 14,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                     const SizedBox(width: 5),
                     Text(
                       track.label,
-                      style: TextStyle(
-                        fontFamily: 'Roboto',
+                      style: const TextStyle(
+                        
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(width: 4),
                     const Icon(
                       Icons.arrow_drop_down,
                       size: 14,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                   ],
                 ),
@@ -283,16 +282,16 @@ class _TopBar extends StatelessWidget {
                   vertical: 5,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.black54,
+                  color: AppColors.bgPage54,
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
                   '${speed == 1.0 ? '1' : speed}x',
-                  style: TextStyle(
-                    fontFamily: 'Roboto',
+                  style: const TextStyle(
+                    
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ),
@@ -322,8 +321,8 @@ class _TopBar extends StatelessWidget {
 }
 
 class _CentrePlayButton extends StatelessWidget {
-  final MultiAudioPlayerController ctrl;
   const _CentrePlayButton({required this.ctrl});
+  final MultiAudioPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
@@ -342,11 +341,11 @@ class _CentrePlayButton extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.black45,
             shape: BoxShape.circle,
-            border: Border.all(color: Colors.white30),
+            border: Border.all(color: AppColors.textTertiary),
           ),
           child: Icon(
             ctrl.isPlaying.value ? Icons.pause : Icons.play_arrow,
-            color: Colors.white,
+            color: AppColors.textPrimary,
             size: 30,
           ),
         ),
@@ -356,8 +355,8 @@ class _CentrePlayButton extends StatelessWidget {
 }
 
 class _BottomBar extends StatelessWidget {
-  final MultiAudioPlayerController ctrl;
   const _BottomBar({required this.ctrl});
+  final MultiAudioPlayerController ctrl;
 
   String _formatDuration(Duration d) {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
@@ -389,7 +388,7 @@ class _BottomBar extends StatelessWidget {
                 overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
                 thumbColor: AppColors.brand,
                 activeTrackColor: AppColors.brand,
-                inactiveTrackColor: Colors.white30,
+                inactiveTrackColor: AppColors.textTertiary,
                 overlayColor: AppColors.brand.withValues(alpha: 0.2),
               ),
               child: Slider(
@@ -412,25 +411,25 @@ class _BottomBar extends StatelessWidget {
               children: [
                 Text(
                   _formatDuration(ctrl.position.value),
-                  style: TextStyle(
-                    fontFamily: 'Roboto',
+                  style: const TextStyle(
+                    
                     fontSize: 12,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 Text(
                   ' / ${_formatDuration(ctrl.duration.value)}',
-                  style: TextStyle(
-                    fontFamily: 'Roboto',
+                  style: const TextStyle(
+                    
                     fontSize: 12,
-                    color: Colors.white60,
+                    color: AppColors.textSecondary,
                   ),
                 ),
                 const Spacer(),
                 // Volume
                 IconButton(
                   iconSize: 20,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   icon: Icon(
                     ctrl.isMuted.value
                         ? Icons.volume_off_rounded
@@ -451,7 +450,7 @@ class _BottomBar extends StatelessWidget {
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white12,
+                        color: AppColors.bgDivider,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Row(
@@ -460,15 +459,15 @@ class _BottomBar extends StatelessWidget {
                           const Icon(
                             Icons.audiotrack_rounded,
                             size: 10,
-                            color: Colors.white70,
+                            color: AppColors.textSecondary,
                           ),
                           const SizedBox(width: 3),
                           Text(
                             ctrl.selectedTrack.value?.label ?? '',
-                            style: TextStyle(
-                              fontFamily: 'Roboto',
+                            style: const TextStyle(
+                              
                               fontSize: 11,
-                              color: Colors.white70,
+                              color: AppColors.textSecondary,
                             ),
                           ),
                         ],
@@ -488,14 +487,14 @@ class _BottomBar extends StatelessWidget {
 // Audio Track selection bottom sheet
 // ─────────────────────────────────────────────────────────────────────────────
 class _AudioTrackSheet extends StatelessWidget {
-  final MultiAudioPlayerController ctrl;
   const _AudioTrackSheet({required this.ctrl});
+  final MultiAudioPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black87;
+    final bg = isDark ? const Color(0xFF1E1E1E) : AppColors.textPrimary;
+    final textColor = isDark ? AppColors.textPrimary : AppColors.bgPage;
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -512,7 +511,7 @@ class _AudioTrackSheet extends StatelessWidget {
             width: 36,
             height: 4,
             decoration: BoxDecoration(
-              color: isDark ? Colors.white24 : Colors.black26,
+              color: isDark ? AppColors.textDisabled : Colors.black26,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -540,7 +539,7 @@ class _AudioTrackSheet extends StatelessWidget {
                     Text(
                       'Audio Track',
                       style: TextStyle(
-                        fontFamily: 'Roboto',
+                        
                         fontSize: 17,
                         fontWeight: FontWeight.bold,
                         color: textColor,
@@ -549,9 +548,9 @@ class _AudioTrackSheet extends StatelessWidget {
                     Text(
                       'Select dubbed language for playback',
                       style: TextStyle(
-                        fontFamily: 'Roboto',
+                        
                         fontSize: 12,
-                        color: isDark ? Colors.white54 : Colors.black45,
+                        color: isDark ? AppColors.textSecondary : Colors.black45,
                       ),
                     ),
                   ],
@@ -615,14 +614,14 @@ class _AudioTrackSheet extends StatelessWidget {
                                   ? track.code.substring(0, 2).toUpperCase()
                                   : track.code.toUpperCase(),
                               style: TextStyle(
-                                fontFamily: 'Roboto',
+                                
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
                                 color: isSelected
-                                    ? Colors.white
+                                    ? AppColors.textPrimary
                                     : (isDark
-                                          ? Colors.white70
-                                          : Colors.black54),
+                                          ? AppColors.textSecondary
+                                          : AppColors.bgPage54),
                               ),
                             ),
                           ),
@@ -636,7 +635,7 @@ class _AudioTrackSheet extends StatelessWidget {
                               Text(
                                 track.label,
                                 style: TextStyle(
-                                  fontFamily: 'Roboto',
+                                  
                                   fontSize: 14,
                                   fontWeight: FontWeight.w600,
                                   color: isSelected
@@ -650,10 +649,10 @@ class _AudioTrackSheet extends StatelessWidget {
                                     ? 'Original audio track'
                                     : 'Dubbed audio track',
                                 style: TextStyle(
-                                  fontFamily: 'Roboto',
+                                  
                                   fontSize: 11,
                                   color: isDark
-                                      ? Colors.white38
+                                      ? AppColors.textTertiary
                                       : Colors.black38,
                                 ),
                               ),
@@ -672,7 +671,7 @@ class _AudioTrackSheet extends StatelessWidget {
                             child: const Icon(
                               Icons.check,
                               size: 14,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                             ),
                           )
                         else
@@ -682,7 +681,7 @@ class _AudioTrackSheet extends StatelessWidget {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: isDark ? Colors.white24 : Colors.black26,
+                                color: isDark ? AppColors.textDisabled : Colors.black26,
                               ),
                             ),
                           ),
@@ -704,16 +703,16 @@ class _AudioTrackSheet extends StatelessWidget {
 // Playback speed sheet
 // ─────────────────────────────────────────────────────────────────────────────
 class _SpeedSheet extends StatelessWidget {
-  final MultiAudioPlayerController ctrl;
   const _SpeedSheet({required this.ctrl});
+  final MultiAudioPlayerController ctrl;
 
   static const _speeds = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF1E1E1E) : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black87;
+    final bg = isDark ? const Color(0xFF1E1E1E) : AppColors.textPrimary;
+    final textColor = isDark ? AppColors.textPrimary : AppColors.bgPage;
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -729,7 +728,7 @@ class _SpeedSheet extends StatelessWidget {
             width: 36,
             height: 4,
             decoration: BoxDecoration(
-              color: isDark ? Colors.white24 : Colors.black26,
+              color: isDark ? AppColors.textDisabled : Colors.black26,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -742,7 +741,7 @@ class _SpeedSheet extends StatelessWidget {
                 Text(
                   'Playback Speed',
                   style: TextStyle(
-                    fontFamily: 'Roboto',
+                    
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
                     color: textColor,
@@ -781,12 +780,12 @@ class _SpeedSheet extends StatelessWidget {
                       child: Text(
                         speed == 1.0 ? 'Normal' : '${speed}x',
                         style: TextStyle(
-                          fontFamily: 'Roboto',
+                          
                           fontSize: 13,
                           fontWeight: FontWeight.bold,
                           color: isSelected
-                              ? Colors.white
-                              : (isDark ? Colors.white70 : Colors.black54),
+                              ? AppColors.textPrimary
+                              : (isDark ? AppColors.textSecondary : AppColors.bgPage54),
                         ),
                       ),
                     ),

@@ -1,20 +1,17 @@
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/video/presentation/controllers/download_videoplayer.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class OfflineVideoPlayerPage extends StatelessWidget {
+
+  const OfflineVideoPlayerPage({
+    required this.videoId, required this.title, required this.video, super.key,
+  });
   final String videoId;
   final String title;
   final OfflineVideo video;
-
-  const OfflineVideoPlayerPage({
-    super.key,
-    required this.videoId,
-    required this.title,
-    required this.video,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -25,21 +22,21 @@ class OfflineVideoPlayerPage extends StatelessWidget {
       controller.loadVideo();
     });
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.bgPage,
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: AppColors.bgPage,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Get.back(),
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: Get.back,
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.cast, color: Colors.white),
+            icon: const Icon(Icons.cast, color: AppColors.textPrimary),
             onPressed: () {},
           ),
           IconButton(
-            icon: const Icon(Icons.more_vert, color: Colors.white),
+            icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
             onPressed: () {},
           ),
         ],
@@ -47,14 +44,14 @@ class OfflineVideoPlayerPage extends StatelessWidget {
       body: Obx(() {
         if (controller.isLoading.value) {
           return const Center(
-            child: CircularProgressIndicator(color: Colors.red),
+            child: CircularProgressIndicator(color: AppColors.error),
           );
         }
         if (controller.videoUrl.value.isEmpty) {
           return const Center(
             child: Text(
               'Video not found',
-              style: TextStyle(color: Colors.white),
+              style: TextStyle(color: AppColors.textPrimary),
             ),
           );
         }
@@ -65,8 +62,8 @@ class OfflineVideoPlayerPage extends StatelessWidget {
               // Video Player
               AspectRatio(
                 aspectRatio: 16 / 9,
-                child: Container(
-                  color: Colors.black,
+                child: ColoredBox(
+                  color: AppColors.bgPage,
                   child: HtmlElementView(
                     viewType: 'video-${controller.videoId}',
                   ),
@@ -76,15 +73,15 @@ class OfflineVideoPlayerPage extends StatelessWidget {
               // Video Info Section
               Container(
                 color: AppColors.bgPage,
-                padding: EdgeInsets.all(12),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Title
                     Text(
                       title,
-                      style: TextStyle(
-                        color: Colors.white,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
                         fontSize: 18,
                         fontWeight: FontWeight.w500,
                       ),
@@ -94,7 +91,7 @@ class OfflineVideoPlayerPage extends StatelessWidget {
                     // Views
                     Text(
                       '${video.views} views',
-                      style: TextStyle(color: Colors.grey[400], fontSize: 14),
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
                     ),
                     const SizedBox(height: 12),
 
@@ -110,7 +107,7 @@ class OfflineVideoPlayerPage extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    const Divider(color: Colors.grey, height: 1),
+                    const Divider(color: AppColors.textSecondary, height: 1),
                     const SizedBox(height: 16),
 
                     // Channel Info
@@ -127,8 +124,8 @@ class OfflineVideoPlayerPage extends StatelessWidget {
                             children: [
                               Text(
                                 video.channelName,
-                                style: TextStyle(
-                                  color: Colors.white,
+                                style: const TextStyle(
+                                  color: AppColors.textPrimary,
                                   fontSize: 15,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -139,8 +136,8 @@ class OfflineVideoPlayerPage extends StatelessWidget {
                         ElevatedButton(
                           onPressed: () {},
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
+                            backgroundColor: AppColors.error,
+                            foregroundColor: AppColors.textPrimary,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
                             ),
@@ -162,13 +159,13 @@ class OfflineVideoPlayerPage extends StatelessWidget {
   Widget _buildActionButton(IconData icon, String label) {
     return Column(
       children: [
-        Icon(icon, color: Colors.white, size: 24),
+        Icon(icon, color: AppColors.textPrimary, size: 24),
         if (label.isNotEmpty)
           Padding(
-            padding: EdgeInsets.only(top: 4),
+            padding: const EdgeInsets.only(top: 4),
             child: Text(
               label,
-              style: TextStyle(color: Colors.white, fontSize: 12),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
             ),
           ),
       ],

@@ -1,0 +1,720 @@
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:intl/intl.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/creator_intelligence_controller.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
+import 'package:truthworld/features/notifications/data/models/user_notification.dart';
+import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/theme/app_theme.dart';
+
+class CreatorIntelligencePage extends StatelessWidget {
+
+  const CreatorIntelligencePage({
+    required this.channelId, required this.creatorId, super.key,
+  });
+  final String channelId;
+  final String creatorId;
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = Get.put(
+      CreatorIntelligenceController(
+        channelId: channelId,
+        creatorId: creatorId,
+      ),
+      tag: channelId,
+    );
+
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor: isDarkMode ? AppColors.bgPage : AppColors.textSecondary,
+      body: CustomScrollView(
+        slivers: [
+          // ── App Header Banner ──
+          SliverToBoxAdapter(
+            child: _buildHeaderBanner(context, controller, isDarkMode),
+          ),
+
+          // ── Filter Chips ──
+          SliverToBoxAdapter(
+            child: _buildFilterChips(context, controller, isDarkMode),
+          ),
+
+          // ── Main Content List ──
+          Obx(() {
+            if (controller.isLoading.value) {
+              return const SliverFillRemaining(
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.brand,
+                  ),
+                ),
+              );
+            }
+
+            final allFiltered = controller.filteredNotifications;
+
+            if (allFiltered.isEmpty) {
+              return SliverFillRemaining(
+                child: _buildEmptyState(context, isDarkMode),
+              );
+            }
+
+            return SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  // Sticky Critical Banner if present
+                  if (controller.filteredNotifications.any((n) => n.priority == NotificationPriority.critical))
+                    _buildCriticalSection(context, controller, isDarkMode),
+
+                  // Today Section
+                  if (controller.todayNotifications.isNotEmpty) ...[
+                    _buildSectionHeader('TODAY', isDarkMode),
+                    ...controller.todayNotifications.map((n) => _buildNotificationCard(context, controller, n, isDarkMode)),
+                  ],
+
+                  // Yesterday Section
+                  if (controller.yesterdayNotifications.isNotEmpty) ...[
+                    _buildSectionHeader('YESTERDAY', isDarkMode),
+                    ...controller.yesterdayNotifications.map((n) => _buildNotificationCard(context, controller, n, isDarkMode)),
+                  ],
+
+                  // This Week Section
+                  if (controller.thisWeekNotifications.isNotEmpty) ...[
+                    _buildSectionHeader('THIS WEEK', isDarkMode),
+                    ...controller.thisWeekNotifications.map((n) => _buildNotificationCard(context, controller, n, isDarkMode)),
+                  ],
+
+                  // Earlier Section
+                  if (controller.earlierNotifications.isNotEmpty) ...[
+                    _buildSectionHeader('EARLIER', isDarkMode),
+                    ...controller.earlierNotifications.map((n) => _buildNotificationCard(context, controller, n, isDarkMode)),
+                  ],
+
+                  const SizedBox(height: 48),
+                ]),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeaderBanner(
+      BuildContext context, CreatorIntelligenceController controller, bool isDarkMode) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
+        border: Border(
+          bottom: BorderSide(
+            color: isDarkMode ? AppColors.bgDivider : AppColors.textSecondary,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.brand.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.insights_rounded,
+                      color: AppColors.brand,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Creator Intelligence',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Real-time channel milestones, performance insights & verification audits',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Obx(() {
+                    if (controller.unreadCount.value > 0) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        margin: const EdgeInsets.only(right: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.brand,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${controller.unreadCount.value} UNREAD',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  }),
+                  OutlinedButton.icon(
+                    onPressed: () => controller.markAllAsRead(),
+                    icon: const Icon(Icons.done_all_rounded, size: 16),
+                    label: const Text(
+                      'Mark all as read',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.brand,
+                      side: const BorderSide(color: AppColors.brand),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChips(
+      BuildContext context, CreatorIntelligenceController controller, bool isDarkMode) {
+    final categories = [
+      {'id': 'all', 'label': 'All Insights', 'icon': Icons.clear_all_rounded},
+      {'id': 'critical', 'label': 'Critical & Policy', 'icon': Icons.warning_amber_rounded},
+      {'id': 'growth', 'label': 'Milestones & Growth', 'icon': Icons.emoji_events_rounded},
+      {'id': 'verification', 'label': 'Truth Verification', 'icon': Icons.verified_user_rounded},
+      {'id': 'performance', 'label': 'Performance Spike', 'icon': Icons.trending_up_rounded},
+      {'id': 'coach', 'label': 'AI Creator Coach', 'icon': Icons.auto_awesome_rounded},
+    ];
+
+    return Container(
+      height: 60,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+      child: Obx(() {
+        return ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: categories.length,
+          separatorBuilder: (context, index) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            final cat = categories[index];
+            final catId = cat['id']! as String;
+            final isSelected = controller.selectedCategory.value == catId;
+
+            return ChoiceChip(
+              avatar: Icon(
+                cat['icon']! as IconData,
+                size: 16,
+                color: isSelected ? AppColors.textPrimary : AppColors.brand,
+              ),
+              label: Text(cat['label']! as String),
+              selected: isSelected,
+              onSelected: (selected) {
+                if (selected) {
+                  controller.selectedCategory.value = catId;
+                }
+              },
+              selectedColor: AppColors.brand,
+              backgroundColor: isDarkMode ? AppColors.bgSurface : AppColors.textSecondary,
+              labelStyle: TextStyle(
+                color: isSelected ? AppColors.textPrimary : (isDarkMode ? AppColors.textPrimary : AppColors.bgPage),
+                fontSize: 13,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(
+                  color: isSelected ? AppColors.brand : (isDarkMode ? AppColors.bgDivider : Colors.transparent),
+                ),
+              ),
+            );
+          },
+        );
+      }),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, bool isDarkMode) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 20, bottom: 10),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.2,
+          color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCriticalSection(
+      BuildContext context, CreatorIntelligenceController controller, bool isDarkMode) {
+    final criticalItems = controller.filteredNotifications
+        .where((n) => n.priority == NotificationPriority.critical)
+        .toList();
+
+    if (criticalItems.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.errorContainer,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.warning_rounded, color: AppColors.error, size: 22),
+              SizedBox(width: 8),
+              Text(
+                'ACTION REQUIRED',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.1,
+                  color: AppColors.error,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...criticalItems.map((n) => _buildNotificationCard(context, controller, n, isDarkMode, isCriticalStyle: true)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotificationCard(
+      BuildContext context, CreatorIntelligenceController controller, UserNotification notification, bool isDarkMode,
+      {bool isCriticalStyle = false}) {
+    final cardColor = isDarkMode ? AppColors.bgSurface : AppColors.textPrimary;
+    final borderSide = BorderSide(
+      color: notification.read
+          ? (isDarkMode ? AppColors.bgDivider : AppColors.textSecondary)
+          : AppColors.brand.withValues(alpha: 0.6),
+      width: notification.read ? 1 : 1.5,
+    );
+
+    var leadingIcon = Icons.notifications_rounded;
+    var iconColor = AppColors.brand;
+
+    if (notification.type.contains('verification')) {
+      if (notification.priority == NotificationPriority.critical || notification.severity == NotificationSeverity.warning) {
+        leadingIcon = Icons.cancel_rounded;
+        iconColor = AppColors.error;
+      } else {
+        leadingIcon = Icons.verified_rounded;
+        iconColor = AppColors.success;
+      }
+    } else if (notification.type.contains('milestone')) {
+      leadingIcon = Icons.emoji_events_rounded;
+      iconColor = AppColors.warning;
+    } else if (notification.type.contains('performance') || notification.type.contains('retention')) {
+      leadingIcon = Icons.trending_up_rounded;
+      iconColor = AppColors.info;
+    } else if (notification.type.contains('coach')) {
+      leadingIcon = Icons.auto_awesome_rounded;
+      iconColor = AppColors.brand;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.fromBorderSide(borderSide),
+        boxShadow: notification.read
+            ? []
+            : [
+                BoxShadow(
+                  color: AppColors.brand.withValues(alpha: 0.08),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            controller.markAsRead(notification.id);
+            if (notification.verificationReportId != null && notification.verificationReportId!.isNotEmpty) {
+              _showVerificationReportModal(context, controller, notification.verificationReportId!);
+            }
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Icon Badge
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: iconColor.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(leadingIcon, color: iconColor, size: 22),
+                    ),
+                    const SizedBox(width: 14),
+
+                    // Main Text Content
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  notification.title,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: notification.read ? FontWeight.w500 : FontWeight.bold,
+                                    color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                DateFormat('h:mm a').format(notification.createdAt),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDarkMode ? AppColors.textTertiary : AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            notification.message,
+                            style: TextStyle(
+                              fontSize: 13,
+                              height: 1.4,
+                              color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                            ),
+                          ),
+
+                          // Analytics Snapshot frozen stats pill if present
+                          if (notification.analyticsSnapshot != null) ...[
+                            const SizedBox(height: 10),
+                            _buildAnalyticsSnapshotPill(context, notification.analyticsSnapshot!, isDarkMode),
+                          ],
+                        ],
+                      ),
+                    ),
+
+                    // Unread Indicator
+                    if (!notification.read)
+                      Container(
+                        margin: const EdgeInsets.only(left: 10),
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: AppColors.brand,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                  ],
+                ),
+
+                // Action Buttons Row
+                if (notification.actions.isNotEmpty || notification.verificationReportId != null) ...[
+                  const SizedBox(height: 14),
+                  const Divider(height: 1, color: AppColors.bgDivider),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      if (notification.verificationReportId != null)
+                        ElevatedButton.icon(
+                          onPressed: () => _showVerificationReportModal(
+                              context, controller, notification.verificationReportId!),
+                          icon: const Icon(Icons.assessment_rounded, size: 16),
+                          label: const Text('View Verification Audit'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.brand,
+                            foregroundColor: AppColors.textPrimary,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      for (final action in notification.actions) ...[
+                        const SizedBox(width: 8),
+                        OutlinedButton(
+                          onPressed: () => _handleAction(context, action, isDarkMode),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.brand,
+                            side: const BorderSide(color: AppColors.brand),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: Text(action.label),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnalyticsSnapshotPill(
+      BuildContext context, AnalyticsSnapshotData snap, bool isDarkMode) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isDarkMode ? AppColors.bgInput : AppColors.textSecondary,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: isDarkMode ? AppColors.bgDivider : AppColors.textSecondary),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.history_rounded, size: 14, color: AppColors.brand),
+          const SizedBox(width: 6),
+          Text(
+            'Snapshot at creation: ${NumberFormat.compact().format(snap.views)} views • ${NumberFormat.compact().format(snap.subscribers)} subs',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context, bool isDarkMode) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.insights_rounded,
+            size: 64,
+            color: isDarkMode ? AppColors.textTertiary : AppColors.textSecondary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No Creator Insights Yet',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Milestones, video verification audit reports, and AI growth tips will appear here.',
+            style: TextStyle(
+              fontSize: 13,
+              color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showVerificationReportModal(
+      BuildContext context, CreatorIntelligenceController controller, String reportId) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return FutureBuilder<Map<String, dynamic>?>(
+          future: controller.fetchVerificationReport(reportId),
+          builder: (context, snapshot) {
+            final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+            final data = snapshot.data;
+
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.75,
+              decoration: BoxDecoration(
+                color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: AppColors.textSecondary,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      const Icon(Icons.verified_user_rounded, color: AppColors.brand, size: 28),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Truth Verification Audit Report',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  const Divider(color: AppColors.bgDivider),
+                  const SizedBox(height: 16),
+
+                  if (snapshot.connectionState == ConnectionState.waiting)
+                    const Expanded(
+                      child: Center(
+                        child: CircularProgressIndicator(color: AppColors.brand),
+                      ),
+                    )
+                  else if (data == null)
+                    const Expanded(
+                      child: Center(
+                        child: Text(
+                          'Verification Report Details Available in Verification Tab.',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: ListView(
+                        children: [
+                          _buildAuditRow('Status', (data['status'] ?? 'Rejected').toString().toUpperCase(), AppColors.error),
+                          _buildAuditRow('Primary Reason', data['primaryReason'] ?? 'AI Synthetic Content Detected without disclosure', isDarkMode ? AppColors.textPrimary : AppColors.bgPage),
+                          _buildAuditRow('Confidence Score', '${((data['confidenceScore'] ?? 0.86) * 100).toInt()}%', AppColors.warning),
+                          _buildAuditRow('Detected Flagged Frames', (data['flaggedFrames'] as List? ?? ['00:45', '02:12', '05:31']).join(', '), AppColors.info),
+                          _buildAuditRow('Recommended Action', data['recommendedFix'] ?? 'Enable AI Synthetic content label in video metadata settings or submit an appeal.', isDarkMode ? AppColors.textPrimary : AppColors.bgPage),
+                          const SizedBox(height: 24),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () {
+                                    Navigator.pop(context);
+                                    Get.to(() => TruthVerificationDashboardPage(channelId: channelId, isDarkMode: isDarkMode));
+                                  },
+                                  icon: const Icon(Icons.gavel_rounded),
+                                  label: const Text('Submit Appeal'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.brand,
+                                    foregroundColor: AppColors.textPrimary,
+                                    padding: const EdgeInsets.all(14),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildAuditRow(String label, String value, Color valueColor) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textTertiary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: valueColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handleAction(BuildContext context, NotificationActionItem action, bool isDarkMode) {
+    switch (action.type) {
+      case 'OPEN_ANALYTICS':
+        Get.snackbar('Navigating', 'Opening Channel Analytics...', backgroundColor: AppColors.brand, colorText: AppColors.textPrimary);
+      case 'APPEAL_VERIFICATION':
+        Get.to(() => TruthVerificationDashboardPage(channelId: channelId, isDarkMode: isDarkMode));
+      default:
+        Get.snackbar('Action Triggered', action.label, backgroundColor: AppColors.bgSurface, colorText: AppColors.textPrimary);
+    }
+  }
+}

@@ -1,10 +1,18 @@
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 
 /// Structured logging service for production-grade observability
 /// Implements industry standards for error tracking and debugging
 class LoggerService {
+
+  factory LoggerService() {
+    return _instance;
+  }
+
+  LoggerService._internal();
   static final LoggerService _instance = LoggerService._internal();
   static const String _tag = 'Truthworld';
+  static const int _maxBreadcrumbs = 50;
 
   // Log levels ordered by severity
   static const int _levelVerbose = 2;
@@ -16,15 +24,22 @@ class LoggerService {
 
   int _minLevel = _levelDebug;
   bool _enableCrashlytics = false;
+  String _correlationId = const Uuid().v4();
+  final List<String> _breadcrumbs = [];
+
+  /// Current correlation ID for distributed tracing
+  String get correlationId => _correlationId;
+
+  /// Rotate correlation ID (e.g., on new user session or navigation)
+  void rotateCorrelationId() {
+    _correlationId = const Uuid().v4();
+  }
 
   /// Crash reporting callback for Firebase Crashlytics integration
   void Function(Object error, StackTrace? stack)? onCrash;
 
-  LoggerService._internal();
-
-  factory LoggerService() {
-    return _instance;
-  }
+  /// Breadcrumb callback for Crashlytics context
+  void Function(String message)? onBreadcrumb;
 
   /// Initialize logger with configuration
   /// Set [enableCrashlytics] to true to automatically report to Firebase Crashlytics
@@ -184,9 +199,8 @@ class LoggerService {
     required int level,
     required String tag,
     required String message,
-    Object? error,
+    required String emoji, Object? error,
     StackTrace? stackTrace,
-    required String emoji,
   }) {
     if (level < _minLevel) return;
 
@@ -206,7 +220,29 @@ class LoggerService {
     if (kDebugMode) {
       debugPrint(buffer.toString());
     }
+
+    // Add breadcrumb for crash context
+    _addBreadcrumb('$emoji [$tag] $message');
+
+    // Forward errors to Crashlytics in production
+    if (_enableCrashlytics && level >= _levelError && error != null) {
+      onCrash?.call(error, stackTrace);
+    }
   }
+
+  /// Add a breadcrumb for crash context (ring buffer)
+  void _addBreadcrumb(String message) {
+    if (_breadcrumbs.length >= _maxBreadcrumbs) {
+      _breadcrumbs.removeAt(0);
+    }
+    _breadcrumbs.add(
+      '[${DateTime.now().toIso8601String()}] [$_correlationId] $message',
+    );
+    onBreadcrumb?.call(message);
+  }
+
+  /// Get recent breadcrumbs for crash reporting
+  List<String> get breadcrumbs => List.unmodifiable(_breadcrumbs);
 
   /// Format stack trace for readability
   String _formatStackTrace(StackTrace stackTrace) {

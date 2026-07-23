@@ -1,28 +1,23 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
-
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class ModernVideoListCard extends StatefulWidget {
+
+  const ModernVideoListCard({
+    required this.video, required this.index, required this.colorScheme, required this.constraints, super.key,
+    this.heroPrefix = 'video_list',
+    this.accentColor = const Color(0xFFDC143C),
+  });
   final Video video;
   final int index;
   final ColorScheme colorScheme;
   final BoxConstraints constraints;
   final String heroPrefix;
   final Color accentColor;
-
-  const ModernVideoListCard({
-    super.key,
-    required this.video,
-    required this.index,
-    required this.colorScheme,
-    required this.constraints,
-    this.heroPrefix = 'video_list',
-    this.accentColor = const Color(0xFFDC143C),
-  });
 
   @override
   State<ModernVideoListCard> createState() => _ModernVideoListCardState();
@@ -327,7 +322,7 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
             ? widget.video.channelName[0].toUpperCase()
             : '?',
         style: TextStyle(
-          color: Colors.white,
+          color: AppColors.textPrimary,
           fontSize:
               (Responsive.isMobileSmall(context.screenWidth) ? 8 : 10) *
               context.fontScale,
@@ -339,22 +334,18 @@ class _ModernVideoListCardState extends State<ModernVideoListCard> {
 }
 
 class ModernVideoGridCard extends StatefulWidget {
+
+  const ModernVideoGridCard({
+    required this.video, required this.index, required this.colorScheme, required this.constraints, super.key,
+    this.heroPrefix = 'video_grid',
+    this.accentColor = const Color(0xFFDC143C), // AppColors.brand
+  });
   final Video video;
   final int index;
   final ColorScheme colorScheme;
   final BoxConstraints constraints;
   final String heroPrefix;
   final Color accentColor;
-
-  const ModernVideoGridCard({
-    super.key,
-    required this.video,
-    required this.index,
-    required this.colorScheme,
-    required this.constraints,
-    this.heroPrefix = 'video_grid',
-    this.accentColor = const Color(0xFFDC143C), // AppColors.brand
-  });
 
   @override
   State<ModernVideoGridCard> createState() => _ModernVideoGridCardState();
@@ -419,7 +410,7 @@ class _ModernVideoGridCardState extends State<ModernVideoGridCard> {
                     ],
                   ),
                 ),
-                child: Center(
+                child: const Center(
                   child: Icon(
                     Icons.play_circle_outline_rounded,
                     size: 32,

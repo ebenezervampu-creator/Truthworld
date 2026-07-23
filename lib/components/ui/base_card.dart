@@ -10,20 +10,9 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Optional hover/tap effects
 /// - Semantic accessibility support
 class BaseCard extends StatelessWidget {
-  final Widget child;
-  final VoidCallback? onTap;
-  final VoidCallback? onDoubleTap;
-  final bool enableHoverEffect;
-  final EdgeInsetsGeometry? padding;
-  final BoxBorder? border;
-  final Color? backgroundColor;
-  final List<BoxShadow>? shadows;
-  final double? borderRadius;
-  final String? semanticLabel;
 
   const BaseCard({
-    super.key,
-    required this.child,
+    required this.child, super.key,
     this.onTap,
     this.onDoubleTap,
     this.enableHoverEffect = true,
@@ -34,6 +23,16 @@ class BaseCard extends StatelessWidget {
     this.borderRadius,
     this.semanticLabel,
   });
+  final Widget child;
+  final VoidCallback? onTap;
+  final VoidCallback? onDoubleTap;
+  final bool enableHoverEffect;
+  final EdgeInsetsGeometry? padding;
+  final BoxBorder? border;
+  final Color? backgroundColor;
+  final List<BoxShadow>? shadows;
+  final double? borderRadius;
+  final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +55,6 @@ class BaseCard extends StatelessWidget {
               border ??
               Border.all(
                 color: AppTheme.colors.border.withValues(alpha: 0.3),
-                width: 1.0,
               ),
           boxShadow: shadows ?? AppTheme.shadows.elevationMd,
         ),

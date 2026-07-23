@@ -1,21 +1,21 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_clip.dart';
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:uuid/uuid.dart';
 
 class ClipController extends GetxController {
-  final Video video;
   ClipController({required this.video});
+  final Video video;
 
   final RxDouble startSeconds = 0.0.obs;
   final RxDouble endSeconds = 15.0.obs; // Default 15s clip
-  final RxString clipTitle = "".obs;
+  final RxString clipTitle = ''.obs;
   final RxBool isSaving = false.obs;
 
-  double get maxDuration => 60.0; // Max clip duration 60s
+  double get maxDuration => 60; // Max clip duration 60s
 
   void updateStart(double value) {
     if (value < endSeconds.value - 1) {
@@ -33,13 +33,13 @@ class ClipController extends GetxController {
 
   Future<void> saveClip() async {
     if (clipTitle.value.isEmpty) {
-      Get.snackbar("Error", "Please enter a title for your clip");
+      Get.snackbar('Error', 'Please enter a title for your clip');
       return;
     }
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      Get.snackbar("Error", "You must be signed in to save clips");
+      Get.snackbar('Error', 'You must be signed in to save clips');
       return;
     }
 
@@ -68,14 +68,14 @@ class ClipController extends GetxController {
 
       Get.back(); // Close dialog
       Get.snackbar(
-        "Success", 
-        "Clip saved to your library",
+        'Success', 
+        'Clip saved to your library',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.green.withValues(alpha: 0.8),
-        colorText: Colors.white,
+        backgroundColor: AppColors.success.withValues(alpha: 0.8),
+        colorText: AppColors.textPrimary,
       );
     } catch (e) {
-      Get.snackbar("Error", "Failed to save clip: $e");
+      Get.snackbar('Error', 'Failed to save clip: $e');
     } finally {
       isSaving.value = false;
     }

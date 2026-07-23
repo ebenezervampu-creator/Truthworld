@@ -115,6 +115,13 @@
           }
         },
         {
+          "source": "/feeds/**",
+          "function": {
+            "functionId": "seoServer",
+            "region": "asia-south1"
+          }
+        },
+        {
           "source": "/robots.txt",
           "destination": "/robots.txt"
         },

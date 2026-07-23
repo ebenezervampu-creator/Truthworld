@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
+import 'package:universal_html/html.dart' as html;
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'package:universal_html/js.dart' as js;
-import 'package:universal_html/html.dart' as html;
 
 /// Enhanced SEO Service for Flutter Web
 /// Manages meta tags, Open Graph, and page metadata
@@ -136,9 +136,8 @@ class SeoHelper {
 
   /// Update or create a meta tag
   static void _updateOrCreateMeta({
-    String? name,
+    required String content, String? name,
     String? property,
-    required String content,
   }) {
     final head = html.document.head;
     if (head == null) return;
@@ -178,7 +177,7 @@ class SeoHelper {
     final head = html.document.head;
     if (head == null) return;
 
-    html.LinkElement? link =
+    var link =
         head.querySelector('link[rel="canonical"]') as html.LinkElement?;
 
     if (link != null) {
@@ -235,8 +234,7 @@ class SeoHelper {
     required String title,
     required String description,
     required String url,
-    String? image,
-    required DateTime publishedDate,
+    required DateTime publishedDate, String? image,
     DateTime? modifiedDate,
     List<String>? authors,
     List<String>? keywords,
@@ -280,8 +278,7 @@ class SeoHelper {
     required String description,
     required String url,
     required String videoUrl,
-    String? thumbnailUrl,
-    required Duration duration,
+    required Duration duration, String? thumbnailUrl,
     DateTime? uploadDate,
   }) {
     // Validate and convert video URL to absolute

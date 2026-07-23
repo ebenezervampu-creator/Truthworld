@@ -1,21 +1,18 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class VideoPipelineStatusWidget extends StatelessWidget {
+
+  VideoPipelineStatusWidget({
+    required this.video, required this.isDarkMode, super.key,
+  }) : _isExpanded = (video.status.name != 'ready').obs;
   final Video video;
   final bool isDarkMode;
   final RxBool _isExpanded;
-
-  VideoPipelineStatusWidget({
-    super.key,
-    required this.video,
-    required this.isDarkMode,
-  }) : _isExpanded = (video.status.name != 'ready').obs;
 
   String? _getThumbnailFileName(String url) {
     if (url.isEmpty) return null;
@@ -60,7 +57,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
         return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           stream: thumbnailFile != null
               ? FirebaseFirestore.instance.collection('image_verification').doc(thumbnailFile).snapshots()
-              : Stream<DocumentSnapshot<Map<String, dynamic>>>.empty(),
+              : const Stream<DocumentSnapshot<Map<String, dynamic>>>.empty(),
           builder: (context, imageSnap) {
             return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
               stream: FirebaseFirestore.instance.collection('resolution_jobs').doc(video.id).snapshots(),
@@ -98,14 +95,10 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                       return Container(
                         margin: const EdgeInsets.only(bottom: 16),
                         decoration: BoxDecoration(
-                          color: isDarkMode
-                              ? AppColors.bgSurface
-                              : Colors.white,
+                          color: AppColors.bgSurface,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: isDarkMode
-                                ? AppColors.bgDivider.withValues(alpha: 0.5)
-                                : Colors.grey.shade300,
+                            color: AppColors.bgDivider,
                           ),
                         ),
                         child: Column(
@@ -122,29 +115,28 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                 key: const Key('pipeline_header_row'),
                                 child: Row(
                                   children: [
-                                    Icon(
+                                    const Icon(
                                       Icons.settings_suggest_outlined,
-                                      color: isDarkMode ? AppColors.brand : Colors.deepPurple,
+                                      color: AppColors.brand,
                                       size: 20,
                                     ),
                                     const SizedBox(width: 10),
                                     Text(
-                                      "Processing Pipeline",
-                                      style: GoogleFonts.roboto(
-                                        fontSize: 14,
+                                      'Processing Pipeline',
+                                      style: AppTextStyles.titleMedium.copyWith(
                                         fontWeight: FontWeight.bold,
-                                        color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+                                        color: AppColors.textPrimary,
                                       ),
                                     ),
                                     const Spacer(),
                                     // Thumbnail Moderation Tag
                                     _buildMiniBadge(
-                                      label: "Content: $moderationStatus",
+                                      label: 'Content: $moderationStatus',
                                       color: _getSafetyColor(moderationStatus),
                                     ),
                                     const SizedBox(width: 6),
                                     _buildMiniBadge(
-                                      label: "Thumb: $imageStatus",
+                                      label: 'Thumb: $imageStatus',
                                       color: _getSafetyColor(imageStatus),
                                     ),
                                     const SizedBox(width: 8),
@@ -160,7 +152,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                     const SizedBox(width: 10),
                                     Icon(
                                       _isExpanded.value ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-                                      color: isDarkMode ? AppColors.textSecondary : Colors.black54,
+                                      color: AppColors.textSecondary,
                                       size: 20,
                                     ),
                                   ],
@@ -179,7 +171,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                     const Divider(height: 16),
                                     
                                     // Section 1: Video Content Moderation (Gemini Audio Analysis)
-                                    _buildSectionTitle("Video Content Moderation (Gemini)"),
+                                    _buildSectionTitle('Video Content Moderation (Gemini)'),
                                     const SizedBox(height: 6),
                                     _buildModerationPanel(
                                       status: moderationStatus,
@@ -192,7 +184,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                     const SizedBox(height: 16),
 
                                     // Section 2: Thumbnail Safety Verification
-                                    _buildSectionTitle("Thumbnail Safety Verification"),
+                                    _buildSectionTitle('Thumbnail Safety Verification'),
                                     const SizedBox(height: 6),
                                     Row(
                                       children: [
@@ -203,10 +195,10 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                         ),
                                         const SizedBox(width: 8),
                                         Text(
-                                          imageReason ?? "Awaiting safety checks from Vertex AI Vision...",
-                                          style: GoogleFonts.roboto(
+                                          imageReason ?? 'Awaiting safety checks from Vertex AI Vision...',
+                                          style: AppTextStyles.bodySmall.copyWith(
                                             fontSize: 13,
-                                            color: isDarkMode ? AppColors.textSecondary : Colors.black87,
+                                            color: AppColors.textSecondary,
                                           ),
                                         ),
                                       ],
@@ -215,31 +207,31 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                     const SizedBox(height: 16),
                                     
                                     // Section 2: Adaptive Resolution Transcoding
-                                    _buildSectionTitle("Resolution Transcoding (Adaptive HLS)"),
+                                    _buildSectionTitle('Resolution Transcoding (Adaptive HLS)'),
                                     const SizedBox(height: 8),
                                     Wrap(
                                       spacing: 8,
                                       runSpacing: 8,
                                       children: [
-                                        _buildResolutionChip("144p", variants["144p"]),
-                                        _buildResolutionChip("240p", variants["240p"]),
-                                        _buildResolutionChip("360p", variants["360p"]),
-                                        _buildResolutionChip("480p", variants["480p"]),
-                                        _buildResolutionChip("720p", variants["720p"]),
+                                        _buildResolutionChip('144p', variants['144p']),
+                                        _buildResolutionChip('240p', variants['240p']),
+                                        _buildResolutionChip('360p', variants['360p']),
+                                        _buildResolutionChip('480p', variants['480p']),
+                                        _buildResolutionChip('720p', variants['720p']),
                                       ],
                                     ),
                                     
                                     const SizedBox(height: 16),
                                     
                                     // Section 3: AI Processing Timeline Stages
-                                    _buildSectionTitle("AI Metadata & Pipeline Stages"),
+                                    _buildSectionTitle('AI Metadata & Pipeline Stages'),
                                     const SizedBox(height: 10),
                                     _buildPipelineTimeline(stages),
                                     
                                     // Section 4: Direct Links & Stored Artifacts (Only if ready)
                                     if (video.status.name == 'ready' || stages.isNotEmpty) ...[
                                       const SizedBox(height: 16),
-                                      _buildSectionTitle("Direct Links & Stored Artifacts"),
+                                      _buildSectionTitle('Direct Links & Stored Artifacts'),
                                       const SizedBox(height: 8),
                                       _buildArtifactLinksPanel(),
                                     ],
@@ -247,22 +239,20 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                     // Section 5: Gemini Generated Summary (Low Latency Stored)
                                     if (video.description.isNotEmpty && video.status.name == 'ready') ...[
                                       const SizedBox(height: 16),
-                                      _buildSectionTitle("Gemini Video Summary"),
+                                      _buildSectionTitle('Gemini Video Summary'),
                                       const SizedBox(height: 8),
                                       Container(
                                         width: double.infinity,
                                         padding: const EdgeInsets.all(12),
                                         decoration: BoxDecoration(
-                                          color: isDarkMode
-                                              ? AppColors.bgSurfaceHover
-                                              : Colors.grey.shade200,
+                                          color: AppColors.bgSurfaceHover,
                                           borderRadius: BorderRadius.circular(8),
                                         ),
                                         child: Text(
                                           video.description,
-                                          style: GoogleFonts.roboto(
+                                          style: AppTextStyles.bodyMedium.copyWith(
                                             fontSize: 12.5,
-                                            color: isDarkMode ? AppColors.textSecondary : Colors.black87,
+                                            color: AppColors.textSecondary,
                                             height: 1.4,
                                           ),
                                         ),
@@ -329,25 +319,25 @@ class VideoPipelineStatusWidget extends StatelessWidget {
               Expanded(
                 child: Text(
                   isProcessing
-                      ? "Analyzing audio against Community Guidelines..."
+                      ? 'Analyzing audio against Community Guidelines...'
                       : (status == 'APPROVED'
-                          ? "Content approved — complies with Community Guidelines"
+                          ? 'Content approved — complies with Community Guidelines'
                           : (status == 'REJECTED'
-                              ? "Content rejected — violates Community Guidelines"
+                              ? 'Content rejected — violates Community Guidelines'
                               : (status == 'ERROR'
-                                  ? "Moderation system error (transient failure)"
-                                  : "Awaiting content moderation..."))),
-                  style: GoogleFonts.roboto(
+                                  ? 'Moderation system error (transient failure)'
+                                  : 'Awaiting content moderation...'))),
+                  style: AppTextStyles.bodyMedium.copyWith(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
-                    color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ),
               if (processingTimeMs != null)
                 Text(
-                  "${(processingTimeMs / 1000).toStringAsFixed(1)}s",
-                  style: GoogleFonts.roboto(
+                  '${(processingTimeMs / 1000).toStringAsFixed(1)}s',
+                  style: AppTextStyles.caption.copyWith(
                     fontSize: 10,
                     color: AppColors.textTertiary,
                   ),
@@ -369,7 +359,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                   ),
                   child: Text(
                     cat.replaceAll('_', ' ').toUpperCase(),
-                    style: GoogleFonts.roboto(
+                    style: AppTextStyles.labelSmall.copyWith(
                       fontSize: 9,
                       fontWeight: FontWeight.bold,
                       color: AppColors.error,
@@ -385,7 +375,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               reason,
-              style: GoogleFonts.roboto(
+              style: AppTextStyles.bodySmall.copyWith(
                 fontSize: 11.5,
                 color: status == 'REJECTED' ? AppColors.error : AppColors.warning,
                 height: 1.3,
@@ -397,9 +387,9 @@ class VideoPipelineStatusWidget extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               summary,
-              style: GoogleFonts.roboto(
+              style: AppTextStyles.bodySmall.copyWith(
                 fontSize: 11.5,
-                color: isDarkMode ? AppColors.textSecondary : Colors.black87,
+                color: AppColors.textSecondary,
                 height: 1.3,
               ),
               maxLines: 3,
@@ -414,10 +404,10 @@ class VideoPipelineStatusWidget extends StatelessWidget {
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
-      style: GoogleFonts.roboto(
+      style: AppTextStyles.labelMedium.copyWith(
         fontSize: 12,
         fontWeight: FontWeight.bold,
-        color: isDarkMode ? AppColors.textTertiary : Colors.grey.shade700,
+        color: AppColors.textTertiary,
         letterSpacing: 0.5,
       ),
     );
@@ -429,11 +419,11 @@ class VideoPipelineStatusWidget extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(
         label,
-        style: GoogleFonts.roboto(
+        style: AppTextStyles.labelSmall.copyWith(
           fontSize: 10,
           fontWeight: FontWeight.bold,
           color: color,
@@ -482,20 +472,16 @@ class VideoPipelineStatusWidget extends StatelessWidget {
       case 'completed':
         chipColor = AppColors.success;
         icon = Icons.check_circle_outline_rounded;
-        break;
       case 'processing':
         chipColor = AppColors.brand;
         icon = Icons.sync_rounded;
-        break;
       case 'failed':
         chipColor = AppColors.error;
         icon = Icons.error_outline_rounded;
-        break;
       case 'pending':
       default:
         chipColor = AppColors.textTertiary;
         icon = Icons.radio_button_unchecked_rounded;
-        break;
     }
 
     return Container(
@@ -512,10 +498,10 @@ class VideoPipelineStatusWidget extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: GoogleFonts.roboto(
+            style: AppTextStyles.labelMedium.copyWith(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+              color: AppColors.textPrimary,
             ),
           ),
         ],
@@ -550,7 +536,6 @@ class VideoPipelineStatusWidget extends StatelessWidget {
           case 'completed':
             itemColor = AppColors.success;
             leadingWidget = const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 16);
-            break;
           case 'running':
             itemColor = AppColors.brand;
             leadingWidget = const SizedBox(
@@ -558,24 +543,20 @@ class VideoPipelineStatusWidget extends StatelessWidget {
               height: 12,
               child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.brand),
             );
-            break;
           case 'failed':
             itemColor = AppColors.error;
             leadingWidget = const Icon(Icons.error_rounded, color: AppColors.error, size: 16);
-            break;
           case 'skipped':
             itemColor = AppColors.textTertiary;
             leadingWidget = const Icon(Icons.skip_next_rounded, color: AppColors.textTertiary, size: 16);
-            break;
           case 'pending':
           default:
             itemColor = AppColors.textTertiary;
             leadingWidget = const Icon(Icons.radio_button_unchecked_rounded, color: AppColors.textTertiary, size: 14);
-            break;
         }
 
         return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4.0),
+          padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
             children: [
               SizedBox(width: 24, child: Center(child: leadingWidget)),
@@ -583,20 +564,20 @@ class VideoPipelineStatusWidget extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: GoogleFonts.roboto(
+                  style: AppTextStyles.bodyMedium.copyWith(
                     fontSize: 12.5,
                     fontWeight: status == 'running' ? FontWeight.bold : FontWeight.normal,
                     color: status == 'pending'
                         ? AppColors.textTertiary
-                        : (isDarkMode ? AppColors.textPrimary : Colors.black87),
+                        : AppColors.textPrimary,
                   ),
                 ),
               ),
               if (status == 'running') ...[
                 const SizedBox(width: 8),
                 Text(
-                  "${progress.toInt()}%",
-                  style: GoogleFonts.roboto(
+                  '${progress.toInt()}%',
+                  style: AppTextStyles.labelMedium.copyWith(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
                     color: AppColors.brand,
@@ -605,7 +586,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
               ] else ...[
                 Text(
                   status.toUpperCase(),
-                  style: GoogleFonts.roboto(
+                  style: AppTextStyles.labelSmall.copyWith(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                     color: itemColor,
@@ -632,14 +613,14 @@ class VideoPipelineStatusWidget extends StatelessWidget {
             if (video.transcriptionUrl.isNotEmpty)
               _buildActionButton(
                 icon: Icons.description_outlined,
-                label: "Transcript JSON",
+                label: 'Transcript JSON',
                 onPressed: () => _launchURL(video.transcriptionUrl),
               ),
             // 2. Factchecking report Url
             if (video.factCheckUrl.isNotEmpty)
               _buildActionButton(
                 icon: Icons.fact_check_outlined,
-                label: "Fact-Check Report",
+                label: 'Fact-Check Report',
                 onPressed: () => _launchURL(video.factCheckUrl),
               ),
             // 3. Subtitles
@@ -647,7 +628,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
               ...video.mediaSubtitles.entries.map((entry) {
                 return _buildActionButton(
                   icon: Icons.subtitles_outlined,
-                  label: "SRT/VTT (${entry.key.toUpperCase()})",
+                  label: 'SRT/VTT (${entry.key.toUpperCase()})',
                   onPressed: () => _launchURL(entry.value),
                 );
               }),
@@ -656,7 +637,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
               ...video.audioTracks.entries.map((entry) {
                 return _buildActionButton(
                   icon: Icons.audiotrack_outlined,
-                  label: "Audio (${entry.key.toUpperCase()})",
+                  label: 'Audio (${entry.key.toUpperCase()})',
                   onPressed: () => _launchURL(entry.value),
                 );
               }),
@@ -665,7 +646,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
               ...video.adaptiveResolutions.map((res) {
                 return _buildActionButton(
                   icon: Icons.hd_outlined,
-                  label: "${res.label} Direct Link",
+                  label: '${res.label} Direct Link',
                   onPressed: () => _launchURL(res.url),
                 );
               }),
@@ -682,17 +663,13 @@ class VideoPipelineStatusWidget extends StatelessWidget {
   }) {
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
-        backgroundColor: isDarkMode
-            ? AppColors.bgSurfaceHover
-            : Colors.grey.shade200,
-        foregroundColor: isDarkMode ? AppColors.textPrimary : Colors.black87,
+        backgroundColor: AppColors.bgSurfaceHover,
+        foregroundColor: AppColors.textPrimary,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(6),
-          side: BorderSide(
-            color: isDarkMode
-                ? AppColors.bgDivider.withValues(alpha: 0.4)
-                : Colors.grey.shade300,
+          side: const BorderSide(
+            color: AppColors.bgDivider,
           ),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -701,13 +678,14 @@ class VideoPipelineStatusWidget extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: isDarkMode ? AppColors.brand : Colors.deepPurple),
+          Icon(icon, size: 14, color: AppColors.brand),
           const SizedBox(width: 6),
           Text(
             label,
-            style: GoogleFonts.roboto(
+            style: AppTextStyles.labelMedium.copyWith(
               fontSize: 11,
               fontWeight: FontWeight.w500,
+              color: AppColors.textPrimary,
             ),
           ),
         ],

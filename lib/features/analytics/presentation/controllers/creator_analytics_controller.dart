@@ -1,11 +1,12 @@
 import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/logger_service.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../data/models/watch_event_model.dart';
-import '../../data/services/geolocation_service.dart';
-import '../../data/services/video_analytics_service.dart';
+import 'package:truthworld/features/analytics/data/models/watch_event_model.dart';
+import 'package:truthworld/features/analytics/data/services/geolocation_service.dart';
+import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Controller for creator analytics dashboard.
@@ -61,16 +62,16 @@ class CreatorAnalyticsController extends GetxController {
   final trafficSourceStats = RxList<TrafficSourceStat>();
 
   // Summary metrics
-  final engagementScore = RxDouble(0.0);
-  final completionRate = RxDouble(0.0);
+  final engagementScore = RxDouble(0);
+  final completionRate = RxDouble(0);
   final averageWatchTime = RxString('0:00');
   final totalWatchTime = RxString('0h');
-  final ctrValue = RxDouble(0.0);
+  final ctrValue = RxDouble(0);
   final liveViewerCount = RxInt(0);
-  final subscriberConversionRate = RxDouble(0.0);
+  final subscriberConversionRate = RxDouble(0);
   final returningViewerCount = RxInt(0);
-  final urbanPercentage = RxDouble(0.0);
-  final ruralPercentage = RxDouble(0.0);
+  final urbanPercentage = RxDouble(0);
+  final ruralPercentage = RxDouble(0);
 
   // Live viewer polling timer
   Timer? _liveViewerTimer;
@@ -244,7 +245,7 @@ class CreatorAnalyticsController extends GetxController {
       0xFF22C55E, // Green: 100%
     ];
 
-    int colorIdx = 0;
+    var colorIdx = 0;
     for (final category in WatchtimeCategory.values) {
       final count = analytics.watchtimeCategoryCount[category] ?? 0;
       if (count > 0) {
@@ -289,7 +290,7 @@ class CreatorAnalyticsController extends GetxController {
       Map<String, double> pct, Map<String, int> counts) {
     final data = <PieChartDataModel>[];
     final stateColors = _generateColors(pct.length);
-    int i = 0;
+    var i = 0;
     for (final entry in pct.entries) {
       data.add(PieChartDataModel(
         title: entry.key,
@@ -308,7 +309,7 @@ class CreatorAnalyticsController extends GetxController {
     final top = sorted.take(10);
     final total = cityTraffic.values.fold<int>(0, (a, b) => a + b);
     final colors = _generateColors(10);
-    int i = 0;
+    var i = 0;
     cityTrafficChartData.value = top.map((e) {
       final pct = total > 0 ? (e.value / total) * 100 : 0.0;
       return BarChartDataModel(
@@ -584,7 +585,7 @@ class CreatorAnalyticsController extends GetxController {
     countryTrafficChartData.value = data;
   }
 
-  void fetchChannelVideos(String channelId) async {
+  Future<void> fetchChannelVideos(String channelId) async {
     try {
       final snapshot = await _firestore
           .collection('videos')
@@ -593,7 +594,7 @@ class CreatorAnalyticsController extends GetxController {
           .limit(50)
           .get();
       channelVideos.value = snapshot.docs
-          .map((doc) => Video.fromDocumentSnapshot(doc))
+          .map(Video.fromDocumentSnapshot)
           .toList();
     } catch (e) {
       logger.error('Error fetching channel videos: $e', tag: _tag);
@@ -695,9 +696,9 @@ class CreatorAnalyticsController extends GetxController {
     ];
     if (count <= base.length) return base.sublist(0, count.clamp(0, base.length));
     final extra = <int>[];
-    for (int i = base.length; i < count; i++) {
+    for (var i = base.length; i < count; i++) {
       final hue = (i * 360 / count).toInt();
-      extra.add(HSVColor.fromAHSV(1.0, hue.toDouble(), 0.7, 0.8).toColor().toARGB32());
+      extra.add(HSVColor.fromAHSV(1, hue.toDouble(), 0.7, 0.8).toColor().toARGB32());
     }
     return [...base, ...extra];
   }
@@ -797,10 +798,6 @@ class CreatorAnalyticsController extends GetxController {
 // =============================================================================
 
 class PieChartDataModel {
-  final String title;
-  final double value;
-  final double percentage;
-  final int color;
 
   PieChartDataModel({
     required this.title,
@@ -808,13 +805,13 @@ class PieChartDataModel {
     required this.percentage,
     required this.color,
   });
-}
-
-class BarChartDataModel {
-  final String label;
+  final String title;
   final double value;
   final double percentage;
   final int color;
+}
+
+class BarChartDataModel {
 
   BarChartDataModel({
     required this.label,
@@ -822,73 +819,73 @@ class BarChartDataModel {
     required this.percentage,
     required this.color,
   });
+  final String label;
+  final double value;
+  final double percentage;
+  final int color;
 }
 
 class StateTrafficStat {
-  final String stateName;
-  final int viewCount;
-  final double percentage;
 
   StateTrafficStat({
     required this.stateName,
     required this.viewCount,
     required this.percentage,
   });
+  final String stateName;
+  final int viewCount;
+  final double percentage;
 }
 
 class CountryTrafficStat {
-  final String countryName;
-  final int viewCount;
-  final double percentage;
 
   CountryTrafficStat({
     required this.countryName,
     required this.viewCount,
     required this.percentage,
   });
+  final String countryName;
+  final int viewCount;
+  final double percentage;
 }
 
 class CityTrafficStat {
-  final String cityName;
-  final int viewCount;
-  final double percentage;
 
   CityTrafficStat({
     required this.cityName,
     required this.viewCount,
     required this.percentage,
   });
+  final String cityName;
+  final int viewCount;
+  final double percentage;
 }
 
 class DeviceStatStat {
-  final String deviceType;
-  final int count;
-  final double percentage;
 
   DeviceStatStat({
     required this.deviceType,
     required this.count,
     required this.percentage,
   });
+  final String deviceType;
+  final int count;
+  final double percentage;
 }
 
 class QualityStatStat {
-  final String quality;
-  final int count;
-  final double percentage;
 
   QualityStatStat({
     required this.quality,
     required this.count,
     required this.percentage,
   });
+  final String quality;
+  final int count;
+  final double percentage;
 }
 
 class TrafficSourceStat {
-  final String source;
-  final String sourceKey;
-  final int count;
-  final double percentage;
 
   TrafficSourceStat({
     required this.source,
@@ -896,36 +893,40 @@ class TrafficSourceStat {
     required this.count,
     required this.percentage,
   });
+  final String source;
+  final String sourceKey;
+  final int count;
+  final double percentage;
 }
 
 class WatchTimeTrendModel {
-  final DateTime date;
-  final double watchTimeHours;
 
   WatchTimeTrendModel({
     required this.date,
     required this.watchTimeHours,
   });
+  final DateTime date;
+  final double watchTimeHours;
 }
 
 class ViewsTrendModel {
-  final DateTime date;
-  final int views;
 
   ViewsTrendModel({
     required this.date,
     required this.views,
   });
+  final DateTime date;
+  final int views;
 }
 
 class SubscribersTrendModel {
-  final DateTime date;
-  final int subscribers;
 
   SubscribersTrendModel({
     required this.date,
     required this.subscribers,
   });
+  final DateTime date;
+  final int subscribers;
 }
 
 

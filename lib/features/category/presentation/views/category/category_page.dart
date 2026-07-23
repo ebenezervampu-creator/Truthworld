@@ -1,14 +1,15 @@
 import 'dart:async';
+
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/components/ui/video_card.dart' as app_video_card;
+import 'package:truthworld/features/category/presentation/controllers/category_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 // ==========================================================================
 // ENHANCED THEME COLORS FOR CATEGORY PAGE
@@ -16,478 +17,29 @@ import 'package:truthworld/components/ui/video_card.dart' as app_video_card;
 // Using global AppTheme tokens
 
 // Category-specific accent colors
-final Color musicColor = AppColors.brand; // Pink for Music
-final Color entertainmentColor = Color(0xFF8B5CF6); // Purple for Entertainment
+const Color musicColor = AppColors.brand; // Pink for Music
+const Color entertainmentColor = Color(0xFF8B5CF6); // Purple for Entertainment
 final Color educationColor = AppTokens.colors.info; // Blue for Education
-final Color sportsColor = Color(0xFFF59E0B); // Orange for Sports
-final Color newsColor = AppColors.textTertiary; // Blue Grey for News
+const Color sportsColor = Color(0xFFF59E0B); // Orange for Sports
+const Color newsColor = AppColors.textTertiary; // Blue Grey for News
 final Color gamingColor = AppTokens.colors.success; // Green for Gaming
 
 // ==========================================================================
 // RESPONSIVE BREAKPOINTS
 // ==========================================================================
 
-const double kMobileBreakpoint = 600.0;
-const double kTabletBreakpoint = 1000.0;
-const double kDesktopBreakpoint = 1200.0;
+const double kMobileBreakpoint = 600;
+const double kTabletBreakpoint = 1000;
+const double kDesktopBreakpoint = 1200;
 
-// ==========================================================================
-// CATEGORY CONTROLLER USING GETX
-// ==========================================================================
-
-class CategoryController extends GetxController {
-  RxString selectedGenre = 'All'.obs;
-  RxString selectedSort = 'Popularity'.obs;
-  RxString selectedView = 'Grid'.obs;
-  RxBool isSearchVisible = false.obs;
-  RxString searchQuery = ''.obs;
-  RxString debouncedSearchQuery = ''.obs;
-  RxList<String> genres = <String>[].obs;
-  RxBool isSearching = false.obs;
-
-  late String category;
-  Timer? _searchDebounceTimer;
-
-  final Map<String, List<String>> _categoryToGenres = {
-    'education': [
-      'All',
-      'Tutorials',
-      'Lectures',
-      'Language Learning',
-      'Math & Logic',
-      'Professional Development',
-      'Study Tips',
-      'Career Advice',
-      'Science Experiments',
-      'History Lessons',
-      'Exam Prep',
-    ],
-    'entertainment': [
-      'All',
-      'Movies',
-      'TV Shows',
-      'Comedy Skits',
-      'Talk Shows',
-      'Celebrity News',
-      'Pop Culture',
-      'Behind the Scenes',
-      'Fan Theories',
-      'Interviews',
-    ],
-    'music': [
-      'All',
-      'Song Covers',
-      'Instrument Tutorials',
-      'Music Reviews',
-      'Concerts',
-      'Playlists',
-      'Music Production',
-      'Remixes',
-      'Live Sessions',
-      'Artist Spotlights',
-    ],
-    'news': [
-      'All',
-      'Breaking News',
-      'Politics',
-      'World News',
-      'Business News',
-      'Tech News',
-      'Health News',
-      'Investigative Journalism',
-      'Opinion Pieces',
-      'Local News',
-    ],
-    'sports': [
-      'All',
-      'Highlights',
-      'Analysis',
-      'Interviews',
-      'Training',
-      'Extreme Sports',
-      'Team Sports',
-      'Player Profiles',
-      'Match Previews',
-      'Post-Game Reviews',
-    ],
-    'gaming': [
-      'All',
-      'Walkthroughs',
-      'Reviews',
-      'eSports',
-      'Let\'s Plays',
-      'Speedruns',
-      'Mods',
-      'Game Development',
-      'Hardware Tips',
-      'Community Challenges',
-    ],
-    'technology': [
-      'All',
-      'Gadget Reviews',
-      'Software Tutorials',
-      'AI & Tech News',
-      'Coding',
-      'Web Design',
-      'Engineering',
-      'Cybersecurity',
-      'App Development',
-      'Future Tech',
-    ],
-    'science': [
-      'All',
-      'Experiments',
-      'Discoveries',
-      'Space',
-      'Biology',
-      'Physics',
-      'Chemistry',
-      'Environment',
-      'Neuroscience',
-      'Quantum Mechanics',
-      'Astronomy',
-    ],
-    'travel': [
-      'All',
-      'Vlogs',
-      'Guides',
-      'Budget Travel',
-      'Luxury',
-      'Adventure',
-      'Cultural',
-      'Food Tours',
-      'Hidden Gems',
-      'Solo Travel',
-    ],
-    'lifestyle': [
-      'All',
-      'Daily Routines',
-      'Advice',
-      'Relationships',
-      'Home & Garden',
-      'Personal Development',
-      'Minimalism',
-      'Productivity Hacks',
-      'Wellness Tips',
-    ],
-    'comedy': [
-      'All',
-      'Sketches',
-      'Stand-up',
-      'Pranks',
-      'Parodies',
-      'Satire',
-      'Roasts',
-      'Improv',
-      'Viral Clips',
-      'Reaction Videos',
-    ],
-    'documentary': [
-      'All',
-      'History',
-      'Nature',
-      'True Crime',
-      'Biographies',
-      'Social Issues',
-      'Environmental',
-      'Cultural',
-      'War Stories',
-      'Innovation',
-    ],
-    'movies': [
-      'All',
-      'Action',
-      'Drama',
-      'Comedy',
-      'Horror',
-      'Sci-Fi',
-      'Romance',
-      'Reviews',
-      'Trailers',
-      'Behind the Scenes',
-      'Film Analysis',
-    ],
-    'tv shows': [
-      'All',
-      'Drama Series',
-      'Reality TV',
-      'Sitcoms',
-      'Documentaries',
-      'Talk Shows',
-      'Reviews',
-      'Recaps',
-      'Binge Guides',
-      'Casting News',
-    ],
-    'vlogs': [
-      'All',
-      'Daily Vlogs',
-      'Travel Vlogs',
-      'Food Vlogs',
-      'Family Vlogs',
-      'Challenge Vlogs',
-      'Behind the Scenes',
-      'Q&A Sessions',
-      'Life Updates',
-    ],
-    'diy & how-to': [
-      'All',
-      'Crafts',
-      'Home Improvement',
-      'Cooking Hacks',
-      'Tech Fixes',
-      'Beauty DIY',
-      'Gardening',
-      'Upcycling',
-      'Budget Builds',
-    ],
-    'health & fitness': [
-      'All',
-      'Workouts',
-      'Yoga',
-      'Nutrition',
-      'Mental Health',
-      'Weight Loss',
-      'Cardio Routines',
-      'Strength Training',
-      'Recovery Tips',
-    ],
-    'fashion & beauty': [
-      'All',
-      'Makeup Tutorials',
-      'Hauls',
-      'Style Tips',
-      'Skincare',
-      'Trends',
-      'Hair Styling',
-      'Outfit Ideas',
-      'Sustainable Fashion',
-    ],
-    'food & cooking': [
-      'All',
-      'Recipes',
-      'Baking',
-      'Meal Prep',
-      'Reviews',
-      'Culinary Travel',
-      'Vegan Dishes',
-      'Desserts',
-      'Street Food',
-    ],
-    'business & finance': [
-      'All',
-      'Entrepreneurship',
-      'Investing',
-      'Money Management',
-      'Marketing',
-      'Case Studies',
-      'Startups',
-      'Crypto',
-      'Real Estate',
-    ],
-    'animation': [
-      'All',
-      '2D Animation',
-      '3D Animation',
-      'Stop Motion',
-      'Character Design',
-      'Short Films',
-      'Storyboarding',
-      'Voice Acting',
-      'Animation Tutorials',
-    ],
-    'short films': [
-      'All',
-      'Drama',
-      'Comedy',
-      'Horror',
-      'Sci-Fi',
-      'Experimental',
-      'Thriller',
-      'Romance',
-      'Festival Winners',
-    ],
-    'motivation': [
-      'All',
-      'Speeches',
-      'Success Stories',
-      'Mindset',
-      'Goal Setting',
-      'Inspirational Quotes',
-      'Overcoming Obstacles',
-      'Daily Affirmations',
-    ],
-    'history': [
-      'All',
-      'Ancient History',
-      'Modern History',
-      'Biographies',
-      'Wars',
-      'Cultures',
-      'Archaeology',
-      'Historical Mysteries',
-      'Timelines',
-    ],
-    'art & design': [
-      'All',
-      'Drawing',
-      'Painting',
-      'Digital Art',
-      'Graphic Design',
-      'Sculpture',
-      'Photography',
-      'Interior Design',
-      'Fashion Design',
-    ],
-    'automotive': [
-      'All',
-      'Car Reviews',
-      'Mods',
-      'Racing',
-      'Maintenance',
-      'Classic Cars',
-      'Electric Vehicles',
-      'Auto Shows',
-      'Driving Tips',
-    ],
-    'animals & pets': [
-      'All',
-      'Pet Care',
-      'Training',
-      'Funny Videos',
-      'Rescue Stories',
-      'Wildlife',
-      'Exotic Pets',
-      'Animal Behavior',
-    ],
-    'spirituality': [
-      'All',
-      'Meditation',
-      'Yoga Philosophy',
-      'Astrology',
-      'Religious Teachings',
-      'Self-Reflection',
-      'Tarot Readings',
-      'Energy Healing',
-    ],
-    'nature & wildlife': [
-      'All',
-      'Documentaries',
-      'Adventures',
-      'Conservation',
-      'Photography',
-      'Animals',
-      'Hiking Guides',
-      'Eco Tourism',
-    ],
-    'kids & family': [
-      'All',
-      'Stories',
-      'Educational',
-      'Crafts',
-      'Toys',
-      'Family Vlogs',
-      'Parenting Tips',
-      'Holiday Activities',
-      'Bedtime Routines',
-    ],
-  };
-
-  List<String> _getGenresForCategory(String cat) {
-    return _categoryToGenres[cat.toLowerCase()] ?? ['All'];
-  }
-
-  String get sortField {
-    switch (selectedSort.value) {
-      case 'Popularity':
-      case 'Views':
-        return 'views';
-      case 'Release Date':
-        return 'uploadedAt';
-      case 'Title':
-        return 'title';
-      case 'Trending':
-        return 'views'; // Fallback
-      default:
-        return 'views';
-    }
-  }
-
-  Stream<QuerySnapshot> get featuredStream {
-    Query query = FirebaseFirestore.instance
-        .collection('videos')
-        .where('category', isEqualTo: category)
-        .where('visibility', isEqualTo: 'Public');
-    if (selectedGenre.value != 'All') {
-      query = query.where('genre', isEqualTo: selectedGenre.value);
-    }
-    return query.orderBy('views', descending: true).limit(6).snapshots();
-  }
-
-  Stream<QuerySnapshot> get newReleasesStream {
-    Query query = FirebaseFirestore.instance
-        .collection('videos')
-        .where('category', isEqualTo: category)
-        .where('visibility', isEqualTo: 'Public');
-    if (selectedGenre.value != 'All') {
-      query = query.where('genre', isEqualTo: selectedGenre.value);
-    }
-    return query.orderBy('uploadedAt', descending: true).limit(12).snapshots();
-  }
-
-  Stream<QuerySnapshot> get topContentStream {
-    Query query = FirebaseFirestore.instance
-        .collection('videos')
-        .where('category', isEqualTo: category)
-        .where('visibility', isEqualTo: 'Public');
-    if (selectedGenre.value != 'All') {
-      query = query.where('genre', isEqualTo: selectedGenre.value);
-    }
-    return query.orderBy(sortField, descending: true).limit(12).snapshots();
-  }
-
-  @override
-  void onInit() {
-    super.onInit();
-    final args = Get.arguments;
-    if (args != null && args is Map && args.containsKey('category')) {
-      category = args['category'];
-    } else {
-      category = 'All';
-    }
-    genres.value = _getGenresForCategory(category);
-    selectedGenre.value = genres[0];
-
-    // Setup debounce listener for search
-    ever(searchQuery, (value) {
-      isSearching.value = true;
-      _searchDebounceTimer?.cancel();
-      _searchDebounceTimer = Timer(Duration(milliseconds: 500), () {
-        debouncedSearchQuery.value = value.toString().trim().toLowerCase();
-        isSearching.value = false;
-      });
-    });
-  }
-
-  @override
-  void onClose() {
-    _searchDebounceTimer?.cancel();
-    super.onClose();
-  }
-
-  void clearSearch() {
-    searchQuery.value = '';
-    debouncedSearchQuery.value = '';
-  }
-}
 
 // ==========================================================================
 // MODERNIZED CATEGORY PAGE
 // ==========================================================================
 
 class CategoryPage extends StatefulWidget {
-  final bool isDashboard;
   const CategoryPage({super.key, this.isDashboard = false});
+  final bool isDashboard;
 
   @override
   State<CategoryPage> createState() => _CategoryPageState();
@@ -549,7 +101,7 @@ class _CategoryPageState extends State<CategoryPage>
       vsync: this,
     );
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
         parent: _fadeAnimationController,
         curve: Curves.easeOutCubic,
@@ -557,21 +109,21 @@ class _CategoryPageState extends State<CategoryPage>
     );
 
     _slideAnimation =
-        Tween<Offset>(begin: const Offset(0.0, 0.1), end: Offset.zero).animate(
+        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
           CurvedAnimation(
             parent: _slideAnimationController,
             curve: Curves.easeOutCubic,
           ),
         );
 
-    _scaleAnimation = Tween<double>(begin: 0.95, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.95, end: 1).animate(
       CurvedAnimation(
         parent: _scaleAnimationController,
         curve: Curves.easeOutBack,
       ),
     );
 
-    _heroAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    _heroAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
         parent: _heroAnimationController,
         curve: Curves.easeOutExpo,
@@ -580,13 +132,13 @@ class _CategoryPageState extends State<CategoryPage>
 
     // Start animations with staggered timing
     _heroAnimationController.forward();
-    Future.delayed(Duration(milliseconds: 200), () {
+    Future.delayed(const Duration(milliseconds: 200), () {
       _fadeAnimationController.forward();
     });
-    Future.delayed(Duration(milliseconds: 400), () {
+    Future.delayed(const Duration(milliseconds: 400), () {
       _slideAnimationController.forward();
     });
-    Future.delayed(Duration(milliseconds: 600), () {
+    Future.delayed(const Duration(milliseconds: 600), () {
       _scaleAnimationController.forward();
     });
   }
@@ -710,11 +262,11 @@ class _CategoryPageState extends State<CategoryPage>
   Widget _buildResponsiveLayout(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final bool isDesktop = constraints.maxWidth >= kDesktopBreakpoint;
-        final bool isTablet =
+        final isDesktop = constraints.maxWidth >= kDesktopBreakpoint;
+        final isTablet =
             constraints.maxWidth >= kMobileBreakpoint &&
             constraints.maxWidth < kDesktopBreakpoint;
-        final bool isMobile = constraints.maxWidth < kMobileBreakpoint;
+        final isMobile = constraints.maxWidth < kMobileBreakpoint;
 
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -752,14 +304,13 @@ class _CategoryPageState extends State<CategoryPage>
   }) {
     return SliverAppBar(
       expandedHeight: isDesktop ? 300.0 : (isTablet ? 250.0 : 200.0),
-      floating: false,
       pinned: true,
       backgroundColor: Theme.of(
         context,
       ).colorScheme.surface.withValues(alpha: 0.95),
       systemOverlayStyle: SystemUiOverlayStyle.light,
       leading: Container(
-        margin: EdgeInsets.all(8),
+        margin: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: AppColors.bgSurfaceContainerHighest.withValues(
             alpha: 0.8,
@@ -769,30 +320,8 @@ class _CategoryPageState extends State<CategoryPage>
         child: IconButton(
           icon: Icon(Icons.arrow_back, color: Theme.of(context).colorScheme.onSurface,
           ),
-          onPressed: () => Get.back(),
+          onPressed: Get.back,
         ),
-      ),
-      title: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            _getCategoryIcon(),
-            size: 20,
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
-          SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              controller.category,
-              style: GoogleFonts.roboto(
-                color: Theme.of(context).colorScheme.onSurface,
-                fontWeight: FontWeight.bold,
-                fontSize: isDesktop ? 24 : 20,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
       ),
       actions: [
         Obx(
@@ -831,7 +360,7 @@ class _CategoryPageState extends State<CategoryPage>
           onPressed: () => _showFilterDialog(context),
           tooltip: 'Filter & Sort',
         ),
-        SizedBox(width: 8),
+        const SizedBox(width: 8),
       ],
       flexibleSpace: FlexibleSpaceBar(
         background: AnimatedBuilder(
@@ -860,7 +389,7 @@ class _CategoryPageState extends State<CategoryPage>
     required String tooltip,
   }) {
     return Container(
-      margin: EdgeInsets.only(right: 8),
+      margin: const EdgeInsets.only(right: 8),
       child: Material(
         color: AppColors.bgSurfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(12),
@@ -868,7 +397,7 @@ class _CategoryPageState extends State<CategoryPage>
           onTap: onPressed,
           borderRadius: BorderRadius.circular(12),
           child: Container(
-            padding: EdgeInsets.all(10),
+            padding: const EdgeInsets.all(10),
             child: Icon(
               icon,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -899,7 +428,7 @@ class _CategoryPageState extends State<CategoryPage>
             categoryColor.withValues(alpha: 0.4),
             Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
           ],
-          stops: [0.0, 0.6, 1.0],
+          stops: const [0.0, 0.6, 1.0],
         ),
       ),
       child: Stack(
@@ -916,46 +445,25 @@ class _CategoryPageState extends State<CategoryPage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: categoryColor.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: categoryColor.withValues(alpha: 0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Text(
-                    'CATEGORY',
-                    style: GoogleFonts.roboto(
-                      color: categoryColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ),
-                SizedBox(height: 12),
                 Icon(
                   _getCategoryIcon(),
                   color: categoryColor,
                   size: isDesktop ? 48 : (isTablet ? 44 : 40),
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 Text(
                   controller.category,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurface,
                     fontSize: isDesktop ? 36 : (isTablet ? 32 : 28),
                     fontWeight: FontWeight.bold,
                     height: 1.1,
                   ),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Text(
                   'Discover the best ${controller.category.toLowerCase()} content',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: isDesktop ? 18 : (isTablet ? 16 : 14),
                     fontWeight: FontWeight.w500,
@@ -996,7 +504,7 @@ class _CategoryPageState extends State<CategoryPage>
                       SizedBox(height: AppTokens.spacing.md),
                     ],
                   )
-                : SizedBox.shrink(),
+                : const SizedBox.shrink(),
           ),
 
           // Filter Chips
@@ -1053,29 +561,26 @@ class _CategoryPageState extends State<CategoryPage>
         borderRadius: BorderRadius.circular(AppTokens.radius.lg),
         border: Border.all(
           color: AppColors.bgSurfaceContainerHighest,
-          width: 1,
         ),
       ),
       child: Obx(() => TextField(
         controller: _searchController,
-        style: GoogleFonts.roboto(
+        style: AppTokens.typography.body.copyWith(
           color: Theme.of(context).colorScheme.onSurface,
-          textStyle: AppTokens.typography.body,
         ),
         onChanged: (value) {
           controller.searchQuery.value = value;
         },
         decoration: InputDecoration(
           hintText: 'Search ${controller.category.toLowerCase()} content...',
-          hintStyle: GoogleFonts.roboto(
+          hintStyle: AppTokens.typography.body.copyWith(
             color: Theme.of(context).colorScheme.onSurfaceVariant,
-            textStyle: AppTokens.typography.body,
           ),
           prefixIcon: controller.isSearching.value
               ? Container(
                   width: 20,
                   height: 20,
-                  margin: EdgeInsets.all(12),
+                  margin: const EdgeInsets.all(12),
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
                     color: _getCategoryColor(),
@@ -1099,7 +604,7 @@ class _CategoryPageState extends State<CategoryPage>
                 )
               : null,
           border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
       )),
     );
@@ -1118,11 +623,11 @@ class _CategoryPageState extends State<CategoryPage>
             // Genre Chips
             ...controller.genres.map(
               (genre) => Container(
-                margin: EdgeInsets.only(right: 8),
+                margin: const EdgeInsets.only(right: 8),
                 child: FilterChip(
                   label: Text(
                     genre,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: isDesktop ? 14 : 13,
                       fontWeight: FontWeight.w500,
                     ),
@@ -1145,7 +650,6 @@ class _CategoryPageState extends State<CategoryPage>
                     color: controller.selectedGenre.value == genre
                         ? _getCategoryColor()
                         : AppColors.bgSurfaceContainerHighest,
-                    width: 1,
                   ),
                 ),
               ),
@@ -1153,7 +657,7 @@ class _CategoryPageState extends State<CategoryPage>
 
             // Sort Chip
             Container(
-              margin: EdgeInsets.only(left: 8),
+              margin: const EdgeInsets.only(left: 8),
               child: ActionChip(
                 label: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -1163,10 +667,10 @@ class _CategoryPageState extends State<CategoryPage>
                       size: 16,
                       color: _getCategoryColor(),
                     ),
-                    SizedBox(width: 4),
+                    const SizedBox(width: 4),
                     Text(
                       controller.selectedSort.value,
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: isDesktop ? 14 : 13,
                         fontWeight: FontWeight.w500,
                         color: _getCategoryColor(),
@@ -1178,7 +682,6 @@ class _CategoryPageState extends State<CategoryPage>
                 backgroundColor: _getCategoryColor().withValues(alpha: 0.1),
                 side: BorderSide(
                   color: _getCategoryColor().withValues(alpha: 0.3),
-                  width: 1,
                 ),
               ),
             ),
@@ -1222,8 +725,8 @@ class _CategoryPageState extends State<CategoryPage>
                   return _buildEmptyWidget('No featured content available');
                 }
 
-                List<Video> videos = snapshot.data!.docs
-                    .map((doc) => Video.fromDocumentSnapshot(doc))
+                final videos = snapshot.data!.docs
+                    .map(Video.fromDocumentSnapshot)
                     .where(
                       (video) =>
                           controller.debouncedSearchQuery.value.isEmpty ||
@@ -1264,7 +767,7 @@ class _CategoryPageState extends State<CategoryPage>
 
     return Container(
       width: cardWidth,
-      margin: EdgeInsets.only(right: 16),
+      margin: const EdgeInsets.only(right: 16),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -1280,7 +783,7 @@ class _CategoryPageState extends State<CategoryPage>
                 BoxShadow(
                   color: AppColors.bgPage.withValues(alpha: 0.3),
                   blurRadius: 12,
-                  offset: Offset(0, 6),
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
@@ -1294,7 +797,7 @@ class _CategoryPageState extends State<CategoryPage>
                     width: double.infinity,
                     height: double.infinity,
                     fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
+                    placeholder: (context, url) => ColoredBox(
                       color: AppColors.bgSurfaceContainerHighest,
                       child: Center(
                         child: CircularProgressIndicator(
@@ -1303,7 +806,7 @@ class _CategoryPageState extends State<CategoryPage>
                         ),
                       ),
                     ),
-                    errorWidget: (context, url, error) => Container(
+                    errorWidget: (context, url, error) => ColoredBox(
                       color: AppColors.bgSurfaceContainerHighest,
                       child: Icon(
                         Icons.video_library_rounded,
@@ -1323,7 +826,7 @@ class _CategoryPageState extends State<CategoryPage>
                           Colors.transparent,
                           AppColors.bgPage.withValues(alpha: 0.7),
                         ],
-                        stops: [0.5, 1.0],
+                        stops: const [0.5, 1.0],
                       ),
                     ),
                   ),
@@ -1338,7 +841,7 @@ class _CategoryPageState extends State<CategoryPage>
                       children: [
                         Text(
                           video.title,
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: isDesktop ? 16 : 14,
                             fontWeight: FontWeight.bold,
@@ -1346,10 +849,10 @@ class _CategoryPageState extends State<CategoryPage>
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
                           video.channelName,
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             color: AppColors.textPrimary.withValues(
                               alpha: 0.8,
                             ),
@@ -1359,10 +862,10 @@ class _CategoryPageState extends State<CategoryPage>
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
                           '${_formatViews(video.views)} views',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             color: AppColors.textPrimary.withValues(
                               alpha: 0.7,
                             ),
@@ -1378,7 +881,7 @@ class _CategoryPageState extends State<CategoryPage>
                     top: 12,
                     right: 12,
                     child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: AppColors.bgPage.withValues(
                           alpha: 0.8,
@@ -1387,7 +890,7 @@ class _CategoryPageState extends State<CategoryPage>
                       ),
                       child: Text(
                         video.duration,
-                        style: GoogleFonts.roboto(
+                        style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
@@ -1410,8 +913,8 @@ class _CategoryPageState extends State<CategoryPage>
     bool isTablet = false,
     bool isMobile = false,
   }) {
-    final int gridLimit = isDesktop ? 8 : (isTablet ? 6 : 4);
-    final int listLimit = 10;
+    final gridLimit = isDesktop ? 8 : (isTablet ? 6 : 4);
+    const listLimit = 10;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1444,8 +947,8 @@ class _CategoryPageState extends State<CategoryPage>
                 return _buildEmptyWidget('No new releases found');
               }
 
-              List<Video> videos = snapshot.data!.docs
-                  .map((doc) => Video.fromDocumentSnapshot(doc))
+              var videos = snapshot.data!.docs
+                  .map(Video.fromDocumentSnapshot)
                   .where(
                     (video) =>
                         controller.debouncedSearchQuery.value.isEmpty ||
@@ -1458,7 +961,7 @@ class _CategoryPageState extends State<CategoryPage>
                   )
                   .toList();
 
-              final int takeLimit = controller.selectedView.value == 'Grid'
+              final takeLimit = controller.selectedView.value == 'Grid'
                   ? gridLimit
                   : listLimit;
               videos = videos.take(takeLimit).toList();
@@ -1488,8 +991,8 @@ class _CategoryPageState extends State<CategoryPage>
     bool isTablet = false,
     bool isMobile = false,
   }) {
-    final int gridLimit = isDesktop ? 8 : (isTablet ? 6 : 4);
-    final int listLimit = 10;
+    final gridLimit = isDesktop ? 8 : (isTablet ? 6 : 4);
+    const listLimit = 10;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1522,8 +1025,8 @@ class _CategoryPageState extends State<CategoryPage>
                 return _buildEmptyWidget('No top content found');
               }
 
-              List<Video> videos = snapshot.data!.docs
-                  .map((doc) => Video.fromDocumentSnapshot(doc))
+              var videos = snapshot.data!.docs
+                  .map(Video.fromDocumentSnapshot)
                   .where(
                     (video) =>
                         controller.debouncedSearchQuery.value.isEmpty ||
@@ -1536,7 +1039,7 @@ class _CategoryPageState extends State<CategoryPage>
                   )
                   .toList();
 
-              final int takeLimit = controller.selectedView.value == 'Grid'
+              final takeLimit = controller.selectedView.value == 'Grid'
                   ? gridLimit
                   : listLimit;
               videos = videos.take(takeLimit).toList();
@@ -1566,13 +1069,13 @@ class _CategoryPageState extends State<CategoryPage>
     bool isTablet = false,
     bool isMobile = false,
   }) {
-    int crossAxisCount = isDesktop ? 4 : (isTablet ? 3 : 2);
+    final crossAxisCount = isDesktop ? 4 : (isTablet ? 3 : 2);
     // Higher aspect ratio = shorter cards (more compact)
-    double childAspectRatio = isDesktop ? 1.1 : (isTablet ? 1.0 : 0.95);
+    final childAspectRatio = isDesktop ? 1.1 : (isTablet ? 1.0 : 0.95);
 
     return GridView.builder(
       shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
         crossAxisSpacing: 16,
@@ -1597,12 +1100,11 @@ class _CategoryPageState extends State<CategoryPage>
   }) {
     return ListView.builder(
       shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: videos.length,
       itemBuilder: (context, index) {
         return app_video_card.VideoCard(
           video: videos[index],
-          isGrid: false,
           heroPrefix: 'category_list',
         );
       },
@@ -1624,10 +1126,10 @@ class _CategoryPageState extends State<CategoryPage>
             borderRadius: BorderRadius.circular(2),
           ),
         ),
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
         Text(
           title,
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             color: Theme.of(context).colorScheme.onSurface,
             fontSize: isDesktop ? 24 : (isTablet ? 22 : 20),
             fontWeight: FontWeight.bold,
@@ -1643,8 +1145,8 @@ class _CategoryPageState extends State<CategoryPage>
     bool isTablet = false,
     bool isMobile = false,
   }) {
-    int crossAxisCount = isDesktop ? 4 : (isTablet ? 3 : 2);
-    double childAspectRatio = isDesktop ? 1.1 : (isTablet ? 1.0 : 0.95);
+    final crossAxisCount = isDesktop ? 4 : (isTablet ? 3 : 2);
+    final childAspectRatio = isDesktop ? 1.1 : (isTablet ? 1.0 : 0.95);
 
     return Shimmer.fromColors(
       baseColor: AppColors.bgSurfaceContainerHighest.withValues(
@@ -1655,7 +1157,7 @@ class _CategoryPageState extends State<CategoryPage>
       ),
       child: GridView.builder(
         shrinkWrap: true,
-        physics: NeverScrollableScrollPhysics(),
+        physics: const NeverScrollableScrollPhysics(),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: crossAxisCount,
           crossAxisSpacing: 16,
@@ -1676,13 +1178,13 @@ class _CategoryPageState extends State<CategoryPage>
                   ),
                 ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Container(
                 height: 16,
                 width: double.infinity,
                 color: AppColors.textPrimary,
               ),
-              SizedBox(height: 4),
+              const SizedBox(height: 4),
               Container(
                 height: 14,
                 width: 100,
@@ -1705,12 +1207,12 @@ class _CategoryPageState extends State<CategoryPage>
       ),
       child: ListView.builder(
         shrinkWrap: true,
-        physics: NeverScrollableScrollPhysics(),
+        physics: const NeverScrollableScrollPhysics(),
         itemCount: 5,
         itemBuilder: (context, index) {
           return Container(
-            margin: EdgeInsets.only(bottom: 16),
-            padding: EdgeInsets.all(16),
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: AppColors.textPrimary,
               borderRadius: BorderRadius.circular(16),
@@ -1739,7 +1241,7 @@ class _CategoryPageState extends State<CategoryPage>
         itemBuilder: (context, index) {
           return Container(
             width: isDesktop ? 280 : (isTablet ? 240 : 200),
-            margin: EdgeInsets.only(right: 16),
+            margin: const EdgeInsets.only(right: 16),
             decoration: BoxDecoration(
               color: AppColors.textPrimary,
               borderRadius: BorderRadius.circular(16),
@@ -1752,7 +1254,7 @@ class _CategoryPageState extends State<CategoryPage>
 
   Widget _buildErrorWidget(String message) {
     return Container(
-      padding: EdgeInsets.all(32),
+      padding: const EdgeInsets.all(32),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -1761,20 +1263,20 @@ class _CategoryPageState extends State<CategoryPage>
             size: 64,
             color: AppColors.brand.withValues(alpha: 0.7),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Text(
             'Something went wrong',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               color: Theme.of(context).colorScheme.onSurface,
             ),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             message,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 14,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
@@ -1787,7 +1289,7 @@ class _CategoryPageState extends State<CategoryPage>
 
   Widget _buildEmptyWidget(String message) {
     return Container(
-      padding: EdgeInsets.all(32),
+      padding: const EdgeInsets.all(32),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -1798,20 +1300,20 @@ class _CategoryPageState extends State<CategoryPage>
               context,
             ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Text(
             'No content found',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
               color: Theme.of(context).colorScheme.onSurface,
             ),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             message,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 14,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
@@ -1831,7 +1333,7 @@ class _CategoryPageState extends State<CategoryPage>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           'Filter & Sort',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             color: Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.bold,
           ),
@@ -1842,12 +1344,12 @@ class _CategoryPageState extends State<CategoryPage>
           children: [
             Text(
               'Genre',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurface,
                 fontWeight: FontWeight.w500,
               ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               children: controller.genres
@@ -1871,15 +1373,15 @@ class _CategoryPageState extends State<CategoryPage>
                   )
                   .toList(),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
               'Sort by',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurface,
                 fontWeight: FontWeight.w500,
               ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             ...sortOptions.map(
               (option) => RadioMenuButton<String>(
                 value: option,
@@ -1889,7 +1391,7 @@ class _CategoryPageState extends State<CategoryPage>
                 },
                 child: Text(
                   option,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
@@ -1912,7 +1414,7 @@ class _CategoryPageState extends State<CategoryPage>
             style: ElevatedButton.styleFrom(
               backgroundColor: _getCategoryColor(),
             ),
-            child: Text(
+            child: const Text(
               'Apply',
               style: TextStyle(color: AppColors.textPrimary),
             ),
@@ -1930,7 +1432,7 @@ class _CategoryPageState extends State<CategoryPage>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           'Sort by',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             color: Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.bold,
           ),
@@ -1948,7 +1450,7 @@ class _CategoryPageState extends State<CategoryPage>
                   },
                   child: Text(
                     option,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
@@ -1977,9 +1479,9 @@ class _CategoryPageState extends State<CategoryPage>
 // ==========================================================================
 
 class _CategoryPatternPainter extends CustomPainter {
-  final Color color;
 
   _CategoryPatternPainter(this.color);
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1988,8 +1490,8 @@ class _CategoryPatternPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     // Draw geometric pattern
-    for (int i = 0; i < 10; i++) {
-      for (int j = 0; j < 10; j++) {
+    for (var i = 0; i < 10; i++) {
+      for (var j = 0; j < 10; j++) {
         final x = (size.width / 10) * i;
         final y = (size.height / 10) * j;
 

@@ -1,22 +1,26 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// TimeoutException custom wrapper for async cancellation
-class TimeoutException implements Exception {
+/// Base class for all application-specific exceptions
+abstract class AppException implements Exception {
+
+  const AppException(this.message, [this.originalException]);
   final String message;
   final dynamic originalException;
 
-  const TimeoutException({required this.message, this.originalException});
-
   @override
-  String toString() => 'TimeoutException: $message';
+  String toString() => '$runtimeType: $message';
+}
+
+/// TimeoutException custom wrapper for async cancellation
+class TimeoutException extends AppException {
+  const TimeoutException({required String message, dynamic originalException})
+      : super(message, originalException);
 }
 
 /// Custom Exception wrapper for cloud Firestore errors
-class FirestoreException implements Exception {
-  final String message;
-  final dynamic originalException;
-
-  const FirestoreException({required this.message, this.originalException});
+class FirestoreException extends AppException {
+  const FirestoreException({required String message, dynamic originalException})
+      : super(message, originalException);
 
   /// Factory function to parse from basic FirebaseException instances
   factory FirestoreException.fromFirebase(FirebaseException e) {
@@ -25,35 +29,37 @@ class FirestoreException implements Exception {
       originalException: e,
     );
   }
-
-  @override
-  String toString() => 'FirestoreException: $message';
 }
 
 /// Custom Exception wrapper for validation errors
-class ValidationException implements Exception {
-  final String message;
-  final dynamic originalException;
+class ValidationException extends AppException {
+  const ValidationException({required String message, dynamic originalException})
+      : super(message, originalException);
+}
 
-  const ValidationException({required this.message, this.originalException});
+/// Custom Exception wrapper for network errors
+class NetworkException extends AppException {
+  const NetworkException({required String message, dynamic originalException})
+      : super(message, originalException);
+}
 
-  @override
-  String toString() => 'ValidationException: $message';
+/// Custom Exception wrapper for generic errors
+class GenericAppException extends AppException {
+  const GenericAppException({required String message, dynamic originalException})
+      : super(message, originalException);
 }
 
 /// Custom Exception wrapper for authentication errors
-class AuthException implements Exception {
-  final String message;
-  final dynamic originalException;
-  final String code;
-  final bool isRetryable;
+class AuthException extends AppException {
 
   const AuthException({
-    required this.message,
-    this.originalException,
+    required String message,
+    dynamic originalException,
     this.code = 'auth-error',
     this.isRetryable = false,
-  });
+  }) : super(message, originalException);
+  final String code;
+  final bool isRetryable;
 
   /// Get user-friendly display message
   String getDisplayMessage() {
@@ -84,9 +90,6 @@ class AuthException implements Exception {
         return 'An error occurred during sign-in: $message';
     }
   }
-
-  @override
-  String toString() => 'AuthException [$code]: $message';
 }
 
 /// Custom Exception wrapper for Google Sign-In errors
@@ -101,46 +104,37 @@ class GoogleSignInException extends AuthException {
 
 /// Thrown when the user cancels the Google Sign-In flow.
 class GoogleSignInUserCancelledException implements Exception {
-  final String message;
   const GoogleSignInUserCancelledException([
     this.message = 'User cancelled sign-in',
   ]);
+  final String message;
   @override
   String toString() => 'GoogleSignInUserCancelledException: $message';
 }
 
 /// Thrown when Google Sign-In fails due to technical reasons.
 class GoogleSignInFailedException implements Exception {
-  final String? message;
   const GoogleSignInFailedException([this.message]);
+  final String? message;
   @override
   String toString() =>
       'GoogleSignInFailedException: ${message ?? "Unknown error"}';
 }
 
 /// Thrown when an asynchronous operation is cancelled by the user or system.
-class OperationCancelledException implements Exception {
-  final String message;
-  const OperationCancelledException([this.message = 'Operation was cancelled']);
-
-  @override
-  String toString() => 'OperationCancelledException: $message';
+class OperationCancelledException extends AppException {
+  const OperationCancelledException([super.message = 'Operation was cancelled']);
 }
 
 /// Custom Exception wrapper for user profile errors
-class UserProfileException implements Exception {
-  final String message;
-  final dynamic originalException;
-  final String? userId;
+class UserProfileException extends AppException {
 
   const UserProfileException({
-    required this.message,
-    this.originalException,
+    required String message,
+    dynamic originalException,
     this.userId,
-  });
-
-  @override
-  String toString() => 'UserProfileException: $message';
+  }) : super(message, originalException);
+  final String? userId;
 }
 
 class FriendlyErrorTranslator {
@@ -157,9 +151,3 @@ class FriendlyErrorTranslator {
     }
   }
 }
-
-
-
-
-
-

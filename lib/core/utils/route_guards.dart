@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 
@@ -30,7 +30,10 @@ class AuthGuard extends GetMiddleware {
   static const List<String> protectedRoutes = [
     '/studio',
     '/dashboard',
-    '/uploadscreen',
+    '/upload',
+    '/upload/video',
+    '/upload/community',
+    '/uploadscreen', // Backward compatibility
     '/myvideos',
     '/settings',
     '/subscriptions',
@@ -58,7 +61,7 @@ class AuthGuard extends GetMiddleware {
         title: const Text('Sign In Required'),
         content: const Text('You need to sign in to access this page.'),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
+          TextButton(onPressed: Get.back, child: const Text('Cancel')),
           TextButton(
             onPressed: () {
               Get.back();

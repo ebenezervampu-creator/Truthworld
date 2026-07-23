@@ -1,23 +1,20 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class DraftsScreen extends StatelessWidget {
-  final String channelId;
-  final bool isDarkMode;
 
   const DraftsScreen({
-    super.key,
-    required this.channelId,
-    required this.isDarkMode,
+    required this.channelId, required this.isDarkMode, super.key,
   });
+  final String channelId;
+  final bool isDarkMode;
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      return const Center(child: Text("You must be logged in."));
+      return const Center(child: Text('You must be logged in.'));
     }
 
     return Scaffold(
@@ -26,7 +23,7 @@ class DraftsScreen extends StatelessWidget {
         length: 2,
         child: Column(
           children: [
-            Container(
+            ColoredBox(
               color: AppTheme.colors.background,
               child: TabBar(
                 indicatorColor: AppTheme.colors.textSecondary,
@@ -44,7 +41,7 @@ class DraftsScreen extends StatelessWidget {
                   Center(
                     child: Text(
                       'Video drafts coming soon',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: AppTheme.colors.textSecondary,
                       ),
                     ),
@@ -52,7 +49,7 @@ class DraftsScreen extends StatelessWidget {
                   Center(
                     child: Text(
                       'Community drafts coming soon',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: AppTheme.colors.textSecondary,
                       ),
                     ),

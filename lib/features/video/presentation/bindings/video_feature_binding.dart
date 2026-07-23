@@ -1,8 +1,8 @@
 import 'package:get/get.dart';
-import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
-import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
 // import 'package:truthworld/features/video/presentation/controllers/mini_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
+import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 
 /// Video feature binding
 /// Initializes all controllers for video features
@@ -10,10 +10,10 @@ class VideoFeatureBinding extends Bindings {
   @override
   void dependencies() {
     // Video Controller
-    Get.lazyPut<VideoController>(() => VideoController());
+    Get.lazyPut<VideoController>(VideoController.new);
 
     // Video Upload
-    Get.lazyPut<UploadController>(() => UploadController());
+    Get.lazyPut<UploadController>(UploadController.new);
 
     // Mini Player
     // Get.lazyPut<MiniPlayerController>(() => MiniPlayerController());
@@ -24,7 +24,7 @@ class VideoFeatureBinding extends Bindings {
     // Get.lazyPut<CommentsController>(() => CommentsController();
 
     // Downloads
-    Get.lazyPut<DownloadsController>(() => DownloadsController());
+    Get.lazyPut<DownloadsController>(DownloadsController.new);
   }
 }
 

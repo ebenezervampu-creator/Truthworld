@@ -3,12 +3,7 @@ import 'package:truthworld/core/utils/timestamp_utils.dart';
 
 enum PlaylistVisibility { public, private, unlisted }
 
-class PlaylistItem {
-  final String videoId;
-  final String title;
-  final String thumbnailUrl;
-  final Timestamp addedAt;
-  final int position; // For manual ordering
+class PlaylistItem { // For manual ordering
 
   PlaylistItem({
     required this.videoId,
@@ -18,14 +13,6 @@ class PlaylistItem {
     this.position = 0,
   });
 
-  Map<String, dynamic> toMap() => {
-    'videoId': videoId,
-    'title': title,
-    'thumbnailUrl': thumbnailUrl,
-    'addedAt': addedAt,
-    'position': position,
-  };
-
   factory PlaylistItem.fromMap(Map<String, dynamic> map) => PlaylistItem(
     videoId: map['videoId'] ?? '',
     title: map['title'] ?? '',
@@ -33,40 +20,28 @@ class PlaylistItem {
     addedAt: TimestampUtils.parse(map['addedAt']),
     position: map['position'] ?? 0,
   );
+  final String videoId;
+  final String title;
+  final String thumbnailUrl;
+  final Timestamp addedAt;
+  final int position;
+
+  Map<String, dynamic> toMap() => {
+    'videoId': videoId,
+    'title': title,
+    'thumbnailUrl': thumbnailUrl,
+    'addedAt': addedAt,
+    'position': position,
+  };
 }
 
 class PlaylistModel {
-  final String id;
-  final String name;
-  final String description;
-  final String ownerId;
-  final String channelId;
-
-  // Metadata
-  final String thumbnailUrl;
-  final int videoCount;
-  final PlaylistVisibility visibility;
-  final List<String> videoIds; // Backward compatibility
-  final Timestamp createdAt;
-  final Timestamp updatedAt;
-  final int sortIndex; // For manual ordering/indexing
-
-  // Moderation fields
-  final bool? geminiApproved;
-  final String status;
-  final String? moderationReason;
-
-  // Compatibility Getters
-  String get playlistName => name;
-  bool get isPublic => visibility == PlaylistVisibility.public;
 
   PlaylistModel({
     required this.id,
-    String? name,
+    required this.ownerId, required this.channelId, String? name,
     String? playlistName,
     this.description = '',
-    required this.ownerId,
-    required this.channelId,
     this.thumbnailUrl = '',
     this.videoCount = 0,
     PlaylistVisibility? visibility,
@@ -81,32 +56,11 @@ class PlaylistModel {
   }) : name = name ?? playlistName ?? '',
        visibility =
            visibility ??
-           (isPublic == true
+           (isPublic ?? false
                ? PlaylistVisibility.public
                : PlaylistVisibility.private),
        createdAt = TimestampUtils.parse(createdAt),
        updatedAt = TimestampUtils.parse(updatedAt);
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'name': name,
-      'playlistName': name, // Store both for backward compatibility
-      'description': description,
-      'ownerId': ownerId,
-      'channelId': channelId,
-      'thumbnailUrl': thumbnailUrl,
-      'videoCount': videoCount,
-      'videoIds': videoIds,
-      'visibility': visibility.name,
-      'createdAt': createdAt,
-      'updatedAt': updatedAt,
-      'sortIndex': sortIndex,
-      'geminiApproved': geminiApproved,
-      'status': status,
-      'moderationReason': moderationReason,
-    };
-  }
 
   factory PlaylistModel.fromMap(Map<String, dynamic> data, String docId) {
     return PlaylistModel(
@@ -132,7 +86,51 @@ class PlaylistModel {
   }
 
   factory PlaylistModel.fromDocumentSnapshot(DocumentSnapshot doc) {
-    return PlaylistModel.fromMap(doc.data() as Map<String, dynamic>, doc.id);
+    return PlaylistModel.fromMap(doc.data()! as Map<String, dynamic>, doc.id);
+  }
+  final String id;
+  final String name;
+  final String description;
+  final String ownerId;
+  final String channelId;
+
+  // Metadata
+  final String thumbnailUrl;
+  final int videoCount;
+  final PlaylistVisibility visibility;
+  final List<String> videoIds; // Backward compatibility
+  final Timestamp createdAt;
+  final Timestamp updatedAt;
+  final int sortIndex; // For manual ordering/indexing
+
+  // Moderation fields
+  final bool? geminiApproved;
+  final String status;
+  final String? moderationReason;
+
+  // Compatibility Getters
+  String get playlistName => name;
+  bool get isPublic => visibility == PlaylistVisibility.public;
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'playlistName': name, // Store both for backward compatibility
+      'description': description,
+      'ownerId': ownerId,
+      'channelId': channelId,
+      'thumbnailUrl': thumbnailUrl,
+      'videoCount': videoCount,
+      'videoIds': videoIds,
+      'visibility': visibility.name,
+      'createdAt': createdAt,
+      'updatedAt': updatedAt,
+      'sortIndex': sortIndex,
+      'geminiApproved': geminiApproved,
+      'status': status,
+      'moderationReason': moderationReason,
+    };
   }
 }
 

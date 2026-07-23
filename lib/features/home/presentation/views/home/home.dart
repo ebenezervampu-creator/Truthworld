@@ -14,6 +14,7 @@ import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 // import 'package:truthworld/features/home/presentation/views/home/search/search.dart';
 import 'package:truthworld/features/notifications/presentation/views/notifications/notification.dart';
+import 'package:truthworld/features/notifications/presentation/controllers/video_feed_notification_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:visibility_detector/visibility_detector.dart';

@@ -35,7 +35,7 @@ class StudioSettingsController extends BaseController {
       final doc = await _userRef.get();
 
       if (doc.exists) {
-        userData.assignAll(Map<String, dynamic>.from(doc.data() as Map));
+        userData.assignAll(Map<String, dynamic>.from(doc.data()! as Map));
       }
       
       clearError();

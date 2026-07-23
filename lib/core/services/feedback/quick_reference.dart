@@ -356,7 +356,7 @@
 // Fix:   Ensure GetMaterialApp is your root widget (not MaterialApp)
 //
 // Issue: Colors don't match AppTheme.colors.primary
-// Fix:   Check you're using AppTheme.colors.success, not Colors.green
+// Fix:   Check you're using AppTheme.colors.success, not AppColors.success
 //
 // Issue: Multiple toasts stacking
 // Fix:   Call ToastService.dismissAll() before showing new one

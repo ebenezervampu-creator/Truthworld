@@ -1,9 +1,8 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 // =============================================================================
 // AI FEATURES SELECTOR — Creator-Controlled Feature Toggle
@@ -11,6 +10,12 @@ import 'package:truthworld/features/video/data/models/ai_features.dart';
 // =============================================================================
 
 class AIFeaturesSelector extends StatelessWidget {
+
+  const AIFeaturesSelector({
+    required this.transcriptEnabled, required this.generateSubtitles, required this.generateDubbing, required this.diarizationEnabled, required this.summaryEnabled, required this.autoChaptersEnabled, required this.selectedLanguages, required this.ttsEnabled, required this.ttsVoiceType, required this.factCheckEnabled, required this.voiceSample, super.key,
+    this.isPremiumUser = false,
+    this.onPickVoiceSample,
+  });
   // Reactive state — bound to UploadController
   final RxBool transcriptEnabled;
   final RxBool generateSubtitles;
@@ -26,41 +31,20 @@ class AIFeaturesSelector extends StatelessWidget {
   final bool isPremiumUser;
   final VoidCallback? onPickVoiceSample;
 
-  const AIFeaturesSelector({
-    super.key,
-    required this.transcriptEnabled,
-    required this.generateSubtitles,
-    required this.generateDubbing,
-    required this.diarizationEnabled,
-    required this.summaryEnabled,
-    required this.autoChaptersEnabled,
-    required this.selectedLanguages,
-    required this.ttsEnabled,
-    required this.ttsVoiceType,
-    required this.factCheckEnabled,
-    required this.voiceSample,
-    this.isPremiumUser = false,
-    this.onPickVoiceSample,
-  });
-
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? AppColors.bgSurface : Colors.white,
+        color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark
-              ? AppColors.brand.withAlpha(40)
-              : Colors.grey.shade200,
+          color: AppColors.bgDivider,
         ),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
-            color: isDark ? Colors.black26 : Colors.black.withAlpha(13),
+            color: Colors.black26,
             blurRadius: 16,
-            offset: const Offset(0, 4),
+            offset: Offset(0, 4),
           ),
         ],
       ),
@@ -68,24 +52,23 @@ class AIFeaturesSelector extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Header ──
-          _buildHeader(isDark),
+          _buildHeader(),
           const Divider(height: 1),
           Padding(
-            padding: EdgeInsets.all(20),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // ── Transcript (always on) ──
-                _buildTranscriptSection(isDark),
+                _buildTranscriptSection(),
                 const SizedBox(height: 16),
 
                 // ── Multilingual Support (Translation + Dubbing) ──
-                _buildMultilingualSection(isDark),
+                _buildMultilingualSection(),
                 const SizedBox(height: 16),
 
                 // ── Other Features ──
                 _buildFeatureToggle(
-                  isDark: isDark,
                   icon: Icons.record_voice_over_rounded,
                   title: 'Speaker Diarization',
                   subtitle: 'Identify different speakers (AssemblyAI)',
@@ -95,7 +78,6 @@ class AIFeaturesSelector extends StatelessWidget {
                 const SizedBox(height: 12),
 
                 _buildFeatureToggle(
-                  isDark: isDark,
                   icon: Icons.auto_awesome_rounded,
                   title: 'AI Summary',
                   subtitle: 'Generate key points & short summary (Gemini)',
@@ -105,7 +87,6 @@ class AIFeaturesSelector extends StatelessWidget {
                 const SizedBox(height: 12),
 
                 _buildFeatureToggle(
-                  isDark: isDark,
                   icon: Icons.bookmarks_rounded,
                   title: 'Auto Chapters',
                   subtitle: 'Automatically segment video into chapters (AssemblyAI)',
@@ -115,7 +96,7 @@ class AIFeaturesSelector extends StatelessWidget {
                 const SizedBox(height: 12),
 
                 // ── Fact-Check (premium) ──
-                _buildFactCheckToggle(isDark),
+                _buildFactCheckToggle(),
               ],
             ),
           ),
@@ -126,18 +107,18 @@ class AIFeaturesSelector extends StatelessWidget {
 
   // ─────────────── Sections ───────────────
 
-  Widget _buildTranscriptSection(bool isDark) {
+  Widget _buildTranscriptSection() {
     return Container(
-      padding: EdgeInsets.all(14),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.brand.withAlpha(isDark ? 20 : 10),
+        color: AppColors.brand.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.brand.withAlpha(40)),
+        border: Border.all(color: AppColors.brand.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
           Container(
-            padding: EdgeInsets.all(8),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [AppColors.brand, Color(0xFFEF4444)],
@@ -146,7 +127,7 @@ class AIFeaturesSelector extends StatelessWidget {
             ),
             child: const Icon(
               Icons.subtitles_rounded,
-              color: Colors.white,
+              color: AppColors.textPrimary,
               size: 18,
             ),
           ),
@@ -157,16 +138,14 @@ class AIFeaturesSelector extends StatelessWidget {
               children: [
                 Text(
                   'Transcription',
-                  style: GoogleFonts.roboto(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: isDark ? Colors.white : Colors.black87,
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 Text(
                   'Powered by AssemblyAI • Always On',
-                  style: GoogleFonts.roboto(
-                    fontSize: 11,
+                  style: AppTextStyles.caption.copyWith(
                     color: AppColors.brand,
                     fontWeight: FontWeight.w500,
                   ),
@@ -174,20 +153,20 @@ class AIFeaturesSelector extends StatelessWidget {
               ],
             ),
           ),
-          Icon(Icons.lock_rounded, color: AppColors.brand, size: 18),
+          const Icon(Icons.lock_rounded, color: AppColors.brand, size: 18),
         ],
       ),
     );
   }
 
-  Widget _buildMultilingualSection(bool isDark) {
+  Widget _buildMultilingualSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             Container(
-              padding: EdgeInsets.all(8),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [Color(0xFF10B981), Color(0xFF059669)],
@@ -196,7 +175,7 @@ class AIFeaturesSelector extends StatelessWidget {
               ),
               child: const Icon(
                 Icons.language_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 18,
               ),
             ),
@@ -207,17 +186,15 @@ class AIFeaturesSelector extends StatelessWidget {
                 children: [
                   Text(
                     'Multilingual Support',
-                    style: GoogleFonts.roboto(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: isDark ? Colors.white : Colors.black87,
+                    style: AppTextStyles.bodyMedium.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                   Text(
                     'Powered by Google Cloud & ElevenLabs',
-                    style: GoogleFonts.roboto(
-                      fontSize: 11,
-                      color: isDark ? Colors.white54 : Colors.black45,
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textSecondary,
                     ),
                   ),
                 ],
@@ -232,21 +209,19 @@ class AIFeaturesSelector extends StatelessWidget {
           children: [
             Expanded(
               child: _buildSmallToggle(
-                isDark: isDark,
                 title: 'Subtitles',
                 value: generateSubtitles,
                 icon: Icons.closed_caption_rounded,
-                accentColor: Color(0xFF10B981),
+                accentColor: const Color(0xFF10B981),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _buildSmallToggle(
-                isDark: isDark,
                 title: 'Dubbing',
                 value: generateDubbing,
                 icon: Icons.record_voice_over_rounded,
-                accentColor: Color(0xFFF59E0B),
+                accentColor: const Color(0xFFF59E0B),
               ),
             ),
           ],
@@ -256,27 +231,25 @@ class AIFeaturesSelector extends StatelessWidget {
           if (!generateDubbing.value) return const SizedBox.shrink();
           return Padding(
             padding: const EdgeInsets.only(top: 12),
-            child: _buildDubbingOptions(isDark),
+            child: _buildDubbingOptions(),
           );
         }),
 
         const SizedBox(height: 16),
         Text(
           'Target Languages',
-          style: GoogleFonts.roboto(
-            fontSize: 12,
+          style: AppTextStyles.labelMedium.copyWith(
             fontWeight: FontWeight.w500,
-            color: isDark ? Colors.white70 : Colors.black87,
+            color: AppColors.textSecondary,
           ),
         ),
         const SizedBox(height: 8),
-        _buildLanguageGroups(isDark),
+        _buildLanguageGroups(),
       ],
     );
   }
 
   Widget _buildSmallToggle({
-    required bool isDark,
     required String title,
     required RxBool value,
     required IconData icon,
@@ -288,28 +261,28 @@ class AIFeaturesSelector extends StatelessWidget {
         onTap: () => value.value = !value.value,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
             color: isOn
-                ? accentColor.withAlpha(isDark ? 30 : 15)
-                : (isDark ? Colors.white.withAlpha(5) : Colors.grey.shade50),
+                ? accentColor.withValues(alpha: 0.15)
+                : AppColors.bgInput,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isOn
-                  ? accentColor.withAlpha(60)
-                  : (isDark ? Colors.white.withAlpha(10) : Colors.grey.shade200),
+                  ? accentColor.withValues(alpha: 0.4)
+                  : AppColors.bgDivider,
             ),
           ),
           child: Row(
             children: [
-              Icon(icon, size: 18, color: isOn ? accentColor : (isDark ? Colors.white38 : Colors.black38)),
+              Icon(icon, size: 18, color: isOn ? accentColor : AppColors.textTertiary),
               const SizedBox(width: 8),
               Text(
                 title,
-                style: GoogleFonts.roboto(
+                style: AppTextStyles.bodyMedium.copyWith(
                   fontSize: 13,
-                  fontWeight: isOn ? FontWeight.w500 : FontWeight.w500,
-                  color: isOn ? (isDark ? Colors.white : accentColor) : (isDark ? Colors.white60 : Colors.black54),
+                  fontWeight: FontWeight.w500,
+                  color: isOn ? AppColors.textPrimary : AppColors.textSecondary,
                 ),
               ),
               const Spacer(),
@@ -321,34 +294,34 @@ class AIFeaturesSelector extends StatelessWidget {
     });
   }
 
-  Widget _buildDubbingOptions(bool isDark) {
+  Widget _buildDubbingOptions() {
     return Container(
-      padding: EdgeInsets.all(12),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? Colors.black26 : Colors.grey.shade50,
+        color: AppColors.bgInput,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: isDark ? Colors.white10 : Colors.grey.shade200),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'ElevenLabs Dubbing Mode',
-            style: GoogleFonts.roboto(
+            style: AppTextStyles.labelMedium.copyWith(
               fontSize: 11,
               fontWeight: FontWeight.w500,
-              color: isDark ? Colors.white38 : Colors.black38,
+              color: AppColors.textTertiary,
             ),
           ),
           const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
-                child: _buildDubbingTypeChip(isDark, 'Normal', 'standard', Icons.bolt_rounded),
+                child: _buildDubbingTypeChip('Normal', 'standard', Icons.bolt_rounded),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: _buildDubbingTypeChip(isDark, 'Voice Clone', 'cloned', Icons.copy_rounded),
+                child: _buildDubbingTypeChip('Voice Clone', 'cloned', Icons.copy_rounded),
               ),
             ],
           ),
@@ -356,7 +329,7 @@ class AIFeaturesSelector extends StatelessWidget {
             if (ttsVoiceType.value != 'cloned') return const SizedBox.shrink();
             return Padding(
               padding: const EdgeInsets.only(top: 12),
-              child: _buildVoiceSamplePicker(isDark),
+              child: _buildVoiceSamplePicker(),
             );
           }),
         ],
@@ -364,29 +337,29 @@ class AIFeaturesSelector extends StatelessWidget {
     );
   }
 
-  Widget _buildDubbingTypeChip(bool isDark, String label, String type, IconData icon) {
+  Widget _buildDubbingTypeChip(String label, String type, IconData icon) {
     return Obx(() {
       final isSelected = ttsVoiceType.value == type;
       return InkWell(
         onTap: () => ttsVoiceType.value = type,
         child: Container(
-          padding: EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFFF59E0B).withAlpha(isDark ? 40 : 20) : Colors.transparent,
+            color: isSelected ? const Color(0xFFF59E0B).withValues(alpha: 0.2) : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: isSelected ? const Color(0xFFF59E0B).withAlpha(80) : Colors.transparent),
+            border: Border.all(color: isSelected ? const Color(0xFFF59E0B).withValues(alpha: 0.5) : Colors.transparent),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 14, color: isSelected ? const Color(0xFFF59E0B) : (isDark ? Colors.white38 : Colors.black38)),
+              Icon(icon, size: 14, color: isSelected ? const Color(0xFFF59E0B) : AppColors.textTertiary),
               const SizedBox(width: 6),
               Text(
                 label,
-                style: GoogleFonts.roboto(
+                style: AppTextStyles.bodyMedium.copyWith(
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
-                  color: isSelected ? (isDark ? Colors.white : const Color(0xFFD97706)) : (isDark ? Colors.white54 : Colors.black54),
+                  color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
                 ),
               ),
             ],
@@ -396,20 +369,20 @@ class AIFeaturesSelector extends StatelessWidget {
     });
   }
 
-  Widget _buildLanguageGroups(bool isDark) {
+  Widget _buildLanguageGroups() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildLanguageGroup(isDark, 'Widely Used', LanguageCategory.global, const Color(0xFF4285F4)),
+        _buildLanguageGroup('Widely Used', LanguageCategory.global, const Color(0xFF4285F4)),
         const SizedBox(height: 12),
-        _buildLanguageGroup(isDark, 'Indian Languages', LanguageCategory.indian, const Color(0xFFFF6B35)),
+        _buildLanguageGroup('Indian Languages', LanguageCategory.indian, const Color(0xFFFF6B35)),
         const SizedBox(height: 12),
-        _buildLanguageGroup(isDark, 'All Others (100+)', LanguageCategory.other, Colors.grey),
+        _buildLanguageGroup('All Others (100+)', LanguageCategory.other, AppColors.textTertiary),
       ],
     );
   }
 
-  Widget _buildLanguageGroup(bool isDark, String title, LanguageCategory category, Color accentColor) {
+  Widget _buildLanguageGroup(String title, LanguageCategory category, Color accentColor) {
     final langs = supportedLanguages.where((l) => l.category == category).toList();
     
     return Column(
@@ -419,10 +392,10 @@ class AIFeaturesSelector extends StatelessWidget {
           children: [
             Text(
               title,
-              style: GoogleFonts.roboto(
+              style: AppTextStyles.labelSmall.copyWith(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
-                color: isDark ? Colors.white38 : Colors.black38,
+                color: AppColors.textTertiary,
                 letterSpacing: 0.5,
               ),
             ),
@@ -430,7 +403,7 @@ class AIFeaturesSelector extends StatelessWidget {
             Container(
               height: 1,
               width: 40,
-              color: isDark ? Colors.white10 : Colors.black12,
+              color: AppColors.bgDivider,
             ),
           ],
         ),
@@ -438,13 +411,13 @@ class AIFeaturesSelector extends StatelessWidget {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: langs.map((lang) => _buildLanguageChip(isDark, lang, accentColor)).toList(),
+          children: langs.map((lang) => _buildLanguageChip(lang, accentColor)).toList(),
         ),
       ],
     );
   }
 
-  Widget _buildLanguageChip(bool isDark, TranslationLanguage lang, Color accent) {
+  Widget _buildLanguageChip(TranslationLanguage lang, Color accent) {
     return Obx(() {
       final isSelected = selectedLanguages.contains(lang.code);
       return InkWell(
@@ -457,16 +430,16 @@ class AIFeaturesSelector extends StatelessWidget {
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             color: isSelected
-                ? accent.withAlpha(isDark ? 40 : 20)
-                : (isDark ? Colors.white.withAlpha(5) : Colors.grey.shade100),
+                ? accent.withValues(alpha: 0.2)
+                : AppColors.bgInput,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: isSelected
-                  ? accent.withAlpha(80)
-                  : (isDark ? Colors.white.withAlpha(10) : Colors.grey.shade300),
+                  ? accent.withValues(alpha: 0.5)
+                  : AppColors.bgDivider,
             ),
           ),
           child: Row(
@@ -474,17 +447,17 @@ class AIFeaturesSelector extends StatelessWidget {
             children: [
               if (isSelected)
                 Padding(
-                  padding: EdgeInsets.only(right: 6),
+                  padding: const EdgeInsets.only(right: 6),
                   child: Icon(Icons.check_circle_rounded, size: 14, color: accent),
                 ),
               Text(
                 lang.name,
-                style: GoogleFonts.roboto(
+                style: AppTextStyles.bodyMedium.copyWith(
                   fontSize: 12,
                   fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
                   color: isSelected
-                      ? (isDark ? Colors.white : accent)
-                      : (isDark ? Colors.white70 : Colors.black54),
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
                 ),
               ),
             ],
@@ -496,31 +469,29 @@ class AIFeaturesSelector extends StatelessWidget {
 
   // ─────────────── Helpers ───────────────
 
-  Widget _buildHeader(bool isDark) {
+  Widget _buildHeader() {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            AppColors.brand.withAlpha(isDark ? 30 : 15),
+            AppColors.brand.withValues(alpha: 0.15),
             Colors.transparent,
           ],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
         ),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: Row(
         children: [
           Container(
-            padding: EdgeInsets.all(8),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [AppColors.brand, Color(0xFF8B5CF6)],
               ),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.psychology_rounded, color: Colors.white, size: 20),
+            child: const Icon(Icons.psychology_rounded, color: AppColors.textPrimary, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -529,11 +500,16 @@ class AIFeaturesSelector extends StatelessWidget {
               children: [
                 Text(
                   'AI Content Features',
-                  style: GoogleFonts.roboto(fontSize: 16, fontWeight: FontWeight.w700, color: isDark ? Colors.white : Colors.black87),
+                  style: AppTextStyles.titleMedium.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
                 Text(
                   'Align your content with global audiences',
-                  style: GoogleFonts.roboto(fontSize: 12, color: isDark ? Colors.white54 : Colors.black45),
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -544,7 +520,6 @@ class AIFeaturesSelector extends StatelessWidget {
   }
 
   Widget _buildFeatureToggle({
-    required bool isDark,
     required IconData icon,
     required String title,
     required String subtitle,
@@ -556,27 +531,27 @@ class AIFeaturesSelector extends StatelessWidget {
     return Obx(() {
       final isOn = value.value;
       return Container(
-        padding: EdgeInsets.all(14),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: isOn
-              ? gradient.first.withAlpha(isDark ? 20 : 10)
-              : (isDark ? Colors.white.withAlpha(5) : Colors.grey.shade50),
+              ? gradient.first.withValues(alpha: 0.15)
+              : AppColors.bgInput,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isOn
-                ? gradient.first.withAlpha(60)
-                : (isDark ? Colors.white.withAlpha(10) : Colors.grey.shade200),
+                ? gradient.first.withValues(alpha: 0.4)
+                : AppColors.bgDivider,
           ),
         ),
         child: Row(
           children: [
             Container(
-              padding: EdgeInsets.all(8),
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 gradient: LinearGradient(colors: gradient),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(icon, color: Colors.white, size: 18),
+              child: Icon(icon, color: AppColors.textPrimary, size: 18),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -587,20 +562,23 @@ class AIFeaturesSelector extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: GoogleFonts.roboto(
-                          fontSize: 14,
+                        style: AppTextStyles.bodyMedium.copyWith(
                           fontWeight: FontWeight.w500,
-                          color: isDark ? Colors.white : Colors.black87,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       if (badge != null) ...[
                         const SizedBox(width: 6),
                         Container(
-                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(color: gradient.first, borderRadius: BorderRadius.circular(6)),
                           child: Text(
                             badge,
-                            style: GoogleFonts.roboto(fontSize: 9, fontWeight: FontWeight.w700, color: Colors.white),
+                            style: AppTextStyles.labelSmall.copyWith(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                            ),
                           ),
                         ),
                       ],
@@ -608,13 +586,15 @@ class AIFeaturesSelector extends StatelessWidget {
                   ),
                   Text(
                     subtitle,
-                    style: GoogleFonts.roboto(fontSize: 11, color: isDark ? Colors.white54 : Colors.black45),
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ],
               ),
             ),
             if (locked)
-              const Icon(Icons.lock_outline_rounded, color: Colors.grey, size: 20)
+              const Icon(Icons.lock_outline_rounded, color: AppColors.textTertiary, size: 20)
             else
               Switch(
                 value: isOn,
@@ -627,29 +607,27 @@ class AIFeaturesSelector extends StatelessWidget {
     });
   }
 
-  Widget _buildFactCheckToggle(bool isDark) {
+  Widget _buildFactCheckToggle() {
     return _buildFeatureToggle(
-      isDark:   isDark,
       icon:     Icons.fact_check_rounded,
       title:    'Fact-Check',
       subtitle: 'Verify claims and ensure accuracy (Gemini)',
       value:    factCheckEnabled,
       gradient: [const Color(0xFF14B8A6), const Color(0xFF0D9488)],
-      locked:   false,
     );
   }
 
-  Widget _buildVoiceSamplePicker(bool isDark) {
+  Widget _buildVoiceSamplePicker() {
     return Obx(() {
       final sample = voiceSample.value;
       return InkWell(
         onTap: onPickVoiceSample,
         child: Container(
-          padding: EdgeInsets.all(14),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFFF59E0B).withAlpha(10) : const Color(0xFFF59E0B).withAlpha(5),
+            color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFF59E0B).withAlpha(30), style: BorderStyle.solid),
+            border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
           ),
           child: Row(
             children: [
@@ -658,10 +636,10 @@ class AIFeaturesSelector extends StatelessWidget {
               Expanded(
                 child: Text(
                   sample != null ? '${sample.name} (${(sample.size / 1024).toStringAsFixed(0)} KB)' : 'Upload voice sample (MP3, WAV)',
-                  style: GoogleFonts.roboto(
+                  style: AppTextStyles.bodyMedium.copyWith(
                     fontSize: 12,
                     fontWeight: sample != null ? FontWeight.w500 : FontWeight.w400,
-                    color: isDark ? Colors.white70 : Colors.black54,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ),

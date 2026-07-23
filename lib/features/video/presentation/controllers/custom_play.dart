@@ -29,34 +29,31 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:ui';
-// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'package:universal_html/html.dart' as html;
-// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'package:universal_html/js.dart' as js;
+
 import 'package:chewie/chewie.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:video_player/video_player.dart';
 import 'package:http/http.dart' as http;
-
-import 'adaptive_birate_controller.dart';
-import 'audio_only_service.dart';
-import 'video_controller.dart';
-import '../../data/models/video.dart';
-import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
+import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/audio_only_service.dart';
+import 'package:truthworld/features/video/presentation/controllers/playback_source.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/theme/app_theme.dart';
+// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
+import 'package:universal_html/html.dart' as html;
+// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
+import 'package:universal_html/js.dart' as js;
+import 'package:video_player/video_player.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PLAYER CONTROLLER  (Industry-standard state machine)
 // ─────────────────────────────────────────────────────────────────────────────
 class TowerPlayerController extends GetxController {
-  VideoPlayerController videoPlayerController;
-  ChewieController chewieController;
-  final FocusNode focusNode = FocusNode();
-  final String? tag;
 
   TowerPlayerController({
     required this.videoPlayerController,
@@ -65,6 +62,10 @@ class TowerPlayerController extends GetxController {
   }) {
     _rxValue = videoPlayerController.value.obs;
   }
+  VideoPlayerController videoPlayerController;
+  ChewieController chewieController;
+  final FocusNode focusNode = FocusNode();
+  final String? tag;
 
   // ── Reactive video state ───────────────────────────────────
   late Rx<VideoPlayerValue> _rxValue;
@@ -93,9 +94,20 @@ class TowerPlayerController extends GetxController {
   final AdaptiveBitrateController abr = AdaptiveBitrateController();
   List<ResolutionTier> resolutionTiers = [];
 
-  // ── Audio Only ─────────────────────────────────────────────
+  // ── Audio Only & Playback Authority ─────────────────────────
+  final Rx<PlaybackMode> playbackMode = PlaybackMode.video.obs;
   final RxBool isAudioOnly = false.obs;
   AudioOnlyService? _audioService;
+  VideoPlaybackSource? _videoPlaybackSource;
+  AudioPlaybackSource? _audioPlaybackSource;
+  bool _isSwitchingModes = false;
+
+  PlaybackSource get activePlayback {
+    if (playbackMode.value == PlaybackMode.audio && _audioPlaybackSource != null) {
+      return _audioPlaybackSource!;
+    }
+    return _videoPlaybackSource ?? VideoPlaybackSource(videoPlayerController);
+  }
 
   // ── Subtitles ──────────────────────────────────────────────
   final RxBool subtitlesEnabled = false.obs;
@@ -112,7 +124,6 @@ class TowerPlayerController extends GetxController {
 
   // ── Content metadata ───────────────────────────────────────
   ContentMetadata contentMeta = const ContentMetadata(
-    rating: 'U/A 16+',
     genre: 'Action · Drama',
     releaseYear: '2024',
     duration: '2h 14m',
@@ -124,7 +135,7 @@ class TowerPlayerController extends GetxController {
   // ── Volume ─────────────────────────────────────────────────
   final RxDouble volume = 1.0.obs;
   final RxBool isMuted = false.obs;
-  double _volumeBeforeMute = 1.0;
+  double _volumeBeforeMute = 1;
   final RxBool volumeSliderVis = false.obs;
 
   // ── Seek preview ──────────────────────────────────────────
@@ -206,17 +217,17 @@ class TowerPlayerController extends GetxController {
 
     // Register globally with tag
     if (!Get.isRegistered<TowerPlayerController>(tag: tag)) {
-      Get.put<TowerPlayerController>(this, tag: tag, permanent: false);
+      Get.put<TowerPlayerController>(this, tag: tag);
     }
   }
 
   void _initABR() {
     if (!Get.isRegistered<AdaptiveBitrateController>(tag: tag)) {
-      Get.put(abr, tag: tag, permanent: false);
+      Get.put(abr, tag: tag);
     }
 
     // INDUSTRY STRATEGY: Synchronize ladder with real variants from VideoController
-    List<ResolutionTier> ladder = ResolutionTier.defaultLadder;
+    var ladder = ResolutionTier.defaultLadder;
     try {
       if (Get.isRegistered<VideoController>(tag: tag)) {
         final vc = Get.find<VideoController>(tag: tag);
@@ -277,16 +288,18 @@ class TowerPlayerController extends GetxController {
   void _initAudioService() {
     _audioService = Get.isRegistered<AudioOnlyService>()
         ? Get.find<AudioOnlyService>()
-        : Get.put(AudioOnlyService(), permanent: false);
+        : Get.put(AudioOnlyService());
 
     _audioService!.setCallbacks(
       onNext: playNext,
       onPrevious: playPrevious,
       onEnded: _onTrackEnded,
     );
+    _audioPlaybackSource = AudioPlaybackSource(_audioService!);
   }
 
   void _attachVideoListener() {
+    _videoPlaybackSource = VideoPlaybackSource(videoPlayerController);
     videoPlayerController.addListener(_onVpcUpdate);
   }
 
@@ -641,40 +654,71 @@ class TowerPlayerController extends GetxController {
     String? title,
     String? artworkUrl,
   }) async {
-    if (isAudioOnly.value) {
-      // Disable: restore video player
-      _audioService?.deactivate();
-      isAudioOnly.value = false;
-      await videoPlayerController.play();
-      _trackAnalytics(PlayerEvent('audio_only_off'));
-    } else {
-      // Enable: pause video, start audio-only
-      final pos = vv.position;
-      await videoPlayerController.pause();
+    if (_isSwitchingModes) return;
+    _isSwitchingModes = true;
 
-      final targetUrl = videoUrl ?? videoPlayerController.dataSource;
-      if (kIsWeb) {
-        // Find metadata from VideoController if available
-        String? finalTitle = title;
-        String? finalArtwork = artworkUrl;
+    try {
+      if (playbackMode.value == PlaybackMode.audio || isAudioOnly.value) {
+        // ── Audio -> Video atomic handoff ───────────────────────────
+        playbackMode.value = PlaybackMode.switchingToVideo;
+        var targetPos = Duration.zero;
 
-        try {
-          if (Get.isRegistered<VideoController>(tag: tag)) {
-            final vc = Get.find<VideoController>(tag: tag);
-            finalTitle ??= vc.video.title;
-            finalArtwork ??= vc.video.thumbnailUrl;
+        if (kIsWeb && _audioService != null) {
+          targetPos = _audioService!.deactivate();
+        } else {
+          targetPos = videoPlayerController.value.position;
+        }
+
+        if (targetPos > Duration.zero) {
+          await videoPlayerController.seekTo(targetPos);
+        }
+
+        await videoPlayerController.play();
+        playbackMode.value = PlaybackMode.video;
+        isAudioOnly.value = false;
+        _trackAnalytics(PlayerEvent('audio_only_off'));
+      } else {
+        // ── Video -> Audio atomic handoff ───────────────────────────
+        playbackMode.value = PlaybackMode.switchingToAudio;
+        final currentPos = videoPlayerController.value.position;
+        final isCurrentlyPlaying = videoPlayerController.value.isPlaying;
+
+        if (kIsWeb) {
+          final targetUrl = videoUrl ?? videoPlayerController.dataSource;
+          var finalTitle = title;
+          var finalArtwork = artworkUrl;
+          try {
+            if (Get.isRegistered<VideoController>(tag: tag)) {
+              final vc = Get.find<VideoController>(tag: tag);
+              finalTitle ??= vc.video.title;
+              finalArtwork ??= vc.video.thumbnailUrl;
+            }
+          } catch (_) {}
+
+          await _audioService?.activateAudioOnly(
+            videoUrl: targetUrl,
+            title: finalTitle ?? 'Streaming Audio',
+            artworkUrl: finalArtwork ?? '',
+            startPosition: currentPos,
+          );
+
+          await videoPlayerController.pause();
+        } else {
+          // Native platforms keep VideoPlayerController active offstage
+          if (isCurrentlyPlaying && !videoPlayerController.value.isPlaying) {
+            await videoPlayerController.play();
           }
-        } catch (_) {}
+        }
 
-        await _audioService?.activateAudioOnly(
-          videoUrl: targetUrl,
-          title: finalTitle ?? 'Streaming Audio',
-          artworkUrl: finalArtwork ?? '',
-          startPosition: pos,
-        );
+        playbackMode.value = PlaybackMode.audio;
+        isAudioOnly.value = true;
+        _trackAnalytics(PlayerEvent('audio_only_on'));
       }
-      isAudioOnly.value = true;
-      _trackAnalytics(PlayerEvent('audio_only_on'));
+    } catch (e) {
+      debugPrint('[TowerPlayer] Mode switch error: $e');
+      playbackMode.value = isAudioOnly.value ? PlaybackMode.audio : PlaybackMode.video;
+    } finally {
+      _isSwitchingModes = false;
     }
   }
 
@@ -702,7 +746,7 @@ class TowerPlayerController extends GetxController {
       if (response.statusCode == 200) {
         // Industry Standard: Use utf8.decode on bodyBytes to ensure correct encoding 
         // regardless of server headers. Also handle the UTF-8 BOM if present.
-        String content = utf8.decode(response.bodyBytes, allowMalformed: true);
+        var content = utf8.decode(response.bodyBytes, allowMalformed: true);
         
         // Remove UTF-8 BOM (\uFEFF) if present at the start of the file
         if (content.startsWith('\uFEFF')) {
@@ -720,24 +764,24 @@ class TowerPlayerController extends GetxController {
   }
 
   List<SubtitleSegment> _parseSRT(String content) {
-    final List<SubtitleSegment> segments = [];
+    final segments = <SubtitleSegment>[];
     
     // Normalize line endings and handle WebVTT header
-    String normalized = content.replaceAll('\r\n', '\n').trim();
+    var normalized = content.replaceAll('\r\n', '\n').trim();
     if (normalized.startsWith('WEBVTT')) {
       // Remove WEBVTT header and any metadata following it until the first blank line
       normalized = normalized.replaceFirst(RegExp(r'^WEBVTT[^\n]*\n*'), '').trim();
     }
 
     // Split into blocks by double newline
-    final List<String> blocks = normalized.split('\n\n');
+    final blocks = normalized.split('\n\n');
 
-    for (var block in blocks) {
+    for (final block in blocks) {
       final lines = block.trim().split('\n');
       if (lines.length < 2) continue;
 
-      String timeLine = '';
-      int textStartIndex = 0;
+      var timeLine = '';
+      var textStartIndex = 0;
 
       // Identify if the first line is an index or the timestamp
       if (lines[0].contains('-->')) {
@@ -809,7 +853,7 @@ class TowerPlayerController extends GetxController {
             bitrate: currentRes?.bitrate ?? 0,
           );
           
-          vc.setResolution(dubbedRes, isManual: true);
+          vc.setResolution(dubbedRes);
           debugPrint('[TowerPlayer] Switched to dubbed audio/video: ${track.label}');
         }
       } catch (e) {
@@ -821,7 +865,7 @@ class TowerPlayerController extends GetxController {
         if (Get.isRegistered<VideoController>(tag: tag)) {
           final vc = Get.find<VideoController>(tag: tag);
           if (vc.availableResolutions.isNotEmpty) {
-            vc.setResolution(vc.availableResolutions.first, isManual: true);
+            vc.setResolution(vc.availableResolutions.first);
           }
         }
       } catch (_) {}
@@ -953,10 +997,10 @@ class TowerPlayerController extends GetxController {
     } else if (key == LogicalKeyboardKey.arrowLeft) {
       seekRelative(-5);
     } else if (key == LogicalKeyboardKey.arrowUp) {
-      setVolume(min(1.0, volume.value + 0.1));
+      setVolume(min(1, volume.value + 0.1));
       _showToast('Volume ${(volume.value * 100).round()}%');
     } else if (key == LogicalKeyboardKey.arrowDown) {
-      setVolume(max(0.0, volume.value - 0.1));
+      setVolume(max(0, volume.value - 0.1));
       _showToast('Volume ${(volume.value * 100).round()}%');
     } else if (key == LogicalKeyboardKey.keyI) {
       togglePiP();
@@ -1028,8 +1072,8 @@ class TowerPlayerController extends GetxController {
 // MAIN PLAYER WIDGET
 // ─────────────────────────────────────────────────────────────────────────────
 class TowerCustomPlayer extends StatelessWidget {
-  final String? tag;
   const TowerCustomPlayer({super.key, this.tag});
+  final String? tag;
 
   @override
   Widget build(BuildContext context) {
@@ -1144,15 +1188,13 @@ class TowerCustomPlayer extends StatelessWidget {
                   // Ensure Obx is not empty
                   c.isAudioOnly.value;
 
-                  bool isSwitching = false;
-                  bool isManual = false;
-                  try {
-                    if (Get.isRegistered<VideoController>(tag: tag)) {
-                      final vc = Get.find<VideoController>(tag: tag);
+                  var isSwitching = false;
+                  var isManual = false;
+                    final vc = c.videoController;
+                    if (vc != null) {
                       isSwitching = vc.isSwitchingResolution.value;
                       isManual = !vc.isAutoSwitching.value;
                     }
-                  } catch (_) {}
 
                   // Industry Standard: ONLY show "Optimizing Quality" for manual switches
                   final showOverlay = isSwitching && isManual;
@@ -1183,8 +1225,8 @@ class _SwitchingResolutionOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.black.withValues(alpha: 0.4),
+    return ColoredBox(
+      color: AppColors.bgPage.withValues(alpha: 0.4),
       child: Center(
         child: ClipRRect(
           borderRadius: BorderRadius.circular(24),
@@ -1193,17 +1235,16 @@ class _SwitchingResolutionOverlay extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.08),
+                color: AppColors.textPrimary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.1),
-                  width: 1,
+                  color: AppColors.textPrimary.withValues(alpha: 0.1),
                 ),
               ),
-              child: Column(
+              child: const Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const SizedBox(
+                  SizedBox(
                     width: 40,
                     height: 40,
                     child: CircularProgressIndicator(
@@ -1211,21 +1252,21 @@ class _SwitchingResolutionOverlay extends StatelessWidget {
                       strokeWidth: 3,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                   Text(
                     'Optimizing Quality...',
-                    style: GoogleFonts.roboto(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                       letterSpacing: 0.5,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     'Switching to a better resolution',
-                    style: GoogleFonts.roboto(
-                      color: Colors.white70,
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
                       fontSize: 12,
                     ),
                   ),
@@ -1247,8 +1288,8 @@ class _AudioOnlyOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: Colors.black,
+    return ColoredBox(
+      color: AppColors.bgPage,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1274,15 +1315,15 @@ class _AudioOnlyOverlay extends StatelessWidget {
                 child: Icon(
                   Icons.audiotrack_rounded,
                   size: 60,
-                  color: Colors.white70,
+                  color: AppColors.textSecondary,
                 ),
               ),
             ),
             const SizedBox(height: 28),
-            Text(
+            const Text(
               'Audio Only Mode',
-              style: GoogleFonts.roboto(
-                color: Colors.white,
+              style: TextStyle(
+                color: AppColors.textPrimary,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1.5,
@@ -1299,7 +1340,7 @@ class _AudioOnlyOverlay extends StatelessWidget {
                   : null;
               return Text(
                 svc?.currentTrackTitle.value ?? '',
-                style: GoogleFonts.roboto(color: Colors.white54, fontSize: 14),
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
                 textAlign: TextAlign.center,
               );
             }),
@@ -1349,9 +1390,8 @@ class _AudioWaveformState extends State<_AudioWaveform>
         builder: (context, child) {
           return Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: List.generate(7, (i) {
-              final phase = (i * 0.4 + _anim.value * 2 * pi);
+              final phase = i * 0.4 + _anim.value * 2 * pi;
               final h = 8 + 18 * ((sin(phase) + 1) / 2);
               return Container(
                 width: 4,
@@ -1373,8 +1413,8 @@ class _AudioWaveformState extends State<_AudioWaveform>
 // STATE OVERLAY (buffering, stall, error)
 // ─────────────────────────────────────────────────────────────────────────────
 class _StateOverlay extends StatelessWidget {
-  final TowerPlayerController ctrl;
   const _StateOverlay({required this.ctrl});
+  final TowerPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
@@ -1384,7 +1424,7 @@ class _StateOverlay extends StatelessWidget {
       final hasError = ctrl.vv.hasError;
 
       // Industry Standard: Seamless background qualities shouldn't show spinners
-      bool isAutoSwitching = false;
+      var isAutoSwitching = false;
       try {
         if (Get.isRegistered<VideoController>(tag: ctrl.tag)) {
           isAutoSwitching = Get.find<VideoController>(tag: ctrl.tag).isAutoSwitching.value;
@@ -1425,7 +1465,7 @@ class _StateOverlay extends StatelessWidget {
             width: 48,
             height: 48,
             child: CircularProgressIndicator(
-              color: Colors.orange,
+              color: AppColors.warning,
               strokeWidth: 3,
               strokeCap: StrokeCap.round,
             ),
@@ -1434,7 +1474,7 @@ class _StateOverlay extends StatelessWidget {
           Obx(
             () => Text(
               'Poor network · ${ctrl.abr.currentTier.label}',
-              style: GoogleFonts.roboto(color: Colors.orange, fontSize: 13),
+              style: const TextStyle(color: AppColors.warning, fontSize: 13),
             ),
           ),
         ],
@@ -1443,8 +1483,8 @@ class _StateOverlay extends StatelessWidget {
   }
 
   Widget _buildError(TowerPlayerController ctrl) {
-    return Container(
-      color: Colors.black87,
+    return ColoredBox(
+      color: AppColors.bgPage,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1455,10 +1495,10 @@ class _StateOverlay extends StatelessWidget {
               size: 52,
             ),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Playback Error',
-              style: GoogleFonts.roboto(
-                color: Colors.white,
+              style: TextStyle(
+                color: AppColors.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
               ),
@@ -1466,7 +1506,7 @@ class _StateOverlay extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               ctrl.vv.errorDescription ?? 'An unknown error occurred',
-              style: GoogleFonts.roboto(color: Colors.white54, fontSize: 13),
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -1486,8 +1526,8 @@ class _StateOverlay extends StatelessWidget {
 // DOUBLE TAP RIPPLE
 // ─────────────────────────────────────────────────────────────────────────────
 class _DoubleTapRipple extends StatelessWidget {
-  final bool isLeft;
   const _DoubleTapRipple({required this.isLeft});
+  final bool isLeft;
 
   @override
   Widget build(BuildContext context) {
@@ -1499,7 +1539,7 @@ class _DoubleTapRipple extends StatelessWidget {
       width: 160,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
+          color: AppColors.textPrimary.withValues(alpha: 0.08),
           borderRadius: isLeft
               ? const BorderRadius.only(
                   topRight: Radius.circular(80),
@@ -1516,12 +1556,12 @@ class _DoubleTapRipple extends StatelessWidget {
             children: [
               Icon(
                 isLeft ? Icons.replay_10_rounded : Icons.forward_10_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 44,
               ),
-              Text(
+              const Text(
                 '10 seconds',
-                style: GoogleFonts.roboto(color: Colors.white70, fontSize: 12),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
             ],
           ),
@@ -1535,8 +1575,8 @@ class _DoubleTapRipple extends StatelessWidget {
 // SEEK PREVIEW TOOLTIP
 // ─────────────────────────────────────────────────────────────────────────────
 class _SeekPreviewTooltip extends StatelessWidget {
-  final TowerPlayerController ctrl;
   const _SeekPreviewTooltip({required this.ctrl});
+  final TowerPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
@@ -1581,7 +1621,7 @@ class _SeekPreviewTooltip extends StatelessWidget {
                         border: Border.all(color: PT.border),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.6),
+                            color: AppColors.bgPage.withValues(alpha: 0.6),
                             blurRadius: 12,
                           ),
                         ],
@@ -1589,8 +1629,8 @@ class _SeekPreviewTooltip extends StatelessWidget {
                       child: Text(
                         _fmtDuration(pos),
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.roboto(
-                          color: Colors.white,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
                         ),
@@ -1620,8 +1660,8 @@ class _SeekPreviewTooltip extends StatelessWidget {
 // SUBTITLE OVERLAY
 // ─────────────────────────────────────────────────────────────────────────────
 class _SubtitleOverlay extends StatelessWidget {
-  final TowerPlayerController ctrl;
   const _SubtitleOverlay({required this.ctrl});
+  final TowerPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
@@ -1633,21 +1673,21 @@ class _SubtitleOverlay extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.7),
+            color: AppColors.bgPage.withValues(alpha: 0.7),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
             text,
             textAlign: TextAlign.center,
-            style: GoogleFonts.roboto(
-              color: Colors.white,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
               fontSize: 18,
               fontWeight: FontWeight.w500,
               shadows: [
-                const Shadow(
-                  blurRadius: 4.0,
-                  color: Colors.black,
-                  offset: Offset(1.0, 1.0),
+                Shadow(
+                  blurRadius: 4,
+                  color: AppColors.bgPage,
+                  offset: Offset(1, 1),
                 ),
               ],
             ),
@@ -1662,8 +1702,8 @@ class _SubtitleOverlay extends StatelessWidget {
 // TOAST NOTIFICATION
 // ─────────────────────────────────────────────────────────────────────────────
 class _Toast extends StatelessWidget {
-  final String message;
   const _Toast({required this.message});
+  final String message;
 
   @override
   Widget build(BuildContext context) {
@@ -1671,14 +1711,14 @@ class _Toast extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.75),
+          color: AppColors.bgPage.withValues(alpha: 0.75),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(color: PT.border),
         ),
         child: Text(
           message,
-          style: GoogleFonts.roboto(
-            color: Colors.white,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
             fontSize: 14,
             fontWeight: FontWeight.w500,
           ),
@@ -1692,8 +1732,8 @@ class _Toast extends StatelessWidget {
 // MAIN CONTROLS
 // ─────────────────────────────────────────────────────────────────────────────
 class _MainControls extends StatelessWidget {
-  final TowerPlayerController ctrl;
   const _MainControls({required this.ctrl});
+  final TowerPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
@@ -1728,7 +1768,7 @@ class _MainControls extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Colors.black.withValues(alpha: 0.8), Colors.transparent],
+          colors: [AppColors.bgPage.withValues(alpha: 0.8), Colors.transparent],
         ),
       ),
       child: Row(
@@ -1738,10 +1778,10 @@ class _MainControls extends StatelessWidget {
             onTap: ctrl.toggleFullscreen,
           ),
           const SizedBox(width: 12),
-          Text(
+          const Text(
             'Exit Fullscreen',
-            style: GoogleFonts.roboto(
-              color: Colors.white,
+            style: TextStyle(
+              color: AppColors.textPrimary,
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
@@ -1772,9 +1812,9 @@ class _MainControls extends StatelessWidget {
                     'No Previous Video',
                     'This is the first video in the queue',
                     snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: Colors.black.withValues(alpha: 0.8),
-                    colorText: Colors.white,
-                    duration: Duration(seconds: 2),
+                    backgroundColor: AppColors.bgPage.withValues(alpha: 0.8),
+                    colorText: AppColors.textPrimary,
+                    duration: const Duration(seconds: 2),
                   );
                 }
               },
@@ -1803,9 +1843,9 @@ class _MainControls extends StatelessWidget {
                     'No Next Video',
                     'This is the last video in the queue',
                     snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: Colors.black.withValues(alpha: 0.8),
-                    colorText: Colors.white,
-                    duration: Duration(seconds: 2),
+                    backgroundColor: AppColors.bgPage.withValues(alpha: 0.8),
+                    colorText: AppColors.textPrimary,
+                    duration: const Duration(seconds: 2),
                   );
                 }
               },
@@ -1824,8 +1864,8 @@ class _MainControls extends StatelessWidget {
           end: Alignment.topCenter,
           stops: const [0, 0.5, 1],
           colors: [
-            Colors.black.withValues(alpha: 0.95),
-            Colors.black.withValues(alpha: 0.6),
+            AppColors.bgPage.withValues(alpha: 0.95),
+            AppColors.bgPage.withValues(alpha: 0.6),
             Colors.transparent,
           ],
         ),
@@ -1900,8 +1940,8 @@ class _MainControls extends StatelessWidget {
 // ABR NETWORK BADGE
 // ─────────────────────────────────────────────────────────────────────────────
 class _NetworkBadge extends StatelessWidget {
-  final TowerPlayerController ctrl;
   const _NetworkBadge({required this.ctrl});
+  final TowerPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
@@ -1926,7 +1966,7 @@ class _NetworkBadge extends StatelessWidget {
               bw > 1000
                   ? '${(bw / 1000).toStringAsFixed(1)} Mbps'
                   : '${bw.toStringAsFixed(0)} kbps',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 color: color,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
@@ -1941,13 +1981,13 @@ class _NetworkBadge extends StatelessWidget {
   Color _qualityColor(NetworkQuality q) {
     switch (q) {
       case NetworkQuality.excellent:
-        return Colors.greenAccent;
+        return AppColors.success;
       case NetworkQuality.good:
         return Colors.lightGreenAccent;
       case NetworkQuality.fair:
         return Colors.yellowAccent;
       case NetworkQuality.poor:
-        return Colors.orangeAccent;
+        return AppColors.warning;
       case NetworkQuality.terrible:
       case NetworkQuality.offline:
         return PT.primary;
@@ -1956,8 +1996,8 @@ class _NetworkBadge extends StatelessWidget {
 }
 
 class _AbrBadge extends StatelessWidget {
-  final TowerPlayerController ctrl;
   const _AbrBadge({required this.ctrl});
+  final TowerPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
@@ -1972,14 +2012,14 @@ class _AbrBadge extends StatelessWidget {
           margin: const EdgeInsets.only(right: 4),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.08),
+            color: AppColors.textPrimary.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.12)),
           ),
           child: Text(
             label,
-            style: GoogleFonts.roboto(
-              color: Colors.white70,
+            style: const TextStyle(
+              color: AppColors.textSecondary,
               fontSize: 11,
               fontWeight: FontWeight.bold,
               letterSpacing: 0.5,
@@ -1995,8 +2035,8 @@ class _AbrBadge extends StatelessWidget {
 // PROGRESS BAR
 // ─────────────────────────────────────────────────────────────────────────────
 class _ProgressBar extends StatelessWidget {
-  final TowerPlayerController ctrl;
   const _ProgressBar({required this.ctrl});
+  final TowerPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
@@ -2054,7 +2094,7 @@ class _ProgressBar extends StatelessWidget {
               Container(
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
+                  color: AppColors.textPrimary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -2071,7 +2111,7 @@ class _ProgressBar extends StatelessWidget {
                         child: Container(
                           width: 2,
                           height: 6,
-                          color: Colors.black.withValues(alpha: 0.8),
+                          color: AppColors.bgPage.withValues(alpha: 0.8),
                         ),
                       ),
                     ),
@@ -2085,7 +2125,7 @@ class _ProgressBar extends StatelessWidget {
                   child: Container(
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.28),
+                      color: AppColors.textPrimary.withValues(alpha: 0.28),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -2161,8 +2201,8 @@ extension on Duration {
 // VOLUME CONTROL
 // ─────────────────────────────────────────────────────────────────────────────
 class _VolumeControl extends StatelessWidget {
-  final TowerPlayerController ctrl;
   const _VolumeControl({required this.ctrl});
+  final TowerPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
@@ -2188,15 +2228,13 @@ class _VolumeControl extends StatelessWidget {
                             overlayRadius: 12,
                           ),
                           activeTrackColor: PT.primary,
-                          inactiveTrackColor: Colors.white24,
+                          inactiveTrackColor: AppColors.textDisabled,
                           thumbColor: PT.primary,
                           overlayColor: PT.primary.withValues(alpha: 0.2),
                         ),
                         child: Slider(
                           value: ctrl.volume.value,
                           onChanged: ctrl.setVolume,
-                          min: 0,
-                          max: 1,
                         ),
                       ),
                     )
@@ -2213,8 +2251,8 @@ class _VolumeControl extends StatelessWidget {
 // TIME DISPLAY
 // ─────────────────────────────────────────────────────────────────────────────
 class _TimeDisplay extends StatelessWidget {
-  final TowerPlayerController ctrl;
   const _TimeDisplay({required this.ctrl});
+  final TowerPlayerController ctrl;
 
   String _fmt(Duration d) {
     final h = d.inHours;
@@ -2231,8 +2269,8 @@ class _TimeDisplay extends StatelessWidget {
           children: [
             Text(
               '${_fmt(ctrl.vv.position)} / ${_fmt(ctrl.vv.duration)}',
-              style: GoogleFonts.roboto(
-                color: Colors.white.withValues(alpha: 0.9),
+              style: TextStyle(
+                color: AppColors.textPrimary.withValues(alpha: 0.9),
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
@@ -2241,7 +2279,7 @@ class _TimeDisplay extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 '•',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+                style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5)),
               ),
               const SizedBox(width: 8),
               Flexible(
@@ -2249,7 +2287,7 @@ class _TimeDisplay extends StatelessWidget {
                   ctrl.currentChapter.value!.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     color: PT.primary,
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
@@ -2267,8 +2305,8 @@ class _TimeDisplay extends StatelessWidget {
 // SETTINGS PANEL  —  Full premium panel with all submenus
 // ─────────────────────────────────────────────────────────────────────────────
 class _SettingsPanel extends StatelessWidget {
-  final TowerPlayerController ctrl;
   const _SettingsPanel({required this.ctrl});
+  final TowerPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
@@ -2276,8 +2314,8 @@ class _SettingsPanel extends StatelessWidget {
       onTap: () {}, // Absorb taps inside panel
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          color: Colors.black.withValues(alpha: 0.5),
+        child: ColoredBox(
+          color: AppColors.bgPage.withValues(alpha: 0.5),
           child: Center(
             child: Material(
               color: Colors.transparent,
@@ -2290,7 +2328,7 @@ class _SettingsPanel extends StatelessWidget {
                   border: Border.all(color: PT.border, width: 1.5),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.7),
+                      color: AppColors.bgPage.withValues(alpha: 0.7),
                       blurRadius: 32,
                       spreadRadius: 8,
                     ),
@@ -2333,8 +2371,8 @@ class _SettingsPanel extends StatelessWidget {
 
 // ── Main Settings Menu ────────────────────────────────────────────────────────
 class _MainSettingsMenu extends StatelessWidget {
-  final TowerPlayerController ctrl;
   const _MainSettingsMenu({required this.ctrl});
+  final TowerPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
@@ -2435,8 +2473,8 @@ class _MainSettingsMenu extends StatelessWidget {
 
 // ── Chapters Panel ────────────────────────────────────────────────────────────
 class _ChaptersPanel extends StatelessWidget {
-  final TowerPlayerController ctrl;
   const _ChaptersPanel({required this.ctrl});
+  final TowerPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
@@ -2479,8 +2517,8 @@ class _ChaptersPanel extends StatelessWidget {
 
 // ── Speed Panel ───────────────────────────────────────────────────────────────
 class _SpeedPanel extends StatelessWidget {
-  final TowerPlayerController ctrl;
   const _SpeedPanel({required this.ctrl});
+  final TowerPlayerController ctrl;
 
   static const speeds = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 
@@ -2511,15 +2549,15 @@ class _SpeedPanel extends StatelessWidget {
 
 // ── Quality Panel ─────────────────────────────────────────────────────────────
 class _QualityPanel extends StatelessWidget {
-  final TowerPlayerController ctrl;
   const _QualityPanel({required this.ctrl});
+  final TowerPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       // Get available resolutions from VideoController (only what exists in video)
-      List<VideoResolutionV2> availableResolutions = [];
-      bool hasNoResolutions = false;
+      var availableResolutions = <VideoResolutionV2>[];
+      var hasNoResolutions = false;
       
       try {
         if (Get.isRegistered<VideoController>(tag: ctrl.tag)) {
@@ -2539,8 +2577,8 @@ class _QualityPanel extends StatelessWidget {
               onBack: () => ctrl.activePanel.value = '',
               onClose: null,
             ),
-            Padding(
-              padding: const EdgeInsets.all(24),
+            const Padding(
+              padding: EdgeInsets.all(24),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -2549,21 +2587,21 @@ class _QualityPanel extends StatelessWidget {
                     size: 48,
                     color: PT.primary,
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                   Text(
                     'Video Not Available',
-                    style: GoogleFonts.roboto(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: AppColors.textPrimary,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     'No playable resolutions found for this video',
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.roboto(
-                      color: Colors.white70,
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
                       fontSize: 13,
                     ),
                   ),
@@ -2589,37 +2627,37 @@ class _QualityPanel extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Row(
               children: [
-                Icon(Icons.speed_rounded, color: Colors.white38, size: 14),
+                const Icon(Icons.speed_rounded, color: AppColors.textTertiary, size: 14),
                 const SizedBox(width: 8),
-                Text(
+                const Text(
                   'Network: ',
-                  style: GoogleFonts.roboto(
-                    color: Colors.white38,
+                  style: TextStyle(
+                    color: AppColors.textTertiary,
                     fontSize: 12,
                   ),
                 ),
                 Text(
                   _bwLabel(ctrl.abr.measuredBandwidthKbps.value),
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: _qualityColor(ctrl.abr.networkQuality.value),
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
                 const Spacer(),
-                Text(
+                const Text(
                   'Buffer: ',
-                  style: GoogleFonts.roboto(
-                    color: Colors.white38,
+                  style: TextStyle(
+                    color: AppColors.textTertiary,
                     fontSize: 12,
                   ),
                 ),
                 Text(
                   '${ctrl.abr.bufferHealthSeconds.value.toStringAsFixed(1)}s',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: ctrl.abr.bufferHealthSeconds.value < 3
                         ? PT.primary
-                        : Colors.greenAccent,
+                        : AppColors.success,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -2680,7 +2718,7 @@ class _QualityPanel extends StatelessWidget {
     switch (q) {
       case NetworkQuality.excellent:
       case NetworkQuality.good:
-        return Colors.greenAccent;
+        return AppColors.success;
       case NetworkQuality.fair:
         return Colors.yellowAccent;
       default:
@@ -2691,15 +2729,14 @@ class _QualityPanel extends StatelessWidget {
 
 // ── Subtitles Panel ───────────────────────────────────────────────────────────
 class _SubtitlesPanel extends StatelessWidget {
-  final TowerPlayerController ctrl;
   const _SubtitlesPanel({required this.ctrl});
+  final TowerPlayerController ctrl;
 
 
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      mainAxisSize: MainAxisSize.max,
       children: [
         _PanelHeader(
           title: 'Subtitles / CC',
@@ -2718,10 +2755,10 @@ class _SubtitlesPanel extends StatelessWidget {
                   size: 20,
                 ),
                 const SizedBox(width: 16),
-                Text(
+                const Text(
                   'Subtitles',
-                  style: GoogleFonts.roboto(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
                     fontSize: 15,
                     fontWeight: FontWeight.w500,
                   ),
@@ -2732,8 +2769,8 @@ class _SubtitlesPanel extends StatelessWidget {
                   onChanged: (v) => ctrl.setSubtitles(enabled: v),
                   activeThumbColor: PT.primary,
                   activeTrackColor: PT.primary.withValues(alpha: 0.4),
-                  inactiveThumbColor: Colors.white38,
-                  inactiveTrackColor: Colors.white12,
+                  inactiveThumbColor: AppColors.textTertiary,
+                  inactiveTrackColor: AppColors.bgDivider,
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
               ],
@@ -2747,12 +2784,12 @@ class _SubtitlesPanel extends StatelessWidget {
             child: Obx(
               () {
                 if (ctrl.subtitleTracks.isEmpty) {
-                  return Padding(
-                    padding: const EdgeInsets.all(24),
+                  return const Padding(
+                    padding: EdgeInsets.all(24),
                     child: Center(
                       child: Text(
                         'No subtitles available',
-                        style: GoogleFonts.roboto(color: Colors.white38, fontSize: 13),
+                        style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
                       ),
                     ),
                   );
@@ -2786,13 +2823,12 @@ class _SubtitlesPanel extends StatelessWidget {
 
 // ── Language Panel ────────────────────────────────────────────────────────────
 class _LanguagePanel extends StatelessWidget {
-  final TowerPlayerController ctrl;
   const _LanguagePanel({required this.ctrl});
+  final TowerPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      mainAxisSize: MainAxisSize.max,
       children: [
         _PanelHeader(
           title: 'Audio Language',
@@ -2804,12 +2840,12 @@ class _LanguagePanel extends StatelessWidget {
             child: Obx(
               () {
                 if (ctrl.audioTracks.isEmpty) {
-                  return Padding(
-                    padding: const EdgeInsets.all(24),
+                  return const Padding(
+                    padding: EdgeInsets.all(24),
                     child: Center(
                       child: Text(
                         'Original audio only',
-                        style: GoogleFonts.roboto(color: Colors.white38, fontSize: 13),
+                        style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
                       ),
                     ),
                   );
@@ -2839,8 +2875,8 @@ class _LanguagePanel extends StatelessWidget {
 
 // ── Rating / Content Details Panel ────────────────────────────────────────────
 class _RatingPanel extends StatelessWidget {
-  final TowerPlayerController ctrl;
   const _RatingPanel({required this.ctrl});
+  final TowerPlayerController ctrl;
 
   @override
   Widget build(BuildContext context) {
@@ -2879,7 +2915,7 @@ class _RatingPanel extends StatelessWidget {
                       ),
                       child: Text(
                         m.rating,
-                        style: GoogleFonts.roboto(
+                        style: const TextStyle(
                           color: PT.primary,
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -2900,16 +2936,16 @@ class _RatingPanel extends StatelessWidget {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.06),
+                                  color: AppColors.textPrimary.withValues(alpha: 0.06),
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.12),
+                                    color: AppColors.textPrimary.withValues(alpha: 0.12),
                                   ),
                                 ),
                                 child: Text(
                                   a,
-                                  style: GoogleFonts.roboto(
-                                    color: Colors.white60,
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -2929,7 +2965,7 @@ class _RatingPanel extends StatelessWidget {
                     if (vc.video.videoRating > 0) {
                       final rating = vc.video.videoRating;
                       final isHigh = rating > 75;
-                      final Color statusColor = isHigh ? Colors.greenAccent : Colors.orangeAccent;
+                      final statusColor = isHigh ? AppColors.success : AppColors.warning;
                       
                       return Padding(
                         padding: const EdgeInsets.only(top: 20),
@@ -2942,9 +2978,9 @@ class _RatingPanel extends StatelessWidget {
                           child: Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.05),
+                              color: AppColors.textPrimary.withValues(alpha: 0.05),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                              border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1)),
                             ),
                             child: Row(
                               children: [
@@ -2956,22 +2992,22 @@ class _RatingPanel extends StatelessWidget {
                                     children: [
                                       Text(
                                         'Video Rating: ${rating.toStringAsFixed(1)}%',
-                                        style: GoogleFonts.roboto(
-                                          color: Colors.white,
+                                        style: const TextStyle(
+                                          color: AppColors.textPrimary,
                                           fontWeight: FontWeight.bold,
                                           fontSize: 14,
                                         ),
                                       ),
-                                      Text(
+                                      const Text(
                                         'AI Verified Content',
-                                        style: GoogleFonts.roboto(color: Colors.white38, fontSize: 11),
+                                        style: TextStyle(color: AppColors.textTertiary, fontSize: 11),
                                       ),
                                     ],
                                   ),
                                 ),
-                                Text(
+                                const Text(
                                   'VIEW REPORT',
-                                  style: GoogleFonts.roboto(
+                                  style: TextStyle(
                                     color: PT.primary,
                                     fontSize: 11,
                                     fontWeight: FontWeight.bold,
@@ -3008,8 +3044,8 @@ class _RatingPanel extends StatelessWidget {
                     width: 100,
                     child: Text(
                       row.$1,
-                      style: GoogleFonts.roboto(
-                        color: Colors.white38,
+                      style: const TextStyle(
+                        color: AppColors.textTertiary,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
@@ -3018,8 +3054,8 @@ class _RatingPanel extends StatelessWidget {
                   Expanded(
                     child: Text(
                       row.$2,
-                      style: GoogleFonts.roboto(
-                        color: Colors.white,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
                         fontSize: 13,
                       ),
                     ),
@@ -3040,10 +3076,10 @@ class _RatingPanel extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _IconBtn extends StatelessWidget {
+  const _IconBtn({required this.icon, this.onTap, this.size = 26});
   final IconData icon;
   final VoidCallback? onTap;
   final double size;
-  const _IconBtn({required this.icon, this.onTap, this.size = 26});
 
   @override
   Widget build(BuildContext context) {
@@ -3056,7 +3092,7 @@ class _IconBtn extends StatelessWidget {
         highlightColor: PT.primary.withValues(alpha: 0.1),
         child: Padding(
           padding: const EdgeInsets.all(8),
-          child: Icon(icon, color: Colors.white, size: size),
+          child: Icon(icon, color: AppColors.textPrimary, size: size),
         ),
       ),
     );
@@ -3064,16 +3100,16 @@ class _IconBtn extends StatelessWidget {
 }
 
 class _CenterBtn extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback? onTap;
-  final double size;
-  final bool isPrimary;
   const _CenterBtn({
     required this.icon,
     this.onTap,
     this.size = 44,
     this.isPrimary = false,
   });
+  final IconData icon;
+  final VoidCallback? onTap;
+  final double size;
+  final bool isPrimary;
 
   @override
   Widget build(BuildContext context) {
@@ -3082,18 +3118,18 @@ class _CenterBtn extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         customBorder: const CircleBorder(),
-        splashColor: Colors.white.withValues(alpha: 0.2),
+        splashColor: AppColors.textPrimary.withValues(alpha: 0.2),
         child: Container(
           padding: EdgeInsets.all(isPrimary ? 14 : 10),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.35),
+            color: AppColors.bgPage.withValues(alpha: 0.35),
             shape: BoxShape.circle,
             border: Border.all(
-              color: Colors.white.withValues(alpha: 0.15),
+              color: AppColors.textPrimary.withValues(alpha: 0.15),
               width: 1.5,
             ),
           ),
-          child: Icon(icon, size: size, color: Colors.white),
+          child: Icon(icon, size: size, color: AppColors.textPrimary),
         ),
       ),
     );
@@ -3101,14 +3137,14 @@ class _CenterBtn extends StatelessWidget {
 }
 
 class _PremiumButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
   const _PremiumButton({
     required this.label,
     required this.icon,
     required this.onTap,
   });
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -3123,12 +3159,12 @@ class _PremiumButton extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, color: Colors.white, size: 18),
+              Icon(icon, color: AppColors.textPrimary, size: 18),
               const SizedBox(width: 8),
               Text(
                 label,
-                style: GoogleFonts.roboto(
-                  color: Colors.white,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
@@ -3142,14 +3178,14 @@ class _PremiumButton extends StatelessWidget {
 }
 
 class _PanelHeader extends StatelessWidget {
-  final String title;
-  final VoidCallback? onBack;
-  final VoidCallback? onClose;
   const _PanelHeader({
     required this.title,
     required this.onBack,
     required this.onClose,
   });
+  final String title;
+  final VoidCallback? onBack;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -3160,7 +3196,7 @@ class _PanelHeader extends StatelessWidget {
           if (onBack != null)
             _IconBtn(
               icon: Icons.arrow_back_ios_new_rounded,
-              onTap: onBack!,
+              onTap: onBack,
               size: 18,
             )
           else
@@ -3168,15 +3204,15 @@ class _PanelHeader extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: GoogleFonts.roboto(
-                color: Colors.white,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ),
           if (onClose != null)
-            _IconBtn(icon: Icons.close_rounded, onTap: onClose!, size: 20),
+            _IconBtn(icon: Icons.close_rounded, onTap: onClose, size: 20),
         ],
       ),
     );
@@ -3184,11 +3220,6 @@ class _PanelHeader extends StatelessWidget {
 }
 
 class _SettingsTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String value;
-  final String? badge;
-  final VoidCallback onTap;
   const _SettingsTile({
     required this.icon,
     required this.title,
@@ -3196,6 +3227,11 @@ class _SettingsTile extends StatelessWidget {
     required this.onTap,
     this.badge,
   });
+  final IconData icon;
+  final String title;
+  final String value;
+  final String? badge;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -3211,8 +3247,8 @@ class _SettingsTile extends StatelessWidget {
               const SizedBox(width: 16),
               Text(
                 title,
-                style: GoogleFonts.roboto(
-                  color: Colors.white,
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                 ),
@@ -3231,7 +3267,7 @@ class _SettingsTile extends StatelessWidget {
                   ),
                   child: Text(
                     badge!,
-                    style: GoogleFonts.roboto(
+                    style: const TextStyle(
                       color: PT.primary,
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
@@ -3242,10 +3278,10 @@ class _SettingsTile extends StatelessWidget {
               ],
               Text(
                 value,
-                style: GoogleFonts.roboto(color: Colors.white54, fontSize: 12),
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
               const SizedBox(width: 6),
-              const Icon(Icons.chevron_right, color: Colors.white24, size: 18),
+              const Icon(Icons.chevron_right, color: AppColors.textDisabled, size: 18),
             ],
           ),
         ),
@@ -3255,16 +3291,16 @@ class _SettingsTile extends StatelessWidget {
 }
 
 class _ToggleTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final bool value;
-  final ValueChanged<bool> onChanged;
   const _ToggleTile({
     required this.icon,
     required this.title,
     required this.value,
     required this.onChanged,
   });
+  final IconData icon;
+  final String title;
+  final bool value;
+  final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -3276,8 +3312,8 @@ class _ToggleTile extends StatelessWidget {
           const SizedBox(width: 16),
           Text(
             title,
-            style: GoogleFonts.roboto(
-              color: Colors.white,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
@@ -3288,8 +3324,8 @@ class _ToggleTile extends StatelessWidget {
             onChanged: onChanged,
             activeThumbColor: PT.primary,
             activeTrackColor: PT.primary.withValues(alpha: 0.4),
-            inactiveThumbColor: Colors.white38,
-            inactiveTrackColor: Colors.white12,
+            inactiveThumbColor: AppColors.textTertiary,
+            inactiveTrackColor: AppColors.bgDivider,
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ],
@@ -3299,12 +3335,6 @@ class _ToggleTile extends StatelessWidget {
 }
 
 class _SelectTile extends StatelessWidget {
-  final String label;
-  final String? sublabel;
-  final String? badge;
-  final bool selected;
-  final bool dimmed;
-  final VoidCallback? onTap;
   const _SelectTile({
     required this.label,
     required this.selected,
@@ -3313,6 +3343,12 @@ class _SelectTile extends StatelessWidget {
     this.dimmed = false,
     this.onTap,
   });
+  final String label;
+  final String? sublabel;
+  final String? badge;
+  final bool selected;
+  final bool dimmed;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -3331,19 +3367,19 @@ class _SelectTile extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: selected
                         ? PT.primary.withValues(alpha: 0.15)
-                        : Colors.white.withValues(alpha: 0.05),
+                        : AppColors.textPrimary.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(5),
                     border: Border.all(
                       color: selected
                           ? PT.primary.withValues(alpha: 0.5)
-                          : Colors.white.withValues(alpha: 0.1),
+                          : AppColors.textPrimary.withValues(alpha: 0.1),
                     ),
                   ),
                   child: Center(
                     child: Text(
                       badge!,
-                      style: GoogleFonts.roboto(
-                        color: selected ? PT.primary : Colors.white38,
+                      style: TextStyle(
+                        color: selected ? PT.primary : AppColors.textTertiary,
                         fontSize: 9,
                         fontWeight: FontWeight.bold,
                       ),
@@ -3358,12 +3394,12 @@ class _SelectTile extends StatelessWidget {
                   children: [
                     Text(
                       label,
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: dimmed
-                            ? Colors.white24
+                            ? AppColors.textDisabled
                             : selected
                             ? PT.primary
-                            : Colors.white,
+                            : AppColors.textPrimary,
                         fontSize: 14,
                         fontWeight: selected
                             ? FontWeight.w500
@@ -3373,8 +3409,8 @@ class _SelectTile extends StatelessWidget {
                     if (sublabel != null)
                       Text(
                         sublabel!,
-                        style: GoogleFonts.roboto(
-                          color: dimmed ? Colors.white12 : Colors.white38,
+                        style: TextStyle(
+                          color: dimmed ? AppColors.bgDivider : AppColors.textTertiary,
                           fontSize: 11,
                         ),
                       ),
@@ -3397,7 +3433,7 @@ class _Divider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Divider(
-      color: Colors.white.withValues(alpha: 0.08),
+      color: AppColors.textPrimary.withValues(alpha: 0.08),
       height: 12,
       indent: 20,
       endIndent: 20,

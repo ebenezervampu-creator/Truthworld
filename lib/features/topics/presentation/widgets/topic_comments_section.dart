@@ -3,21 +3,20 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_interaction_controller.dart';
-import 'package:truthworld/features/video/presentation/views/comments/premium_comment_input.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
-import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/video/presentation/views/comments/premium_comment_input.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class TopicCommentsSection extends StatefulWidget {
-  final Topic topic;
 
-  const TopicCommentsSection({super.key, required this.topic});
+  const TopicCommentsSection({required this.topic, super.key});
+  final Topic topic;
 
   @override
   State<TopicCommentsSection> createState() => _TopicCommentsSectionState();
@@ -62,7 +61,7 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
     return list;
   }
 
-  void _navigateToChannel(String? channelId) async {
+  Future<void> _navigateToChannel(String? channelId) async {
     if (channelId == null || channelId.isEmpty) return;
     try {
       Get.dialog(
@@ -125,10 +124,10 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
               children: [
                 Text(
                   '$commentCount ${commentCount == 1 ? 'Comment' : 'Comments'}',
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 const SizedBox(width: 24),
@@ -147,7 +146,7 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
                             Icon(
                               Icons.check, 
                               size: 18, 
-                              color: isSelected ? Colors.white : Colors.transparent,
+                              color: isSelected ? AppColors.textPrimary : Colors.transparent,
                             ),
                             const SizedBox(width: 8),
                             const Text('Top comments'),
@@ -164,7 +163,7 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
                             Icon(
                               Icons.check, 
                               size: 18, 
-                              color: isSelected ? Colors.white : Colors.transparent,
+                              color: isSelected ? AppColors.textPrimary : Colors.transparent,
                             ),
                             const SizedBox(width: 8),
                             const Text('Newest first'),
@@ -173,23 +172,23 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
                       }),
                     ),
                   ],
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.sort_rounded,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           size: 20,
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         Text(
                           'Sort by',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                       ],
@@ -254,6 +253,10 @@ class _TopicCommentsSectionState extends State<TopicCommentsSection> {
 }
 
 class TopicCommentItemWidget extends StatefulWidget {
+
+  const TopicCommentItemWidget({
+    required this.comment, required this.topicId, required this.controller, required this.theme, required this.isMobile, required this.isTablet, required this.isDesktop, required this.onNavigateToChannel, super.key,
+  });
   final Comment comment;
   final String topicId;
   final TopicInteractionController controller;
@@ -262,18 +265,6 @@ class TopicCommentItemWidget extends StatefulWidget {
   final bool isTablet;
   final bool isDesktop;
   final Function(String?) onNavigateToChannel;
-
-  const TopicCommentItemWidget({
-    super.key,
-    required this.comment,
-    required this.topicId,
-    required this.controller,
-    required this.theme,
-    required this.isMobile,
-    required this.isTablet,
-    required this.isDesktop,
-    required this.onNavigateToChannel,
-  });
 
   @override
   State<TopicCommentItemWidget> createState() => _TopicCommentItemWidgetState();
@@ -300,7 +291,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
     super.dispose();
   }
 
-  void _submitReply() async {
+  Future<void> _submitReply() async {
     final text = replyController.text.trim();
     if (text.isEmpty) return;
 
@@ -329,7 +320,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.grey.shade900,
+      backgroundColor: AppColors.textSecondary,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -340,8 +331,8 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
             children: [
               if (isOwner)
                 ListTile(
-                  leading: const Icon(Icons.delete, color: Colors.red),
-                  title: const Text('Delete', style: TextStyle(color: Colors.red)),
+                  leading: const Icon(Icons.delete, color: AppColors.error),
+                  title: const Text('Delete', style: TextStyle(color: AppColors.error)),
                   onTap: () {
                     Navigator.pop(context);
                     controller.deleteComment(widget.topicId, comment.id);
@@ -349,8 +340,8 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                 )
               else
                 ListTile(
-                  leading: const Icon(Icons.flag_outlined, color: Colors.white),
-                  title: const Text('Report', style: TextStyle(color: Colors.white)),
+                  leading: const Icon(Icons.flag_outlined, color: AppColors.textPrimary),
+                  title: const Text('Report', style: TextStyle(color: AppColors.textPrimary)),
                   onTap: () {
                     Navigator.pop(context);
                     Get.snackbar('Reported', 'Thank you for your report.');
@@ -366,13 +357,13 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
   @override
   Widget build(BuildContext context) {
     final comment = widget.comment;
-    final String userName = comment.displayName;
-    final String formattedUserName = userName.startsWith('@') ? userName : '@$userName';
-    final String text = comment.text;
-    final Timestamp createdAt = comment.createdAt;
-    final String userProfilePicUrl = comment.avatarUrl;
-    final int likeCount = comment.likeCount;
-    final String commentId = comment.id;
+    final userName = comment.displayName;
+    final formattedUserName = userName.startsWith('@') ? userName : '@$userName';
+    final text = comment.text;
+    final createdAt = comment.createdAt;
+    final userProfilePicUrl = comment.avatarUrl;
+    final likeCount = comment.likeCount;
+    final commentId = comment.id;
 
     return Obx(() {
       final isLiked = comment.isLikedByCurrentUser;
@@ -391,11 +382,10 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: UserAvatar(
-                      radius: 20,
                       photoUrl: userProfilePicUrl,
                       displayName: userName,
-                      backgroundColor: Colors.blue,
-                      textColor: Colors.white,
+                      backgroundColor: AppColors.info,
+                      textColor: AppColors.textPrimary,
                     ),
                   ),
                 ),
@@ -415,7 +405,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,
-                                  color: Colors.white,
+                                  color: AppColors.textPrimary,
                                 ),
                               ),
                             ),
@@ -423,8 +413,8 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                           const SizedBox(width: 8),
                           Text(
                             timeago.format(createdAt.toDate()),
-                            style: TextStyle(
-                              color: Colors.grey.shade500,
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
                               fontSize: 12,
                             ),
                           ),
@@ -436,7 +426,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                         style: const TextStyle(
                           fontSize: 14,
                           height: 1.3,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -452,7 +442,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                                 Icon(
                                   isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
                                   size: 16,
-                                  color: isLiked ? Colors.white : Colors.grey.shade400,
+                                  color: isLiked ? AppColors.textPrimary : AppColors.textSecondary,
                                 ),
                                 const SizedBox(width: 6),
                                 if (likeCount > 0)
@@ -460,7 +450,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                                     '$likeCount',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: isLiked ? Colors.white : Colors.grey.shade400,
+                                      color: isLiked ? AppColors.textPrimary : AppColors.textSecondary,
                                     ),
                                   ),
                               ],
@@ -475,7 +465,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                             child: Icon(
                               isDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
                               size: 16,
-                              color: isDisliked ? Colors.white : Colors.grey.shade400,
+                              color: isDisliked ? AppColors.textPrimary : AppColors.textSecondary,
                             ),
                           ),
                           if (comment.isHeartedByCreator) ...[
@@ -499,7 +489,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                                         right: -3,
                                         child: Icon(
                                           Icons.favorite,
-                                          color: Colors.red,
+                                          color: AppColors.error,
                                           size: 10,
                                         ),
                                       ),
@@ -522,11 +512,11 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                                 });
                               }
                             },
-                            child: Text(
+                            child: const Text(
                               'Reply',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.grey.shade400,
+                                color: AppColors.textSecondary,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -537,7 +527,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.more_vert, color: Colors.grey.shade400, size: 18),
+                  icon: const Icon(Icons.more_vert, color: AppColors.textSecondary, size: 18),
                   onPressed: () => _showCommentOptions(context, comment, widget.controller),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
@@ -554,33 +544,31 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                       child: TextField(
                         controller: replyController,
                         focusNode: replyFocusNode,
-                        decoration: InputDecoration(
+                        decoration: const InputDecoration(
                           hintText: 'Add a reply...',
                           hintStyle: TextStyle(
-                            color: Colors.grey.shade500,
+                            color: AppColors.textSecondary,
                             fontSize: 14,
                           ),
                           enabledBorder: UnderlineInputBorder(
                             borderSide: BorderSide(
-                              color: Colors.grey.shade800,
-                              width: 1.0,
+                              color: AppColors.textSecondary,
                             ),
                           ),
-                          focusedBorder: const UnderlineInputBorder(
+                          focusedBorder: UnderlineInputBorder(
                             borderSide: BorderSide(
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                               width: 1.5,
                             ),
                           ),
                           border: UnderlineInputBorder(
                             borderSide: BorderSide(
-                              color: Colors.grey.shade800,
-                              width: 1.0,
+                              color: AppColors.textSecondary,
                             ),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                          contentPadding: EdgeInsets.symmetric(vertical: 8),
                         ),
-                        style: const TextStyle(fontSize: 14, color: Colors.white),
+                        style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
                         textInputAction: TextInputAction.send,
                         onSubmitted: (_) => _submitReply(),
                       ),
@@ -594,7 +582,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                       icon: const Icon(
                         Icons.close,
                         size: 20,
-                        color: Colors.white70,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                     IconButton(
@@ -602,7 +590,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                       icon: Obx(() => Icon(
                             Icons.send,
                             size: 20,
-                            color: replyText.value.isNotEmpty ? Colors.blue : Colors.grey,
+                            color: replyText.value.isNotEmpty ? AppColors.info : AppColors.textSecondary,
                           )),
                     ),
                   ],
@@ -627,6 +615,10 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
 }
 
 class TopicRepliesSection extends StatefulWidget {
+
+  const TopicRepliesSection({
+    required this.commentId, required this.topicId, required this.controller, required this.theme, required this.isMobile, required this.isTablet, required this.isDesktop, required this.onNavigateToChannel, super.key,
+  });
   final String commentId;
   final String topicId;
   final TopicInteractionController controller;
@@ -635,18 +627,6 @@ class TopicRepliesSection extends StatefulWidget {
   final bool isTablet;
   final bool isDesktop;
   final Function(String?) onNavigateToChannel;
-
-  const TopicRepliesSection({
-    super.key,
-    required this.commentId,
-    required this.topicId,
-    required this.controller,
-    required this.theme,
-    required this.isMobile,
-    required this.isTablet,
-    required this.isDesktop,
-    required this.onNavigateToChannel,
-  });
 
   @override
   State<TopicRepliesSection> createState() => _TopicRepliesSectionState();
@@ -673,7 +653,7 @@ class _TopicRepliesSectionState extends State<TopicRepliesSection> {
         }
 
         final replies = snapshot.data!.docs
-            .map((doc) => Reply.fromDocumentSnapshot(doc))
+            .map(Reply.fromDocumentSnapshot)
             .toList();
 
         return Obx(() {
@@ -688,9 +668,9 @@ class _TopicRepliesSectionState extends State<TopicRepliesSection> {
                   CustomPaint(
                     size: const Size(40, 36),
                     painter: ReplyThreadLinePainter(
-                      color: Colors.white24,
+                      color: AppColors.textDisabled,
                       isLast: true,
-                      branchY: 18.0,
+                      branchY: 18,
                     ),
                   ),
                   UserAvatar(
@@ -703,14 +683,14 @@ class _TopicRepliesSectionState extends State<TopicRepliesSection> {
                     replies.length == 1 ? '• 1 reply' : '• ${replies.length} replies',
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: Colors.blue,
+                      color: AppColors.info,
                       fontSize: 13,
                     ),
                   ),
                   const SizedBox(width: 4),
                   const Icon(
                     Icons.expand_more,
-                    color: Colors.blue,
+                    color: AppColors.info,
                     size: 16,
                   ),
                 ],
@@ -732,9 +712,9 @@ class _TopicRepliesSectionState extends State<TopicRepliesSection> {
                       CustomPaint(
                         size: const Size(40, double.infinity),
                         painter: ReplyThreadLinePainter(
-                          color: Colors.white24,
+                          color: AppColors.textDisabled,
                           isLast: isLastReply,
-                          branchY: 20.0,
+                          branchY: 20,
                         ),
                       ),
                       Expanded(
@@ -761,23 +741,23 @@ class _TopicRepliesSectionState extends State<TopicRepliesSection> {
                     CustomPaint(
                       size: const Size(40, 36),
                       painter: ReplyThreadLinePainter(
-                        color: Colors.white24,
+                        color: AppColors.textDisabled,
                         isLast: true,
-                        branchY: 18.0,
+                        branchY: 18,
                       ),
                     ),
                     const Text(
                       '• Hide replies',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: Colors.blue,
+                        color: AppColors.info,
                         fontSize: 13,
                       ),
                     ),
                     const SizedBox(width: 4),
                     const Icon(
                       Icons.expand_less,
-                      color: Colors.blue,
+                      color: AppColors.info,
                       size: 16,
                     ),
                   ],
@@ -792,6 +772,10 @@ class _TopicRepliesSectionState extends State<TopicRepliesSection> {
 }
 
 class TopicReplyItemWidget extends StatelessWidget {
+
+  const TopicReplyItemWidget({
+    required this.reply, required this.commentId, required this.topicId, required this.controller, required this.theme, required this.isMobile, required this.isTablet, required this.isDesktop, required this.onNavigateToChannel, super.key,
+  });
   final Reply reply;
   final String commentId;
   final String topicId;
@@ -802,26 +786,13 @@ class TopicReplyItemWidget extends StatelessWidget {
   final bool isDesktop;
   final Function(String?) onNavigateToChannel;
 
-  const TopicReplyItemWidget({
-    super.key,
-    required this.reply,
-    required this.commentId,
-    required this.topicId,
-    required this.controller,
-    required this.theme,
-    required this.isMobile,
-    required this.isTablet,
-    required this.isDesktop,
-    required this.onNavigateToChannel,
-  });
-
   void _showReplyOptions(BuildContext context, Reply reply, TopicInteractionController controller) {
     final user = FirebaseAuth.instance.currentUser;
     final isOwner = user != null && user.uid == reply.userId;
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.grey.shade900,
+      backgroundColor: AppColors.textSecondary,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -832,8 +803,8 @@ class TopicReplyItemWidget extends StatelessWidget {
             children: [
               if (isOwner)
                 ListTile(
-                  leading: const Icon(Icons.delete, color: Colors.red),
-                  title: const Text('Delete', style: TextStyle(color: Colors.red)),
+                  leading: const Icon(Icons.delete, color: AppColors.error),
+                  title: const Text('Delete', style: TextStyle(color: AppColors.error)),
                   onTap: () {
                     Navigator.pop(context);
                     controller.deleteReply(topicId, commentId, reply.id);
@@ -841,8 +812,8 @@ class TopicReplyItemWidget extends StatelessWidget {
                 )
               else
                 ListTile(
-                  leading: const Icon(Icons.flag_outlined, color: Colors.white),
-                  title: const Text('Report', style: TextStyle(color: Colors.white)),
+                  leading: const Icon(Icons.flag_outlined, color: AppColors.textPrimary),
+                  title: const Text('Report', style: TextStyle(color: AppColors.textPrimary)),
                   onTap: () {
                     Navigator.pop(context);
                     Get.snackbar('Reported', 'Thank you for your report.');
@@ -857,7 +828,7 @@ class TopicReplyItemWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final avatarRadius = 12.0;
+    const avatarRadius = 12.0;
 
     final formattedUserName = reply.displayName.startsWith('@') ? reply.displayName : '@${reply.displayName}';
 
@@ -901,7 +872,7 @@ class TopicReplyItemWidget extends StatelessWidget {
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 12,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                             ),
                           ),
                         ),
@@ -909,8 +880,8 @@ class TopicReplyItemWidget extends StatelessWidget {
                       const SizedBox(width: 6),
                       Text(
                         timeago.format(reply.createdAt.toDate()),
-                        style: TextStyle(
-                          color: Colors.grey.shade500,
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
                           fontSize: 11,
                         ),
                       ),
@@ -922,7 +893,7 @@ class TopicReplyItemWidget extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 13,
                       height: 1.3,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -935,7 +906,7 @@ class TopicReplyItemWidget extends StatelessWidget {
                         icon: Icon(
                           isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
                           size: 14,
-                          color: isLiked ? Colors.white : Colors.grey.shade400,
+                          color: isLiked ? AppColors.textPrimary : AppColors.textSecondary,
                         ),
                         onPressed: () {
                           if (FirebaseAuth.instance.currentUser == null) {
@@ -952,9 +923,9 @@ class TopicReplyItemWidget extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(
                           '${reply.likeCount}',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 11,
-                            color: Colors.grey.shade400,
+                            color: AppColors.textSecondary,
                           ),
                         ),
                       ],
@@ -965,7 +936,7 @@ class TopicReplyItemWidget extends StatelessWidget {
                         icon: Icon(
                           isDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
                           size: 14,
-                          color: isDisliked ? Colors.white : Colors.grey.shade400,
+                          color: isDisliked ? AppColors.textPrimary : AppColors.textSecondary,
                         ),
                         onPressed: () {
                           if (FirebaseAuth.instance.currentUser == null) {
@@ -982,9 +953,9 @@ class TopicReplyItemWidget extends StatelessWidget {
                         const SizedBox(width: 4),
                         Text(
                           '${reply.dislikeCount}',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 11,
-                            color: Colors.grey.shade400,
+                            color: AppColors.textSecondary,
                           ),
                         ),
                       ],
@@ -994,7 +965,7 @@ class TopicReplyItemWidget extends StatelessWidget {
               ),
             ),
             IconButton(
-              icon: Icon(Icons.more_vert, color: Colors.grey.shade400, size: 16),
+              icon: const Icon(Icons.more_vert, color: AppColors.textSecondary, size: 16),
               onPressed: () => _showReplyOptions(context, reply, controller),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
@@ -1007,15 +978,15 @@ class TopicReplyItemWidget extends StatelessWidget {
 }
 
 class ReplyThreadLinePainter extends CustomPainter {
-  final Color color;
-  final bool isLast;
-  final double branchY;
 
   ReplyThreadLinePainter({
     required this.color,
     required this.isLast,
     required this.branchY,
   });
+  final Color color;
+  final bool isLast;
+  final double branchY;
 
   @override
   void paint(Canvas canvas, Size size) {

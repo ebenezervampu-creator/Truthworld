@@ -1,22 +1,22 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-
+import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
+import 'package:truthworld/features/video/data/models/comment.dart';
+import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
-import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
-import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/player_settings_panels.dart';
-import 'package:shimmer/shimmer.dart';
-import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
-import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class CommentsOverlay extends StatelessWidget {
+  const CommentsOverlay({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const CommentsOverlay({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +48,7 @@ class CommentsOverlay extends StatelessWidget {
                   return const Center(
                     child: Text(
                       'Comments not initialized',
-                      style: TextStyle(color: Colors.white54),
+                      style: TextStyle(color: AppColors.textSecondary),
                     ),
                   );
                 }
@@ -69,11 +69,11 @@ class CommentsOverlay extends StatelessWidget {
                 if (commentsController.commentsError.value != null) {
                   return Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(16.0),
+                      padding: const EdgeInsets.all(16),
                       child: Text(
                         'Error: ${commentsController.commentsError.value}',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.redAccent),
+                        style: const TextStyle(color: AppColors.error),
                       ),
                     ),
                   );
@@ -83,7 +83,7 @@ class CommentsOverlay extends StatelessWidget {
                   return const Center(
                     child: Text(
                       'No comments yet. Be the first to comment!',
-                      style: TextStyle(color: Colors.white38, fontSize: 13),
+                      style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
                     ),
                   );
                 }
@@ -113,13 +113,11 @@ class CommentsOverlay extends StatelessWidget {
 }
 
 class FullscreenCommentItem extends StatelessWidget {
+  const FullscreenCommentItem({
+    required this.comment, required this.controller, super.key,
+  });
   final Comment comment;
   final CommentsController controller;
-  const FullscreenCommentItem({
-    super.key,
-    required this.comment,
-    required this.controller,
-  });
 
   String _timeAgo(Timestamp ts) {
     final diff = DateTime.now().difference(ts.toDate());
@@ -153,11 +151,11 @@ class FullscreenCommentItem extends StatelessWidget {
                 : Container(
                     width: 32,
                     height: 32,
-                    color: Colors.grey[800],
+                    color: AppColors.textSecondary,
                     child: const Icon(
                       Icons.person,
                       size: 18,
-                      color: Colors.white38,
+                      color: AppColors.textTertiary,
                     ),
                   ),
           ),
@@ -181,13 +179,13 @@ class FullscreenCommentItem extends StatelessWidget {
                                     vertical: 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.amber,
+                                    color: AppColors.warning,
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
                                     comment.displayName,
                                     style: const TextStyle(
-                                      color: Colors.black,
+                                      color: AppColors.bgPage,
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -197,7 +195,7 @@ class FullscreenCommentItem extends StatelessWidget {
                                 const Icon(
                                   Icons.stars_rounded,
                                   size: 11,
-                                  color: Colors.amber,
+                                  color: AppColors.warning,
                                 ),
                               ],
                             )
@@ -206,7 +204,7 @@ class FullscreenCommentItem extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                color: Colors.white70,
+                                color: AppColors.textSecondary,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -216,7 +214,7 @@ class FullscreenCommentItem extends StatelessWidget {
                     Text(
                       _timeAgo(comment.createdAt),
                       style: const TextStyle(
-                        color: Colors.white38,
+                        color: AppColors.textTertiary,
                         fontSize: 11,
                       ),
                     ),
@@ -227,7 +225,7 @@ class FullscreenCommentItem extends StatelessWidget {
                 Text(
                   comment.text,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontSize: 13,
                     height: 1.3,
                   ),
@@ -244,7 +242,7 @@ class FullscreenCommentItem extends StatelessWidget {
                       ),
                       borderRadius: BorderRadius.circular(12),
                       child: Padding(
-                        padding: const EdgeInsets.all(4.0),
+                        padding: const EdgeInsets.all(4),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -253,14 +251,14 @@ class FullscreenCommentItem extends StatelessWidget {
                                   ? Icons.thumb_up_rounded
                                   : Icons.thumb_up_outlined,
                               size: 14,
-                              color: isLiked ? PT.primary : Colors.white54,
+                              color: isLiked ? PT.primary : AppColors.textSecondary,
                             ),
                             if (comment.likeCount > 0) ...[
                               const SizedBox(width: 4),
                               Text(
                                 '${comment.likeCount}',
                                 style: const TextStyle(
-                                  color: Colors.white54,
+                                  color: AppColors.textSecondary,
                                   fontSize: 11,
                                 ),
                               ),
@@ -278,13 +276,13 @@ class FullscreenCommentItem extends StatelessWidget {
                       ),
                       borderRadius: BorderRadius.circular(12),
                       child: Padding(
-                        padding: const EdgeInsets.all(4.0),
+                        padding: const EdgeInsets.all(4),
                         child: Icon(
                           isDisliked
                               ? Icons.thumb_down_rounded
                               : Icons.thumb_down_outlined,
                           size: 14,
-                          color: isDisliked ? PT.primary : Colors.white54,
+                          color: isDisliked ? PT.primary : AppColors.textSecondary,
                         ),
                       ),
                     ),
@@ -300,8 +298,8 @@ class FullscreenCommentItem extends StatelessWidget {
 }
 
 class FullscreenCommentInput extends StatefulWidget {
+  const FullscreenCommentInput({required this.commentsController, super.key});
   final CommentsController commentsController;
-  const FullscreenCommentInput({super.key, required this.commentsController});
 
   @override
   State<FullscreenCommentInput> createState() => _FullscreenCommentInputState();
@@ -332,11 +330,11 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
       final hasChannel = authService.hasChannel.value;
       final channel = authService.userChannel;
 
-      final bool shouldPostAsChannel = hasChannel;
-      final String? targetChannelId = shouldPostAsChannel ? channel?.id : null;
-      final String? targetChannelName = shouldPostAsChannel ? (channel?.handle.isNotEmpty == true ? channel?.handle : channel?.name) : null;
-      final String? targetChannelAvatar = shouldPostAsChannel ? channel?.avatarUrl : null;
-      final String targetUserAvatar = AuthService.to.activePhotoUrl;
+      final shouldPostAsChannel = hasChannel;
+      final targetChannelId = shouldPostAsChannel ? channel?.id : null;
+      final targetChannelName = shouldPostAsChannel ? (channel?.handle.isNotEmpty ?? false ? channel?.handle : channel?.name) : null;
+      final targetChannelAvatar = shouldPostAsChannel ? channel?.avatarUrl : null;
+      final targetUserAvatar = AuthService.to.activePhotoUrl;
 
       await widget.commentsController.submitComment(
         text: text,
@@ -368,7 +366,7 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
         child: const Center(
           child: Text(
             'Sign in to comment',
-            style: TextStyle(color: Colors.white38, fontSize: 13),
+            style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
           ),
         ),
       );
@@ -377,14 +375,14 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
     return Obx(() {
       final authService = AuthService.to;
 
-      final String photoUrl = authService.activePhotoUrl;
+      final photoUrl = authService.activePhotoUrl;
 
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.3),
+          color: AppColors.bgPage.withValues(alpha: 0.3),
           border: Border(
-            top: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+            top: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.08)),
           ),
         ),
         child: Row(
@@ -401,11 +399,11 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
                   : Container(
                       width: 28,
                       height: 28,
-                      color: Colors.grey[800],
+                      color: AppColors.textSecondary,
                       child: const Icon(
                         Icons.person,
                         size: 16,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
             ),
@@ -414,14 +412,14 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
               child: TextField(
                 controller: _textCtrl,
                 focusNode: _focusNode,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
                 maxLines: null,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   hintText: 'Add a comment...',
-                  hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                  hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 13),
                   border: InputBorder.none,
                   isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                  contentPadding: EdgeInsets.symmetric(vertical: 6),
                 ),
               ),
             ),
@@ -436,7 +434,7 @@ class _FullscreenCommentInputState extends State<FullscreenCommentInput> {
                     highlightColor: PT.primary,
                     child: const Icon(
                       Icons.send_rounded,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       size: 20,
                     ),
                   ),

@@ -1,42 +1,17 @@
 import 'dart:async';
-import 'package:truthworld/core/ux/app_snackbar.dart';
-import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:shimmer/shimmer.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class AdItem {
-  final String id;
-  final String userId;
-  final String title;
-  final String description;
-  final String advertiser;
-  final String imageUrl;
-  final String ctaText;
-  final String ctaTarget;
-  final List<Color> gradientColors;
-  final IconData? fallbackIcon;
-  final String? videoUrl;
-  final bool isSkippableAd;
-  final String? budgetTier;
-  final double? budgetAmount;
-  final String
-  adType; // 'skippable', 'homepage', 'scroll', 'search', 'comment', 'video_sponsor'
-  final String status; // 'active', 'paused'
-  final int impressions;
-  final int clicks;
-  final String? videoId;
-  final List<Map<String, dynamic>>? resolutions;
-  final Map<String, String>? subtitles;
-  final Map<String, String>? audioTracks;
-  final bool? geminiApproved;
-  final String? moderationReason;
-  final String? midrollVideoUrl;
-  final String? pinnedCommentText;
 
   const AdItem({
     required this.id,
@@ -66,6 +41,77 @@ class AdItem {
     this.midrollVideoUrl,
     this.pinnedCommentText,
   });
+
+  factory AdItem.fromMap(Map<String, dynamic> map) {
+    final colors = map['gradientColors'] as List<dynamic>?;
+    final parsedColors = colors != null
+        ? colors.map((val) => Color(val as int)).toList()
+        : [const Color(0xFFFEF08A), const Color(0xFFFDE047)];
+
+    final isSkippable = map['isSkippableAd'] ?? false;
+    final fallbackType = isSkippable ? 'skippable' : 'homepage';
+
+    return AdItem(
+      id: map['id'] ?? '',
+      userId: map['userId'] ?? '',
+      title: map['title'] ?? '',
+      description: map['description'] ?? '',
+      advertiser: map['advertiser'] ?? '',
+      imageUrl: map['imageUrl'] ?? '',
+      ctaText: map['ctaText'] ?? 'Learn More',
+      ctaTarget: map['ctaTarget'] ?? '',
+      gradientColors: parsedColors,
+      videoUrl: map['videoUrl'] as String?,
+      isSkippableAd: isSkippable,
+      budgetTier: map['budgetTier'] as String?,
+      budgetAmount: (map['budgetAmount'] as num?)?.toDouble(),
+      adType: map['adType'] ?? fallbackType,
+      status: map['status'] ?? 'active',
+      impressions: (map['impressions'] as num?)?.toInt() ?? 0,
+      clicks: (map['clicks'] as num?)?.toInt() ?? 0,
+      videoId: map['videoId'] as String?,
+      resolutions: (map['resolutions'] as List?)
+          ?.map((e) => Map<String, dynamic>.from(e))
+          .toList(),
+      subtitles: map['subtitles'] != null
+          ? Map<String, String>.from(map['subtitles'] as Map)
+          : null,
+      audioTracks: map['audioTracks'] != null
+          ? Map<String, String>.from(map['audioTracks'] as Map)
+          : null,
+      geminiApproved: map['geminiApproved'] as bool?,
+      moderationReason: map['moderationReason'] as String?,
+      midrollVideoUrl: map['midrollVideoUrl'] as String?,
+      pinnedCommentText: map['pinnedCommentText'] as String?,
+    );
+  }
+  final String id;
+  final String userId;
+  final String title;
+  final String description;
+  final String advertiser;
+  final String imageUrl;
+  final String ctaText;
+  final String ctaTarget;
+  final List<Color> gradientColors;
+  final IconData? fallbackIcon;
+  final String? videoUrl;
+  final bool isSkippableAd;
+  final String? budgetTier;
+  final double? budgetAmount;
+  final String
+  adType; // 'skippable', 'homepage', 'scroll', 'search', 'comment', 'video_sponsor'
+  final String status; // 'active', 'paused'
+  final int impressions;
+  final int clicks;
+  final String? videoId;
+  final List<Map<String, dynamic>>? resolutions;
+  final Map<String, String>? subtitles;
+  final Map<String, String>? audioTracks;
+  final bool? geminiApproved;
+  final String? moderationReason;
+  final String? midrollVideoUrl;
+  final String? pinnedCommentText;
 
   AdItem copyWith({
     String? id,
@@ -154,50 +200,6 @@ class AdItem {
       'pinnedCommentText': pinnedCommentText,
     };
   }
-
-  factory AdItem.fromMap(Map<String, dynamic> map) {
-    final List<dynamic>? colors = map['gradientColors'] as List<dynamic>?;
-    final parsedColors = colors != null
-        ? colors.map((val) => Color(val as int)).toList()
-        : [const Color(0xFFFEF08A), const Color(0xFFFDE047)];
-
-    final isSkippable = map['isSkippableAd'] ?? false;
-    final fallbackType = isSkippable ? 'skippable' : 'homepage';
-
-    return AdItem(
-      id: map['id'] ?? '',
-      userId: map['userId'] ?? '',
-      title: map['title'] ?? '',
-      description: map['description'] ?? '',
-      advertiser: map['advertiser'] ?? '',
-      imageUrl: map['imageUrl'] ?? '',
-      ctaText: map['ctaText'] ?? 'Learn More',
-      ctaTarget: map['ctaTarget'] ?? '',
-      gradientColors: parsedColors,
-      videoUrl: map['videoUrl'] as String?,
-      isSkippableAd: isSkippable,
-      budgetTier: map['budgetTier'] as String?,
-      budgetAmount: (map['budgetAmount'] as num?)?.toDouble(),
-      adType: map['adType'] ?? fallbackType,
-      status: map['status'] ?? 'active',
-      impressions: (map['impressions'] as num?)?.toInt() ?? 0,
-      clicks: (map['clicks'] as num?)?.toInt() ?? 0,
-      videoId: map['videoId'] as String?,
-      resolutions: (map['resolutions'] as List?)
-          ?.map((e) => Map<String, dynamic>.from(e))
-          .toList(),
-      subtitles: map['subtitles'] != null
-          ? Map<String, String>.from(map['subtitles'] as Map)
-          : null,
-      audioTracks: map['audioTracks'] != null
-          ? Map<String, String>.from(map['audioTracks'] as Map)
-          : null,
-      geminiApproved: map['geminiApproved'] as bool?,
-      moderationReason: map['moderationReason'] as String?,
-      midrollVideoUrl: map['midrollVideoUrl'] as String?,
-      pinnedCommentText: map['pinnedCommentText'] as String?,
-    );
-  }
 }
 
 class AdService extends GetxService {
@@ -227,7 +229,7 @@ class AdService extends GetxService {
           .snapshots()
           .listen(
             (snapshot) {
-              final List<AdItem> campaigns = [];
+              final campaigns = <AdItem>[];
               for (final doc in snapshot.docs) {
                 try {
                   campaigns.add(
@@ -257,7 +259,7 @@ class AdService extends GetxService {
 
   void _syncToLocalCache() {
     try {
-      final List<Map<String, dynamic>> rawList = customCampaigns
+      final rawList = customCampaigns
           .map((ad) => ad.toMap())
           .toList();
       _storage.write('local_ad_campaigns', rawList);
@@ -325,10 +327,10 @@ class AdService extends GetxService {
       if (data == null || data['variants'] == null) return;
 
       final variants = data['variants'] as Map<String, dynamic>;
-      final Map<String, dynamic> newVariants = {};
-      final List<Map<String, dynamic>> campaignResolutions = [];
+      final newVariants = <String, dynamic>{};
+      final campaignResolutions = <Map<String, dynamic>>[];
 
-      for (var entry in variants.entries) {
+      for (final entry in variants.entries) {
         final variantLabel = entry.key;
         final variantData = entry.value as Map<String, dynamic>;
 
@@ -431,8 +433,8 @@ class AdService extends GetxService {
         AppSnackbar.show(
           'Moderation Gated',
           'Cannot activate campaign. The campaign is currently ${currentAd.status == 'underReview' ? 'under review' : 'rejected'}.',
-          backgroundColor: Colors.red.shade900,
-          colorText: Colors.white,
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
           snackPosition: SnackPosition.BOTTOM,
         );
         return false;
@@ -544,7 +546,7 @@ class AdService extends GetxService {
         imageUrl: '',
         ctaText: 'Learn More',
         ctaTarget: 'fallback',
-        gradientColors: [Colors.black, Colors.black87],
+        gradientColors: [AppColors.bgPage, AppColors.bgPage],
       );
     }
     return activeCampaigns[index % activeCampaigns.length];
@@ -612,10 +614,10 @@ class AdService extends GetxService {
             decoration: BoxDecoration(
               color: const Color(0xFF161616).withValues(alpha: 0.95),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+              border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1)),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.5),
+                  color: AppColors.bgPage.withValues(alpha: 0.5),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
@@ -633,29 +635,29 @@ class AdService extends GetxService {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.amber.withValues(alpha: 0.15),
+                        color: AppColors.warning.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(
-                          color: Colors.amber.withValues(alpha: 0.3),
+                          color: AppColors.warning.withValues(alpha: 0.3),
                         ),
                       ),
-                      child: Text(
+                      child: const Text(
                         'SPONSORED',
                         style: TextStyle(
-                          fontFamily: 'Roboto',
-                          color: Colors.amber,
+                          
+                          color: AppColors.warning,
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
-                          letterSpacing: 1.0,
+                          letterSpacing: 1,
                         ),
                       ),
                     ),
                     const Spacer(),
                     IconButton(
-                      onPressed: () => Get.back(),
+                      onPressed: Get.back,
                       icon: const Icon(
                         Icons.close,
-                        color: Colors.white60,
+                        color: AppColors.textSecondary,
                         size: 20,
                       ),
                       padding: EdgeInsets.zero,
@@ -685,7 +687,7 @@ class AdService extends GetxService {
                           child: Icon(
                             ad.fallbackIcon ?? Icons.ads_click_rounded,
                             size: 72,
-                            color: Colors.white.withValues(alpha: 0.15),
+                            color: AppColors.textPrimary.withValues(alpha: 0.15),
                           ),
                         ),
                         Positioned(
@@ -695,13 +697,13 @@ class AdService extends GetxService {
                           child: Text(
                             ad.advertiser,
                             style: TextStyle(
-                              fontFamily: 'Roboto',
-                              color: Colors.white,
+                              
+                              color: AppColors.textPrimary,
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
                               shadows: [
                                 Shadow(
-                                  color: Colors.black.withValues(alpha: 0.6),
+                                  color: AppColors.bgPage.withValues(alpha: 0.6),
                                   offset: const Offset(0, 2),
                                   blurRadius: 4,
                                 ),
@@ -719,9 +721,9 @@ class AdService extends GetxService {
                 Text(
                   ad.title,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Roboto',
-                    color: Colors.white,
+                  style: const TextStyle(
+                    
+                    color: AppColors.textPrimary,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
@@ -730,9 +732,9 @@ class AdService extends GetxService {
                 Text(
                   ad.description,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Roboto',
-                    color: Colors.white70,
+                  style: const TextStyle(
+                    
+                    color: AppColors.textSecondary,
                     fontSize: 14,
                     height: 1.4,
                   ),
@@ -745,21 +747,21 @@ class AdService extends GetxService {
                     return Column(
                       children: [
                         Shimmer.fromColors(
-                          baseColor: Colors.red.withValues(alpha: 0.3),
-                          highlightColor: Colors.red,
+                          baseColor: AppColors.error.withValues(alpha: 0.3),
+                          highlightColor: AppColors.error,
                           child: const LinearProgressIndicator(
                             backgroundColor: Colors.transparent,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.red,
+                              AppColors.error,
                             ),
                           ),
                         ),
                         const SizedBox(height: 12),
-                        Text(
+                        const Text(
                           'Opening sponsored page securely...',
                           style: TextStyle(
-                            fontFamily: 'Roboto',
-                            color: Colors.white60,
+                            
+                            color: AppColors.textSecondary,
                             fontSize: 12,
                             fontStyle: FontStyle.italic,
                           ),
@@ -782,8 +784,8 @@ class AdService extends GetxService {
                               AppSnackbar.show(
                                 'Sponsor Visited',
                                 'Thank you for supporting Truthworld sponsors!',
-                                backgroundColor: Colors.green.shade900,
-                                colorText: Colors.white,
+                                backgroundColor: AppColors.success,
+                                colorText: AppColors.textPrimary,
                                 snackPosition: SnackPosition.BOTTOM,
                                 margin: const EdgeInsets.all(16),
                                 duration: const Duration(seconds: 3),
@@ -792,8 +794,8 @@ class AdService extends GetxService {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black,
+                          backgroundColor: AppColors.textPrimary,
+                          foregroundColor: AppColors.bgPage,
                           minimumSize: const Size(double.infinity, 44),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -801,8 +803,8 @@ class AdService extends GetxService {
                         ),
                         child: Text(
                           ad.ctaText,
-                          style: TextStyle(
-                            fontFamily: 'Roboto',
+                          style: const TextStyle(
+                            
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -816,13 +818,13 @@ class AdService extends GetxService {
                           Get.toNamed('/premium');
                         },
                         style: TextButton.styleFrom(
-                          foregroundColor: Colors.redAccent,
+                          foregroundColor: AppColors.error,
                           minimumSize: const Size(double.infinity, 44),
                         ),
-                        child: Text(
+                        child: const Text(
                           'Remove Ads (Get Premium)',
                           style: TextStyle(
-                            fontFamily: 'Roboto',
+                            
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -1006,57 +1008,57 @@ class AdService extends GetxService {
                 Expanded(
                   child: Text(
                     'Comments for ${ad.advertiser}',
-                    style: TextStyle(
-                      fontFamily: 'Roboto',
+                    style: const TextStyle(
+                      
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white70),
-                  onPressed: () => Get.back(),
+                  icon: const Icon(Icons.close, color: AppColors.textSecondary),
+                  onPressed: Get.back,
                 ),
               ],
             ),
-            const Divider(color: Colors.white10),
+            const Divider(color: AppColors.bgDivider),
             Expanded(
               child: StreamBuilder<List<AdComment>>(
                 stream: getAdCommentsStream(ad.id),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
-                      child: CircularProgressIndicator(color: Colors.amber),
+                      child: CircularProgressIndicator(color: AppColors.warning),
                     );
                   }
                   final comments = snapshot.data ?? [];
                   if (comments.isEmpty) {
-                    return Center(
+                    return const Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.chat_bubble_outline_rounded,
                             size: 48,
-                            color: Colors.white30,
+                            color: AppColors.textTertiary,
                           ),
-                          const SizedBox(height: 12),
+                          SizedBox(height: 12),
                           Text(
                             'No comments yet',
                             style: TextStyle(
-                              fontFamily: 'Roboto',
-                              color: Colors.white54,
+                              
+                              color: AppColors.textSecondary,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          SizedBox(height: 4),
                           Text(
                             'Be the first to share your thoughts!',
                             style: TextStyle(
-                              fontFamily: 'Roboto',
-                              color: Colors.white30,
+                              
+                              color: AppColors.textTertiary,
                               fontSize: 12,
                             ),
                           ),
@@ -1082,31 +1084,31 @@ class AdService extends GetxService {
                                       comment.userProfilePicUrl.isNotEmpty
                                       ? NetworkImage(comment.userProfilePicUrl)
                                       : null,
-                                  backgroundColor: Colors.white12,
+                                  backgroundColor: AppColors.bgDivider,
                                   child: comment.userProfilePicUrl.isEmpty
                                       ? const Icon(
                                           Icons.person,
                                           size: 14,
-                                          color: Colors.white60,
+                                          color: AppColors.textSecondary,
                                         )
                                       : null,
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
                                   comment.userName,
-                                  style: TextStyle(
-                                    fontFamily: 'Roboto',
+                                  style: const TextStyle(
+                                    
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.white70,
+                                    color: AppColors.textSecondary,
                                     fontSize: 12,
                                   ),
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
                                   '${comment.createdAt.hour}:${comment.createdAt.minute.toString().padLeft(2, '0')}',
-                                  style: TextStyle(
-                                    fontFamily: 'Roboto',
-                                    color: Colors.white38,
+                                  style: const TextStyle(
+                                    
+                                    color: AppColors.textTertiary,
                                     fontSize: 11,
                                   ),
                                 ),
@@ -1116,9 +1118,9 @@ class AdService extends GetxService {
                               padding: const EdgeInsets.only(left: 36, top: 4),
                               child: Text(
                                 comment.text,
-                                style: TextStyle(
-                                  fontFamily: 'Roboto',
-                                  color: Colors.white,
+                                style: const TextStyle(
+                                  
+                                  color: AppColors.textPrimary,
                                   fontSize: 13,
                                 ),
                               ),
@@ -1128,10 +1130,10 @@ class AdService extends GetxService {
                                 margin: const EdgeInsets.only(left: 36, top: 8),
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: Colors.amber.withValues(alpha: 0.05),
+                                  color: AppColors.warning.withValues(alpha: 0.05),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
-                                    color: Colors.amber.withValues(alpha: 0.15),
+                                    color: AppColors.warning.withValues(alpha: 0.15),
                                   ),
                                 ),
                                 child: Column(
@@ -1142,14 +1144,14 @@ class AdService extends GetxService {
                                         const Icon(
                                           Icons.campaign_rounded,
                                           size: 14,
-                                          color: Colors.amber,
+                                          color: AppColors.warning,
                                         ),
                                         const SizedBox(width: 6),
                                         Text(
                                           '${comment.repliedBy ?? 'Advertiser'} (Sponsor)',
-                                          style: TextStyle(
-                                            fontFamily: 'Roboto',
-                                            color: Colors.amber,
+                                          style: const TextStyle(
+                                            
+                                            color: AppColors.warning,
                                             fontWeight: FontWeight.bold,
                                             fontSize: 11,
                                           ),
@@ -1159,9 +1161,9 @@ class AdService extends GetxService {
                                     const SizedBox(height: 4),
                                     Text(
                                       comment.replyText!,
-                                      style: TextStyle(
-                                        fontFamily: 'Roboto',
-                                        color: Colors.white,
+                                      style: const TextStyle(
+                                        
+                                        color: AppColors.textPrimary,
                                         fontSize: 12,
                                       ),
                                     ),
@@ -1176,23 +1178,23 @@ class AdService extends GetxService {
                 },
               ),
             ),
-            const Divider(color: Colors.white10),
+            const Divider(color: AppColors.bgDivider),
             Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: textController,
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: AppColors.textPrimary),
                     decoration: const InputDecoration(
                       hintText: 'Add a comment...',
-                      hintStyle: TextStyle(color: Colors.white38),
+                      hintStyle: TextStyle(color: AppColors.textTertiary),
                       border: InputBorder.none,
                       contentPadding: EdgeInsets.symmetric(horizontal: 8),
                     ),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.send_rounded, color: Colors.amber),
+                  icon: const Icon(Icons.send_rounded, color: AppColors.warning),
                   onPressed: () {
                     final text = textController.text.trim();
                     if (text.isNotEmpty) {
@@ -1212,16 +1214,6 @@ class AdService extends GetxService {
 }
 
 class AdComment {
-  final String id;
-  final String adId;
-  final String userId;
-  final String userName;
-  final String userProfilePicUrl;
-  final String text;
-  final DateTime createdAt;
-  final String? replyText;
-  final DateTime? repliedAt;
-  final String? repliedBy;
 
   AdComment({
     required this.id,
@@ -1235,21 +1227,6 @@ class AdComment {
     this.repliedAt,
     this.repliedBy,
   });
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'adId': adId,
-      'userId': userId,
-      'userName': userName,
-      'userProfilePicUrl': userProfilePicUrl,
-      'text': text,
-      'createdAt': createdAt.toIso8601String(),
-      'replyText': replyText,
-      'repliedAt': repliedAt?.toIso8601String(),
-      'repliedBy': repliedBy,
-    };
-  }
 
   factory AdComment.fromMap(Map<String, dynamic> map, String docId) {
     return AdComment(
@@ -1268,5 +1245,30 @@ class AdComment {
           : null,
       repliedBy: map['repliedBy'],
     );
+  }
+  final String id;
+  final String adId;
+  final String userId;
+  final String userName;
+  final String userProfilePicUrl;
+  final String text;
+  final DateTime createdAt;
+  final String? replyText;
+  final DateTime? repliedAt;
+  final String? repliedBy;
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'adId': adId,
+      'userId': userId,
+      'userName': userName,
+      'userProfilePicUrl': userProfilePicUrl,
+      'text': text,
+      'createdAt': createdAt.toIso8601String(),
+      'replyText': replyText,
+      'repliedAt': repliedAt?.toIso8601String(),
+      'repliedBy': repliedBy,
+    };
   }
 }

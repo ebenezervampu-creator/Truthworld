@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 // A simple class to hold our parsed policy sections
 class PolicySection {
-  final String title;
-  final String content;
-  final GlobalKey key;
 
   PolicySection({
     required this.title,
     required this.content,
     required this.key,
   });
+  final String title;
+  final String content;
+  final GlobalKey key;
 }
 
 class TermsAndConditionsPage extends StatefulWidget {
-  final bool isDashboard;
   const TermsAndConditionsPage({super.key, this.isDashboard = false});
+  final bool isDashboard;
 
   @override
   State<TermsAndConditionsPage> createState() => _TermsAndConditionsPageState();
@@ -57,8 +57,8 @@ class _TermsAndConditionsPageState extends State<TermsAndConditionsPage> {
     final introContent = _termsText.substring(0, firstMatch.start).trim();
 
     // Loop through all matches to create sections
-    List<PolicySection> tempSections = [];
-    for (int i = 0; i < matches.length; i++) {
+    final tempSections = <PolicySection>[];
+    for (var i = 0; i < matches.length; i++) {
       final match = matches[i];
       final title = match
           .group(1)!
@@ -99,15 +99,15 @@ class _TermsAndConditionsPageState extends State<TermsAndConditionsPage> {
       // Use theme's scaffoldBackgroundColor or surface color for the menu
       color: Theme.of(context).scaffoldBackgroundColor,
       child: Obx(() => ListView(
-        padding: EdgeInsets.symmetric(vertical: 24, horizontal: 12),
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 12),
         children: [
           ..._sections.map((section) {
             return ListTile(
               title: Text(
                 section.title,
-                style: GoogleFonts.roboto(fontSize: 14),
+                style: const TextStyle(fontSize: 14),
               ),
-              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
               dense: true,
               onTap: () {
                 _scrollToSection(section.key);
@@ -124,12 +124,12 @@ class _TermsAndConditionsPageState extends State<TermsAndConditionsPage> {
 
   /// Builds the main content area that displays the policy text
   Widget _buildContentArea(BuildContext context) {
-    final bodyTextStyle = GoogleFonts.roboto(
+    final bodyTextStyle = TextStyle(
       fontSize: 14,
       height: 1.6,
       color: Theme.of(context).textTheme.bodyMedium?.color,
     );
-    final headingTextStyle = GoogleFonts.roboto(
+    final headingTextStyle = TextStyle(
       fontSize: 20,
       fontWeight: FontWeight.bold,
       color: Theme.of(context).textTheme.titleLarge?.color,
@@ -137,7 +137,7 @@ class _TermsAndConditionsPageState extends State<TermsAndConditionsPage> {
 
     return SingleChildScrollView(
       controller: _scrollController,
-      padding: EdgeInsets.all(24.0),
+      padding: const EdgeInsets.all(24),
       child: Obx(() => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -149,7 +149,7 @@ class _TermsAndConditionsPageState extends State<TermsAndConditionsPage> {
             // Each section is wrapped in a KeyedSubtree so we can scroll to it
             return Padding(
               key: section.key, // This key is crucial for scrolling
-              padding: EdgeInsets.symmetric(vertical: 16.0),
+              padding: const EdgeInsets.symmetric(vertical: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -170,15 +170,15 @@ class _TermsAndConditionsPageState extends State<TermsAndConditionsPage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         // Use a breakpoint to decide which layout to show
-        const double breakpoint = 700.0;
-        final bool isDesktop = constraints.maxWidth >= breakpoint;
+        const breakpoint = 700;
+        final isDesktop = constraints.maxWidth >= breakpoint;
 
         return Scaffold(
           appBar: AppBar(
             // Use theme-aware colors for a clean look
             backgroundColor: Theme.of(context).colorScheme.surface,
             elevation: 1,
-            shadowColor: Colors.black.withValues(alpha: 0.1),
+            shadowColor: AppColors.bgPage.withValues(alpha: 0.1),
             leading: (widget.isDashboard || isDesktop)
                 ? IconButton(
                     icon: Icon(Icons.arrow_back, color: Theme.of(context).iconTheme.color),
@@ -193,7 +193,7 @@ class _TermsAndConditionsPageState extends State<TermsAndConditionsPage> {
                 : null,
             title: Text(
               'Terms and Conditions | Truthworld',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontWeight: FontWeight.bold,
                 // Use theme-aware color
                 color: Theme.of(context).textTheme.titleLarge?.color,
@@ -206,7 +206,7 @@ class _TermsAndConditionsPageState extends State<TermsAndConditionsPage> {
                 },
                 child: Text(
                   'Privacy Policy',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontWeight: FontWeight.w500,
                     color: Theme.of(context).colorScheme.primary,
                   ),

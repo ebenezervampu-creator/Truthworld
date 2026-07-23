@@ -17,19 +17,9 @@ enum ButtonSize { small, medium, large }
 /// - Token-based styling
 @immutable
 class PrimaryButton extends StatelessWidget {
-  final String label;
-  final VoidCallback? onPressed;
-  final ButtonVariant variant;
-  final ButtonSize size;
-  final IconData? icon;
-  final bool isLoading;
-  final bool isFullWidth;
-  final bool isDisabled;
-  final String? tooltipMessage;
 
   const PrimaryButton({
-    super.key,
-    required this.label,
+    required this.label, super.key,
     this.onPressed,
     this.variant = ButtonVariant.primary,
     this.size = ButtonSize.medium,
@@ -39,6 +29,15 @@ class PrimaryButton extends StatelessWidget {
     this.isDisabled = false,
     this.tooltipMessage,
   });
+  final String label;
+  final VoidCallback? onPressed;
+  final ButtonVariant variant;
+  final ButtonSize size;
+  final IconData? icon;
+  final bool isLoading;
+  final bool isFullWidth;
+  final bool isDisabled;
+  final String? tooltipMessage;
 
   @override
   Widget build(BuildContext context) {

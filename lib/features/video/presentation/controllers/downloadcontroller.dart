@@ -1,22 +1,23 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
-import 'package:truthworld/data/models/offline.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/data/models/offline.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/domain/database_helpers.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class DownloadsController extends GetxController {
-  var searchQuery = ''.obs;
-  var isSearching = false.obs;
-  var isSearchExpanded = false.obs;
-  var sortBy = 'recent'.obs;
-  var isAscending = false.obs;
-  var videos = <OfflineVideo>[].obs;
-  var isLoading = true.obs;
-  var errorMessage = ''.obs;
-  var selectedCategory = 'All'.obs;
-  var isListView = true.obs;
+  RxString searchQuery = ''.obs;
+  RxBool isSearching = false.obs;
+  RxBool isSearchExpanded = false.obs;
+  RxString sortBy = 'recent'.obs;
+  RxBool isAscending = false.obs;
+  RxList<OfflineVideo> videos = <OfflineVideo>[].obs;
+  RxBool isLoading = true.obs;
+  RxString errorMessage = ''.obs;
+  RxString selectedCategory = 'All'.obs;
+  RxBool isListView = true.obs;
 
   @override
   void onInit() {
@@ -49,7 +50,7 @@ class DownloadsController extends GetxController {
       'Video removed from downloads.',
       snackPosition: SnackPosition.TOP,
       backgroundColor: const Color(0xFF6366F1),
-      colorText: Colors.white,
+      colorText: AppColors.textPrimary,
     );
   }
 
@@ -143,12 +144,12 @@ class DownloadsController extends GetxController {
   Map<String, List<OfflineVideo>> groupVideosByDate(
     List<OfflineVideo> videosList,
   ) {
-    final Map<String, List<OfflineVideo>> groups = {};
+    final groups = <String, List<OfflineVideo>>{};
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
 
-    for (var video in videosList) {
+    for (final video in videosList) {
       final date = video.downloadedAt;
       final dateOnly = DateTime(date.year, date.month, date.day);
       String key;

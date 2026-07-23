@@ -1,5 +1,6 @@
-import 'package:web/web.dart' as web;
 import 'dart:ui_web' as ui_web;
+
+import 'package:web/web.dart' as web;
 
 void registerVideoElement(String videoId, String videoUrl) {
   // ignore: undefined_prefixed_name

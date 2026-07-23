@@ -43,9 +43,7 @@ class SeoRouteListener extends GetxController {
 
   /// Handle route change
   void _onRouteChange(String newRoute) {
-    Future.delayed(const Duration(milliseconds: 100), () {
-      _updateSeoForCurrentRoute();
-    });
+    Future.delayed(const Duration(milliseconds: 100), _updateSeoForCurrentRoute);
   }
 
   /// Update SEO metadata for current route

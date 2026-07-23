@@ -167,3 +167,37 @@ export const markNotificationRead = onCall(
     }
   }
 );
+
+/**
+ * 🔔 UPDATE TOPIC NOTIFICATION SETTINGS (Callable)
+ * Updates user's notification preference ('all' | 'personalized' | 'none') for a topic.
+ */
+export const updateTopicNotificationSettings = onCall(
+  { region: "asia-south1", memory: "256MiB", maxInstances: 2 },
+  async (request) => {
+    const userId = request.auth?.uid;
+    const { topicId, notificationSetting } = request.data;
+    if (!userId || !topicId || !notificationSetting) {
+      throw new HttpsError("invalid-argument", "Missing topicId or notificationSetting.");
+    }
+
+    if (!["all", "personalized", "none"].includes(notificationSetting)) {
+      throw new HttpsError("invalid-argument", "Invalid notificationSetting value.");
+    }
+
+    try {
+      const topicSavedRef = db.collection("users").doc(userId).collection("savedTopics").doc(topicId);
+      await topicSavedRef.set({
+        topicId,
+        notificationSetting,
+        updatedAt: Date.now(),
+      }, { merge: true });
+
+      return { success: true, topicId, notificationSetting };
+    } catch (err) {
+      logger.error("[updateTopicNotificationSettings] Error:", err);
+      throw new HttpsError("internal", "Failed to update notification settings.");
+    }
+  }
+);
+

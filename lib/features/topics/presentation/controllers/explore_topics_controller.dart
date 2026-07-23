@@ -11,10 +11,10 @@ import 'package:truthworld/features/topics/presentation/controllers/topic_contro
 
 /// GetX Controller for the Topic Discovery Platform UI
 class ExploreTopicsController extends GetxController {
-  final TopicRepository _repository;
 
   ExploreTopicsController({TopicRepository? repository})
     : _repository = repository ?? TopicRepository();
+  final TopicRepository _repository;
 
   // ==========================================================================
   // OBSERVABLE STATE VARIABLES
@@ -63,7 +63,7 @@ class ExploreTopicsController extends GetxController {
 
     try {
       // 1. Fetch Featured Curated Strips
-      featuredTopics.value = await _repository.fetchFeaturedTopics(limit: 5);
+      featuredTopics.value = await _repository.fetchFeaturedTopics();
 
       // 2. Fetch paginated topics
       await loadTopics(reset: true);
@@ -97,7 +97,7 @@ class ExploreTopicsController extends GetxController {
     }
 
     try {
-      List<Topic> newTopics = [];
+      var newTopics = <Topic>[];
 
       // If search query is present, perform case-insensitive local/filter lookup
       if (searchQuery.isNotEmpty) {
@@ -110,14 +110,12 @@ class ExploreTopicsController extends GetxController {
         // Standard paginated database retrieval
         if (exploreMode.value == ExploreMode.trending) {
           newTopics = await _repository.fetchTrendingTopics(
-            limit: _pageSize,
             lastDoc: _lastDoc,
             category: selectedCategory.value,
           );
         } else if (exploreMode.value == ExploreMode.yearly) {
           // Yearly trended topics mock-query (pull by category or lower video count fallback)
           newTopics = await _repository.fetchTopics(
-            limit: _pageSize,
             lastDoc: _lastDoc,
             category: selectedCategory.value,
           );
@@ -126,7 +124,6 @@ class ExploreTopicsController extends GetxController {
         } else {
           // ExploreMode.discover (default)
           newTopics = await _repository.fetchTopics(
-            limit: _pageSize,
             lastDoc: _lastDoc,
             category: selectedCategory.value,
           );
@@ -178,7 +175,7 @@ class ExploreTopicsController extends GetxController {
   /// Paging handler
   Future<void> loadMoreTopics() async {
     if (!isLoadingMore.value && hasMore.value) {
-      await loadTopics(reset: false);
+      await loadTopics();
     }
   }
 

@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
 import 'package:truthworld/features/analytics/data/models/watch_event_model.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Retention funnel bar chart widget.
 ///
@@ -9,9 +10,9 @@ import 'package:truthworld/features/analytics/data/models/watch_event_model.dart
 ///
 /// Each bar is color-coded with percentage labels for quick visual scanning.
 class RetentionFunnelChartWidget extends StatelessWidget {
-  final RetentionFunnelModel funnel;
 
-  const RetentionFunnelChartWidget({super.key, required this.funnel});
+  const RetentionFunnelChartWidget({required this.funnel, super.key});
+  final RetentionFunnelModel funnel;
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +41,7 @@ class RetentionFunnelChartWidget extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -48,7 +49,7 @@ class RetentionFunnelChartWidget extends StatelessWidget {
           const Text(
             'Retention Funnel',
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
@@ -108,7 +109,7 @@ class RetentionFunnelChartWidget extends StatelessWidget {
                         return Text(
                           _formatCount(value.toInt()),
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.5),
+                            color: AppColors.textPrimary.withValues(alpha: 0.5),
                             fontSize: 11,
                           ),
                         );
@@ -128,7 +129,7 @@ class RetentionFunnelChartWidget extends StatelessWidget {
                           child: Text(
                             stages[idx].label,
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.6),
+                              color: AppColors.textPrimary.withValues(alpha: 0.6),
                               fontSize: 11,
                               fontWeight: FontWeight.w500,
                             ),
@@ -139,18 +140,17 @@ class RetentionFunnelChartWidget extends StatelessWidget {
                     ),
                   ),
                   topTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
+                    
                   ),
                   rightTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
+                    
                   ),
                 ),
                 borderData: FlBorderData(show: false),
                 gridData: FlGridData(
-                  show: true,
                   drawVerticalLine: false,
                   getDrawingHorizontalLine: (value) => FlLine(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: AppColors.textPrimary.withValues(alpha: 0.05),
                     strokeWidth: 1,
                   ),
                 ),
@@ -158,14 +158,14 @@ class RetentionFunnelChartWidget extends StatelessWidget {
                   touchTooltipData: BarTouchTooltipData(
                     getTooltipColor: (group) => const Color(0xFF1A1A2E),
                     tooltipBorder: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.1),
+                      color: AppColors.textPrimary.withValues(alpha: 0.1),
                     ),
                     getTooltipItem: (group, groupIndex, rod, rodIndex) {
                       final stage = stages[groupIndex];
                       return BarTooltipItem(
                         '${stage.label}\n${stage.value}',
                         const TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -190,19 +190,19 @@ class RetentionFunnelChartWidget extends StatelessWidget {
 }
 
 class _FunnelStage {
+
+  const _FunnelStage(this.label, this.value, this.color);
   final String label;
   final int value;
   final Color color;
-
-  const _FunnelStage(this.label, this.value, this.color);
 }
 
 class _RatePill extends StatelessWidget {
+
+  const _RatePill(this.label, this.rate, this.color);
   final String label;
   final double rate;
   final Color color;
-
-  const _RatePill(this.label, this.rate, this.color);
 
   @override
   Widget build(BuildContext context) {

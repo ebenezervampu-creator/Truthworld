@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class LanguageRequestController extends GetxController {
   final TextEditingController searchController = TextEditingController();
@@ -24,14 +25,12 @@ class LanguageRequestController extends GetxController {
 }
 
 class LanguageRequestDialog extends StatelessWidget {
-  final String type; // 'subtitle' or 'audio'
-  final Future<void> Function(String language) onRequested;
 
   const LanguageRequestDialog({
-    super.key,
-    required this.type,
-    required this.onRequested,
+    required this.type, required this.onRequested, super.key,
   });
+  final String type; // 'subtitle' or 'audio'
+  final Future<void> Function(String language) onRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -46,10 +45,10 @@ class LanguageRequestDialog extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFF1E293B), // Premium deep slate surface
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1), width: 1.5),
+          border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.5),
+              color: AppColors.bgPage.withValues(alpha: 0.5),
               blurRadius: 30,
               offset: const Offset(0, 15),
             ),
@@ -66,7 +65,7 @@ class LanguageRequestDialog extends StatelessWidget {
                 children: [
                   Icon(
                     type == 'subtitle' ? Icons.closed_caption_rounded : Icons.audiotrack_rounded,
-                    color: Colors.redAccent,
+                    color: AppColors.error,
                     size: 28,
                   ),
                   const SizedBox(width: 12),
@@ -74,16 +73,16 @@ class LanguageRequestDialog extends StatelessWidget {
                     child: Text(
                       'Request ${type.capitalizeFirst}',
                       style: const TextStyle(
-                        fontFamily: 'Roboto',
+                        
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                   ),
                   IconButton(
-                    onPressed: () => Get.back(),
-                    icon: const Icon(Icons.close_rounded, color: Colors.white54),
+                    onPressed: Get.back,
+                    icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                   ),
@@ -98,15 +97,15 @@ class LanguageRequestDialog extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.black26,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white12),
+                  border: Border.all(color: AppColors.bgDivider),
                 ),
                 child: TextField(
                   controller: controller.searchController,
-                  style: const TextStyle(color: Colors.white, fontSize: 15, fontFamily: 'Roboto'),
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 15, ),
                   decoration: const InputDecoration(
                     hintText: 'Search languages...',
-                    hintStyle: TextStyle(color: Colors.white38, fontSize: 15),
-                    prefixIcon: Icon(Icons.search_rounded, color: Colors.white38, size: 20),
+                    hintStyle: TextStyle(color: AppColors.textTertiary, fontSize: 15),
+                    prefixIcon: Icon(Icons.search_rounded, color: AppColors.textTertiary, size: 20),
                     border: InputBorder.none,
                     contentPadding: EdgeInsets.symmetric(vertical: 12),
                   ),
@@ -140,12 +139,11 @@ class LanguageRequestDialog extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? Colors.redAccent.withValues(alpha: 0.15)
+                                ? AppColors.error.withValues(alpha: 0.15)
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: isSelected ? Colors.redAccent.withValues(alpha: 0.4) : Colors.transparent,
-                              width: 1,
+                              color: isSelected ? AppColors.error.withValues(alpha: 0.4) : Colors.transparent,
                             ),
                           ),
                           child: Row(
@@ -157,25 +155,25 @@ class LanguageRequestDialog extends StatelessWidget {
                                     Text(
                                       lang.name,
                                       style: TextStyle(
-                                        fontFamily: 'Roboto',
+                                        
                                         fontSize: 15,
                                         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                        color: isSelected ? Colors.redAccent : Colors.white,
+                                        color: isSelected ? AppColors.error : AppColors.textPrimary,
                                       ),
                                     ),
                                     Text(
                                       lang.nativeName,
                                       style: TextStyle(
-                                        fontFamily: 'Roboto',
+                                        
                                         fontSize: 12,
-                                        color: isSelected ? Colors.redAccent.withValues(alpha: 0.7) : Colors.white38,
+                                        color: isSelected ? AppColors.error.withValues(alpha: 0.7) : AppColors.textTertiary,
                                       ),
                                     ),
                                   ],
                                 ),
                               ),
                               if (isSelected)
-                                const Icon(Icons.check_circle_rounded, color: Colors.redAccent, size: 20),
+                                const Icon(Icons.check_circle_rounded, color: AppColors.error, size: 20),
                             ],
                           ),
                         ),
@@ -192,19 +190,19 @@ class LanguageRequestDialog extends StatelessWidget {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Get.back(),
+                      onPressed: Get.back,
                       style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                        side: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.12)),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       child: const Text(
                         'Cancel',
                         style: TextStyle(
-                          color: Colors.white70,
+                          color: AppColors.textSecondary,
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
-                          fontFamily: 'Roboto',
+                          
                         ),
                       ),
                     ),
@@ -228,8 +226,8 @@ class LanguageRequestDialog extends StatelessWidget {
                                 }
                               },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.redAccent,
-                          disabledBackgroundColor: Colors.white12,
+                          backgroundColor: AppColors.error,
+                          disabledBackgroundColor: AppColors.bgDivider,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
@@ -237,15 +235,15 @@ class LanguageRequestDialog extends StatelessWidget {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                                child: CircularProgressIndicator(strokeWidth: 2.5, color: AppColors.textPrimary),
                               )
                             : const Text(
                                 'Request',
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: AppColors.textPrimary,
                                   fontSize: 15,
                                   fontWeight: FontWeight.w600,
-                                  fontFamily: 'Roboto',
+                                  
                                 ),
                               ),
                       );

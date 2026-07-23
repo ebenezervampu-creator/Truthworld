@@ -1,10 +1,4 @@
 class VideoResolution {
-  final String quality;
-  final int width;
-  final int height;
-  final int bitrate;
-  final int size;
-  final String path;
 
   VideoResolution({
     required this.quality,
@@ -25,6 +19,12 @@ class VideoResolution {
       path: map['path'] ?? '',
     );
   }
+  final String quality;
+  final int width;
+  final int height;
+  final int bitrate;
+  final int size;
+  final String path;
 
   Map<String, dynamic> toMap() {
     return {

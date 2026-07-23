@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class HoverableController extends GetxController {
   bool isHovered = false;
@@ -11,22 +12,21 @@ class HoverableController extends GetxController {
 }
 
 class Hoverable extends StatelessWidget {
-  final Widget child;
-  final bool scaleOnHover;
-  final double scaleFactor;
-  final Color? hoverColor;
-  final BorderRadius? borderRadius;
-  final VoidCallback? onTap;
 
   const Hoverable({
-    super.key,
-    required this.child,
+    required this.child, super.key,
     this.scaleOnHover = true,
     this.scaleFactor = 1.02,
     this.hoverColor,
     this.borderRadius,
     this.onTap,
   });
+  final Widget child;
+  final bool scaleOnHover;
+  final double scaleFactor;
+  final Color? hoverColor;
+  final BorderRadius? borderRadius;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -36,10 +36,10 @@ class Hoverable extends StatelessWidget {
       builder: (controller) {
         final defaultHoverColor =
             Theme.of(context).brightness == Brightness.dark
-            ? Colors.white.withValues(alpha: 0.05)
-            : Colors.black.withValues(alpha: 0.05);
+            ? AppColors.textPrimary.withValues(alpha: 0.05)
+            : AppColors.bgPage.withValues(alpha: 0.05);
 
-        Widget content = child;
+        var content = child;
 
         if (scaleOnHover) {
           content = AnimatedScale(

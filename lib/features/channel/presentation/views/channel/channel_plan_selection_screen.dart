@@ -1,11 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
-
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class ChannelPlanSelectionController extends GetxController
     with GetSingleTickerProviderStateMixin {
@@ -21,7 +20,7 @@ class ChannelPlanSelectionController extends GetxController
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-    fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+    fadeAnim = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: animController, curve: Curves.easeOutCubic),
     );
     animController.forward();
@@ -53,8 +52,8 @@ class ChannelPlanSelectionController extends GetxController
                 'Locked',
                 'Channel creation is locked until $unlockDateStr due to multiple moderation failures.',
                 snackPosition: SnackPosition.BOTTOM,
-                backgroundColor: Colors.red,
-                colorText: Colors.white,
+                backgroundColor: AppColors.error,
+                colorText: AppColors.textPrimary,
               );
               return;
             }
@@ -95,9 +94,9 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: isDark ? Colors.white : Colors.black87,
+          icon: Icon(Icons.arrow_back, color: isDark ? AppColors.textPrimary : AppColors.bgPage,
           ),
-          onPressed: () => Get.back(),
+          onPressed: Get.back,
         ),
       ),
       body: FadeTransition(
@@ -106,31 +105,30 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
           child: Padding(
             padding: EdgeInsets.symmetric(
               horizontal: isDesktop ? 64.0 : 24.0,
-              vertical: 24.0,
+              vertical: 24,
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const SizedBox(height: 20),
                 Text(
-                  "Choose Your Creator Path",
+                  'Choose Your Creator Path',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontFamily: 'Roboto',
+                    
                     fontSize: isDesktop ? 48 : 32,
                     fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : const Color(0xFF1A202C),
+                    color: isDark ? AppColors.textPrimary : const Color(0xFF1A202C),
                     letterSpacing: -0.5,
                   ),
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  "Select the monetization plan that aligns with your goals.\nYou can choose standard YouTube-like sharing or our unique Custom plan.",
+                  'Select the monetization plan that aligns with your goals.\nYou can choose standard YouTube-like sharing or our unique Custom plan.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontFamily: 'Roboto',
+                    
                     fontSize: 16,
-                    color: isDark ? Colors.white70 : const Color(0xFF1E293B),
+                    color: isDark ? AppColors.textSecondary : const Color(0xFF1E293B),
                     height: 1.5,
                   ),
                 ),
@@ -204,14 +202,14 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                         ).withValues(alpha: 0.5),
                       ),
                       child: Text(
-                        "Continue",
+                        'Continue',
                         style: TextStyle(
-                          fontFamily: 'Roboto',
+                          
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
                           color: controller.selectedPlan.value != null
-                              ? Colors.white
-                              : (isDark ? Colors.white38 : Colors.black26),
+                              ? AppColors.textPrimary
+                              : (isDark ? AppColors.textTertiary : Colors.black26),
                         ),
                       ),
                     ),
@@ -234,10 +232,10 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
     final isStandard = type == ChannelPlanType.standard;
 
     // Aesthetic colors for standard vs custom
-    final Color primaryColor = isStandard
+    final primaryColor = isStandard
         ? const Color(0xFF3B82F6)
         : const Color(0xFF8B5CF6);
-    final Color gradientStart = isStandard
+    final gradientStart = isStandard
         ? const Color(0xFF60A5FA)
         : const Color(0xFFA78BFA);
 
@@ -255,7 +253,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeOutCubic,
             transform: Matrix4.identity()
-              ..scaleByDouble(scale, scale, 1.0, 1.0),
+              ..scaleByDouble(scale, scale, 1, 1),
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
               color: isDark
@@ -265,8 +263,8 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                               ? const Color(0xFF1E293B).withValues(alpha: 0.5)
                               : const Color(0xFF111827)))
                   : (isSelected
-                        ? Colors.white
-                        : (isHovered ? Colors.white : const Color(0xFFF8FAFC))),
+                        ? AppColors.textPrimary
+                        : (isHovered ? AppColors.textPrimary : const Color(0xFFF8FAFC))),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: isSelected
@@ -316,7 +314,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                         isStandard
                             ? Icons.play_circle_filled
                             : Icons.rocket_launch,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         size: 28,
                       ),
                     ),
@@ -326,22 +324,22 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            isStandard ? "Standard Plan" : "Custom Plan",
+                            isStandard ? 'Standard Plan' : 'Custom Plan',
                             style: TextStyle(
-                              fontFamily: 'Roboto',
+                              
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
                               color: isDark
-                                  ? Colors.white
+                                  ? AppColors.textPrimary
                                   : const Color(0xFF1A202C),
                             ),
                           ),
                           Text(
                             isStandard
-                                ? "YouTube-style Model"
-                                : "Maximum Revenue",
+                                ? 'YouTube-style Model'
+                                : 'Maximum Revenue',
                             style: TextStyle(
-                              fontFamily: 'Roboto',
+                              
                               fontSize: 14,
                               color: primaryColor,
                               fontWeight: FontWeight.w600,
@@ -359,7 +357,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                         border: Border.all(
                           color: isSelected
                               ? primaryColor
-                              : (isDark ? Colors.white30 : Colors.black26),
+                              : (isDark ? AppColors.textTertiary : Colors.black26),
                           width: 2,
                         ),
                         color: isSelected ? primaryColor : Colors.transparent,
@@ -368,7 +366,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                           ? const Icon(
                               Icons.check,
                               size: 18,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                             )
                           : null,
                     ),
@@ -379,36 +377,36 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                 // Revenue Highlights
                 _buildHighlight(
                   isStandard
-                      ? "75% Creator Ad Revenue"
-                      : "100% Creator Ad Revenue",
-                  isStandard ? "25% Platform Fee" : "0% Platform Fee",
+                      ? '75% Creator Ad Revenue'
+                      : '100% Creator Ad Revenue',
+                  isStandard ? '25% Platform Fee' : '0% Platform Fee',
                   primaryColor,
                 ),
                 const SizedBox(height: 20),
                 _buildHighlight(
                   isStandard
-                      ? "100% Subscriptions Revenue"
-                      : "75% Subscriptions Revenue",
-                  isStandard ? "0% Platform Fee" : "25% Platform Fee",
+                      ? '100% Subscriptions Revenue'
+                      : '75% Subscriptions Revenue',
+                  isStandard ? '0% Platform Fee' : '25% Platform Fee',
                   primaryColor,
                 ),
                 const SizedBox(height: 32),
 
-                const Divider(color: Colors.grey, height: 1, thickness: 0.3),
+                const Divider(color: AppColors.textSecondary, height: 1, thickness: 0.3),
                 const SizedBox(height: 24),
 
                 // Features List
                 if (isStandard) ...[
-                  _buildFeatureRow("Fully managed infrastructure", isDark),
-                  _buildFeatureRow("No out-of-pocket costs", isDark),
-                  _buildFeatureRow("Similar to traditional platforms", isDark),
+                  _buildFeatureRow('Fully managed infrastructure', isDark),
+                  _buildFeatureRow('No out-of-pocket costs', isDark),
+                  _buildFeatureRow('Similar to traditional platforms', isDark),
                 ] else ...[
                   _buildFeatureRow(
-                    "Creator pays for infrastructure used",
+                    'Creator pays for infrastructure used',
                     isDark,
                   ),
-                  _buildFeatureRow("Maximum ad revenue potential", isDark),
-                  _buildFeatureRow("Full control over economics", isDark),
+                  _buildFeatureRow('Maximum ad revenue potential', isDark),
+                  _buildFeatureRow('Full control over economics', isDark),
                 ],
               ],
             ),
@@ -437,7 +435,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                 Text(
                   mainText,
                   style: TextStyle(
-                    fontFamily: 'Roboto',
+                    
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: color,
@@ -446,7 +444,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
                 Text(
                   subText,
                   style: TextStyle(
-                    fontFamily: 'Roboto',
+                    
                     fontSize: 13,
                     color: color.withValues(alpha: 0.8),
                   ),
@@ -470,7 +468,7 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
             child: Icon(
               Icons.check_circle,
               size: 18,
-              color: isDark ? Colors.white60 : Colors.black54,
+              color: isDark ? AppColors.textSecondary : AppColors.bgPage54,
             ),
           ),
           const SizedBox(width: 12),
@@ -478,9 +476,9 @@ class ChannelPlanSelectionScreen extends StatelessWidget {
             child: Text(
               text,
               style: TextStyle(
-                fontFamily: 'Roboto',
+                
                 fontSize: 15,
-                color: isDark ? Colors.white70 : const Color(0xFF334155),
+                color: isDark ? AppColors.textSecondary : const Color(0xFF334155),
                 height: 1.4,
               ),
             ),

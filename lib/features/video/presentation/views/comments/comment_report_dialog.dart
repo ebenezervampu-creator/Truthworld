@@ -1,11 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/comment_report.dart';
 import 'package:truthworld/features/video/data/services/comment_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 /// Premium report dialog for comments and replies
 class CommentReportController extends GetxController {
@@ -22,9 +21,6 @@ class CommentReportController extends GetxController {
 
 /// Premium report dialog for comments and replies
 class CommentReportDialog extends StatelessWidget {
-  final Comment comment;
-  final String videoId;
-  final String? replyId;
 
   const CommentReportDialog({
     required this.comment,
@@ -32,6 +28,9 @@ class CommentReportDialog extends StatelessWidget {
     this.replyId,
     super.key,
   });
+  final Comment comment;
+  final String videoId;
+  final String? replyId;
 
   static void show({
     required BuildContext context,
@@ -92,8 +91,8 @@ class CommentReportDialog extends StatelessWidget {
           'Success',
           'Thank you for reporting. Our team will review this.',
           snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
+          backgroundColor: AppColors.success,
+          colorText: AppColors.textPrimary,
         );
         if (context.mounted) {
           Navigator.pop(context);
@@ -113,7 +112,7 @@ class CommentReportDialog extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         decoration: BoxDecoration(
-          color: isDark ? AppColors.bgSurface : Colors.white,
+          color: isDark ? AppColors.bgSurface : AppColors.textPrimary,
           borderRadius: BorderRadius.circular(16),
         ),
         child: SingleChildScrollView(
@@ -126,18 +125,18 @@ class CommentReportDialog extends StatelessWidget {
                 // Header
                 Row(
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.flag_outlined,
-                      color: Colors.red[400],
+                      color: AppColors.error,
                       size: 24,
                     ),
                     const SizedBox(width: 12),
                     Text(
                       'Report ${replyId != null ? 'Reply' : 'Comment'}',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: isDark ? Colors.white : Colors.black,
+                        color: isDark ? AppColors.textPrimary : AppColors.bgPage,
                       ),
                     ),
                   ],
@@ -147,10 +146,10 @@ class CommentReportDialog extends StatelessWidget {
                 // Reason text
                 Text(
                   'Why are you reporting this?',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: isDark ? Colors.white70 : Colors.grey[700],
+                    color: isDark ? AppColors.textSecondary : AppColors.textSecondary,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -170,37 +169,37 @@ class CommentReportDialog extends StatelessWidget {
                   enabled: !controller.isSubmitting.value,
                   decoration: InputDecoration(
                     hintText: 'Additional details (optional)',
-                    hintStyle: GoogleFonts.roboto(
-                      color: isDark ? Colors.white38 : Colors.grey[400],
+                    hintStyle: TextStyle(
+                      color: isDark ? AppColors.textTertiary : AppColors.textSecondary,
                     ),
                     filled: true,
-                    fillColor: isDark ? AppColors.bgSurface : Colors.grey[100],
+                    fillColor: isDark ? AppColors.bgSurface : AppColors.textSecondary,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(
-                        color: isDark ? AppColors.bgDivider : Colors.grey[300]!,
+                        color: isDark ? AppColors.bgDivider : AppColors.textSecondary,
                       ),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide(
-                        color: isDark ? AppColors.bgDivider : Colors.grey[300]!,
+                        color: isDark ? AppColors.bgDivider : AppColors.textSecondary,
                       ),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(
+                      borderSide: const BorderSide(
                         color: AppColors.brand,
                         width: 2,
                       ),
                     ),
-                    counterStyle: GoogleFonts.roboto(
+                    counterStyle: TextStyle(
                       fontSize: 12,
-                      color: isDark ? Colors.white38 : Colors.grey[500],
+                      color: isDark ? AppColors.textTertiary : AppColors.textSecondary,
                     ),
                   ),
-                  style: GoogleFonts.roboto(
-                    color: isDark ? Colors.white : Colors.black,
+                  style: TextStyle(
+                    color: isDark ? AppColors.textPrimary : AppColors.bgPage,
                   ),
                 )),
                 const SizedBox(height: 20),
@@ -215,8 +214,8 @@ class CommentReportDialog extends StatelessWidget {
                         onPressed: isSubmitting ? null : () => Navigator.pop(context),
                         child: Text(
                           'Cancel',
-                          style: GoogleFonts.roboto(
-                            color: isDark ? Colors.white70 : Colors.grey[600],
+                          style: TextStyle(
+                            color: isDark ? AppColors.textSecondary : AppColors.textSecondary,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -226,7 +225,7 @@ class CommentReportDialog extends StatelessWidget {
                         onPressed: isSubmitting ? null : submitReport,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.brand,
-                          disabledBackgroundColor: Colors.grey[400],
+                          disabledBackgroundColor: AppColors.textSecondary,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -238,14 +237,14 @@ class CommentReportDialog extends StatelessWidget {
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                   valueColor: AlwaysStoppedAnimation(
-                                    Colors.white,
+                                    AppColors.textPrimary,
                                   ),
                                 ),
                               )
-                            : Text(
+                            : const Text(
                                 'Submit Report',
-                                style: GoogleFonts.roboto(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -275,13 +274,13 @@ class CommentReportDialog extends StatelessWidget {
                   ? AppColors.brand.withAlpha(30)
                   : isDark
                       ? AppColors.bgSurface
-                      : Colors.grey[50],
+                      : AppColors.textSecondary,
               border: Border.all(
                 color: isSelected
                     ? AppColors.brand
                     : isDark
                         ? AppColors.bgDivider
-                        : Colors.grey[300]!,
+                        : AppColors.textSecondary,
                 width: isSelected ? 2 : 1,
               ),
               borderRadius: BorderRadius.circular(8),
@@ -294,7 +293,7 @@ class CommentReportDialog extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: isSelected ? AppColors.brand : Colors.grey[400]!,
+                      color: isSelected ? AppColors.brand : AppColors.textSecondary,
                       width: 2,
                     ),
                   ),
@@ -303,7 +302,7 @@ class CommentReportDialog extends StatelessWidget {
                           child: Container(
                             width: 10,
                             height: 10,
-                            decoration: BoxDecoration(
+                            decoration: const BoxDecoration(
                               shape: BoxShape.circle,
                               color: AppColors.brand,
                             ),
@@ -318,10 +317,10 @@ class CommentReportDialog extends StatelessWidget {
                     children: [
                       Text(
                         reason.label,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
-                          color: isDark ? Colors.white : Colors.black87,
+                          color: isDark ? AppColors.textPrimary : AppColors.bgPage,
                         ),
                       ),
                     ],

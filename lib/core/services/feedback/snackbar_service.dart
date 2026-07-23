@@ -125,8 +125,7 @@ class SnackbarService {
   /// For advanced customization beyond standard types
   static void custom({
     required String message,
-    String? title,
-    required Color backgroundColor,
+    required Color backgroundColor, String? title,
     Color? borderColor,
     Color? textColor,
     IconData? icon,
@@ -156,8 +155,7 @@ class SnackbarService {
     _show(
       message: message,
       title: title ?? 'Loading',
-      duration: Duration(milliseconds: 1),
-      icon: null,
+      duration: const Duration(milliseconds: 1),
       showProgress: true,
       backgroundColor: AppColors.bgSurface,
       borderColor: AppColors.brand.withValues(alpha: 0.3),
@@ -175,13 +173,11 @@ class SnackbarService {
   /// Internal method to show snackbar with consistent styling
   static void _show({
     required String message,
-    String? title,
-    required Duration duration,
+    required Duration duration, required Color backgroundColor, String? title,
     VoidCallback? onTap,
     String? actionLabel,
     VoidCallback? onAction,
     IconData? icon,
-    required Color backgroundColor,
     Color? borderColor,
     Color? textColor,
     bool showProgress = false,
@@ -196,8 +192,8 @@ class SnackbarService {
       }
     });
 
-    final bool isMobile = Get.width < 600;
-    final double actualMaxWidth = isMobile ? Get.width * 0.9 : 450;
+    final isMobile = Get.width < 600;
+    final actualMaxWidth = isMobile ? Get.width * 0.9 : 450.0;
     
     Get.snackbar(
       title ?? '',
@@ -206,7 +202,7 @@ class SnackbarService {
         ? Text(
             title,
             style: TextStyle(
-              color: textColor ?? Colors.white,
+              color: textColor ?? AppColors.textPrimary,
               fontWeight: FontWeight.w700,
               fontSize: 14,
               letterSpacing: 0.2,
@@ -216,7 +212,7 @@ class SnackbarService {
       messageText: Text(
         message,
         style: TextStyle(
-          color: (textColor ?? Colors.white).withValues(alpha: 0.9),
+          color: (textColor ?? AppColors.textPrimary).withValues(alpha: 0.9),
           fontWeight: FontWeight.w400,
           fontSize: 13,
           letterSpacing: 0.1,
@@ -224,7 +220,7 @@ class SnackbarService {
         ),
       ),
       backgroundColor: backgroundColor.withValues(alpha: 0.85),
-      colorText: textColor ?? Colors.white,
+      colorText: textColor ?? AppColors.textPrimary,
       borderColor: borderColor?.withValues(alpha: 0.4),
       borderWidth: borderColor != null ? 0.5 : 0,
       borderRadius: 14,
@@ -245,18 +241,17 @@ class SnackbarService {
       reverseAnimationCurve: Curves.easeInCirc,
       boxShadows: [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.25),
+          color: AppColors.bgPage.withValues(alpha: 0.25),
           blurRadius: 16,
           offset: const Offset(0, 8),
-          spreadRadius: 0,
         ),
       ],
       icon: icon != null
           ? Padding(
-              padding: const EdgeInsets.only(right: 4.0),
+              padding: const EdgeInsets.only(right: 4),
               child: Icon(
                 icon,
-                color: borderColor ?? Colors.white,
+                color: borderColor ?? AppColors.textPrimary,
                 size: 22,
               ),
             )
@@ -300,6 +295,16 @@ class SnackbarService {
 ///
 /// For more complex snackbar UI beyond text
 class SnackbarContent extends StatelessWidget {
+
+  const SnackbarContent({
+    required this.message, super.key,
+    this.icon,
+    this.title,
+    this.iconColor,
+    this.textColor,
+    this.actionLabel,
+    this.onAction,
+  });
   final IconData? icon;
   final String? title;
   final String message;
@@ -307,17 +312,6 @@ class SnackbarContent extends StatelessWidget {
   final Color? textColor;
   final String? actionLabel;
   final VoidCallback? onAction;
-
-  const SnackbarContent({
-    super.key,
-    this.icon,
-    this.title,
-    required this.message,
-    this.iconColor,
-    this.textColor,
-    this.actionLabel,
-    this.onAction,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -387,7 +381,7 @@ class SnackbarContent extends StatelessWidget {
                 ),
                 child: Text(
                   actionLabel!,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: AppColors.brand,
                     fontWeight: FontWeight.w500,
                     fontSize: 11,

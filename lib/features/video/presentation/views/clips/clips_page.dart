@@ -1,20 +1,22 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/features/video/data/models/video_clip.dart';
-import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
-import 'package:truthworld/features/home/presentation/views/home/home.dart';
-
+import 'package:truthworld/features/video/data/models/video_clip.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class UserClipsController extends GetxController {
   final clips = <VideoClip>[].obs;
   final isLoading = true.obs;
+  final errorMessage = ''.obs;
+  final searchQuery = ''.obs;
+  final isSearchExpanded = false.obs;
+  final isListView = true.obs;
+  final selectedCategory = 'All'.obs;
 
   @override
   void onInit() {
@@ -23,6 +25,8 @@ class UserClipsController extends GetxController {
   }
 
   Future<void> fetchClips() async {
+    isLoading.value = true;
+    errorMessage.value = '';
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       isLoading.value = false;
@@ -44,12 +48,13 @@ class UserClipsController extends GetxController {
       }).toList());
     } catch (e) {
       debugPrint('Error fetching clips: $e');
+      errorMessage.value = e.toString();
     } finally {
       isLoading.value = false;
     }
   }
 
-  void deleteClip(String clipId) async {
+  Future<void> deleteClip(String clipId) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -61,144 +66,358 @@ class UserClipsController extends GetxController {
           .doc(clipId)
           .delete();
       clips.removeWhere((c) => c.id == clipId);
-      Get.snackbar("Success", "Clip deleted");
+      Get.snackbar(
+        'Deleted',
+        'Clip removed from library',
+        snackPosition: SnackPosition.TOP,
+        backgroundColor: AppColors.brand,
+        colorText: AppColors.textPrimary,
+      );
     } catch (e) {
-      Get.snackbar("Error", "Failed to delete clip");
+      Get.snackbar('Error', 'Failed to delete clip: $e');
     }
+  }
+
+  void toggleView() {
+    isListView.value = !isListView.value;
+    HapticFeedback.lightImpact();
+  }
+
+  void setCategory(String category) {
+    selectedCategory.value = category;
+    HapticFeedback.lightImpact();
+  }
+
+  void playClip(VideoClip clip) {
+    Get.toNamed<void>('/watch?v=${clip.videoId}', arguments: {'clip': clip});
+  }
+
+  List<VideoClip> get filteredClips {
+    var result = clips.toList();
+    if (searchQuery.isNotEmpty) {
+      final q = searchQuery.value.toLowerCase();
+      result = result.where((c) {
+        return c.title.toLowerCase().contains(q) ||
+            c.videoTitle.toLowerCase().contains(q) ||
+            c.channelName.toLowerCase().contains(q);
+      }).toList();
+    }
+    return result;
+  }
+
+  String formatTimeAgo(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+
+    if (difference.inDays > 365) {
+      return '${(difference.inDays / 365).floor()} year${(difference.inDays / 365).floor() > 1 ? 's' : ''} ago';
+    } else if (difference.inDays > 30) {
+      return '${(difference.inDays / 30).floor()} month${(difference.inDays / 30).floor() > 1 ? 's' : ''} ago';
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays} day${difference.inDays > 1 ? 's' : ''} ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} hour${difference.inHours > 1 ? 's' : ''} ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} minute${difference.inMinutes > 1 ? 's' : ''} ago';
+    } else {
+      return 'Just now';
+    }
+  }
+
+  Map<String, List<VideoClip>> groupClipsByDate(List<VideoClip> clipsList) {
+    final groups = <String, List<VideoClip>>{};
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+
+    for (final clip in clipsList) {
+      final date = clip.createdAt;
+      final dateOnly = DateTime(date.year, date.month, date.day);
+      String key;
+      if (dateOnly == today) {
+        key = 'Today';
+      } else if (dateOnly == yesterday) {
+        key = 'Yesterday';
+      } else {
+        key = '${date.day} ${_getMonthName(date.month)} ${date.year}';
+      }
+
+      if (!groups.containsKey(key)) {
+        groups[key] = [];
+      }
+      groups[key]!.add(clip);
+    }
+    return groups;
+  }
+
+  String _getMonthName(int month) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return months[month - 1];
   }
 }
 
-ThemeData _getTheme(BuildContext context) {
-  final parentTheme = Theme.of(context);
-  final parentColors = parentTheme.extension<TWColors>()!;
-  final parentTypography = parentTheme.extension<TWTypography>()!;
-
-  final homeColors = TWColors(
-    brand: const Color(0xFF1976D2), // Professional blue
-    brandContainer: const Color(0xFF1976D2).withValues(alpha: 0.12),
-    brandVariant: const Color(0xFF42A5F5), // Lighter blue
-    textPrimary: const Color(0xFFE8E8E8),
-    textSecondary: const Color(0xFFB8B8B8),
-    textTertiary: const Color(0xFFB8B8B8).withValues(alpha: 0.7),
-    textDisabled: const Color(0xFFB8B8B8).withValues(alpha: 0.38),
-    background: const Color(0xFF0F0F0F),
-    surface: const Color(0xFF121212),
-    surfaceContainer: const Color(0xFF1E1E1E),
-    surfaceContainerHigh: const Color(0xFF1E1E1E),
-    surfaceContainerHighest: const Color(0xFF1E1E1E),
-    surfaceInput: const Color(0xFF121212),
-    appBarSurface: const Color(0xFF121212),
-    divider: const Color(0xFF1E1E1E),
-    success: parentColors.success,
-    warning: parentColors.warning,
-    error: const Color(0xFFFF6B6B),
-    info: const Color(0xFF42A5F5),
-    successContainer: parentColors.successContainer,
-    warningContainer: parentColors.warningContainer,
-    errorContainer: parentColors.errorContainer,
-    infoContainer: parentColors.infoContainer,
-    selectedOverlay: parentColors.selectedOverlay,
-    hoverOverlay: parentColors.hoverOverlay,
-    pressedOverlay: parentColors.pressedOverlay,
-    focusRing: parentColors.focusRing,
-  );
-
-  final homeTypography = TWTypography(
-    logo: GoogleFonts.roboto(textStyle: parentTypography.logo),
-    hero: GoogleFonts.roboto(textStyle: parentTypography.hero),
-    display: GoogleFonts.roboto(textStyle: parentTypography.display),
-    headline: GoogleFonts.roboto(textStyle: parentTypography.headline),
-    title: GoogleFonts.roboto(textStyle: parentTypography.title),
-    body: GoogleFonts.roboto(textStyle: parentTypography.body),
-    bodySmall: GoogleFonts.roboto(textStyle: parentTypography.bodySmall),
-    label: GoogleFonts.roboto(textStyle: parentTypography.label),
-    caption: GoogleFonts.roboto(textStyle: parentTypography.caption),
-    button: GoogleFonts.roboto(textStyle: parentTypography.button),
-    overline: GoogleFonts.roboto(textStyle: parentTypography.overline),
-  );
-
-  return modernDarkProfessionalTheme.copyWith(
-    extensions: [
-      homeColors,
-      homeTypography,
-      parentTheme.extension<TWSpacing>()!,
-      parentTheme.extension<TWRadius>()!,
-      parentTheme.extension<TWMotion>()!,
-      parentTheme.extension<TWShadows>()!,
-      parentTheme.extension<TWGradients>()!,
-      parentTheme.extension<TWLayoutTokens>()!,
-    ],
-  );
-}
-
 class ClipsPage extends StatelessWidget {
-  final bool isDashboard;
   const ClipsPage({super.key, this.isDashboard = false});
+  final bool isDashboard;
 
   @override
   Widget build(BuildContext context) {
     final controller = Get.put(UserClipsController());
 
-    return Theme(
-      data: _getTheme(context),
-      child: Builder(
-        builder: (context) {
-          return Scaffold(
-            backgroundColor: context.colors.background,
-            appBar: AppBar(
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              title: Text(
-                'Your Clips',
-                style: GoogleFonts.roboto(fontSize: 24, fontWeight: FontWeight.bold, color: context.colors.textPrimary),
-              ),
-              leading: IconButton(
-                icon: Icon(Icons.arrow_back, color: context.colors.textPrimary),
-                onPressed: () {
-                  if (isDashboard) {
-                    Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexLibrary;
-                  } else {
-                    Get.back();
-                  }
-                },
-              ),
+    return Scaffold(
+      backgroundColor: AppColors.bgPage,
+      body: _buildMainContent(context, controller),
+    );
+  }
+
+  Widget _buildMainContent(BuildContext context, UserClipsController controller) {
+    return CustomScrollView(
+      slivers: [
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Obx(
+                  () => controller.isSearchExpanded.value
+                      ? Expanded(
+                          child: Container(
+                            height: 40,
+                            margin: const EdgeInsets.only(right: 12),
+                            decoration: BoxDecoration(
+                              color: AppColors.bgSurface,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: AppColors.bgDivider.withValues(
+                                  alpha: 0.5,
+                                ),
+                              ),
+                            ),
+                            child: TextField(
+                              onChanged: (value) =>
+                                  controller.searchQuery.value = value,
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 14,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'Search clips...',
+                                hintStyle: TextStyle(
+                                  color: AppColors.textSecondary.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                ),
+                                prefixIcon: const Icon(
+                                  Icons.search,
+                                  color: AppColors.textSecondary,
+                                  size: 20,
+                                ),
+                                suffixIcon: IconButton(
+                                  icon: const Icon(
+                                    Icons.close,
+                                    color: AppColors.textSecondary,
+                                    size: 18,
+                                  ),
+                                  onPressed: () {
+                                    controller.isSearchExpanded.value = false;
+                                    controller.searchQuery.value = '';
+                                  },
+                                ),
+                                border: InputBorder.none,
+                                enabledBorder: InputBorder.none,
+                                focusedBorder: InputBorder.none,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                              ),
+                            ),
+                          ),
+                        )
+                      : Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+                              onPressed: () {
+                                if (isDashboard) {
+                                  Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexLibrary;
+                                } else {
+                                  Get.back<void>();
+                                }
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Your Clips',
+                              style: TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+                Row(
+                  children: [
+                    Obx(
+                      () => !controller.isSearchExpanded.value
+                          ? IconButton(
+                              icon: const Icon(
+                                Icons.search,
+                                color: AppColors.textPrimary,
+                              ),
+                              onPressed: () =>
+                                  controller.isSearchExpanded.value = true,
+                            )
+                          : const SizedBox.shrink(),
+                    ),
+                    IconButton(
+                      icon: Obx(() => Icon(
+                        controller.isListView.value ? Icons.grid_view_rounded : Icons.view_list_rounded,
+                        color: AppColors.textPrimary,
+                      )),
+                      onPressed: () => controller.toggleView(),
+                    ),
+                  ],
+                ),
+              ],
             ),
-            body: Obx(() {
-              if (controller.isLoading.value) {
-                return GridView.builder(
-                  padding: const EdgeInsets.all(24),
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 350,
-                    mainAxisSpacing: 24,
-                    crossAxisSpacing: 24,
-                    childAspectRatio: 0.85,
+          ),
+        ),
+        SliverToBoxAdapter(child: _buildCategoryChips(controller)),
+        Obx(() {
+          if (controller.isLoading.value) {
+            return const SliverFillRemaining(
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.brand,
+                ),
+              ),
+            );
+          }
+
+          if (controller.errorMessage.isNotEmpty) {
+            return SliverToBoxAdapter(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Text(
+                    'Error: ${controller.errorMessage.value}',
+                    style: const TextStyle(color: AppColors.textPrimary),
+                    textAlign: TextAlign.center,
                   ),
-                  itemCount: 6,
-                  itemBuilder: (context, index) => const ShimmerVideoGridCard(),
-                );
-              }
+                ),
+              ),
+            );
+          }
 
-              if (controller.clips.isEmpty) {
-                return _buildEmptyState(context);
-              }
+          final clips = controller.filteredClips;
+          if (clips.isEmpty) {
+            return SliverFillRemaining(
+              child: _buildEmptyState(context),
+            );
+          }
 
-              return GridView.builder(
-                padding: const EdgeInsets.all(24),
+          if (!controller.isListView.value) {
+            return SliverPadding(
+              padding: const EdgeInsets.all(16),
+              sliver: SliverGrid.builder(
                 gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                   maxCrossAxisExtent: 350,
-                  mainAxisSpacing: 24,
-                  crossAxisSpacing: 24,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
                   childAspectRatio: 0.85,
                 ),
-                itemCount: controller.clips.length,
+                itemCount: clips.length,
                 itemBuilder: (context, index) {
-                  final clip = controller.clips[index];
-                  return _buildClipCard(context, clip);
+                  final clip = clips[index];
+                  return _ClipVideoGridCard(clip: clip, controller: controller);
                 },
+              ),
+            );
+          }
+
+          final groupedClips = controller.groupClipsByDate(clips);
+
+          return SliverList(
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final dateKey = groupedClips.keys.elementAt(index);
+              final dateClips = groupedClips[dateKey]!;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                    child: Text(
+                      dateKey,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  ...dateClips.map(
+                    (clip) => _ClipVideoListCard(clip: clip, controller: controller),
+                  ),
+                ],
               );
-            }),
+            }, childCount: groupedClips.length),
           );
-        }
+        }),
+      ],
+    );
+  }
+
+  Widget _buildCategoryChips(UserClipsController controller) {
+    final categories = ['All', 'Recent'];
+    return SizedBox(
+      height: 40,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: categories.length,
+        itemBuilder: (context, index) {
+          final category = categories[index];
+          return Obx(() {
+            final isSelected = controller.selectedCategory.value == category;
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(category),
+                selected: isSelected,
+                onSelected: (selected) {
+                  if (selected) controller.setCategory(category);
+                },
+                selectedColor: AppColors.textPrimary,
+                backgroundColor: AppColors.bgSurfaceHover,
+                labelStyle: TextStyle(
+                  color: isSelected ? AppColors.bgPage : AppColors.textPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                showCheckmark: false,
+              ),
+            );
+          });
+        },
       ),
     );
   }
@@ -211,48 +430,289 @@ class ClipsPage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: context.colors.surface,
+              color: AppColors.bgSurface,
               shape: BoxShape.circle,
-              border: Border.all(color: context.colors.divider.withValues(alpha: 0.1)),
+              border: Border.all(color: AppColors.bgDivider.withValues(alpha: 0.1)),
             ),
-            child: Icon(Icons.content_cut_rounded, size: 64, color: context.colors.textSecondary.withValues(alpha: 0.3)),
+            child: Icon(Icons.content_cut_rounded, size: 64, color: AppColors.textSecondary.withValues(alpha: 0.3)),
           ),
           const SizedBox(height: 24),
-          Text(
+          const Text(
             'No clips yet',
-            style: GoogleFonts.roboto(fontSize: 22, fontWeight: FontWeight.bold, color: context.colors.textPrimary),
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
           ),
           const SizedBox(height: 12),
-          Text(
+          const Text(
             'Find your favorite moments and clip them!',
             textAlign: TextAlign.center,
-            style: GoogleFonts.roboto(color: context.colors.textSecondary),
+            style: TextStyle(color: AppColors.textSecondary),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildClipCard(BuildContext context, VideoClip clip) {
+class _ClipVideoListCard extends StatelessWidget {
+
+  const _ClipVideoListCard({required this.clip, required this.controller});
+  final VideoClip clip;
+  final UserClipsController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final durationSeconds = (clip.endTime - clip.startTime).toInt();
+    final durationText = FormatUtils.formatDuration(Duration(seconds: durationSeconds));
+
     return InkWell(
-      onTap: () {
-        // Navigate to video loader which will fetch the video and pass the clip argument
-        Get.toNamed('/watch/${clip.videoId}', arguments: {
-          'clip': clip,
-        });
-      },
+      onTap: () => controller.playClip(clip),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Thumbnail
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: CachedNetworkImage(
+                    imageUrl: clip.thumbnailUrl,
+                    width: 160,
+                    height: 90,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) =>
+                        Container(color: AppTheme.secondaryBackground),
+                    errorWidget: (context, url, error) =>
+                        Container(color: AppTheme.secondaryBackground),
+                  ),
+                ),
+                // Clip Duration badge
+                Positioned(
+                  bottom: 4,
+                  right: 4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgPage.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.content_cut, color: AppColors.textPrimary, size: 10),
+                        const SizedBox(width: 3),
+                        Text(
+                          durationText,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(width: 12),
+            // Details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          clip.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.more_vert,
+                          color: AppColors.textPrimary,
+                          size: 20,
+                        ),
+                        onPressed: () => _showOptions(context),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    clip.channelName.isNotEmpty ? '${clip.channelName} • ${clip.videoTitle}' : clip.videoTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Clip ($durationText) • Created ${controller.formatTimeAgo(clip.createdAt)}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showOptions(BuildContext context) {
+    Get.bottomSheet<void>(
+      Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(
+          color: AppColors.bgSurface,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: AppColors.textDisabled,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            _buildOptionItem(
+              icon: Icons.delete_outline_rounded,
+              label: 'Delete from clips',
+              color: AppColors.error,
+              onTap: () {
+                Get.back<void>();
+                _showDeleteConfirmation(context);
+              },
+            ),
+            _buildOptionItem(
+              icon: Icons.share_outlined,
+              label: 'Share clip link',
+              onTap: () {
+                Get.back<void>();
+                Clipboard.setData(ClipboardData(text: 'https://www.truthworld.in/watch?v=${clip.videoId}'));
+                Get.snackbar('Copied', 'Clip link copied to clipboard');
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOptionItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    Color? color,
+  }) {
+    final textColor = color ?? AppColors.textPrimary;
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: (color ?? AppColors.brand).withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(icon, color: color ?? AppColors.textSecondary, size: 20),
+      ),
+      title: Text(
+        label,
+        style: TextStyle(
+          color: textColor,
+          fontWeight: FontWeight.w500,
+          fontSize: 15,
+        ),
+      ),
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(vertical: 4),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
+  }
+
+  void _showDeleteConfirmation(BuildContext context) {
+    Get.dialog<void>(
+      AlertDialog(
+        backgroundColor: AppColors.bgSurface,
+        title: const Text(
+          'Delete clip?',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          'Are you sure you want to delete "${clip.title}" from your clips?',
+          style: const TextStyle(color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Get.back<void>(),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Get.back<void>();
+              controller.deleteClip(clip.id);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.brand,
+              foregroundColor: AppColors.textPrimary,
+              elevation: 0,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+    );
+  }
+}
+
+class _ClipVideoGridCard extends StatelessWidget {
+
+  const _ClipVideoGridCard({required this.clip, required this.controller});
+  final VideoClip clip;
+  final UserClipsController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final durationSeconds = (clip.endTime - clip.startTime).toInt();
+    final durationText = FormatUtils.formatDuration(Duration(seconds: durationSeconds));
+
+    return InkWell(
+      onTap: () => controller.playClip(clip),
       child: Container(
         decoration: BoxDecoration(
-          color: context.colors.surface,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: context.colors.divider.withValues(alpha: 0.1)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            )
-          ],
+          color: AppColors.bgSurface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.bgDivider.withValues(alpha: 0.5)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -260,12 +720,14 @@ class ClipsPage extends StatelessWidget {
             Stack(
               children: [
                 ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                   child: AspectRatio(
                     aspectRatio: 16 / 9,
                     child: CachedNetworkImage(
                       imageUrl: clip.thumbnailUrl,
                       fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(color: AppTheme.secondaryBackground),
+                      errorWidget: (context, url, error) => Container(color: AppTheme.secondaryBackground),
                     ),
                   ),
                 ),
@@ -273,14 +735,21 @@ class ClipsPage extends StatelessWidget {
                   bottom: 8,
                   right: 8,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(6),
+                      color: AppColors.bgPage.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                    child: Text(
-                      '${(clip.endTime - clip.startTime).toInt()}s',
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.content_cut, color: AppColors.textPrimary, size: 10),
+                        const SizedBox(width: 3),
+                        Text(
+                          durationText,
+                          style: const TextStyle(color: AppColors.textPrimary, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -288,21 +757,21 @@ class ClipsPage extends StatelessWidget {
                   top: 8,
                   right: 8,
                   child: InkWell(
-                    onTap: () => Get.find<UserClipsController>().deleteClip(clip.id),
+                    onTap: () => controller.deleteClip(clip.id),
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.6),
+                        color: AppColors.bgPage.withValues(alpha: 0.6),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 18),
+                      child: const Icon(Icons.delete_outline_rounded, color: AppColors.textPrimary, size: 18),
                     ),
                   ),
                 ),
               ],
             ),
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -310,25 +779,19 @@ class ClipsPage extends StatelessWidget {
                     clip.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.roboto(fontSize: 15, fontWeight: FontWeight.bold, color: context.colors.textPrimary),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 4),
                   Text(
                     clip.videoTitle,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.roboto(fontSize: 12, color: context.colors.textSecondary),
+                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                   ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Icon(Icons.calendar_today_rounded, size: 12, color: context.colors.textSecondary.withValues(alpha: 0.5)),
-                      const SizedBox(width: 4),
-                      Text(
-                        FormatUtils.formatDate(clip.createdAt),
-                        style: GoogleFonts.roboto(fontSize: 11, color: context.colors.textSecondary.withValues(alpha: 0.5)),
-                      ),
-                    ],
+                  const SizedBox(height: 8),
+                  Text(
+                    'Clip ($durationText) • ${controller.formatTimeAgo(clip.createdAt)}',
+                    style: TextStyle(fontSize: 11, color: AppColors.textSecondary.withValues(alpha: 0.7)),
                   ),
                 ],
               ),
@@ -339,8 +802,3 @@ class ClipsPage extends StatelessWidget {
     );
   }
 }
-
-
-
-
-

@@ -801,7 +801,7 @@ class VideoScreen extends GetView<VideoController> {
     return Hero(
       tag: heroTag,
       child: Obx(() {
-        if (controller.isLoading.value &&
+        if (controller.isLoading &&
             !controller.isSwitchingResolution.value) {
           return thumbnailWidget;
         }
@@ -826,8 +826,8 @@ class VideoScreen extends GetView<VideoController> {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            controller.errorMessage.value.isNotEmpty
-                                ? controller.errorMessage.value
+                            controller.errorMessage.isNotEmpty
+                                ? controller.errorMessage
                                 : 'This video is currently unavailable',
                             textAlign: TextAlign.center,
                             maxLines: 3,

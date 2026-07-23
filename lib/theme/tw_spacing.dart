@@ -3,13 +3,6 @@ import 'package:flutter/material.dart';
 
 /// Semantic spacing tokens for layouts, padding, and margins.
 class TWSpacing extends ThemeExtension<TWSpacing> {
-  final double xxs;
-  final double xs;
-  final double sm;
-  final double md;
-  final double lg;
-  final double xl;
-  final double xxl;
 
   const TWSpacing({
     required this.xxs,
@@ -23,15 +16,22 @@ class TWSpacing extends ThemeExtension<TWSpacing> {
 
   factory TWSpacing.defaults() {
     return const TWSpacing(
-      xxs: 2.0,
-      xs: 4.0,
-      sm: 8.0,
-      md: 16.0,
-      lg: 24.0,
-      xl: 32.0,
-      xxl: 48.0,
+      xxs: 2,
+      xs: 4,
+      sm: 8,
+      md: 16,
+      lg: 24,
+      xl: 32,
+      xxl: 48,
     );
   }
+  final double xxs;
+  final double xs;
+  final double sm;
+  final double md;
+  final double lg;
+  final double xl;
+  final double xxl;
 
   @override
   ThemeExtension<TWSpacing> copyWith({
@@ -71,11 +71,13 @@ class TWSpacing extends ThemeExtension<TWSpacing> {
 
 extension TWSpacingExtension on BuildContext {
   TWSpacing get spacing => Theme.of(this).extension<TWSpacing>()!;
+  TWSpacing get twSpacing => Theme.of(this).extension<TWSpacing>()!;
   TWInsets get insets => TWInsets(spacing);
+  TWInsets get twInsets => TWInsets(spacing);
 }
 
 class TWInsetHelper extends EdgeInsets {
-  const TWInsetHelper(double value) : super.all(value);
+  const TWInsetHelper(super.value) : super.all();
   
   EdgeInsets get h => EdgeInsets.symmetric(horizontal: left);
   EdgeInsets get v => EdgeInsets.symmetric(vertical: top);
@@ -88,8 +90,8 @@ class TWInsetHelper extends EdgeInsets {
 }
 
 class TWInsets {
-  final TWSpacing spacing;
   const TWInsets(this.spacing);
+  final TWSpacing spacing;
 
   TWInsetHelper get xxs => TWInsetHelper(spacing.xxs);
   TWInsetHelper get xs => TWInsetHelper(spacing.xs);

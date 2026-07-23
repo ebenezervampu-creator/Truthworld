@@ -1,7 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:path_provider/path_provider.dart';
-import 'dart:io';
 
 /// Custom Cache Manager for TruthWorld
 ///
@@ -34,10 +35,10 @@ class CustomCacheManager {
       final dir = await _getCacheDir();
       if (!dir.existsSync()) return 0;
 
-      int size = 0;
+      var size = 0;
       final files = dir.listSync(recursive: true, followLinks: false);
 
-      for (var file in files) {
+      for (final file in files) {
         if (file is File) {
           size += file.lengthSync();
         }
@@ -87,7 +88,7 @@ class CustomCacheManager {
   /// Preload multiple images in parallel
   static Future<void> preloadImages(List<String> imageUrls) async {
     try {
-      await Future.wait(imageUrls.map((url) => preloadImage(url)).toList());
+      await Future.wait(imageUrls.map(preloadImage).toList());
     } catch (e) {
       debugPrint('Error preloading images: $e');
     }
@@ -130,13 +131,13 @@ class ThumbnailCacheManager {
     int batchSize = 10,
   }) async {
     try {
-      for (int i = 0; i < urls.length; i += batchSize) {
+      for (var i = 0; i < urls.length; i += batchSize) {
         final batch = urls.sublist(
           i,
           i + batchSize > urls.length ? urls.length : i + batchSize,
         );
 
-        await Future.wait(batch.map((url) => preloadThumbnail(url)).toList());
+        await Future.wait(batch.map(preloadThumbnail).toList());
 
         // Add small delay between batches
         await Future.delayed(const Duration(milliseconds: 100));

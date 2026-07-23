@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:truthworld/features/analytics/data/models/watch_event_model.dart';
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/creator_analytics_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Premium Creator Analytics Dashboard — YouTube-grade analytics UI.
 ///
@@ -45,7 +46,7 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
         title: Text(
           videoId.isNotEmpty ? 'Video Analytics' : 'Channel Analytics',
           style: const TextStyle(
-            color: Colors.white,
+            color: AppColors.textPrimary,
             fontWeight: FontWeight.w700,
             fontSize: 20,
           ),
@@ -53,8 +54,8 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
         backgroundColor: const Color(0xFF0A0A0F),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Get.back(),
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: Get.back,
         ),
         actions: [
           Obx(() {
@@ -65,10 +66,10 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.2),
+                  color: AppColors.error.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(20),
                   border:
-                      Border.all(color: Colors.red.withValues(alpha: 0.5)),
+                      Border.all(color: AppColors.error.withValues(alpha: 0.5)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -78,7 +79,7 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
                     Text(
                       '$count watching',
                       style: const TextStyle(
-                        color: Colors.red,
+                        color: AppColors.error,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
@@ -90,8 +91,8 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
             return const SizedBox.shrink();
           }),
           IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.white70),
-            onPressed: () => controller.refreshAnalytics(),
+            icon: const Icon(Icons.refresh, color: AppColors.textSecondary),
+            onPressed: controller.refreshAnalytics,
           ),
         ],
       ),
@@ -107,7 +108,7 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
 
         return RefreshIndicator(
           color: const Color(0xFFDC2626),
-          onRefresh: () => controller.refreshAnalytics(),
+          onRefresh: controller.refreshAnalytics,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -119,7 +120,7 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
                   Text(
                     videoTitle,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                     ),
@@ -131,7 +132,7 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
                   Text(
                     channelName,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
                     ),
@@ -156,21 +157,21 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
                     margin: const EdgeInsets.only(bottom: 16),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.amber.withValues(alpha: 0.1),
+                      color: AppColors.warning.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                          color: Colors.amber.withValues(alpha: 0.3)),
+                          color: AppColors.warning.withValues(alpha: 0.3)),
                     ),
                     child: Row(
                       children: [
                         const Icon(Icons.info_outline,
-                            color: Colors.amber, size: 18),
+                            color: AppColors.warning, size: 18),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             error,
                             style: const TextStyle(
-                                color: Colors.amber, fontSize: 13),
+                                color: AppColors.warning, fontSize: 13),
                           ),
                         ),
                       ],
@@ -184,7 +185,7 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
 
                 // Watchtime Retention Distribution
                 if (controller.watchtimeChartData.isNotEmpty) ...[
-                  _SectionHeader(title: 'Audience Retention'),
+                  const _SectionHeader(title: 'Audience Retention'),
                   const SizedBox(height: 12),
                   _WatchtimeRetentionCard(controller: controller),
                   const SizedBox(height: 24),
@@ -192,7 +193,7 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
 
                 // Traffic Sources
                 if (controller.trafficSourceChartData.isNotEmpty) ...[
-                  _SectionHeader(title: 'Traffic Sources'),
+                  const _SectionHeader(title: 'Traffic Sources'),
                   const SizedBox(height: 12),
                   _TrafficSourceCard(controller: controller),
                   const SizedBox(height: 24),
@@ -201,7 +202,7 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
                 // Geographic Breakdown
                 if (controller.stateTrafficChartData.isNotEmpty ||
                     controller.topStates.isNotEmpty) ...[
-                  _SectionHeader(title: 'Geographic Breakdown'),
+                  const _SectionHeader(title: 'Geographic Breakdown'),
                   const SizedBox(height: 12),
                   _GeographicBreakdownCard(controller: controller),
                   const SizedBox(height: 24),
@@ -209,7 +210,7 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
 
                 // City Breakdown
                 if (controller.topCities.isNotEmpty) ...[
-                  _SectionHeader(title: 'Top Cities'),
+                  const _SectionHeader(title: 'Top Cities'),
                   const SizedBox(height: 12),
                   _TopCitiesCard(controller: controller),
                   const SizedBox(height: 24),
@@ -217,7 +218,7 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
 
                 // Urban vs Rural
                 if (controller.areaTypeChartData.isNotEmpty) ...[
-                  _SectionHeader(title: 'Urban vs Rural'),
+                  const _SectionHeader(title: 'Urban vs Rural'),
                   const SizedBox(height: 12),
                   _AreaTypeCard(controller: controller),
                   const SizedBox(height: 24),
@@ -225,7 +226,7 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
 
                 // Device Breakdown
                 if (controller.deviceBreakdownStats.isNotEmpty) ...[
-                  _SectionHeader(title: 'Device Breakdown'),
+                  const _SectionHeader(title: 'Device Breakdown'),
                   const SizedBox(height: 12),
                   _DeviceBreakdownCard(controller: controller),
                   const SizedBox(height: 24),
@@ -246,9 +247,9 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
 // =============================================================================
 
 class _DateRangeFilterPills extends StatelessWidget {
-  final CreatorAnalyticsController controller;
 
   const _DateRangeFilterPills({required this.controller});
+  final CreatorAnalyticsController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -273,18 +274,18 @@ class _DateRangeFilterPills extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: isSelected
                         ? const Color(0xFFDC2626)
-                        : Colors.white.withValues(alpha: 0.05),
+                        : AppColors.textPrimary.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: isSelected
                           ? const Color(0xFFDC2626)
-                          : Colors.white.withValues(alpha: 0.12),
+                          : AppColors.textPrimary.withValues(alpha: 0.12),
                     ),
                   ),
                   child: Text(
                     range.label,
                     style: TextStyle(
-                      color: isSelected ? Colors.white : Colors.white70,
+                      color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
                       fontSize: 13,
                       fontWeight:
                           isSelected ? FontWeight.w500 : FontWeight.w400,
@@ -305,9 +306,9 @@ class _DateRangeFilterPills extends StatelessWidget {
 // =============================================================================
 
 class _SummaryCardsGrid extends StatelessWidget {
-  final CreatorAnalyticsController controller;
 
   const _SummaryCardsGrid({required this.controller});
+  final CreatorAnalyticsController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -374,11 +375,6 @@ class _SummaryCardsGrid extends StatelessWidget {
 }
 
 class _MetricCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String value;
-  final String subtitle;
-  final Color accentColor;
 
   const _MetricCard({
     required this.icon,
@@ -387,6 +383,11 @@ class _MetricCard extends StatelessWidget {
     required this.subtitle,
     required this.accentColor,
   });
+  final IconData icon;
+  final String title;
+  final String value;
+  final String subtitle;
+  final Color accentColor;
 
   @override
   Widget build(BuildContext context) {
@@ -416,7 +417,7 @@ class _MetricCard extends StatelessWidget {
               Text(
                 title,
                 style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.7),
+                  color: AppColors.textPrimary.withValues(alpha: 0.7),
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
                 ),
@@ -427,7 +428,7 @@ class _MetricCard extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 22,
               fontWeight: FontWeight.w700,
             ),
@@ -436,7 +437,7 @@ class _MetricCard extends StatelessWidget {
           Text(
             subtitle,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.5),
+              color: AppColors.textPrimary.withValues(alpha: 0.5),
               fontSize: 11,
             ),
             maxLines: 1,
@@ -453,9 +454,9 @@ class _MetricCard extends StatelessWidget {
 // =============================================================================
 
 class _WatchtimeRetentionCard extends StatelessWidget {
-  final CreatorAnalyticsController controller;
 
   const _WatchtimeRetentionCard({required this.controller});
+  final CreatorAnalyticsController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -469,7 +470,7 @@ class _WatchtimeRetentionCard extends StatelessWidget {
               if (data.isEmpty) {
                 return const Center(
                   child: Text('No data',
-                      style: TextStyle(color: Colors.white38)),
+                      style: TextStyle(color: AppColors.textTertiary)),
                 );
               }
 
@@ -482,7 +483,7 @@ class _WatchtimeRetentionCard extends StatelessWidget {
                       title:
                           '${d.percentage.toStringAsFixed(0)}%',
                       titleStyle: const TextStyle(
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                       ),
@@ -521,9 +522,9 @@ class _WatchtimeRetentionCard extends StatelessWidget {
 // =============================================================================
 
 class _TrafficSourceCard extends StatelessWidget {
-  final CreatorAnalyticsController controller;
 
   const _TrafficSourceCard({required this.controller});
+  final CreatorAnalyticsController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -537,7 +538,7 @@ class _TrafficSourceCard extends StatelessWidget {
               if (data.isEmpty) {
                 return const Center(
                   child: Text('No data',
-                      style: TextStyle(color: Colors.white38)),
+                      style: TextStyle(color: AppColors.textTertiary)),
                 );
               }
 
@@ -551,7 +552,7 @@ class _TrafficSourceCard extends StatelessWidget {
                           ? '${d.percentage.toStringAsFixed(0)}%'
                           : '',
                       titleStyle: const TextStyle(
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         fontSize: 10,
                         fontWeight: FontWeight.w500,
                       ),
@@ -573,19 +574,19 @@ class _TrafficSourceCard extends StatelessWidget {
                   child: Row(
                     children: [
                       Icon(_getTrafficSourceIcon(s.sourceKey),
-                          color: Colors.white54, size: 16),
+                          color: AppColors.textSecondary, size: 16),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           s.source,
                           style: const TextStyle(
-                              color: Colors.white70, fontSize: 13),
+                              color: AppColors.textSecondary, fontSize: 13),
                         ),
                       ),
                       Text(
                         '${s.count}',
                         style: const TextStyle(
-                            color: Colors.white, fontWeight: FontWeight.w500),
+                            color: AppColors.textPrimary, fontWeight: FontWeight.w500),
                       ),
                       const SizedBox(width: 8),
                       SizedBox(
@@ -593,7 +594,7 @@ class _TrafficSourceCard extends StatelessWidget {
                         child: Text(
                           '${s.percentage.toStringAsFixed(1)}%',
                           style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.5),
+                              color: AppColors.textPrimary.withValues(alpha: 0.5),
                               fontSize: 12),
                           textAlign: TextAlign.right,
                         ),
@@ -636,9 +637,9 @@ class _TrafficSourceCard extends StatelessWidget {
 // =============================================================================
 
 class _GeographicBreakdownCard extends StatelessWidget {
-  final CreatorAnalyticsController controller;
 
   const _GeographicBreakdownCard({required this.controller});
+  final CreatorAnalyticsController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -662,7 +663,7 @@ class _GeographicBreakdownCard extends StatelessWidget {
                             ? '${d.percentage.toStringAsFixed(0)}%'
                             : '',
                         titleStyle: const TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontSize: 10,
                           fontWeight: FontWeight.w500,
                         ),
@@ -682,7 +683,7 @@ class _GeographicBreakdownCard extends StatelessWidget {
           const Text(
             'Top States',
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
@@ -699,13 +700,13 @@ class _GeographicBreakdownCard extends StatelessWidget {
                         child: Text(
                           s.stateName,
                           style: const TextStyle(
-                              color: Colors.white70, fontSize: 13),
+                              color: AppColors.textSecondary, fontSize: 13),
                         ),
                       ),
                       Text(
                         '${s.viewCount}',
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -717,7 +718,7 @@ class _GeographicBreakdownCard extends StatelessWidget {
                           child: LinearProgressIndicator(
                             value: s.percentage / 100,
                             backgroundColor:
-                                Colors.white.withValues(alpha: 0.1),
+                                AppColors.textPrimary.withValues(alpha: 0.1),
                             valueColor:
                                 const AlwaysStoppedAnimation(Color(0xFF3B82F6)),
                             minHeight: 6,
@@ -730,7 +731,7 @@ class _GeographicBreakdownCard extends StatelessWidget {
                         child: Text(
                           '${s.percentage.toStringAsFixed(1)}%',
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.5),
+                            color: AppColors.textPrimary.withValues(alpha: 0.5),
                             fontSize: 11,
                           ),
                           textAlign: TextAlign.right,
@@ -753,9 +754,9 @@ class _GeographicBreakdownCard extends StatelessWidget {
 // =============================================================================
 
 class _TopCitiesCard extends StatelessWidget {
-  final CreatorAnalyticsController controller;
 
   const _TopCitiesCard({required this.controller});
+  final CreatorAnalyticsController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -771,7 +772,7 @@ class _TopCitiesCard extends StatelessWidget {
               if (data.isEmpty) {
                 return const Center(
                   child: Text('No city data',
-                      style: TextStyle(color: Colors.white38)),
+                      style: TextStyle(color: AppColors.textTertiary)),
                 );
               }
 
@@ -800,11 +801,11 @@ class _TopCitiesCard extends StatelessWidget {
                   }).toList(),
                   titlesData: FlTitlesData(
                     leftTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false)),
+                        ),
                     rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false)),
+                        ),
                     topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false)),
+                        ),
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
@@ -821,7 +822,7 @@ class _TopCitiesCard extends StatelessWidget {
                                   ? '${label.substring(0, 5)}..'
                                   : label,
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.6),
+                                color: AppColors.textPrimary.withValues(alpha: 0.6),
                                 fontSize: 9,
                               ),
                             ),
@@ -848,19 +849,19 @@ class _TopCitiesCard extends StatelessWidget {
                   child: Row(
                     children: [
                       const Icon(Icons.location_city,
-                          color: Colors.white38, size: 14),
+                          color: AppColors.textTertiary, size: 14),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           c.cityName,
                           style: const TextStyle(
-                              color: Colors.white70, fontSize: 13),
+                              color: AppColors.textSecondary, fontSize: 13),
                         ),
                       ),
                       Text(
                         '${c.viewCount}',
                         style: const TextStyle(
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             fontWeight: FontWeight.w500,
                             fontSize: 13),
                       ),
@@ -868,7 +869,7 @@ class _TopCitiesCard extends StatelessWidget {
                       Text(
                         '${c.percentage.toStringAsFixed(1)}%',
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.5),
+                          color: AppColors.textPrimary.withValues(alpha: 0.5),
                           fontSize: 12,
                         ),
                       ),
@@ -889,9 +890,9 @@ class _TopCitiesCard extends StatelessWidget {
 // =============================================================================
 
 class _AreaTypeCard extends StatelessWidget {
-  final CreatorAnalyticsController controller;
 
   const _AreaTypeCard({required this.controller});
+  final CreatorAnalyticsController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -906,7 +907,7 @@ class _AreaTypeCard extends StatelessWidget {
               final data = controller.areaTypeChartData;
               if (data.isEmpty) {
                 return const Center(
-                  child: Text('—', style: TextStyle(color: Colors.white38)),
+                  child: Text('—', style: TextStyle(color: AppColors.textTertiary)),
                 );
               }
 
@@ -955,15 +956,15 @@ class _AreaTypeCard extends StatelessWidget {
 }
 
 class _AreaStatRow extends StatelessWidget {
-  final String label;
-  final double percentage;
-  final Color color;
 
   const _AreaStatRow({
     required this.label,
     required this.percentage,
     required this.color,
   });
+  final String label;
+  final double percentage;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -984,13 +985,13 @@ class _AreaStatRow extends StatelessWidget {
             Text(
               label,
               style:
-                  const TextStyle(color: Colors.white70, fontSize: 14),
+                  const TextStyle(color: AppColors.textSecondary, fontSize: 14),
             ),
             const Spacer(),
             Text(
               '${percentage.toStringAsFixed(1)}%',
               style: const TextStyle(
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
               ),
@@ -1002,7 +1003,7 @@ class _AreaStatRow extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
             value: percentage / 100,
-            backgroundColor: Colors.white.withValues(alpha: 0.1),
+            backgroundColor: AppColors.textPrimary.withValues(alpha: 0.1),
             valueColor: AlwaysStoppedAnimation(color),
             minHeight: 6,
           ),
@@ -1017,9 +1018,9 @@ class _AreaStatRow extends StatelessWidget {
 // =============================================================================
 
 class _DeviceBreakdownCard extends StatelessWidget {
-  final CreatorAnalyticsController controller;
 
   const _DeviceBreakdownCard({required this.controller});
+  final CreatorAnalyticsController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -1033,7 +1034,7 @@ class _DeviceBreakdownCard extends StatelessWidget {
                 children: [
                   Icon(
                     _deviceIcon(d.deviceType),
-                    color: Colors.white54,
+                    color: AppColors.textSecondary,
                     size: 18,
                   ),
                   const SizedBox(width: 10),
@@ -1044,7 +1045,7 @@ class _DeviceBreakdownCard extends StatelessWidget {
                         Text(
                           d.deviceType.capitalize ?? d.deviceType,
                           style: const TextStyle(
-                              color: Colors.white, fontSize: 13),
+                              color: AppColors.textPrimary, fontSize: 13),
                         ),
                         const SizedBox(height: 4),
                         ClipRRect(
@@ -1052,7 +1053,7 @@ class _DeviceBreakdownCard extends StatelessWidget {
                           child: LinearProgressIndicator(
                             value: d.percentage / 100,
                             backgroundColor:
-                                Colors.white.withValues(alpha: 0.1),
+                                AppColors.textPrimary.withValues(alpha: 0.1),
                             valueColor:
                                 AlwaysStoppedAnimation(_deviceColor(d.deviceType)),
                             minHeight: 5,
@@ -1065,7 +1066,7 @@ class _DeviceBreakdownCard extends StatelessWidget {
                   Text(
                     '${d.percentage.toStringAsFixed(1)}%',
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -1110,16 +1111,16 @@ class _DeviceBreakdownCard extends StatelessWidget {
 // =============================================================================
 
 class _SectionHeader extends StatelessWidget {
-  final String title;
 
   const _SectionHeader({required this.title});
+  final String title;
 
   @override
   Widget build(BuildContext context) {
     return Text(
       title,
       style: const TextStyle(
-        color: Colors.white,
+        color: AppColors.textPrimary,
         fontSize: 18,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.3,
@@ -1129,9 +1130,9 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _GlassCard extends StatelessWidget {
-  final Widget child;
 
   const _GlassCard({required this.child});
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
@@ -1139,9 +1140,9 @@ class _GlassCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
+        color: AppColors.textPrimary.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.08)),
       ),
       child: child,
     );
@@ -1149,15 +1150,15 @@ class _GlassCard extends StatelessWidget {
 }
 
 class _LegendItem extends StatelessWidget {
-  final Color color;
-  final String label;
-  final String value;
 
   const _LegendItem({
     required this.color,
     required this.label,
     required this.value,
   });
+  final Color color;
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
@@ -1176,7 +1177,7 @@ class _LegendItem extends StatelessWidget {
         Text(
           '$label: $value',
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.7),
+            color: AppColors.textPrimary.withValues(alpha: 0.7),
             fontSize: 11,
           ),
         ),
@@ -1202,7 +1203,7 @@ class _PulsingDotState extends State<_PulsingDot>
       duration: const Duration(milliseconds: 1200),
       vsync: this,
     )..repeat(reverse: true);
-    _animation = Tween<double>(begin: 0.3, end: 1.0).animate(
+    _animation = Tween<double>(begin: 0.3, end: 1).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
   }
@@ -1221,7 +1222,7 @@ class _PulsingDotState extends State<_PulsingDot>
         width: 8,
         height: 8,
         decoration: const BoxDecoration(
-          color: Colors.red,
+          color: AppColors.error,
           shape: BoxShape.circle,
         ),
       ),

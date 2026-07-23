@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class AdminLoginScreen extends StatelessWidget {
   const AdminLoginScreen({super.key});
@@ -56,7 +56,7 @@ class AdminLoginScreen extends StatelessWidget {
           // Main Login Layout
           Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
+              padding: const EdgeInsets.all(24),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 450),
                 child: Obx(() {
@@ -75,23 +75,23 @@ class AdminLoginScreen extends StatelessWidget {
 
   Widget _buildLoadingCard() {
     return Container(
-      padding: const EdgeInsets.all(40.0),
+      padding: const EdgeInsets.all(40),
       decoration: BoxDecoration(
         color: AppColors.bgSurface,
-        borderRadius: BorderRadius.circular(24.0),
-        border: Border.all(color: AppColors.bgDivider, width: 1),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.bgDivider),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
+            color: AppColors.bgPage.withValues(alpha: 0.3),
             blurRadius: 30,
             offset: const Offset(0, 15),
           ),
         ],
       ),
-      child: Column(
+      child: const Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const SizedBox(
+          SizedBox(
             width: 48,
             height: 48,
             child: CircularProgressIndicator(
@@ -99,11 +99,11 @@ class AdminLoginScreen extends StatelessWidget {
               valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
             ),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
           Text(
             'Verifying console credentials...',
-            style: const TextStyle(
-              fontFamily: 'Roboto',
+            style: TextStyle(
+              
               color: AppColors.textSecondary,
               fontSize: 15,
               fontWeight: FontWeight.w400,
@@ -117,14 +117,14 @@ class AdminLoginScreen extends StatelessWidget {
 
   Widget _buildLoginCard(BuildContext context, AdminController controller) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 40.0, vertical: 48.0),
+      padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 48),
       decoration: BoxDecoration(
         color: AppColors.bgSurface,
-        borderRadius: BorderRadius.circular(24.0),
-        border: Border.all(color: AppColors.bgDivider, width: 1),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.bgDivider),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
+            color: AppColors.bgPage.withValues(alpha: 0.4),
             blurRadius: 40,
             offset: const Offset(0, 20),
           ),
@@ -146,17 +146,17 @@ class AdminLoginScreen extends StatelessWidget {
                 'TruthWorld',
                 style: context.typography.logo.copyWith(
                   fontSize: 38,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
             ),
           ),
           const SizedBox(height: 8),
-          Center(
+          const Center(
             child: Text(
               'Moderator & Audit Center',
-              style: const TextStyle(
-                fontFamily: 'Roboto',
+              style: TextStyle(
+                
                 color: AppColors.textSecondary,
                 fontSize: 15,
                 fontWeight: FontWeight.w400,
@@ -167,10 +167,10 @@ class AdminLoginScreen extends StatelessWidget {
           const SizedBox(height: 48),
 
           // Welcome message
-          Text(
+          const Text(
             'Admin authentication is required to access data layers, manual queues, and quarantine overrides.',
-            style: const TextStyle(
-              fontFamily: 'Roboto',
+            style: TextStyle(
+              
               color: AppColors.textTertiary,
               fontSize: 13,
               height: 1.5,
@@ -185,8 +185,8 @@ class AdminLoginScreen extends StatelessWidget {
                 ? null
                 : () => controller.signInWithGoogle(),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.black87,
+              backgroundColor: AppColors.textPrimary,
+              foregroundColor: AppColors.bgPage,
               elevation: controller.isLoading.value ? 0 : 2,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(
@@ -199,7 +199,7 @@ class AdminLoginScreen extends StatelessWidget {
                     height: 20,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.5,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.black54),
+                      valueColor: AlwaysStoppedAnimation<Color>(AppColors.bgPage54),
                     ),
                   )
                 : Row(
@@ -211,10 +211,10 @@ class AdminLoginScreen extends StatelessWidget {
                         painter: GoogleIconPainter(),
                       ),
                       const SizedBox(width: 12),
-                      Text(
+                      const Text(
                         'Continue with Google',
-                        style: const TextStyle(
-                          fontFamily: 'Roboto',
+                        style: TextStyle(
+                          
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 0.2,
@@ -225,16 +225,16 @@ class AdminLoginScreen extends StatelessWidget {
           ),
 
           const SizedBox(height: 24),
-          Row(
+          const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.lock_outline_rounded,
+              Icon(Icons.lock_outline_rounded,
                   color: AppColors.textTertiary, size: 14),
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text(
                 'Secured with Firebase Auth',
-                style: const TextStyle(
-                  fontFamily: 'Roboto',
+                style: TextStyle(
+                  
                   color: AppColors.textTertiary,
                   fontSize: 12,
                 ),
@@ -250,11 +250,11 @@ class AdminLoginScreen extends StatelessWidget {
 class GoogleIconPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final double w = size.width;
-    final double r = w / 2;
+    final w = size.width;
+    final r = w / 2;
 
-    final Paint paint = Paint()..style = PaintingStyle.fill;
-    final Path path = Path();
+    final paint = Paint()..style = PaintingStyle.fill;
+    final path = Path();
 
     // Red sector
     paint.color = const Color(0xFFEA4335);

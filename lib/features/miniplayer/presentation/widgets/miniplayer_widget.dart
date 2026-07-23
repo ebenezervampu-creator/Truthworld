@@ -1,12 +1,12 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Production-grade YouTube-style floating miniplayer.
 ///
@@ -56,9 +56,9 @@ class MiniplayerWidget extends StatelessWidget {
 // ═════════════════════════════════════════════════════════════════════════════
 
 class _FloatingCard extends StatelessWidget {
+  const _FloatingCard({required this.controller, required this.screenSize});
   final MiniplayerController controller;
   final Size screenSize;
-  const _FloatingCard({required this.controller, required this.screenSize});
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +77,6 @@ class _FloatingCard extends StatelessWidget {
             width: width,
             height: height,
             child: FocusableActionDetector(
-              autofocus: false,
               shortcuts: <ShortcutActivator, Intent>{
                 LogicalKeySet(LogicalKeyboardKey.keyI):
                     const _ExpandIntent(),
@@ -117,14 +116,14 @@ class _FloatingCard extends StatelessWidget {
 }
 
 class _CardBody extends StatelessWidget {
-  final MiniplayerController controller;
-  final Size cardSize;
-  final Size screenSize;
   const _CardBody({
     required this.controller,
     required this.cardSize,
     required this.screenSize,
   });
+  final MiniplayerController controller;
+  final Size cardSize;
+  final Size screenSize;
 
   @override
   Widget build(BuildContext context) {
@@ -140,11 +139,10 @@ class _CardBody extends StatelessWidget {
               BorderRadius.circular(MiniplayerConfig.borderRadius),
           border: Border.all(
             color: MiniplayerWidget._border.withValues(alpha: 0.4),
-            width: 1.0,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.55),
+              color: AppColors.bgPage.withValues(alpha: 0.55),
               blurRadius: MiniplayerConfig.elevation,
               offset: const Offset(0, 8),
             ),
@@ -182,8 +180,8 @@ class _CardBody extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _VideoFrame extends StatelessWidget {
-  final MiniplayerController controller;
   const _VideoFrame({required this.controller});
+  final MiniplayerController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -220,7 +218,6 @@ class _VideoFrame extends StatelessWidget {
               height: vpc.value.size.height,
               child: MobileFriendlyVideoPlayer(
                 controller: vpc,
-                looping: false,
               ),
             ),
           );
@@ -246,13 +243,13 @@ class _VideoFrame extends StatelessWidget {
           final msg = controller.error.value;
           if (msg.isEmpty) return const SizedBox.shrink();
           return Container(
-            color: Colors.black.withValues(alpha: 0.7),
+            color: AppColors.bgPage.withValues(alpha: 0.7),
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Center(
               child: Text(
                 msg,
                 textAlign: TextAlign.center,
-                style: GoogleFonts.roboto(
+                style: const TextStyle(
                   color: MiniplayerWidget._textPrimary,
                   fontSize: 12,
                 ),
@@ -283,9 +280,9 @@ class _VideoFrame extends StatelessWidget {
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            Colors.black.withValues(alpha: 0.35),
+                            AppColors.bgPage.withValues(alpha: 0.35),
                             Colors.transparent,
-                            Colors.black.withValues(alpha: 0.25),
+                            AppColors.bgPage.withValues(alpha: 0.25),
                           ],
                           stops: const [0.0, 0.45, 1.0],
                         ),
@@ -313,7 +310,7 @@ class _VideoFrame extends StatelessWidget {
                             icon: enabled ? Icons.subtitles_rounded : Icons.subtitles_outlined,
                             tooltip: 'Subtitles (CC)',
                             onTap: controller.toggleSubtitles,
-                            iconColor: enabled ? MiniplayerWidget._brand : Colors.white,
+                            iconColor: enabled ? MiniplayerWidget._brand : AppColors.textPrimary,
                           );
                         }),
                         const SizedBox(width: 6),
@@ -350,14 +347,14 @@ class _VideoFrame extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.7),
+                    color: AppColors.bgPage.withValues(alpha: 0.7),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
                     text,
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.roboto(
-                      color: Colors.white,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
                     ),
@@ -379,15 +376,15 @@ class _VideoFrame extends StatelessWidget {
 }
 
 class _ExpandButton extends StatelessWidget {
-  final MiniplayerController controller;
   const _ExpandButton({required this.controller});
+  final MiniplayerController controller;
 
   @override
   Widget build(BuildContext context) {
     return Tooltip(
       message: 'Expand (I)',
       child: Material(
-        color: Colors.black.withValues(alpha: 0.55),
+        color: AppColors.bgPage.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(6),
         child: InkWell(
           onTap: controller.openFullScreen,
@@ -398,12 +395,12 @@ class _ExpandButton extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.open_in_full_rounded,
-                    size: 14, color: Colors.white),
+                    size: 14, color: AppColors.textPrimary),
                 const SizedBox(width: 6),
-                Text(
+                const Text(
                   'Expand',
-                  style: GoogleFonts.roboto(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
                   ),
@@ -413,13 +410,13 @@ class _ExpandButton extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(
                       horizontal: 5, vertical: 1),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.18),
+                    color: AppColors.textPrimary.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(3),
                   ),
                   child: Text(
                     'I',
                     style: GoogleFonts.robotoMono(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                     ),
@@ -435,25 +432,25 @@ class _ExpandButton extends StatelessWidget {
 }
 
 class _OverlayIconButton extends StatelessWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onTap;
-  final double size;
-  final Color iconColor;
   const _OverlayIconButton({
     required this.icon,
     required this.tooltip,
     required this.onTap,
     this.size = 18,
-    this.iconColor = Colors.white,
+    this.iconColor = AppColors.textPrimary,
   });
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final double size;
+  final Color iconColor;
 
   @override
   Widget build(BuildContext context) {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: Colors.black.withValues(alpha: 0.55),
+        color: AppColors.bgPage.withValues(alpha: 0.55),
         shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),
@@ -469,15 +466,15 @@ class _OverlayIconButton extends StatelessWidget {
 }
 
 class _CenterPlayButton extends StatelessWidget {
-  final MiniplayerController controller;
   const _CenterPlayButton({required this.controller});
+  final MiniplayerController controller;
 
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       final playing = controller.isPlaying.value;
       return Material(
-        color: Colors.black.withValues(alpha: 0.55),
+        color: AppColors.bgPage.withValues(alpha: 0.55),
         shape: const CircleBorder(),
         child: InkWell(
           customBorder: const CircleBorder(),
@@ -487,7 +484,7 @@ class _CenterPlayButton extends StatelessWidget {
             child: Icon(
               playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
               size: 32,
-              color: Colors.white,
+              color: AppColors.textPrimary,
             ),
           ),
         ),
@@ -497,8 +494,8 @@ class _CenterPlayButton extends StatelessWidget {
 }
 
 class _VideoProgressBar extends StatelessWidget {
-  final MiniplayerController controller;
   const _VideoProgressBar({required this.controller});
+  final MiniplayerController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -511,9 +508,9 @@ class _VideoProgressBar extends StatelessWidget {
         child: LinearProgressIndicator(
           value: value,
           minHeight: 3,
-          backgroundColor: Colors.white.withValues(alpha: 0.18),
+          backgroundColor: AppColors.textPrimary.withValues(alpha: 0.18),
           valueColor:
-              const AlwaysStoppedAnimation<Color>(Colors.red),
+              const AlwaysStoppedAnimation<Color>(AppColors.error),
         ),
       );
     });
@@ -525,14 +522,14 @@ class _VideoProgressBar extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _InfoBar extends StatelessWidget {
-  final MiniplayerController controller;
-  final Size cardSize;
-  final Size screenSize;
   const _InfoBar({
     required this.controller,
     required this.cardSize,
     required this.screenSize,
   });
+  final MiniplayerController controller;
+  final Size cardSize;
+  final Size screenSize;
 
   @override
   Widget build(BuildContext context) {
@@ -570,8 +567,8 @@ class _InfoBar extends StatelessWidget {
 }
 
 class _TitleAndMeta extends StatelessWidget {
-  final MiniplayerController controller;
   const _TitleAndMeta({required this.controller});
+  final MiniplayerController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -585,7 +582,7 @@ class _TitleAndMeta extends StatelessWidget {
             info?.title ?? '',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.roboto(
+            style: const TextStyle(
               color: MiniplayerWidget._textPrimary,
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -604,7 +601,7 @@ class _TitleAndMeta extends StatelessWidget {
             '${info?.channelName ?? ''}  •  $pos / $dur',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.roboto(
+            style: const TextStyle(
               color: MiniplayerWidget._textSecondary,
               fontSize: 11,
               height: 1.2,
@@ -621,9 +618,9 @@ class _TitleAndMeta extends StatelessWidget {
 // ═════════════════════════════════════════════════════════════════════════════
 
 class _ExpandedView extends StatelessWidget {
+  const _ExpandedView({required this.controller, required this.screenSize});
   final MiniplayerController controller;
   final Size screenSize;
-  const _ExpandedView({required this.controller, required this.screenSize});
 
   @override
   Widget build(BuildContext context) {
@@ -650,7 +647,7 @@ class _ExpandedView extends StatelessWidget {
           ),
         },
         child: Material(
-          color: Colors.black,
+          color: AppColors.bgPage,
           child: SafeArea(
             child: Column(
               children: [
@@ -673,8 +670,8 @@ class _ExpandedView extends StatelessWidget {
 }
 
 class _ExpandedTopBar extends StatelessWidget {
-  final MiniplayerController controller;
   const _ExpandedTopBar({required this.controller});
+  final MiniplayerController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -730,15 +727,15 @@ class _ExpandedTopBar extends StatelessWidget {
 }
 
 class _ExpandedVideo extends StatelessWidget {
-  final MiniplayerController controller;
   const _ExpandedVideo({required this.controller});
+  final MiniplayerController controller;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: controller.togglePlayPause,
       child: Container(
-        color: Colors.black,
+        color: AppColors.bgPage,
         alignment: Alignment.center,
         child: Stack(
           fit: StackFit.expand,
@@ -768,7 +765,6 @@ class _ExpandedVideo extends StatelessWidget {
                   aspectRatio: vpc.value.aspectRatio,
                   child: MobileFriendlyVideoPlayer(
                     controller: vpc,
-                    looping: false,
                   ),
                 ),
               );
@@ -777,7 +773,7 @@ class _ExpandedVideo extends StatelessWidget {
               if (controller.isPlaying.value) return const SizedBox.shrink();
               return const Center(
                 child: Icon(Icons.play_circle_rounded,
-                    color: Colors.white70, size: 72),
+                    color: AppColors.textSecondary, size: 72),
               );
             }),
             Obx(() {
@@ -793,14 +789,14 @@ class _ExpandedVideo extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.7),
+                        color: AppColors.bgPage.withValues(alpha: 0.7),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         text,
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.roboto(
-                          color: Colors.white,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
                         ),
@@ -818,8 +814,8 @@ class _ExpandedVideo extends StatelessWidget {
 }
 
 class _ExpandedDetails extends StatelessWidget {
-  final MiniplayerController controller;
   const _ExpandedDetails({required this.controller});
+  final MiniplayerController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -841,12 +837,12 @@ class _ExpandedDetails extends StatelessWidget {
                     const RoundSliderThumbShape(enabledThumbRadius: 6),
                 overlayShape:
                     const RoundSliderOverlayShape(overlayRadius: 14),
-                activeTrackColor: Colors.red,
+                activeTrackColor: AppColors.error,
                 inactiveTrackColor:
                     MiniplayerWidget._border.withValues(alpha: 0.3),
-                thumbColor: Colors.red,
+                thumbColor: AppColors.error,
                 overlayColor:
-                    Colors.red.withValues(alpha: 0.15),
+                    AppColors.error.withValues(alpha: 0.15),
               ),
               child: Slider(
                 value: durMs > 0 ? posMs.clamp(0.0, durMs) : 0.0,
@@ -903,7 +899,7 @@ class _ExpandedDetails extends StatelessWidget {
                         playing
                             ? Icons.pause_rounded
                             : Icons.play_arrow_rounded,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         size: 32,
                       ),
                     ),
@@ -930,7 +926,7 @@ class _ExpandedDetails extends StatelessWidget {
                   info.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     color: MiniplayerWidget._textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
@@ -942,7 +938,7 @@ class _ExpandedDetails extends StatelessWidget {
                   info.channelName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     color: MiniplayerWidget._textSecondary,
                     fontSize: 13,
                   ),

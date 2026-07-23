@@ -1,7 +1,7 @@
-import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 
 class SearchPageController extends BaseController {
   final RxString searchQuery = ''.obs;
@@ -38,7 +38,7 @@ class SearchPageController extends BaseController {
           .limit(20)
           .get();
 
-      searchResults.assignAll(snapshot.docs.map((doc) => Video.fromDocumentSnapshot(doc)).toList());
+      searchResults.assignAll(snapshot.docs.map(Video.fromDocumentSnapshot).toList());
       setViewState(ViewState.success);
     } catch (e) {
       handleError(e);

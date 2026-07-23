@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/player_settings_panels.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class TranscriptOverlay extends StatelessWidget {
+  const TranscriptOverlay({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const TranscriptOverlay({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +36,7 @@ class TranscriptOverlay extends StatelessWidget {
                   return const Center(
                     child: Text(
                       'No transcript available',
-                      style: TextStyle(color: Colors.white70),
+                      style: TextStyle(color: AppColors.textSecondary),
                     ),
                   );
                 }
@@ -58,7 +58,7 @@ class TranscriptOverlay extends StatelessWidget {
                           vertical: 12,
                         ),
                         color: isActive
-                            ? Colors.white.withValues(alpha: 0.1)
+                            ? AppColors.textPrimary.withValues(alpha: 0.1)
                             : Colors.transparent,
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -77,7 +77,7 @@ class TranscriptOverlay extends StatelessWidget {
                               child: Text(
                                 seg.text,
                                 style: TS.body.copyWith(
-                                  color: isActive ? Colors.white : PT.textDim,
+                                  color: isActive ? AppColors.textPrimary : PT.textDim,
                                   fontWeight: isActive
                                       ? FontWeight.w500
                                       : FontWeight.normal,

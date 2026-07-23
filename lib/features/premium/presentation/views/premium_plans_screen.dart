@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/premium/presentation/controllers/premium_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class PremiumPlansScreen extends StatelessWidget {
   const PremiumPlansScreen({super.key});
@@ -23,23 +23,23 @@ class PremiumPlansScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.red,
+                color: AppColors.error,
                 borderRadius: BorderRadius.circular(6),
               ),
               child: const Icon(
                 Icons.play_arrow_rounded,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 18,
               ),
             ),
             const SizedBox(width: 8),
-            Text(
+            const Text(
               'Premium',
               style: TextStyle(
-                fontFamily: 'Roboto',
+                
                 fontWeight: FontWeight.w600,
                 fontSize: 20,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 letterSpacing: -0.5,
               ),
             ),
@@ -48,21 +48,20 @@ class PremiumPlansScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF0F0F0F),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Get.back(),
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: Get.back,
         ),
       ),
       body: SafeArea(
         child: Obx(() {
           final auth = AuthService.to;
-          final bool isPremium = auth.isPremiumUser.value;
-          final String? currentPlanId = auth.premiumPlanId.value;
+          final isPremium = auth.isPremiumUser.value;
+          final currentPlanId = auth.premiumPlanId.value;
 
           return Stack(
             children: [
               SingleChildScrollView(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     // 1. YouTube Premium Landing Hero
                     _buildYouTubeHeroSection(
@@ -78,8 +77,8 @@ class PremiumPlansScreen extends StatelessWidget {
                     // 3. User Membership Status Panel / Sandbox Panel
                     Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 24.0,
-                        vertical: 16.0,
+                        horizontal: 24,
+                        vertical: 16,
                       ),
                       child: _buildMembershipStatusCard(
                         context,
@@ -92,58 +91,58 @@ class PremiumPlansScreen extends StatelessWidget {
                     // 4. Plan Selector (Visible if not subscribed)
                     if (!isPremium) ...[
                       const SizedBox(height: 32),
-                      Text(
+                      const Text(
                         'Choose the plan that fits you',
                         style: TextStyle(
-                          fontFamily: 'Roboto',
+                          
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 16),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: _buildYouTubePlansList(context, controller),
                       ),
                       const SizedBox(height: 24),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: _buildCheckoutButton(context, controller),
                       ),
                     ],
 
                     // 5. Compare Table
                     const SizedBox(height: 48),
-                    Text(
+                    const Text(
                       'Compare Free vs Premium',
                       style: TextStyle(
-                        fontFamily: 'Roboto',
+                        
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 16),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: _buildComparisonTable(context),
                     ),
 
                     // 6. FAQs
                     const SizedBox(height: 48),
-                    Text(
+                    const Text(
                       'Frequently asked questions',
                       style: TextStyle(
-                        fontFamily: 'Roboto',
+                        
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 16),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: _buildFaqSection(context),
                     ),
 
@@ -154,20 +153,20 @@ class PremiumPlansScreen extends StatelessWidget {
 
               // Loading overlay
               if (controller.isLoading.value || controller.isSimulating.value)
-                Container(
-                  color: Colors.black.withValues(alpha: 0.75),
+                ColoredBox(
+                  color: AppColors.bgPage.withValues(alpha: 0.75),
                   child: const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.error),
                         ),
                         SizedBox(height: 16),
                         Text(
                           'Processing membership details...',
                           style: TextStyle(
-                            color: Colors.white70,
+                            color: AppColors.textSecondary,
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
                           ),
@@ -189,14 +188,14 @@ class PremiumPlansScreen extends StatelessWidget {
     bool isPremium,
     String? planId,
   ) {
-    String selectedId = controller.selectedPlanId.value;
-    String trialText = "7 days free • Then ₹129.00/month";
+    final selectedId = controller.selectedPlanId.value;
+    var trialText = '7 days free • Then ₹129.00/month';
     if (selectedId == 'individual_yearly') {
-      trialText = "Prepaid plan • ₹1,290.00/year";
+      trialText = 'Prepaid plan • ₹1,290.00/year';
     } else if (selectedId == 'family_monthly') {
-      trialText = "7 days free • Then ₹189.00/month";
+      trialText = '7 days free • Then ₹189.00/month';
     } else if (selectedId == 'student_monthly') {
-      trialText = "7 days free • Then ₹79.00/month";
+      trialText = '7 days free • Then ₹79.00/month';
     }
 
     return Container(
@@ -217,12 +216,12 @@ class PremiumPlansScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.red,
+                  color: AppColors.error,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Icon(
                   Icons.play_arrow_rounded,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   size: 32,
                 ),
               ),
@@ -231,30 +230,30 @@ class PremiumPlansScreen extends StatelessWidget {
                 'Premium',
                 style: context.typography.logo.copyWith(
                   fontSize: 36,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 24),
-          Text(
+          const Text(
             'Ad-free, offline, and in the background',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontFamily: 'Roboto',
+              
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 12),
-          Text(
+          const Text(
             'Enjoy Truthworld and Truthworld Music uninterrupted. Plus, get enhanced bitrate 1080p Premium quality.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontFamily: 'Roboto',
+              
               fontSize: 15,
-              color: Colors.white60,
+              color: AppColors.textSecondary,
               height: 1.4,
             ),
           ),
@@ -269,7 +268,7 @@ class PremiumPlansScreen extends StatelessWidget {
                   backgroundColor: const Color(
                     0xFF3EA6FF,
                   ), // Classic YouTube blue button
-                  foregroundColor: Colors.black,
+                  foregroundColor: AppColors.bgPage,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(26),
                   ),
@@ -278,11 +277,11 @@ class PremiumPlansScreen extends StatelessWidget {
                   selectedId == 'individual_yearly'
                       ? 'Get Prepaid Plan'
                       : 'Try it free',
-                  style: TextStyle(
-                    fontFamily: 'Roboto',
+                  style: const TextStyle(
+                    
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black,
+                    color: AppColors.bgPage,
                   ),
                 ),
               ),
@@ -290,32 +289,32 @@ class PremiumPlansScreen extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               trialText,
-              style: const TextStyle(fontSize: 13, color: Colors.white38),
+              style: const TextStyle(fontSize: 13, color: AppColors.textTertiary),
             ),
             const SizedBox(height: 4),
             const Text(
               'Only new members are eligible for trials. Cancel anytime.',
-              style: TextStyle(fontSize: 11, color: Colors.white30),
+              style: TextStyle(fontSize: 11, color: AppColors.textTertiary),
             ),
           ] else ...[
             const SizedBox(height: 24),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.15),
+                color: AppColors.warning.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.star_rounded, color: Colors.amber, size: 20),
-                  const SizedBox(width: 8),
+                  Icon(Icons.star_rounded, color: AppColors.warning, size: 20),
+                  SizedBox(width: 8),
                   Text(
                     'Active Premium Member',
                     style: TextStyle(
-                      fontFamily: 'Roboto',
-                      color: Colors.amber,
+                      
+                      color: AppColors.warning,
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                     ),
@@ -358,11 +357,11 @@ class PremiumPlansScreen extends StatelessWidget {
     ];
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
       child: Column(
         children: features.map((feat) {
           return Padding(
-            padding: const EdgeInsets.only(bottom: 24.0),
+            padding: const EdgeInsets.only(bottom: 24),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -372,7 +371,7 @@ class PremiumPlansScreen extends StatelessWidget {
                     color: Color(0xFF212121),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(feat.icon, color: Colors.white, size: 28),
+                  child: Icon(feat.icon, color: AppColors.textPrimary, size: 28),
                 ),
                 const SizedBox(width: 20),
                 Expanded(
@@ -381,20 +380,20 @@ class PremiumPlansScreen extends StatelessWidget {
                     children: [
                       Text(
                         feat.title,
-                        style: TextStyle(
-                          fontFamily: 'Roboto',
+                        style: const TextStyle(
+                          
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 6),
                       Text(
                         feat.description,
-                        style: TextStyle(
-                          fontFamily: 'Roboto',
+                        style: const TextStyle(
+                          
                           fontSize: 13,
-                          color: Colors.white54,
+                          color: AppColors.textSecondary,
                           height: 1.4,
                         ),
                       ),
@@ -416,17 +415,17 @@ class PremiumPlansScreen extends StatelessWidget {
     String? planId,
   ) {
     if (isPremium) {
-      String planName = "Individual Monthly";
-      String planPrice = "₹129/month";
-      if (planId == "individual_yearly") {
-        planName = "Individual Annual";
-        planPrice = "₹1,290/year";
-      } else if (planId == "family_monthly") {
-        planName = "Family Monthly";
-        planPrice = "₹189/month";
-      } else if (planId == "student_monthly") {
-        planName = "Student Monthly";
-        planPrice = "₹79/month";
+      var planName = 'Individual Monthly';
+      var planPrice = '₹129/month';
+      if (planId == 'individual_yearly') {
+        planName = 'Individual Annual';
+        planPrice = '₹1,290/year';
+      } else if (planId == 'family_monthly') {
+        planName = 'Family Monthly';
+        planPrice = '₹189/month';
+      } else if (planId == 'student_monthly') {
+        planName = 'Student Monthly';
+        planPrice = '₹79/month';
       }
 
       return Container(
@@ -436,28 +435,28 @@ class PremiumPlansScreen extends StatelessWidget {
           color: const Color(0xFF1F1F1F),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.amber.withValues(alpha: 0.3),
+            color: AppColors.warning.withValues(alpha: 0.3),
             width: 1.5,
           ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            const Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.check_circle_rounded,
-                  color: Colors.green,
+                  color: AppColors.success,
                   size: 28,
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Text(
                   'Membership details',
                   style: TextStyle(
-                    fontFamily: 'Roboto',
+                    
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ],
@@ -480,16 +479,16 @@ class PremiumPlansScreen extends StatelessWidget {
               child: OutlinedButton(
                 onPressed: () => controller.cancelSimulated(),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.redAccent),
+                  side: const BorderSide(color: AppColors.error),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(24),
                   ),
                 ),
-                child: Text(
+                child: const Text(
                   'Cancel Membership',
                   style: TextStyle(
-                    fontFamily: 'Roboto',
-                    color: Colors.redAccent,
+                    
+                    color: AppColors.error,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -507,22 +506,22 @@ class PremiumPlansScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1F1F1F),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF2D2D2D), width: 1),
+        border: Border.all(color: const Color(0xFF2D2D2D)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.auto_awesome, color: Colors.amber, size: 20),
-              const SizedBox(width: 8),
+              Icon(Icons.auto_awesome, color: AppColors.warning, size: 20),
+              SizedBox(width: 8),
               Text(
                 'Developer Sandbox Panel',
                 style: TextStyle(
-                  fontFamily: 'Roboto',
+                  
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white70,
+                  color: AppColors.textSecondary,
                 ),
               ),
             ],
@@ -530,7 +529,7 @@ class PremiumPlansScreen extends StatelessWidget {
           const SizedBox(height: 8),
           const Text(
             'Bypass external payment loops and instantly activate/deactivate Premium tiers to test restriction bypasses.',
-            style: TextStyle(color: Colors.white30, fontSize: 12),
+            style: TextStyle(color: AppColors.textTertiary, fontSize: 12),
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -539,13 +538,13 @@ class PremiumPlansScreen extends StatelessWidget {
             child: ElevatedButton.icon(
               icon: const Icon(
                 Icons.offline_bolt_rounded,
-                color: Colors.black87,
+                color: AppColors.bgPage,
               ),
-              label: Text(
+              label: const Text(
                 'Simulate Upgrade (Unlock)',
                 style: TextStyle(
-                  fontFamily: 'Roboto',
-                  color: Colors.black87,
+                  
+                  color: AppColors.bgPage,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -556,15 +555,15 @@ class PremiumPlansScreen extends StatelessWidget {
                     'Authentication Required',
                     'Please sign in to upgrade.',
                     snackPosition: SnackPosition.BOTTOM,
-                    backgroundColor: Colors.red,
-                    colorText: Colors.white,
+                    backgroundColor: AppColors.error,
+                    colorText: AppColors.textPrimary,
                   );
                 } else {
                   controller.upgradeSimulated(controller.selectedPlanId.value);
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.amber,
+                backgroundColor: AppColors.warning,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(22),
                 ),
@@ -636,7 +635,7 @@ class PremiumPlansScreen extends StatelessWidget {
                   : const Color(0xFF1F1F1F),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isSelected ? Colors.red : const Color(0xFF2D2D2D),
+                color: isSelected ? AppColors.error : const Color(0xFF2D2D2D),
                 width: isSelected ? 2 : 1,
               ),
             ),
@@ -645,12 +644,12 @@ class PremiumPlansScreen extends StatelessWidget {
               children: [
                 // Radio icon selector
                 Padding(
-                  padding: const EdgeInsets.only(top: 2.0),
+                  padding: const EdgeInsets.only(top: 2),
                   child: Icon(
                     isSelected
                         ? Icons.radio_button_checked
                         : Icons.radio_button_off,
-                    color: isSelected ? Colors.red : Colors.white54,
+                    color: isSelected ? AppColors.error : AppColors.textSecondary,
                     size: 20,
                   ),
                 ),
@@ -665,21 +664,21 @@ class PremiumPlansScreen extends StatelessWidget {
                           Expanded(
                             child: Text(
                               plan.title,
-                              style: TextStyle(
-                                fontFamily: 'Roboto',
+                              style: const TextStyle(
+                                
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                                color: AppColors.textPrimary,
                               ),
                             ),
                           ),
                           Text(
                             plan.priceLabel.split('/')[0],
                             style: TextStyle(
-                              fontFamily: 'Roboto',
+                              
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: isSelected ? Colors.red : Colors.white,
+                              color: isSelected ? AppColors.error : AppColors.textPrimary,
                             ),
                           ),
                         ],
@@ -695,14 +694,14 @@ class PremiumPlansScreen extends StatelessWidget {
                             ),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? Colors.red.withValues(alpha: 0.15)
-                                  : Colors.white10,
+                                  ? AppColors.error.withValues(alpha: 0.15)
+                                  : AppColors.bgDivider,
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
                               plan.tagline,
                               style: TextStyle(
-                                color: isSelected ? Colors.red : Colors.white70,
+                                color: isSelected ? AppColors.error : AppColors.textSecondary,
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -712,7 +711,7 @@ class PremiumPlansScreen extends StatelessWidget {
                             '/${plan.priceLabel.split('/')[1]}',
                             style: const TextStyle(
                               fontSize: 11,
-                              color: Colors.white38,
+                              color: AppColors.textTertiary,
                             ),
                           ),
                         ],
@@ -721,7 +720,7 @@ class PremiumPlansScreen extends StatelessWidget {
                       Text(
                         plan.description,
                         style: const TextStyle(
-                          color: Colors.white54,
+                          color: AppColors.textSecondary,
                           fontSize: 12,
                           height: 1.3,
                         ),
@@ -742,9 +741,9 @@ class PremiumPlansScreen extends StatelessWidget {
     PremiumController controller,
   ) {
     final selectedId = controller.selectedPlanId.value;
-    String label = "Start 7-Day Free Trial";
+    var label = 'Start 7-Day Free Trial';
     if (selectedId == 'individual_yearly') {
-      label = "Get Annual Plan (Prepaid)";
+      label = 'Get Annual Plan (Prepaid)';
     }
 
     return SizedBox(
@@ -755,18 +754,18 @@ class PremiumPlansScreen extends StatelessWidget {
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors
               .white, // YouTube styles the primary action button white in dark pages
-          foregroundColor: Colors.black,
+          foregroundColor: AppColors.bgPage,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(26),
           ),
         ),
         child: Text(
           label,
-          style: TextStyle(
-            fontFamily: 'Roboto',
+          style: const TextStyle(
+            
             fontSize: 16,
             fontWeight: FontWeight.bold,
-            color: Colors.black,
+            color: AppColors.bgPage,
           ),
         ),
       ),
@@ -778,14 +777,14 @@ class PremiumPlansScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1F1F1F),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF2D2D2D), width: 1),
+        border: Border.all(color: const Color(0xFF2D2D2D)),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
         child: Table(
           columnWidths: const {
-            0: FlexColumnWidth(2.0),
-            1: FlexColumnWidth(1.0),
+            0: FlexColumnWidth(2),
+            1: FlexColumnWidth(),
             2: FlexColumnWidth(1.2),
           },
           children: [
@@ -806,30 +805,30 @@ class PremiumPlansScreen extends StatelessWidget {
   }
 
   TableRow _buildTableHeaderRow() {
-    return TableRow(
-      decoration: const BoxDecoration(color: Color(0xFF2D2D2D)),
+    return const TableRow(
+      decoration: BoxDecoration(color: Color(0xFF2D2D2D)),
       children: [
         Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: EdgeInsets.all(16),
           child: Text(
             'Features',
-            style: TextStyle(fontFamily: 'Roboto', fontWeight: FontWeight.bold),
+            style: TextStyle( fontWeight: FontWeight.bold),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: EdgeInsets.all(16),
           child: Text(
             'Free',
-            style: TextStyle(fontFamily: 'Roboto', color: Colors.white54),
+            style: TextStyle( color: AppColors.textSecondary),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: EdgeInsets.all(16),
           child: Text(
             'Premium',
             style: TextStyle(
-              fontFamily: 'Roboto',
-              color: Colors.red,
+              
+              color: AppColors.error,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -842,26 +841,26 @@ class PremiumPlansScreen extends StatelessWidget {
     return TableRow(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Text(
             feature,
-            style: const TextStyle(fontSize: 14, color: Colors.white70),
+            style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Text(
             freeVal,
-            style: const TextStyle(fontSize: 13, color: Colors.white38),
+            style: const TextStyle(fontSize: 13, color: AppColors.textTertiary),
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Text(
             premiumVal,
             style: const TextStyle(
               fontSize: 13,
-              color: Colors.red,
+              color: AppColors.error,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -873,23 +872,23 @@ class PremiumPlansScreen extends StatelessWidget {
   Widget _buildFaqSection(BuildContext context) {
     final faqs = [
       _FaqItem(
-        q: "What is Truthworld Premium?",
-        a: "Truthworld Premium is a paid membership that elevates your viewing experience with ad-free videos, background play, offline downloads, and higher-quality 1080p Premium bitrates.",
+        q: 'What is Truthworld Premium?',
+        a: 'Truthworld Premium is a paid membership that elevates your viewing experience with ad-free videos, background play, offline downloads, and higher-quality 1080p Premium bitrates.',
       ),
       _FaqItem(
-        q: "How does the Family Plan work?",
-        a: "The Family Plan allows you to share premium privileges with up to 5 family members (ages 13+) living in the same household. Each family member gets their own personalized account recommendations and library.",
+        q: 'How does the Family Plan work?',
+        a: 'The Family Plan allows you to share premium privileges with up to 5 family members (ages 13+) living in the same household. Each family member gets their own personalized account recommendations and library.',
       ),
       _FaqItem(
-        q: "Who is eligible for the Student Plan?",
-        a: "Full-time students at accredited universities or higher education establishments are eligible. Annual verification is required to maintain student pricing.",
+        q: 'Who is eligible for the Student Plan?',
+        a: 'Full-time students at accredited universities or higher education establishments are eligible. Annual verification is required to maintain student pricing.',
       ),
       _FaqItem(
-        q: "Can I cancel my subscription at any time?",
-        a: "Yes. You can cancel your subscription at any time directly through the Premium screen or your Account Settings page. Cancelled plans remain active until the end of your billing cycle.",
+        q: 'Can I cancel my subscription at any time?',
+        a: 'Yes. You can cancel your subscription at any time directly through the Premium screen or your Account Settings page. Cancelled plans remain active until the end of your billing cycle.',
       ),
       _FaqItem(
-        q: "How does the 7-day free trial work?",
+        q: 'How does the 7-day free trial work?',
         a: "First-time subscribers are eligible for a 7-day free trial. You won't be charged until the trial period ends, and you will receive a reminder beforehand.",
       ),
     ];
@@ -897,20 +896,20 @@ class PremiumPlansScreen extends StatelessWidget {
     return Column(
       children: faqs.map((faq) {
         return Container(
-          margin: const EdgeInsets.only(bottom: 8.0),
+          margin: const EdgeInsets.only(bottom: 8),
           decoration: BoxDecoration(
             color: const Color(0xFF1F1F1F),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF2D2D2D), width: 1),
+            border: Border.all(color: const Color(0xFF2D2D2D)),
           ),
           child: ExpansionTile(
             title: Text(
               faq.q,
-              style: TextStyle(
-                fontFamily: 'Roboto',
+              style: const TextStyle(
+                
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: Colors.white,
+                color: AppColors.textPrimary,
               ),
             ),
             shape: const Border(),
@@ -919,7 +918,7 @@ class PremiumPlansScreen extends StatelessWidget {
               Text(
                 faq.a,
                 style: const TextStyle(
-                  color: Colors.white54,
+                  color: AppColors.textSecondary,
                   height: 1.4,
                   fontSize: 14,
                 ),
@@ -933,18 +932,18 @@ class PremiumPlansScreen extends StatelessWidget {
 
   Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
             label,
-            style: const TextStyle(color: Colors.white54, fontSize: 14),
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
           ),
           Text(
             value,
             style: const TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 14,
               fontWeight: FontWeight.bold,
             ),
@@ -956,22 +955,17 @@ class PremiumPlansScreen extends StatelessWidget {
 }
 
 class _FeatureItem {
-  final IconData icon;
-  final String title;
-  final String description;
   _FeatureItem({
     required this.icon,
     required this.title,
     required this.description,
   });
+  final IconData icon;
+  final String title;
+  final String description;
 }
 
 class _PlanDetails {
-  final String id;
-  final String title;
-  final String priceLabel;
-  final String tagline;
-  final String description;
 
   _PlanDetails({
     required this.id,
@@ -980,10 +974,15 @@ class _PlanDetails {
     required this.tagline,
     required this.description,
   });
+  final String id;
+  final String title;
+  final String priceLabel;
+  final String tagline;
+  final String description;
 }
 
 class _FaqItem {
+  _FaqItem({required this.q, required this.a});
   final String q;
   final String a;
-  _FaqItem({required this.q, required this.a});
 }

@@ -1,18 +1,17 @@
-import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class PlaylistCard extends StatelessWidget {
-  final PlaylistModel playlist;
-  final VoidCallback? onTap;
 
   const PlaylistCard({
-    super.key,
-    required this.playlist,
+    required this.playlist, super.key,
     this.onTap,
   });
+  final PlaylistModel playlist;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +76,7 @@ class PlaylistCard extends StatelessWidget {
                 highlightColor: AppTheme.colors.border,
                 child: Container(color: AppTheme.colors.surface),
               ),
-              errorWidget: (context, url, error) => Container(
+              errorWidget: (context, url, error) => ColoredBox(
                 color: AppTheme.colors.surface,
                 child: Icon(
                   Icons.playlist_play,
@@ -87,7 +86,7 @@ class PlaylistCard extends StatelessWidget {
               ),
             )
           else
-            Container(
+            ColoredBox(
               color: AppTheme.colors.surface,
               child: Icon(
                 Icons.playlist_play,
@@ -104,7 +103,7 @@ class PlaylistCard extends StatelessWidget {
                 vertical: AppTheme.spacing.xs / 2,
               ),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.85),
+                color: AppColors.bgPage.withValues(alpha: 0.85),
                 borderRadius: AppTheme.radius.circularMd,
               ),
               child: Text(

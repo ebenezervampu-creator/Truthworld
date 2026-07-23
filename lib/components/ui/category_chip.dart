@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// CategoryChip: Reusable, optimized chip component
@@ -11,25 +10,25 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Performance optimized with @immutable
 @immutable
 class CategoryChip extends StatelessWidget {
+
+  const CategoryChip({
+    required this.label, required this.isSelected, required this.onTap, super.key,
+    this.selectedColor,
+    this.unselectedColor,
+  });
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
   final Color? selectedColor;
   final Color? unselectedColor;
 
-  const CategoryChip({
-    super.key,
-    required this.label,
-    required this.isSelected,
-    required this.onTap,
-    this.selectedColor,
-    this.unselectedColor,
-  });
-
   @override
   Widget build(BuildContext context) {
-    final selectedBgColor = selectedColor ?? AppColors.brand;
-    final unselectedBgColor = unselectedColor ?? AppColors.bgSurface;
+    final colors = context.twColors;
+    final typography = context.twTypography;
+
+    final selectedBgColor = selectedColor ?? colors.brand;
+    final unselectedBgColor = unselectedColor ?? colors.surface;
 
     return Semantics(
       button: true,
@@ -45,8 +44,7 @@ class CategoryChip extends StatelessWidget {
           color: isSelected ? selectedBgColor : unselectedBgColor,
           borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
           border: Border.all(
-            color: isSelected ? Colors.transparent : AppColors.bgDivider,
-            width: 1.0,
+            color: isSelected ? Colors.transparent : colors.divider,
           ),
           boxShadow: isSelected ? AppTheme.elevationSmall : [],
         ),
@@ -57,11 +55,11 @@ class CategoryChip extends StatelessWidget {
             onTap: onTap,
             borderRadius: BorderRadius.circular(AppTheme.radiusLarge),
             hoverColor: isSelected
-                ? AppColors.brand.withValues(alpha: 0.9)
-                : AppColors.textPrimary.withValues(alpha: 0.05),
+                ? colors.brand.withValues(alpha: 0.9)
+                : colors.textPrimary.withValues(alpha: 0.05),
             splashColor: isSelected
-                ? Colors.white.withValues(alpha: 0.1)
-                : AppColors.brand.withValues(alpha: 0.1),
+                ? colors.textPrimary.withValues(alpha: 0.1)
+                : colors.brand.withValues(alpha: 0.1),
             child: Padding(
               padding: const EdgeInsets.symmetric(
                 horizontal: AppTheme.space16,
@@ -69,12 +67,10 @@ class CategoryChip extends StatelessWidget {
               ),
               child: Text(
                 label,
-                style: GoogleFonts.roboto(
-                  fontSize: AppTheme.labelLarge,
+                style: typography.label.copyWith(
                   color: isSelected
-                      ? AppColors.textPrimary
-                      : AppColors.textSecondary,
-                  fontWeight: isSelected ? FontWeight.w500 : FontWeight.w500,
+                      ? colors.textPrimary
+                      : colors.textSecondary,
                   letterSpacing: 0.1,
                 ),
                 semanticsLabel: label,

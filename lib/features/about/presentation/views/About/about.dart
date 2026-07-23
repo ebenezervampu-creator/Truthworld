@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AboutPage extends StatelessWidget {
-  final bool isDashboard;
   const AboutPage({super.key, this.isDashboard = false});
+  final bool isDashboard;
 
   @override
   Widget build(BuildContext context) {
@@ -47,14 +47,14 @@ class AboutPage extends StatelessWidget {
               color: AppColors.brand,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
+            child: const Icon(
               Icons.toc_rounded,
               color: AppColors.textPrimary,
               size: 20,
             ),
           ),
           const SizedBox(width: 12),
-          Text(
+          const Text(
             'Truthworld',
             style: TextStyle(
               color: AppColors.textPrimary,
@@ -70,7 +70,7 @@ class AboutPage extends StatelessWidget {
           onPressed: () {
             Get.toNamed('/terms');
           },
-          child: Text(
+          child: const Text(
             'Terms And Conditions',
             style: TextStyle(color: AppColors.textSecondary),
           ),
@@ -79,7 +79,7 @@ class AboutPage extends StatelessWidget {
           onPressed: () {
             Get.toNamed('/privacy');
           },
-          child: Text(
+          child: const Text(
             'Privacy Policy',
             style: TextStyle(color: AppColors.textSecondary),
           ),
@@ -142,7 +142,7 @@ class AboutPage extends StatelessWidget {
           const SizedBox(height: 30),
           RichText(
             textAlign: TextAlign.center,
-            text: TextSpan(
+            text: const TextSpan(
               style: TextStyle(
                 fontSize: 64,
                 fontWeight: FontWeight.bold,
@@ -164,8 +164,8 @@ class AboutPage extends StatelessWidget {
           const SizedBox(height: 24),
           Container(
             constraints: const BoxConstraints(maxWidth: 900),
-            child: Text(
-              "Truthworld is a cloud-native SaaS video platform that integrates automated content validation into the publishing pipeline. Creators upload videos with supporting sources, and the system generates transcripts, extracts factual claims, and applies AI-assisted verification to produce structured credibility summaries for viewers. The platform combines scalable media processing, metadata-driven validation, and multilingual infrastructure to deliver transparent, accountable video distribution across more than 70 languages.",
+            child: const Text(
+              'Truthworld is a cloud-native SaaS video platform that integrates automated content validation into the publishing pipeline. Creators upload videos with supporting sources, and the system generates transcripts, extracts factual claims, and applies AI-assisted verification to produce structured credibility summaries for viewers. The platform combines scalable media processing, metadata-driven validation, and multilingual infrastructure to deliver transparent, accountable video distribution across more than 70 languages.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 18,
@@ -199,7 +199,7 @@ class AboutPage extends StatelessWidget {
               ],
               OutlinedButton.icon(
                 onPressed: () {
-                  Get.toNamed('/uploadscreen');
+                  Get.toNamed('/upload');
                 },
                 icon: const Icon(Icons.fact_check),
                 label: const Text('Upload your First Verified Video'),
@@ -232,7 +232,7 @@ class AboutPage extends StatelessWidget {
       color: AppColors.bgPage,
       child: Column(
         children: [
-          Text(
+          const Text(
             'Three Revolutionary Pillars',
             style: TextStyle(
               fontSize: 48,
@@ -291,7 +291,7 @@ class AboutPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(36),
       decoration: BoxDecoration(
-        color: Color(0xFFFFB703),
+        color: const Color(0xFFFFB703),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withValues(alpha: 0.3), width: 2),
       ),
@@ -308,7 +308,7 @@ class AboutPage extends StatelessWidget {
           const SizedBox(height: 24),
           Text(
             title,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
@@ -327,7 +327,7 @@ class AboutPage extends StatelessWidget {
           Text(
             description,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 15,
               color: AppColors.textSecondary,
               height: 1.7,
@@ -342,10 +342,10 @@ class AboutPage extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 100),
-      color: Color(0xFFFFB703),
+      color: const Color(0xFFFFB703),
       child: Row(
         children: [
-          Expanded(
+          const Expanded(
             flex: 3,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -358,7 +358,7 @@ class AboutPage extends StatelessWidget {
                     color: AppColors.textPrimary,
                   ),
                 ),
-                const SizedBox(height: 24),
+                SizedBox(height: 24),
                 Text(
                   'Truthworld is a proprietary SaaS platform revolutionizing video delivery. We combine enterprise-grade infrastructure with AI-powered accessibility and creator-first monetization.',
                   style: TextStyle(
@@ -367,7 +367,7 @@ class AboutPage extends StatelessWidget {
                     height: 1.8,
                   ),
                 ),
-                const SizedBox(height: 20),
+                SizedBox(height: 20),
                 Text(
                   'Unlike traditional platforms, Truthworld is engineered from the ground up to maximize creator earnings and ensure content transparency through a built-in trust layer.',
                   style: TextStyle(
@@ -429,7 +429,7 @@ class AboutPage extends StatelessWidget {
       color: AppColors.bgPage,
       child: Column(
         children: [
-          Text(
+          const Text(
             'TruthWorld Content Validation & Transparency',
             style: TextStyle(
               fontSize: 56,
@@ -442,7 +442,7 @@ class AboutPage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(50),
             decoration: BoxDecoration(
-              color: Color(0xFFFFB703),
+              color: const Color(0xFFFFB703),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: AppTokens.colors.hoverAccent.withValues(alpha: 0.3),
@@ -452,8 +452,8 @@ class AboutPage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Truthworld\'s Content Validation feature is a built-in trust layer that analyzes factual claims in uploaded videos, attaches creator-provided sources, and allows viewers to see a structured credibility summary before engaging with the content.',
+                const Text(
+                  "Truthworld's Content Validation feature is a built-in trust layer that analyzes factual claims in uploaded videos, attaches creator-provided sources, and allows viewers to see a structured credibility summary before engaging with the content.",
                   style: TextStyle(
                     fontSize: 18,
                     color: AppColors.textSecondary,
@@ -513,7 +513,7 @@ class AboutPage extends StatelessWidget {
       color: AppColors.bgPage,
       child: Column(
         children: [
-          Text(
+          const Text(
             'Solving Information Problems',
             style: TextStyle(
               fontSize: 48,
@@ -566,10 +566,10 @@ class AboutPage extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 100),
-      color: Color(0xFFFFB703),
+      color: const Color(0xFFFFB703),
       child: Column(
         children: [
-          Text(
+          const Text(
             'The Validation Workflow',
             style: TextStyle(
               fontSize: 48,
@@ -620,7 +620,7 @@ class AboutPage extends StatelessWidget {
       color: AppColors.bgPage,
       child: Column(
         children: [
-          Text(
+          const Text(
             'Technical Substrate',
             style: TextStyle(
               fontSize: 48,
@@ -632,7 +632,7 @@ class AboutPage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(50),
             decoration: BoxDecoration(
-              color: Color(0xFFFFB703),
+              color: const Color(0xFFFFB703),
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: AppTokens.colors.border),
             ),
@@ -672,10 +672,10 @@ class AboutPage extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 80, vertical: 100),
-      color: Color(0xFFFFB703),
+      color: const Color(0xFFFFB703),
       child: Column(
         children: [
-          Text(
+          const Text(
             'Creator-First Monetization',
             style: TextStyle(
               fontSize: 48,
@@ -712,7 +712,7 @@ class AboutPage extends StatelessWidget {
               color: AppColors.bgPage,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Text(
+            child: const Text(
               'Platform sustainability is achieved through Strategic Ads (Homepage, Search, Discovery) which DO NOT impact creator earnings.',
               textAlign: TextAlign.center,
               style: TextStyle(
@@ -733,7 +733,7 @@ class AboutPage extends StatelessWidget {
       color: AppColors.bgPage,
       child: Column(
         children: [
-          Text(
+          const Text(
             'Product Roadmap',
             style: TextStyle(
               fontSize: 48,
@@ -775,8 +775,8 @@ class AboutPage extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 100, horizontal: 24),
       child: Column(
         children: [
-          Text(
-            "Founding Team",
+          const Text(
+            'Founding Team',
             style: TextStyle(
               fontSize: 40,
               fontWeight: FontWeight.w700,
@@ -785,8 +785,8 @@ class AboutPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          Text(
-            "Truthworld is currently built by a solo founding team and is in its early growth stage. The company is architected for scale, with plans to expand into a multi-engineer organization as the platform grows globally.",
+          const Text(
+            'Truthworld is currently built by a solo founding team and is in its early growth stage. The company is architected for scale, with plans to expand into a multi-engineer organization as the platform grows globally.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 18,
@@ -801,7 +801,7 @@ class AboutPage extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 920),
             padding: const EdgeInsets.all(40),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 colors: [AppColors.bgPage, Color(0xFF020617)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -833,8 +833,8 @@ class AboutPage extends StatelessWidget {
 
                 const SizedBox(height: 24),
 
-                Text(
-                  "Vampu Ebenezer",
+                const Text(
+                  'Vampu Ebenezer',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -843,7 +843,7 @@ class AboutPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  "Founder & CEO â€¢ Lead Platform Engineer",
+                  'Founder & CEO â€¢ Lead Platform Engineer',
                   style: TextStyle(
                     fontSize: 16,
                     color: Color(0xFF38BDF8),
@@ -851,8 +851,8 @@ class AboutPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 24),
-                Text(
-                  "Vampu Ebenezer is the founder and sole developer behind Truthworld, leading platform architecture, AI validation systems, and scalable cloud infrastructure. He is building Truthworld as a cloud-native SaaS video platform focused on transparency, fact validation, and accountable media distribution. As the platform scales, the company will expand by hiring engineers and specialists to support global growth.",
+                const Text(
+                  'Vampu Ebenezer is the founder and sole developer behind Truthworld, leading platform architecture, AI validation systems, and scalable cloud infrastructure. He is building Truthworld as a cloud-native SaaS video platform focused on transparency, fact validation, and accountable media distribution. As the platform scales, the company will expand by hiring engineers and specialists to support global growth.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 16,
@@ -867,10 +867,10 @@ class AboutPage extends StatelessWidget {
                   runSpacing: 12,
                   alignment: WrapAlignment.center,
                   children: [
-                    _premiumChip("AI Validation Systems"),
-                    _premiumChip("Cloud Infrastructure"),
-                    _premiumChip("Video Platform Engineering"),
-                    _premiumChip("Product Architecture"),
+                    _premiumChip('AI Validation Systems'),
+                    _premiumChip('Cloud Infrastructure'),
+                    _premiumChip('Video Platform Engineering'),
+                    _premiumChip('Product Architecture'),
                   ],
                 ),
               ],
@@ -891,7 +891,7 @@ class AboutPage extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
+        style: const TextStyle(
           color: AppColors.textSecondary,
           fontSize: 14,
           fontWeight: FontWeight.w500,
@@ -907,7 +907,7 @@ class AboutPage extends StatelessWidget {
       color: AppColors.bgPage,
       child: Column(
         children: [
-          Text(
+          const Text(
             'Company Information',
             style: TextStyle(
               fontSize: 42,
@@ -959,7 +959,7 @@ class AboutPage extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Text(
+          const Text(
             'Join the Truth Revolution',
             style: TextStyle(
               fontSize: 48,
@@ -968,7 +968,7 @@ class AboutPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          Text(
+          const Text(
             'The first platform where trust is visible and creators are rewarded fairly.',
             style: TextStyle(fontSize: 20, color: AppColors.textPrimary),
           ),
@@ -991,19 +991,19 @@ class AboutPage extends StatelessWidget {
   }
 
   Future<void> _launchUrl(String url) async {
-    final Uri uri = Uri.parse(url);
+    final uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       throw 'Could not launch $url';
     }
   }
 
   Future<void> _sendEmail(String email) async {
-    final Uri uri = Uri(scheme: 'mailto', path: email);
+    final uri = Uri(scheme: 'mailto', path: email);
     await launchUrl(uri);
   }
 
   Future<void> _callPhone(String number) async {
-    final Uri uri = Uri(scheme: 'tel', path: number);
+    final uri = Uri(scheme: 'tel', path: number);
     await launchUrl(uri);
   }
 
@@ -1036,7 +1036,7 @@ class AboutPage extends StatelessWidget {
                   alignment: WrapAlignment.end,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.email,
                       color: AppColors.textTertiary,
                       size: 16,
@@ -1081,7 +1081,7 @@ class AboutPage extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 20),
-                    Icon(
+                    const Icon(
                       Icons.phone,
                       color: AppColors.textTertiary,
                       size: 16,
@@ -1120,7 +1120,7 @@ class AboutPage extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 12,
               color: AppColors.textTertiary,
             ),
@@ -1153,7 +1153,7 @@ class AboutPage extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             title,
-            style: TextStyle(
+            style: const TextStyle(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.bold,
               fontSize: 16,
@@ -1162,7 +1162,7 @@ class AboutPage extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             desc,
-            style: TextStyle(
+            style: const TextStyle(
               color: AppColors.textSecondary,
               fontSize: 13,
             ),
@@ -1176,7 +1176,7 @@ class AboutPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Color(0xFFFFB703),
+        color: const Color(0xFFFFB703),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
@@ -1194,7 +1194,7 @@ class AboutPage extends StatelessWidget {
           Text(
             desc,
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: AppColors.textSecondary,
               fontSize: 13,
             ),
@@ -1214,7 +1214,7 @@ class AboutPage extends StatelessWidget {
             radius: 25,
             child: Text(
               step.toString(),
-              style: TextStyle(
+              style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontWeight: FontWeight.bold,
               ),
@@ -1227,7 +1227,7 @@ class AboutPage extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontWeight: FontWeight.bold,
                     fontSize: 22,
@@ -1235,7 +1235,7 @@ class AboutPage extends StatelessWidget {
                 ),
                 Text(
                   desc,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: AppColors.textSecondary,
                     fontSize: 16,
                   ),
@@ -1273,7 +1273,7 @@ class AboutPage extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
                 'â€¢ $i',
-                style: TextStyle(
+                style: const TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 14,
                 ),
@@ -1306,7 +1306,7 @@ class AboutPage extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             title,
-            style: TextStyle(
+            style: const TextStyle(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.bold,
               fontSize: 22,
@@ -1316,7 +1316,7 @@ class AboutPage extends StatelessWidget {
           Text(
             desc,
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textSecondary),
+            style: const TextStyle(color: AppColors.textSecondary),
           ),
         ],
       ),
@@ -1333,7 +1333,7 @@ class AboutPage extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(30),
       decoration: BoxDecoration(
-        color: Color(0xFFFFB703),
+        color: const Color(0xFFFFB703),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Column(
@@ -1344,7 +1344,7 @@ class AboutPage extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: TextStyle(
+                style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -1352,7 +1352,7 @@ class AboutPage extends StatelessWidget {
               ),
               Text(
                 stage,
-                style: TextStyle(
+                style: const TextStyle(
                   color: AppColors.brand,
                   fontWeight: FontWeight.bold,
                 ),
@@ -1360,7 +1360,7 @@ class AboutPage extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          Text(desc, style: TextStyle(color: AppColors.textSecondary)),
+          Text(desc, style: const TextStyle(color: AppColors.textSecondary)),
           const SizedBox(height: 20),
           LinearProgressIndicator(
             value: progress,
@@ -1370,7 +1370,7 @@ class AboutPage extends StatelessWidget {
           const SizedBox(height: 10),
           Text(
             'Launch: $timeline',
-            style: TextStyle(
+            style: const TextStyle(
               color: AppColors.textTertiary,
               fontSize: 12,
             ),
@@ -1388,7 +1388,7 @@ class AboutPage extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(
+            style: const TextStyle(
               color: AppColors.textTertiary,
               fontSize: 12,
               fontWeight: FontWeight.bold,
@@ -1396,7 +1396,7 @@ class AboutPage extends StatelessWidget {
           ),
           Text(
             val,
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 16),
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 16),
           ),
         ],
       ),

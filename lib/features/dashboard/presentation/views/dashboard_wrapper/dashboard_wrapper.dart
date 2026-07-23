@@ -1,26 +1,25 @@
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
-import 'package:truthworld/features/subscriptions/presentation/views/Subscriptions/subscriptions.dart';
-import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_screen.dart';
-import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart';
 import 'package:truthworld/features/likedvideos/presentation/views/likedvideos/liked_video_screen.dart';
 import 'package:truthworld/features/myvideos/presentation/views/myvideos/my_videos.dart';
-import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_screen.dart';
+import 'package:truthworld/features/subscriptions/presentation/views/Subscriptions/subscriptions.dart';
+import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 // ==========================================================================
 // DASHBOARD WRAPPER CONTROLLER
 // ==========================================================================
 class DashboardWrapperController extends GetxController {
-  final String dashboardType; // 'library', 'explore', 'following', 'support'
-  final int initialTabIndex;
 
   DashboardWrapperController({
     required this.dashboardType,
     this.initialTabIndex = 0,
   });
+  final String dashboardType; // 'library', 'explore', 'following', 'support'
+  final int initialTabIndex;
 
   late TabController tabController;
   final selectedTabIndex = 0.obs;
@@ -69,14 +68,13 @@ class DashboardWrapperController extends GetxController {
 // DASHBOARD WRAPPER SCREEN
 // ==========================================================================
 class DashboardWrapper extends StatefulWidget {
-  final String dashboardType;
-  final int initialTabIndex;
 
   const DashboardWrapper({
-    super.key,
-    required this.dashboardType,
+    required this.dashboardType, super.key,
     this.initialTabIndex = 0,
   });
+  final String dashboardType;
+  final int initialTabIndex;
 
   @override
   State<DashboardWrapper> createState() => _DashboardWrapperState();
@@ -135,18 +133,18 @@ class _DashboardWrapperState extends State<DashboardWrapper>
   Widget _buildTabContent(int index) {
     switch (widget.dashboardType) {
       case 'library':
-        final List<Widget> tabs = [
-          Container(
+        final tabs = <Widget>[
+          const ColoredBox(
             color: AppColors.bgPage,
             child: Center(
               child: Text(
                 'Your Library',
-                style: GoogleFonts.roboto(color: Colors.white, fontSize: 18),
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 18),
               ),
             ),
           ),
           const LikedVideoScreen(),
-          PlaylistScreen(),
+          const PlaylistScreen(),
           if (AuthService.to.hasChannel.value) const MyVideos(),
           const WatchHistory(),
         ];
@@ -155,36 +153,36 @@ class _DashboardWrapperState extends State<DashboardWrapper>
         }
         return const SizedBox.shrink();
       case 'explore':
-        return Container(
+        return ColoredBox(
           color: AppColors.bgPage,
           child: Center(
             child: Text(
               'Explore Pages - Tab ${index + 1}',
-              style: GoogleFonts.roboto(color: Colors.white, fontSize: 18),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 18),
             ),
           ),
         );
       case 'following':
         switch (index) {
           case 0:
-            return Container(
+            return const ColoredBox(
               color: AppColors.bgPage,
               child: Center(
                 child: Text(
                   'Following',
-                  style: GoogleFonts.roboto(color: Colors.white, fontSize: 18),
+                  style: TextStyle(color: AppColors.textPrimary, fontSize: 18),
                 ),
               ),
             );
           case 1:
             return SubscriptionsPage();
           case 2:
-            return Container(
+            return const ColoredBox(
               color: AppColors.bgPage,
               child: Center(
                 child: Text(
                   'Channels',
-                  style: GoogleFonts.roboto(color: Colors.white, fontSize: 18),
+                  style: TextStyle(color: AppColors.textPrimary, fontSize: 18),
                 ),
               ),
             );
@@ -192,12 +190,12 @@ class _DashboardWrapperState extends State<DashboardWrapper>
             return const SizedBox.shrink();
         }
       case 'support':
-        return Container(
+        return ColoredBox(
           color: AppColors.bgPage,
           child: Center(
             child: Text(
               'Support - Tab ${index + 1}',
-              style: GoogleFonts.roboto(color: Colors.white, fontSize: 18),
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 18),
             ),
           ),
         );
@@ -229,27 +227,27 @@ class _DashboardWrapperState extends State<DashboardWrapper>
           elevation: 0,
           title: Text(
             _getAppBarTitle(),
-            style: GoogleFonts.roboto(
+            style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
-              color: const Color(0xFFE8E8E8),
+              color: Color(0xFFE8E8E8),
             ),
           ),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back, color: Color(0xFFB8B8B8)),
-            onPressed: () => Get.back(),
+            onPressed: Get.back,
           ),
           bottom: TabBar(
             controller: _tabController,
             isScrollable: true,
             labelColor: const Color(0xFF1976D2),
             unselectedLabelColor: const Color(0xFFB8B8B8),
-            labelStyle: GoogleFonts.roboto(
+            labelStyle: const TextStyle(
               fontWeight: FontWeight.w500,
               fontSize: 13,
               letterSpacing: 0.5,
             ),
-            unselectedLabelStyle: GoogleFonts.roboto(
+            unselectedLabelStyle: const TextStyle(
               fontWeight: FontWeight.w500,
               fontSize: 13,
               letterSpacing: 0.5,
@@ -263,7 +261,7 @@ class _DashboardWrapperState extends State<DashboardWrapper>
           controller: _tabController,
           children: List.generate(
             tabLabels.length,
-            (index) => _buildTabContent(index),
+            _buildTabContent,
           ),
         ),
       );

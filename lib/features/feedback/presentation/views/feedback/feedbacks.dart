@@ -1,17 +1,17 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:get/get.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:device_info_plus/device_info_plus.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/features/home/presentation/views/home/home.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/features/home/presentation/views/home/home.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 
 class SendFeedbackController extends GetxController {
@@ -48,7 +48,7 @@ class SendFeedbackController extends GetxController {
     final packageInfo = await PackageInfo.fromPlatform();
     appVersion.value = '${packageInfo.version}+${packageInfo.buildNumber}';
 
-    Map<String, dynamic> info = {};
+    var info = <String, dynamic>{};
     try {
       if (kIsWeb) {
         final webInfo = await deviceInfoPlugin.webBrowserInfo;
@@ -79,8 +79,8 @@ class SendFeedbackController extends GetxController {
   }
 
   Future<void> pickImages() async {
-    final ImagePicker picker = ImagePicker();
-    final List<XFile> picked = await picker.pickMultiImage();
+    final picker = ImagePicker();
+    final picked = await picker.pickMultiImage();
     if (picked.isNotEmpty) {
       attachments.addAll(picked);
     }
@@ -99,8 +99,8 @@ class SendFeedbackController extends GetxController {
       final user = FirebaseAuth.instance.currentUser;
 
       // 1. Upload attachments if any
-      List<String> imageUrls = [];
-      for (var file in attachments) {
+      final imageUrls = <String>[];
+      for (final file in attachments) {
         final ref = FirebaseStorage.instance
             .ref()
             .child('feedback_attachments')
@@ -141,21 +141,21 @@ class SendFeedbackController extends GetxController {
         'Success',
         'Thank you for your feedback!',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.black,
-        colorText: Colors.white,
+        backgroundColor: AppColors.bgPage,
+        colorText: AppColors.textPrimary,
         margin: const EdgeInsets.all(16),
         borderRadius: 12,
       );
 
-      Future.delayed(const Duration(seconds: 1), () => Get.back());
+      Future.delayed(const Duration(seconds: 1), Get.back);
     } catch (e) {
       debugPrint('Error submitting feedback: $e');
       Get.snackbar(
         'Error',
-        'Failed to submit feedback. ${e.toString()}',
+        'Failed to submit feedback. $e',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.redAccent,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
     } finally {
       isSubmitting.value = false;
@@ -199,17 +199,17 @@ ThemeData _getTheme(BuildContext context) {
   );
 
   final homeTypography = TWTypography(
-    logo: GoogleFonts.roboto(textStyle: parentTypography.logo),
-    hero: GoogleFonts.roboto(textStyle: parentTypography.hero),
-    display: GoogleFonts.roboto(textStyle: parentTypography.display),
-    headline: GoogleFonts.roboto(textStyle: parentTypography.headline),
-    title: GoogleFonts.roboto(textStyle: parentTypography.title),
-    body: GoogleFonts.roboto(textStyle: parentTypography.body),
-    bodySmall: GoogleFonts.roboto(textStyle: parentTypography.bodySmall),
-    label: GoogleFonts.roboto(textStyle: parentTypography.label),
-    caption: GoogleFonts.roboto(textStyle: parentTypography.caption),
-    button: GoogleFonts.roboto(textStyle: parentTypography.button),
-    overline: GoogleFonts.roboto(textStyle: parentTypography.overline),
+    logo: parentTypography.logo,
+    hero: parentTypography.hero,
+    display: parentTypography.display,
+    headline: parentTypography.headline,
+    title: parentTypography.title,
+    body: parentTypography.body,
+    bodySmall: parentTypography.bodySmall,
+    label: parentTypography.label,
+    caption: parentTypography.caption,
+    button: parentTypography.button,
+    overline: parentTypography.overline,
   );
 
   return modernDarkProfessionalTheme.copyWith(
@@ -227,14 +227,14 @@ ThemeData _getTheme(BuildContext context) {
 }
 
 class SendFeedbackPage extends GetView<SendFeedbackController> {
-  final bool isDashboard;
   const SendFeedbackPage({super.key, this.isDashboard = false});
+  final bool isDashboard;
 
   @override
   Widget build(BuildContext context) {
     // Initialize controller if not already registered
     if (!Get.isRegistered<SendFeedbackController>()) {
-      Get.lazyPut(() => SendFeedbackController());
+      Get.lazyPut(SendFeedbackController.new);
     }
     final controller = Get.find<SendFeedbackController>();
 
@@ -249,7 +249,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
               elevation: 0,
               title: Text(
                 'Feedback',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: context.colors.textPrimary,
@@ -301,7 +301,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
       children: [
         Text(
           'We value your voice',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.w700,
             color: context.colors.textPrimary,
@@ -311,7 +311,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
         const SizedBox(height: 8),
         Text(
           'Tell us how we can make TruthWorld better for you.',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 15,
             color: context.colors.textSecondary,
           ),
@@ -324,12 +324,12 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'CATEGORY',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: AppColors.textPrimary,
             letterSpacing: 1.2,
           ),
         ),
@@ -350,18 +350,18 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
                   ),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? Colors.white
+                        ? AppColors.textPrimary
                         : context.colors.surface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: isSelected
-                          ? Colors.white
+                          ? AppColors.textPrimary
                           : context.colors.divider.withValues(alpha: 0.1),
                     ),
                     boxShadow: isSelected
                         ? [
                             BoxShadow(
-                              color: Colors.white.withValues(
+                              color: AppColors.textPrimary.withValues(
                                 alpha: 0.3,
                               ),
                               blurRadius: 10,
@@ -371,9 +371,9 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
                   ),
                   child: Text(
                     type,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: isSelected
-                          ? Colors.black
+                          ? AppColors.bgPage
                           : context.colors.textSecondary,
                       fontWeight: isSelected
                           ? FontWeight.bold
@@ -394,12 +394,12 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'RATING',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: AppColors.textPrimary,
             letterSpacing: 1.2,
           ),
         ),
@@ -428,7 +428,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
                           ? Icons.star_rounded
                           : Icons.star_outline_rounded,
                       color: isSelected
-                          ? Colors.white
+                          ? AppColors.textPrimary
                           : context.colors.textSecondary.withValues(alpha: 0.3),
                       size: 36,
                     ),
@@ -446,12 +446,12 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'MESSAGE',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: AppColors.textPrimary,
             letterSpacing: 1.2,
           ),
         ),
@@ -459,10 +459,10 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
         TextFormField(
           controller: controller.feedbackController,
           maxLines: 6,
-          style: GoogleFonts.roboto(color: context.colors.textPrimary),
+          style: TextStyle(color: context.colors.textPrimary),
           decoration: InputDecoration(
             hintText: 'Share your thoughts, suggestions or bug details...',
-            hintStyle: GoogleFonts.roboto(
+            hintStyle: TextStyle(
               color: context.colors.textSecondary.withValues(alpha: 0.5),
             ),
             filled: true,
@@ -482,7 +482,7 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: const BorderSide(
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 width: 1.5,
               ),
             ),
@@ -509,19 +509,19 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
+            const Text(
               'ATTACHMENTS',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 letterSpacing: 1.2,
               ),
             ),
             Obx(
               () => Text(
                 '${controller.attachments.length}/5',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 12,
                   color: context.colors.textSecondary,
                 ),
@@ -564,13 +564,13 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
                         child: Container(
                           padding: const EdgeInsets.all(4),
                           decoration: const BoxDecoration(
-                            color: Colors.black,
+                            color: AppColors.bgPage,
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(
                             Icons.close,
                             size: 14,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                       ),
@@ -589,7 +589,6 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: context.colors.divider.withValues(alpha: 0.1),
-                        style: BorderStyle.solid,
                       ),
                     ),
                     child: Column(
@@ -629,27 +628,27 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
               ? null
               : controller.submitFeedback,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.black,
-            foregroundColor: Colors.white,
+            backgroundColor: AppColors.bgPage,
+            foregroundColor: AppColors.textPrimary,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
-              side: const BorderSide(color: Colors.white, width: 1.5),
+              side: const BorderSide(color: AppColors.textPrimary, width: 1.5),
             ),
             elevation: 8,
-            shadowColor: Colors.black.withValues(alpha: 0.5),
+            shadowColor: AppColors.bgPage.withValues(alpha: 0.5),
           ),
           child: controller.isSubmitting.value
               ? const SizedBox(
                   width: 24,
                   height: 24,
                   child: CircularProgressIndicator(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     strokeWidth: 2.5,
                   ),
                 )
-              : Text(
+              : const Text(
                   'Submit Feedback',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
@@ -659,7 +658,6 @@ class SendFeedbackPage extends GetView<SendFeedbackController> {
     );
   }
 }
-
 
 
 

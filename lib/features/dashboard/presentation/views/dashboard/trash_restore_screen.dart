@@ -1,14 +1,14 @@
-import 'package:flutter/material.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 class TrashRestoreController extends GetxController {
-  final String channelId;
   TrashRestoreController({required this.channelId});
+  final String channelId;
 
   final RxString selectedFilter = 'All'.obs; // 'All', 'Channel', 'Video', 'Topic', 'Playlist'
   final RxBool isLoading = false.obs;
@@ -24,8 +24,8 @@ class TrashRestoreController extends GetxController {
     isLoading.value = true;
 
     try {
-      final List<Map<String, dynamic>> loadedItems = [];
-      final FirebaseFirestore firestore = FirebaseFirestore.instance;
+      final loadedItems = <Map<String, dynamic>>[];
+      final firestore = FirebaseFirestore.instance;
 
       // 1. Check if the current channel itself is deletion_pending
       if (channelId.isNotEmpty) {
@@ -59,7 +59,7 @@ class TrashRestoreController extends GetxController {
             .where('status', isEqualTo: 'deletion_pending')
             .get();
 
-        for (var doc in videosSnap.docs) {
+        for (final doc in videosSnap.docs) {
           final data = doc.data();
           loadedItems.add({
             'id': doc.id,
@@ -82,7 +82,7 @@ class TrashRestoreController extends GetxController {
             .where('status', isEqualTo: 'deletion_pending')
             .get();
 
-        for (var doc in topicsSnap.docs) {
+        for (final doc in topicsSnap.docs) {
           final data = doc.data();
           loadedItems.add({
             'id': doc.id,
@@ -105,7 +105,7 @@ class TrashRestoreController extends GetxController {
             .where('status', isEqualTo: 'deletion_pending')
             .get();
 
-        for (var doc in playlistsSnap.docs) {
+        for (final doc in playlistsSnap.docs) {
           final data = doc.data();
           loadedItems.add({
             'id': doc.id,
@@ -144,7 +144,7 @@ class TrashRestoreController extends GetxController {
     );
 
     try {
-      final Map<String, dynamic> updateFields = {
+      final updateFields = <String, dynamic>{
         'deletionRequestedAt': FieldValue.delete(),
       };
 
@@ -167,8 +167,8 @@ class TrashRestoreController extends GetxController {
       AppSnackbar.show(
         'Item Restored',
         '${item['title']} has been successfully restored.',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
         snackPosition: SnackPosition.BOTTOM,
       );
 
@@ -179,8 +179,8 @@ class TrashRestoreController extends GetxController {
       AppSnackbar.show(
         'Restoration Failed',
         'Failed to restore item: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
         snackPosition: SnackPosition.BOTTOM,
       );
     }
@@ -194,14 +194,12 @@ class TrashRestoreController extends GetxController {
 }
 
 class TrashRestoreScreen extends StatelessWidget {
-  final String channelId;
-  final bool isDarkMode;
 
   const TrashRestoreScreen({
-    super.key,
-    required this.channelId,
-    required this.isDarkMode,
+    required this.channelId, required this.isDarkMode, super.key,
   });
+  final String channelId;
+  final bool isDarkMode;
 
   @override
   Widget build(BuildContext context) {
@@ -212,7 +210,7 @@ class TrashRestoreScreen extends StatelessWidget {
 
     return Container(
       color: isDarkMode ? AppColors.bgPage : AppColors.bgPage,
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -226,25 +224,25 @@ class TrashRestoreScreen extends StatelessWidget {
                   Text(
                     'Trash & Restoration',
                     style: TextStyle(
-                      fontFamily: 'Roboto',
+                      
                       fontSize: 26,
                       fontWeight: FontWeight.bold,
-                      color: isDarkMode ? Colors.white : AppColors.textPrimary,
+                      color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Deleted channels, videos, topics, and playlists are retained for 30 days before permanent deletion.',
                     style: TextStyle(
-                      fontFamily: 'Roboto',
+                      
                       fontSize: 14,
-                      color: isDarkMode ? Colors.white60 : AppColors.textSecondary,
+                      color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
                     ),
                   ),
                 ],
               ),
               IconButton(
-                icon: const Icon(Icons.refresh_rounded, color: Colors.white70),
+                icon: const Icon(Icons.refresh_rounded, color: AppColors.textSecondary),
                 onPressed: controller.loadTrashItems,
                 tooltip: 'Refresh Trash Bin',
               ),
@@ -291,7 +289,7 @@ class TrashRestoreScreen extends StatelessWidget {
           return Obx(() {
             final isSelected = controller.selectedFilter.value == filter;
             return Padding(
-              padding: const EdgeInsets.only(right: 8.0),
+              padding: const EdgeInsets.only(right: 8),
               child: ChoiceChip(
                 label: Text(filter),
                 selected: isSelected,
@@ -302,13 +300,12 @@ class TrashRestoreScreen extends StatelessWidget {
                 },
                 selectedColor: const Color(0xFF6366F1).withValues(alpha: 0.2),
                 side: BorderSide(
-                  color: isSelected ? const Color(0xFF6366F1) : Colors.white24,
-                  width: 1,
+                  color: isSelected ? const Color(0xFF6366F1) : AppColors.textDisabled,
                 ),
                 backgroundColor: Colors.transparent,
                 labelStyle: TextStyle(
-                  fontFamily: 'Roboto',
-                  color: isSelected ? const Color(0xFF818CF8) : Colors.white70,
+                  
+                  color: isSelected ? const Color(0xFF818CF8) : AppColors.textSecondary,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
@@ -327,32 +324,32 @@ class TrashRestoreScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
+              color: AppColors.textPrimary.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.delete_outline_rounded,
               size: 72,
-              color: Colors.white24,
+              color: AppColors.textDisabled,
             ),
           ),
           const SizedBox(height: 20),
           const Text(
             'Trash is Empty',
             style: TextStyle(
-              fontFamily: 'Roboto',
+              
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.white70,
+              color: AppColors.textSecondary,
             ),
           ),
           const SizedBox(height: 8),
           const Text(
             'No recently deleted items match the selected filter.',
             style: TextStyle(
-              fontFamily: 'Roboto',
+              
               fontSize: 14,
-              color: Colors.white38,
+              color: AppColors.textTertiary,
             ),
           ),
         ],
@@ -372,28 +369,27 @@ class TrashRestoreScreen extends StatelessWidget {
         final remainingDays = controller.getRemainingDays(deletedAt);
 
         // Icon based on type
-        IconData typeIcon = Icons.video_library_rounded;
+        var typeIcon = Icons.video_library_rounded;
         Color typeColor = Colors.teal;
         if (type == 'Channel') {
           typeIcon = Icons.account_box_rounded;
           typeColor = Colors.indigo;
         } else if (type == 'Topic') {
           typeIcon = Icons.topic_rounded;
-          typeColor = Colors.amber;
+          typeColor = AppColors.warning;
         } else if (type == 'Playlist') {
           typeIcon = Icons.playlist_play_rounded;
-          typeColor = Colors.purple;
+          typeColor = AppColors.brand;
         }
 
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: isDarkMode ? const Color(0xFF1E293B) : Colors.white,
+            color: isDarkMode ? const Color(0xFF1E293B) : AppColors.textPrimary,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isDarkMode ? Colors.white12 : Colors.black12,
-              width: 1,
+              color: isDarkMode ? AppColors.bgDivider : Colors.black12,
             ),
           ),
           child: Row(
@@ -409,13 +405,13 @@ class TrashRestoreScreen extends StatelessWidget {
                           imageUrl: imageUrl,
                           fit: BoxFit.cover,
                           placeholder: (context, url) =>
-                              Container(color: Colors.white12),
-                          errorWidget: (context, url, error) => Container(
+                              Container(color: AppColors.bgDivider),
+                          errorWidget: (context, url, error) => ColoredBox(
                             color: typeColor.withValues(alpha: 0.1),
                             child: Icon(typeIcon, color: typeColor, size: 24),
                           ),
                         )
-                      : Container(
+                      : ColoredBox(
                           color: typeColor.withValues(alpha: 0.1),
                           child: Icon(typeIcon, color: typeColor, size: 24),
                         ),
@@ -442,7 +438,7 @@ class TrashRestoreScreen extends StatelessWidget {
                           child: Text(
                             type,
                             style: TextStyle(
-                              fontFamily: 'Roboto',
+                              
                               color: typeColor,
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
@@ -453,9 +449,9 @@ class TrashRestoreScreen extends StatelessWidget {
                         Text(
                           'Deleted on ${DateFormat('MMM d, yyyy').format(deletedAt)}',
                           style: TextStyle(
-                            fontFamily: 'Roboto',
+                            
                             color: isDarkMode
-                                ? Colors.white38
+                                ? AppColors.textTertiary
                                 : AppColors.textSecondary,
                             fontSize: 11,
                           ),
@@ -466,11 +462,11 @@ class TrashRestoreScreen extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
-                        fontFamily: 'Roboto',
+                        
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                         color: isDarkMode
-                            ? Colors.white
+                            ? AppColors.textPrimary
                             : AppColors.textPrimary,
                       ),
                       maxLines: 1,
@@ -480,9 +476,9 @@ class TrashRestoreScreen extends StatelessWidget {
                     Text(
                       '$remainingDays days left before permanent deletion',
                       style: TextStyle(
-                        fontFamily: 'Roboto',
+                        
                         color: remainingDays <= 5
-                            ? Colors.redAccent
+                            ? AppColors.error
                             : Colors.amberAccent,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
@@ -504,7 +500,7 @@ class TrashRestoreScreen extends StatelessWidget {
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
-                    side: const BorderSide(color: Color(0xFF6366F1), width: 1),
+                    side: const BorderSide(color: Color(0xFF6366F1)),
                   ),
                 ),
                 onPressed: () => controller.restoreItem(item),

@@ -16,20 +16,19 @@ import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class ErrorRetryWidget extends StatelessWidget {
-  final String message;
-  final String? subtitle;
-  final VoidCallback? onRetry;
-  final IconData icon;
-  final bool compact;
 
   const ErrorRetryWidget({
-    super.key,
-    required this.message,
+    required this.message, super.key,
     this.subtitle,
     this.onRetry,
     this.icon = Icons.error_outline_rounded,
     this.compact = false,
   });
+  final String message;
+  final String? subtitle;
+  final VoidCallback? onRetry;
+  final IconData icon;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -82,7 +81,7 @@ class ErrorRetryWidget extends StatelessWidget {
             Container(
               width: 64,
               height: 64,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: AppColors.bgSurfaceHover,
                 shape: BoxShape.circle,
               ),
@@ -117,7 +116,7 @@ class ErrorRetryWidget extends StatelessWidget {
                 label: const Text('Try Again'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.brand,
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppColors.textPrimary,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 24,
                     vertical: 12,
@@ -137,20 +136,19 @@ class ErrorRetryWidget extends StatelessWidget {
 
 /// Empty state widget (no data, not an error)
 class EmptyStateWidget extends StatelessWidget {
-  final String message;
-  final String? subtitle;
-  final IconData icon;
-  final VoidCallback? onAction;
-  final String? actionLabel;
 
   const EmptyStateWidget({
-    super.key,
-    required this.message,
+    required this.message, super.key,
     this.subtitle,
     this.icon = Icons.inbox_rounded,
     this.onAction,
     this.actionLabel,
   });
+  final String message;
+  final String? subtitle;
+  final IconData icon;
+  final VoidCallback? onAction;
+  final String? actionLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -163,7 +161,7 @@ class EmptyStateWidget extends StatelessWidget {
             Container(
               width: 72,
               height: 72,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: AppColors.bgSurfaceHover,
                 shape: BoxShape.circle,
               ),

@@ -6,15 +6,15 @@ import 'package:universal_html/html.dart' as html;
 import 'package:video_player/video_player.dart';
 
 class MediaResult {
-  final PlatformFile file;
-  final int durationSeconds;
-  final String? webUrl;
 
   MediaResult({
     required this.file,
     this.durationSeconds = 0,
     this.webUrl,
   });
+  final PlatformFile file;
+  final int durationSeconds;
+  final String? webUrl;
 }
 
 class MediaService {
@@ -36,7 +36,7 @@ class MediaService {
 
       const maxSizeInBytes = 2 * 1024 * 1024 * 1024; // 2GB
       if (pickedFile.size > maxSizeInBytes) {
-        throw Exception("Selected video exceeds the 2GB limit.");
+        throw Exception('Selected video exceeds the 2GB limit.');
       }
 
       var extension = pickedFile.extension?.toLowerCase();
@@ -50,14 +50,14 @@ class MediaService {
         'mp4', 'mov', 'avi', 'wmv', 'webm', 'flv', '3gpp', '3gp', 'mpeg', 'mpg', 'mkv', 'mpegps', 'm4v', 'dnxhr', 'prores', 'cineform', 'hevc'
       };
       if (extension == null || !allowedExtensions.contains(extension)) {
-        throw Exception("Unsupported video format. YouTube allowed formats are supported.");
+        throw Exception('Unsupported video format. YouTube allowed formats are supported.');
       }
 
       const maxDurationSeconds = 60 * 60; // 60 minutes
-      int duration = await getVideoDuration(pickedFile, _webVideoObjectUrl);
+      final duration = await getVideoDuration(pickedFile, _webVideoObjectUrl);
 
       if (duration > maxDurationSeconds) {
-        throw Exception("Video exceeds 60 minute limit.");
+        throw Exception('Video exceeds 60 minute limit.');
       }
 
       return MediaResult(
@@ -72,7 +72,7 @@ class MediaService {
   Future<int> getVideoDuration(PlatformFile videoFile, String? webUrl) async {
     try {
       if (kIsWeb) {
-        String url = webUrl ?? videoFile.xFile.path;
+        final url = webUrl ?? videoFile.xFile.path;
         final videoElement = html.VideoElement()
           ..src = url
           ..preload = 'metadata';

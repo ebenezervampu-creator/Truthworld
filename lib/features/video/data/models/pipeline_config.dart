@@ -4,6 +4,84 @@
 library;
 
 class PipelineConfig {
+
+  PipelineConfig({
+    // Metadata
+    required this.userId, required this.channelId, required this.videoTitle, required this.videoDescription, required this.videoDuration, required this.videoCategory, // Dubbing
+    this.enablePath1 = true,
+    this.enablePath2 = false,
+    this.dubbingLanguages = const [],
+    this.enableSubtitles = true,
+    this.subtitleLanguages = const ['en'],
+    this.voiceType = 'natural',
+    this.ttsSpeed = 1.0,
+
+    // Transcription
+    this.enableTranscription = true,
+    this.enableDiarization = false,
+    this.enableChapters = false,
+    this.autoDetectLanguage = true,
+    this.transcriptionLanguage = 'en',
+
+    // Credibility
+    this.enableFactCheck = false,
+    this.factCheckScoringMethod = 'balanced',
+    this.factCheckConfidenceThreshold = 0.7,
+    this.enableExplainability = false,
+
+    // Auxiliary
+    this.enableOCR = false,
+    this.enableVisualContext = false,
+    this.enableAudioEnhancement = false,
+
+    // Cost & Tier
+    this.tier = 'free',
+    this.estimatedCost = 0.0,
+    this.monthlyBudgetLimit,
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now();
+
+  /// Create from Map (for loading from Firestore)
+  factory PipelineConfig.fromMap(Map<String, dynamic> map) {
+    return PipelineConfig(
+      enablePath1: map['executionPlan']?['enablePath1'] ?? true,
+      enablePath2: map['executionPlan']?['enablePath2'] ?? false,
+      dubbingLanguages: List<String>.from(
+        map['executionPlan']?['languages']?['dubbing'] ?? [],
+      ),
+      enableSubtitles: map['executionPlan']?['languages']?['subtitles'] != null,
+      subtitleLanguages: List<String>.from(
+        map['executionPlan']?['languages']?['subtitles'] ?? ['en'],
+      ),
+      voiceType: map['executionPlan']?['voiceType'] ?? 'natural',
+      ttsSpeed: (map['executionPlan']?['ttsSpeed'] ?? 1.0).toDouble(),
+      transcriptionLanguage:
+          map['executionPlan']?['languages']?['transcription'] ?? 'en',
+      enableFactCheck: map['executionPlan']?['factCheck']?['enabled'] ?? false,
+      factCheckScoringMethod:
+          map['executionPlan']?['factCheck']?['scoringMethod'] ?? 'balanced',
+      factCheckConfidenceThreshold:
+          (map['executionPlan']?['factCheck']?['confidenceThreshold'] ?? 0.7)
+              .toDouble(),
+      enableExplainability:
+          map['executionPlan']?['factCheck']?['explainability'] ?? false,
+      enableOCR: map['executionPlan']?['auxiliary']?['ocr'] ?? false,
+      enableVisualContext:
+          map['executionPlan']?['auxiliary']?['visualContext'] ?? false,
+      enableAudioEnhancement:
+          map['executionPlan']?['auxiliary']?['audioEnhancement'] ?? false,
+      enableChapters: map['executionPlan']?['auxiliary']?['chapters'] ?? false,
+      tier: map['config']?['tier'] ?? 'free',
+      estimatedCost: (map['config']?['estimatedCost'] ?? 0.0).toDouble(),
+      monthlyBudgetLimit: map['config']?['monthlyBudgetLimit'],
+      userId: map['userId'] ?? '',
+      channelId: map['channelId'] ?? '',
+      videoTitle: map['metadata']?['videoTitle'] ?? '',
+      videoDescription: map['metadata']?['videoDescription'] ?? '',
+      videoDuration: map['metadata']?['videoDuration'] ?? '0',
+      videoCategory: map['metadata']?['videoCategory'] ?? 'General',
+    );
+  }
   // ═══════════════════════════════════════════════════════════════
   // DUBBING CONFIGURATION
   // ═══════════════════════════════════════════════════════════════
@@ -110,49 +188,6 @@ class PipelineConfig {
   /// Created timestamp
   final DateTime createdAt;
 
-  PipelineConfig({
-    // Dubbing
-    this.enablePath1 = true,
-    this.enablePath2 = false,
-    this.dubbingLanguages = const [],
-    this.enableSubtitles = true,
-    this.subtitleLanguages = const ['en'],
-    this.voiceType = 'natural',
-    this.ttsSpeed = 1.0,
-
-    // Transcription
-    this.enableTranscription = true,
-    this.enableDiarization = false,
-    this.enableChapters = false,
-    this.autoDetectLanguage = true,
-    this.transcriptionLanguage = 'en',
-
-    // Credibility
-    this.enableFactCheck = false,
-    this.factCheckScoringMethod = 'balanced',
-    this.factCheckConfidenceThreshold = 0.7,
-    this.enableExplainability = false,
-
-    // Auxiliary
-    this.enableOCR = false,
-    this.enableVisualContext = false,
-    this.enableAudioEnhancement = false,
-
-    // Cost & Tier
-    this.tier = 'free',
-    this.estimatedCost = 0.0,
-    this.monthlyBudgetLimit,
-
-    // Metadata
-    required this.userId,
-    required this.channelId,
-    required this.videoTitle,
-    required this.videoDescription,
-    required this.videoDuration,
-    required this.videoCategory,
-    DateTime? createdAt,
-  }) : createdAt = createdAt ?? DateTime.now();
-
   /// Convert to Map for API request
   Map<String, dynamic> toMap() {
     return {
@@ -196,51 +231,6 @@ class PipelineConfig {
     };
   }
 
-  /// Create from Map (for loading from Firestore)
-  factory PipelineConfig.fromMap(Map<String, dynamic> map) {
-    return PipelineConfig(
-      enablePath1: map['executionPlan']?['enablePath1'] ?? true,
-      enablePath2: map['executionPlan']?['enablePath2'] ?? false,
-      dubbingLanguages: List<String>.from(
-        map['executionPlan']?['languages']?['dubbing'] ?? [],
-      ),
-      enableSubtitles: map['executionPlan']?['languages']?['subtitles'] != null,
-      subtitleLanguages: List<String>.from(
-        map['executionPlan']?['languages']?['subtitles'] ?? ['en'],
-      ),
-      voiceType: map['executionPlan']?['voiceType'] ?? 'natural',
-      ttsSpeed: (map['executionPlan']?['ttsSpeed'] ?? 1.0).toDouble(),
-      enableTranscription: true,
-      enableDiarization: false,
-      autoDetectLanguage: true,
-      transcriptionLanguage:
-          map['executionPlan']?['languages']?['transcription'] ?? 'en',
-      enableFactCheck: map['executionPlan']?['factCheck']?['enabled'] ?? false,
-      factCheckScoringMethod:
-          map['executionPlan']?['factCheck']?['scoringMethod'] ?? 'balanced',
-      factCheckConfidenceThreshold:
-          (map['executionPlan']?['factCheck']?['confidenceThreshold'] ?? 0.7)
-              .toDouble(),
-      enableExplainability:
-          map['executionPlan']?['factCheck']?['explainability'] ?? false,
-      enableOCR: map['executionPlan']?['auxiliary']?['ocr'] ?? false,
-      enableVisualContext:
-          map['executionPlan']?['auxiliary']?['visualContext'] ?? false,
-      enableAudioEnhancement:
-          map['executionPlan']?['auxiliary']?['audioEnhancement'] ?? false,
-      enableChapters: map['executionPlan']?['auxiliary']?['chapters'] ?? false,
-      tier: map['config']?['tier'] ?? 'free',
-      estimatedCost: (map['config']?['estimatedCost'] ?? 0.0).toDouble(),
-      monthlyBudgetLimit: map['config']?['monthlyBudgetLimit'],
-      userId: map['userId'] ?? '',
-      channelId: map['channelId'] ?? '',
-      videoTitle: map['metadata']?['videoTitle'] ?? '',
-      videoDescription: map['metadata']?['videoDescription'] ?? '',
-      videoDuration: map['metadata']?['videoDuration'] ?? '0',
-      videoCategory: map['metadata']?['videoCategory'] ?? 'General',
-    );
-  }
-
   /// Calculate estimated cost based on configuration
   static double calculateCost({
     required String tier,
@@ -251,16 +241,14 @@ class PipelineConfig {
     required bool enableSubtitles,
     required String videoDuration,
   }) {
-    double cost = 0.0;
+    var cost = 0;
 
     // Base cost per tier
     switch (tier) {
       case 'pro':
         cost += 5.0;
-        break;
       case 'enterprise':
         cost += 25.0;
-        break;
       default:
         cost = 0.0; // Free tier
     }
@@ -306,9 +294,6 @@ class PipelineTemplates {
     required String videoCategory,
   }) => PipelineConfig(
     enablePath1: false,
-    enablePath2: false,
-    enableTranscription: true,
-    tier: 'free',
     userId: userId,
     channelId: channelId,
     videoTitle: videoTitle,
@@ -330,9 +315,7 @@ class PipelineTemplates {
     enablePath1: false,
     enablePath2: true,
     dubbingLanguages: languages,
-    enableSubtitles: true,
     subtitleLanguages: languages,
-    enableTranscription: true,
     tier: 'pro',
     userId: userId,
     channelId: channelId,
@@ -351,13 +334,10 @@ class PipelineTemplates {
     required String videoDuration,
     required String videoCategory,
   }) => PipelineConfig(
-    enablePath1: true,
-    enablePath2: false,
     enableFactCheck: true,
     enableExplainability: true,
     factCheckScoringMethod: 'strict',
     factCheckConfidenceThreshold: 0.8,
-    enableTranscription: true,
     enableDiarization: true,
     enableOCR: true,
     enableVisualContext: true,
@@ -380,16 +360,12 @@ class PipelineTemplates {
     required String videoCategory,
     required List<String> languages,
   }) => PipelineConfig(
-    enablePath1: true,
     enablePath2: true,
     dubbingLanguages: languages,
-    enableSubtitles: true,
     subtitleLanguages: languages,
-    enableTranscription: true,
     enableDiarization: true,
     enableFactCheck: true,
     enableExplainability: true,
-    factCheckScoringMethod: 'balanced',
     enableOCR: true,
     enableVisualContext: true,
     enableAudioEnhancement: true,

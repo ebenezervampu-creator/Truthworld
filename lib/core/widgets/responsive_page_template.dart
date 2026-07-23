@@ -9,6 +9,20 @@ import 'package:truthworld/theme/app_theme.dart';
 
 
 class ResponsivePageTemplate extends StatelessWidget {
+
+  const ResponsivePageTemplate({
+    required this.body, super.key,
+    this.appBar,
+    this.drawer,
+    this.sideNavigation,
+    this.bottomNavigation,
+    this.floatingActionButton,
+    this.persistentFooterButtons,
+    this.extendBodyBehindAppBar = false,
+    this.resizeToAvoidBottomInset = true,
+    this.backgroundColor,
+    this.padding,
+  });
   final Widget? appBar;
   final Widget? drawer;
   final Widget? sideNavigation;
@@ -20,21 +34,6 @@ class ResponsivePageTemplate extends StatelessWidget {
   final bool resizeToAvoidBottomInset;
   final Color? backgroundColor;
   final EdgeInsets? padding;
-
-  const ResponsivePageTemplate({
-    super.key,
-    this.appBar,
-    this.drawer,
-    this.sideNavigation,
-    this.bottomNavigation,
-    required this.body,
-    this.floatingActionButton,
-    this.persistentFooterButtons,
-    this.extendBodyBehindAppBar = false,
-    this.resizeToAvoidBottomInset = true,
-    this.backgroundColor,
-    this.padding,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +71,7 @@ class ResponsivePageTemplate extends StatelessWidget {
     if (context.showSideNav && sideNavigation != null) {
       return Row(
         children: [
-          SizedBox(width: context.layoutTokens.sidebarWidth, child: sideNavigation!),
+          SizedBox(width: context.layoutTokens.sidebarWidth, child: sideNavigation),
           VerticalDivider(
             width: 1,
             thickness: 1,
@@ -100,17 +99,9 @@ class ResponsivePageTemplate extends StatelessWidget {
 // RESPONSIVE CONTENT AREA
 // ==========================================================================
 class ResponsiveContentArea extends StatelessWidget {
-  final List<Widget> children;
-  final CrossAxisAlignment crossAxisAlignment;
-  final MainAxisAlignment mainAxisAlignment;
-  final MainAxisSize mainAxisSize;
-  final bool spaced;
-  final double? spacing;
-  final EdgeInsets? padding;
 
   const ResponsiveContentArea({
-    super.key,
-    required this.children,
+    required this.children, super.key,
     this.crossAxisAlignment = CrossAxisAlignment.start,
     this.mainAxisAlignment = MainAxisAlignment.start,
     this.mainAxisSize = MainAxisSize.max,
@@ -118,6 +109,13 @@ class ResponsiveContentArea extends StatelessWidget {
     this.spacing,
     this.padding,
   });
+  final List<Widget> children;
+  final CrossAxisAlignment crossAxisAlignment;
+  final MainAxisAlignment mainAxisAlignment;
+  final MainAxisSize mainAxisSize;
+  final bool spaced;
+  final double? spacing;
+  final EdgeInsets? padding;
 
   @override
   Widget build(BuildContext context) {
@@ -138,7 +136,7 @@ class ResponsiveContentArea extends StatelessWidget {
     final effectiveSpacing = spacing ?? context.layoutSpacing;
     final spacedChildren = <Widget>[];
 
-    for (int i = 0; i < children.length; i++) {
+    for (var i = 0; i < children.length; i++) {
       spacedChildren.add(children[i]);
       if (i < children.length - 1) {
         spacedChildren.add(SizedBox(height: effectiveSpacing));
@@ -153,22 +151,21 @@ class ResponsiveContentArea extends StatelessWidget {
 // RESPONSIVE SECTION
 // ==========================================================================
 class ResponsiveSection extends StatelessWidget {
+
+  const ResponsiveSection({
+    required this.child, super.key,
+    this.title,
+    this.subtitle,
+    this.action,
+    this.sectionPadding,
+    this.showDivider = false,
+  });
   final String? title;
   final Widget? subtitle;
   final Widget? action;
   final Widget child;
   final EdgeInsets? sectionPadding;
   final bool showDivider;
-
-  const ResponsiveSection({
-    super.key,
-    this.title,
-    this.subtitle,
-    this.action,
-    required this.child,
-    this.sectionPadding,
-    this.showDivider = false,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -182,7 +179,7 @@ class ResponsiveSection extends StatelessWidget {
             SizedBox(height: context.layoutSpacing),
           ],
           child,
-          if (showDivider) ...[SizedBox(height: context.layoutSpacing), Divider()],
+          if (showDivider) ...[SizedBox(height: context.layoutSpacing), const Divider()],
         ],
       ),
     );
@@ -222,22 +219,21 @@ class ResponsiveSection extends StatelessWidget {
 // RESPONSIVE GRID LAYOUT
 // ==========================================================================
 class ResponsiveGridLayout extends StatelessWidget {
-  final List<Widget> children;
-  final int? maxColumns;
-  final double? crossAxisSpacing;
-  final double? mainAxisSpacing;
-  final double? childAspectRatio;
-  final EdgeInsets? padding;
 
   const ResponsiveGridLayout({
-    super.key,
-    required this.children,
+    required this.children, super.key,
     this.maxColumns,
     this.crossAxisSpacing,
     this.mainAxisSpacing,
     this.childAspectRatio,
     this.padding,
   });
+  final List<Widget> children;
+  final int? maxColumns;
+  final double? crossAxisSpacing;
+  final double? mainAxisSpacing;
+  final double? childAspectRatio;
+  final EdgeInsets? padding;
 
   @override
   Widget build(BuildContext context) {
@@ -263,20 +259,19 @@ class ResponsiveGridLayout extends StatelessWidget {
 // RESPONSIVE LIST LAYOUT
 // ==========================================================================
 class ResponsiveListLayout extends StatelessWidget {
-  final List<Widget> children;
-  final EdgeInsets? padding;
-  final double? spacing;
-  final bool shrinkWrap;
-  final ScrollPhysics? physics;
 
   const ResponsiveListLayout({
-    super.key,
-    required this.children,
+    required this.children, super.key,
     this.padding,
     this.spacing,
     this.shrinkWrap = false,
     this.physics,
   });
+  final List<Widget> children;
+  final EdgeInsets? padding;
+  final double? spacing;
+  final bool shrinkWrap;
+  final ScrollPhysics? physics;
 
   @override
   Widget build(BuildContext context) {
@@ -299,18 +294,17 @@ class ResponsiveListLayout extends StatelessWidget {
 // RESPONSIVE CARD LAYOUT
 // ==========================================================================
 class ResponsiveCardLayout extends StatelessWidget {
-  final List<Widget> children;
-  final int? maxColumns;
-  final EdgeInsets? padding;
-  final bool showListView;
 
   const ResponsiveCardLayout({
-    super.key,
-    required this.children,
+    required this.children, super.key,
     this.maxColumns,
     this.padding,
     this.showListView = false,
   });
+  final List<Widget> children;
+  final int? maxColumns;
+  final EdgeInsets? padding;
+  final bool showListView;
 
   @override
   Widget build(BuildContext context) {
@@ -337,18 +331,17 @@ class ResponsiveCardLayout extends StatelessWidget {
 // RESPONSIVE WRAPPER
 // ==========================================================================
 class ResponsiveWrapper extends StatelessWidget {
-  final Widget child;
-  final EdgeInsets? padding;
-  final bool centerContent;
-  final double? maxWidth;
 
   const ResponsiveWrapper({
-    super.key,
-    required this.child,
+    required this.child, super.key,
     this.padding,
     this.centerContent = true,
     this.maxWidth,
   });
+  final Widget child;
+  final EdgeInsets? padding;
+  final bool centerContent;
+  final double? maxWidth;
 
   @override
   Widget build(BuildContext context) {

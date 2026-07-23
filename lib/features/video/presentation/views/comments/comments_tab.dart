@@ -3,16 +3,16 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
-import 'package:truthworld/features/video/presentation/views/comments/comment_input.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
-import 'package:truthworld/features/video/presentation/views/replies/reply_input.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/presentation/controllers/comments_controller.dart';
-import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/features/video/presentation/views/comments/comment_input.dart';
+import 'package:truthworld/features/video/presentation/views/replies/reply_input.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 Widget buildCommentsTab({
   required Video video,
@@ -27,16 +27,13 @@ Widget buildCommentsTab({
 }
 
 class ModernCommentsTab extends StatefulWidget {
+
+  const ModernCommentsTab({
+    required this.video, required this.theme, required this.mainController, super.key,
+  });
   final Video video;
   final ThemeData theme;
   final MainController mainController;
-
-  const ModernCommentsTab({
-    super.key,
-    required this.video,
-    required this.theme,
-    required this.mainController,
-  });
 
   @override
   State<ModernCommentsTab> createState() => _ModernCommentsTabState();
@@ -67,7 +64,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
       vsync: this,
     );
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _fadeController, curve: Curves.easeInOutCubic),
     );
 
@@ -178,7 +175,6 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
         ],
         border: Border.all(
           color: widget.theme.colorScheme.outline.withValues(alpha: 0.2),
-          width: 1,
         ),
       ),
       child: Padding(
@@ -217,12 +213,12 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
           children: [
             StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
-                .collection("videos")
+                .collection('videos')
                 .doc(widget.video.id)
                 .collection('comments')
                 .snapshots(),
             builder: (context, snapshot) {
-              int commentCount = snapshot.hasData
+              final commentCount = snapshot.hasData
                   ? snapshot.data!.docs.length
                   : 0;
 
@@ -258,7 +254,6 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
                     ),
                     border: Border.all(
                       color: widget.theme.colorScheme.primary.withValues(alpha: 0.2),
-                      width: 1,
                     ),
                   ),
                   child: Row(
@@ -282,7 +277,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
                       ),
                       Text(
                         '$commentCount ${commentCount == 1 ? 'Comment' : 'Comments'}',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontWeight: FontWeight.w500,
                           fontSize: isMobile
                               ? 14
@@ -306,7 +301,6 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
                   color: widget.theme.colorScheme.outline.withValues(alpha: 0.3),
-                  width: 1,
                 ),
               ),
               child: Row(
@@ -320,7 +314,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
                   const SizedBox(width: 6),
                   Text(
                     'Sort by',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                       color: widget.theme.colorScheme.onSurfaceVariant,
@@ -341,7 +335,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
       final _ = _retryTrigger.value;
       return StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
-            .collection("videos")
+            .collection('videos')
             .doc(widget.video.id)
             .collection('comments')
             .orderBy('createdAt', descending: true)
@@ -360,7 +354,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
         }
 
         final comments = snapshot.data!.docs
-            .map((doc) => Comment.fromDocumentSnapshot(doc))
+            .map(Comment.fromDocumentSnapshot)
             .toList();
 
         return ListView.builder(
@@ -371,7 +365,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
             final comment = comments[index];
             return TweenAnimationBuilder<double>(
               duration: Duration(milliseconds: 300 + (index * 100)),
-              tween: Tween(begin: 0.0, end: 1.0),
+              tween: Tween(begin: 0, end: 1),
               curve: Curves.easeOutCubic,
               builder: (context, value, child) {
                 return Transform.translate(
@@ -445,7 +439,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
   Widget _buildShimmerEffect(bool isMobile, bool isTablet, bool isDesktop) {
     return TweenAnimationBuilder<double>(
       duration: const Duration(milliseconds: 1500),
-      tween: Tween(begin: 0.3, end: 1.0),
+      tween: Tween(begin: 0.3, end: 1),
       curve: Curves.easeInOut,
       builder: (context, value, child) {
         return Opacity(
@@ -546,7 +540,6 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
         ),
         border: Border.all(
           color: widget.theme.colorScheme.error.withValues(alpha: 0.2),
-          width: 1,
         ),
       ),
       child: Column(
@@ -570,7 +563,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
           ),
           Text(
             'Failed to load comments',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: isMobile
                   ? 16
                   : isTablet
@@ -589,7 +582,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
           ),
           Text(
             'Please check your connection and try again',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: isMobile
                   ? 14
                   : isTablet
@@ -649,7 +642,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
         : isTablet
         ? 24.0
         : 32.0;
-    final bool isUserSignedIn = FirebaseAuth.instance.currentUser != null;
+    final isUserSignedIn = FirebaseAuth.instance.currentUser != null;
 
     return Container(
       margin: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 48),
@@ -678,7 +671,6 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
         ),
         border: Border.all(
           color: widget.theme.colorScheme.outline.withValues(alpha: 0.2),
-          width: 1,
         ),
       ),
       child: Column(
@@ -686,7 +678,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
         children: [
           TweenAnimationBuilder<double>(
             duration: const Duration(milliseconds: 800),
-            tween: Tween(begin: 0.0, end: 1.0),
+            tween: Tween(begin: 0, end: 1),
             curve: Curves.elasticOut,
             builder: (context, value, child) {
               return Transform.scale(
@@ -730,7 +722,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
           ),
           Text(
             isUserSignedIn ? 'Be the first to comment!' : 'No comments yet',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: isMobile
                   ? 18
                   : isTablet
@@ -751,7 +743,7 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
             isUserSignedIn
                 ? 'Share your thoughts about this video'
                 : 'Sign in to join the conversation',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: isMobile
                   ? 14
                   : isTablet
@@ -812,6 +804,10 @@ class _ModernCommentsTabState extends State<ModernCommentsTab>
 
 /// Modern Comment Item with enhanced UI/UX
 class ModernCommentItem extends StatefulWidget {
+
+  const ModernCommentItem({
+    required this.comment, required this.theme, required this.mainController, required this.video, required this.isMobile, required this.isTablet, required this.isDesktop, super.key,
+  });
   final Comment comment;
   final ThemeData theme;
   final MainController mainController;
@@ -819,17 +815,6 @@ class ModernCommentItem extends StatefulWidget {
   final bool isMobile;
   final bool isTablet;
   final bool isDesktop;
-
-  const ModernCommentItem({
-    super.key,
-    required this.comment,
-    required this.theme,
-    required this.mainController,
-    required this.video,
-    required this.isMobile,
-    required this.isTablet,
-    required this.isDesktop,
-  });
 
   @override
   State<ModernCommentItem> createState() => _ModernCommentItemState();
@@ -853,7 +838,7 @@ class _ModernCommentItemState extends State<ModernCommentItem>
       vsync: this,
     );
 
-    _hoverAnimation = Tween<double>(begin: 1.0, end: 1.02).animate(
+    _hoverAnimation = Tween<double>(begin: 1, end: 1.02).animate(
       CurvedAnimation(parent: _hoverController, curve: Curves.easeInOut),
     );
   }
@@ -938,7 +923,6 @@ class _ModernCommentItemState extends State<ModernCommentItem>
                     color: widget.theme.colorScheme.outline.withValues(alpha: 
                       isHovered ? 0.3 : 0.1,
                     ),
-                    width: 1,
                   ),
                 ),
               child: Column(
@@ -1015,7 +999,7 @@ class _ModernCommentItemState extends State<ModernCommentItem>
           children: [
             Text(
               widget.comment.displayName,
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontWeight: FontWeight.w500,
                 fontSize: widget.isMobile
                     ? 13
@@ -1057,7 +1041,7 @@ class _ModernCommentItemState extends State<ModernCommentItem>
               ),
               child: Text(
                 timeago.format(widget.comment.createdAt.toDate()),
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   color: widget.theme.colorScheme.onSurfaceVariant,
                   fontSize: widget.isMobile
                       ? 11
@@ -1079,7 +1063,7 @@ class _ModernCommentItemState extends State<ModernCommentItem>
         ),
         Text(
           widget.comment.text,
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: widget.isMobile
                 ? 14
                 : widget.isTablet
@@ -1102,7 +1086,7 @@ class _ModernCommentItemState extends State<ModernCommentItem>
   }
 
   Widget _buildActionButtons() {
-    final bool isUserSignedIn = FirebaseAuth.instance.currentUser != null;
+    final isUserSignedIn = FirebaseAuth.instance.currentUser != null;
     final tag = 'video_${widget.video.id}';
     final hasCommentsCtrl = Get.isRegistered<CommentsController>(tag: tag);
     final commentsController = hasCommentsCtrl
@@ -1140,7 +1124,7 @@ class _ModernCommentItemState extends State<ModernCommentItem>
           const SizedBox(width: 4),
           Text(
             widget.comment.likeCount.toString(),
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 12,
               color: widget.theme.colorScheme.onSurfaceVariant,
             ),
@@ -1191,7 +1175,7 @@ class _ModernCommentItemState extends State<ModernCommentItem>
                   height: 24,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.black, width: 1),
+                    border: Border.all(color: AppColors.bgPage),
                   ),
                   child: UserAvatar(
                     radius: 12,
@@ -1208,13 +1192,13 @@ class _ModernCommentItemState extends State<ModernCommentItem>
                   child: Container(
                     padding: const EdgeInsets.all(1),
                     decoration: const BoxDecoration(
-                      color: Colors.black,
+                      color: AppColors.bgPage,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
                       Icons.favorite,
                       size: 10,
-                      color: Colors.red,
+                      color: AppColors.error,
                     ),
                   ),
                 ),
@@ -1234,7 +1218,7 @@ class _ModernCommentItemState extends State<ModernCommentItem>
           },
           child: Text(
             'Reply',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               color: widget.theme.colorScheme.onSurface,
               fontSize: 12,
               fontWeight: FontWeight.bold,
@@ -1303,6 +1287,13 @@ class _ModernCommentItemState extends State<ModernCommentItem>
 
 /// Modern Action Button for comments
 class ModernActionButton extends StatefulWidget {
+
+  const ModernActionButton({
+    required this.icon, required this.onTap, required this.theme, required this.isMobile, required this.isTablet, required this.isDesktop, super.key,
+    this.count,
+    this.isActive = false,
+    this.activeColor,
+  });
   final IconData icon;
   final int? count;
   final VoidCallback onTap;
@@ -1312,19 +1303,6 @@ class ModernActionButton extends StatefulWidget {
   final bool isDesktop;
   final bool isActive;
   final Color? activeColor;
-
-  const ModernActionButton({
-    super.key,
-    required this.icon,
-    this.count,
-    required this.onTap,
-    required this.theme,
-    required this.isMobile,
-    required this.isTablet,
-    required this.isDesktop,
-    this.isActive = false,
-    this.activeColor,
-  });
 
   @override
   State<ModernActionButton> createState() => _ModernActionButtonState();
@@ -1342,7 +1320,7 @@ class _ModernActionButtonState extends State<ModernActionButton>
       duration: const Duration(milliseconds: 150),
       vsync: this,
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
+    _scaleAnimation = Tween<double>(begin: 1, end: 0.95).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
   }
@@ -1396,7 +1374,6 @@ class _ModernActionButtonState extends State<ModernActionButton>
                   color: widget.isActive
                       ? activeCol.withValues(alpha: 0.4)
                       : widget.theme.colorScheme.outline.withValues(alpha: 0.2),
-                  width: 1,
                 ),
               ),
               child: Row(
@@ -1421,7 +1398,7 @@ class _ModernActionButtonState extends State<ModernActionButton>
                     ),
                     Text(
                       '${widget.count}',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: color,
                         fontSize: widget.isMobile
                             ? 11
@@ -1444,6 +1421,10 @@ class _ModernActionButtonState extends State<ModernActionButton>
 
 /// Modern Replies Section
 class ModernRepliesSection extends StatefulWidget {
+
+  const ModernRepliesSection({
+    required this.commentId, required this.theme, required this.video, required this.mainController, required this.isMobile, required this.isTablet, required this.isDesktop, super.key,
+  });
   final String commentId;
   final ThemeData theme;
   final Video video;
@@ -1451,17 +1432,6 @@ class ModernRepliesSection extends StatefulWidget {
   final bool isMobile;
   final bool isTablet;
   final bool isDesktop;
-
-  const ModernRepliesSection({
-    super.key,
-    required this.commentId,
-    required this.theme,
-    required this.video,
-    required this.mainController,
-    required this.isMobile,
-    required this.isTablet,
-    required this.isDesktop,
-  });
 
   @override
   State<ModernRepliesSection> createState() => _ModernRepliesSectionState();
@@ -1510,7 +1480,7 @@ class _ModernRepliesSectionState extends State<ModernRepliesSection>
         }
 
         final replies = snapshot.data!.docs
-            .map((doc) => Reply.fromDocumentSnapshot(doc))
+            .map(Reply.fromDocumentSnapshot)
             .toList();
 
         return Stack(
@@ -1574,7 +1544,7 @@ class _ModernRepliesSectionState extends State<ModernRepliesSection>
                             const SizedBox(width: 8),
                             Text(
                               '${replies.length} ${replies.length == 1 ? 'reply' : 'replies'}',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 color: widget.theme.colorScheme.primary,
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
@@ -1628,6 +1598,10 @@ class _ModernRepliesSectionState extends State<ModernRepliesSection>
 
 /// Modern Reply Item
 class ModernReplyItem extends StatelessWidget {
+
+  const ModernReplyItem({
+    required this.reply, required this.theme, required this.video, required this.mainController, required this.isMobile, required this.isTablet, required this.isDesktop, super.key,
+  });
   final Reply reply;
   final ThemeData theme;
   final Video video;
@@ -1635,17 +1609,6 @@ class ModernReplyItem extends StatelessWidget {
   final bool isMobile;
   final bool isTablet;
   final bool isDesktop;
-
-  const ModernReplyItem({
-    super.key,
-    required this.reply,
-    required this.theme,
-    required this.video,
-    required this.mainController,
-    required this.isMobile,
-    required this.isTablet,
-    required this.isDesktop,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -1691,7 +1654,6 @@ class ModernReplyItem extends StatelessWidget {
           ),
           border: Border.all(
             color: theme.colorScheme.outline.withValues(alpha: 0.2),
-            width: 1,
           ),
         ),
         child: Row(
@@ -1740,7 +1702,7 @@ class ModernReplyItem extends StatelessWidget {
                     children: [
                       Text(
                         reply.displayName,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontWeight: FontWeight.w500,
                           fontSize: isMobile
                               ? 12
@@ -1784,7 +1746,7 @@ class ModernReplyItem extends StatelessWidget {
                         ),
                         child: Text(
                           timeago.format(reply.createdAt.toDate()),
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             color: theme.colorScheme.onSurfaceVariant,
                             fontSize: isMobile
                                 ? 10
@@ -1806,7 +1768,7 @@ class ModernReplyItem extends StatelessWidget {
                   ),
                   Text(
                     reply.text,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: isMobile
                           ? 13
                           : isTablet

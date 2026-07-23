@@ -1,10 +1,12 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
-import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/features/miniplayer/data/models/miniplayer_model.dart';
+import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Utility helpers for miniplayer navigation and state management.
 ///
@@ -148,7 +150,7 @@ class MiniplayerNavigationHelper {
       return (screenWidth * fraction).clamp(minW, maxW);
     } catch (e) {
       logger.error('Error calculating miniplayer width', error: e, tag: _tag);
-      return 380.0; // Safe default
+      return 380; // Safe default
     }
   }
 
@@ -181,9 +183,8 @@ class MiniplayerNavigationHelper {
   /// ```
   static Future<void> navigateAwayWithMiniplayer({
     required Video video,
-    Duration? currentPosition,
+    required String targetRoute, Duration? currentPosition,
     String? overrideUrl,
-    required String targetRoute,
     Map<String, dynamic>? arguments,
   }) async {
     try {
@@ -244,9 +245,8 @@ class MiniplayerNavigationHelper {
         'Navigation Error',
         'Could not open video. Please try again.',
         snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 3),
-        backgroundColor: Colors.red.withValues(alpha: 0.8),
-        colorText: Colors.white,
+        backgroundColor: AppColors.error.withValues(alpha: 0.8),
+        colorText: AppColors.textPrimary,
         borderRadius: 8,
         margin: const EdgeInsets.all(12),
       );
@@ -262,8 +262,8 @@ class MiniplayerNavigationHelper {
         message,
         snackPosition: SnackPosition.BOTTOM,
         duration: const Duration(seconds: 2),
-        backgroundColor: Colors.orange.withValues(alpha: 0.8),
-        colorText: Colors.white,
+        backgroundColor: AppColors.warning.withValues(alpha: 0.8),
+        colorText: AppColors.textPrimary,
         borderRadius: 8,
         margin: const EdgeInsets.all(12),
       );
@@ -288,13 +288,13 @@ class MiniplayerAnimations {
   }
 
   static Animation<double> scaleAnimation(AnimationController controller) {
-    return Tween<double>(begin: 0.8, end: 1.0).animate(
+    return Tween<double>(begin: 0.8, end: 1).animate(
       CurvedAnimation(parent: controller, curve: Curves.easeOutCubic),
     );
   }
 
   static Animation<double> fadeAnimation(AnimationController controller) {
-    return Tween<double>(begin: 0.0, end: 1.0).animate(
+    return Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: controller, curve: Curves.easeInCubic),
     );
   }

@@ -1,10 +1,10 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:get/get.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class PremiumCommentInputController extends GetxController {
   final TextEditingController commentController = TextEditingController();
@@ -34,18 +34,16 @@ class PremiumCommentInputController extends GetxController {
 
 /// Premium comment input with enhanced YouTube-style UI and onSubmit callback
 class PremiumCommentInput extends StatelessWidget {
+
+  const PremiumCommentInput({
+    required this.videoId, required this.onSubmit, super.key,
+    this.isReply = false,
+    this.onCancel,
+  });
   final String videoId;
   final bool isReply;
   final Function(String text, bool postAsChannel, String? channelId) onSubmit;
   final VoidCallback? onCancel;
-
-  const PremiumCommentInput({
-    super.key,
-    required this.videoId,
-    this.isReply = false,
-    required this.onSubmit,
-    this.onCancel,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -60,12 +58,12 @@ class PremiumCommentInput extends StatelessWidget {
       final hasChannel = authService.hasChannel.value;
       final channel = authService.userChannel;
 
-      final String photoUrl = authService.activePhotoUrl;
-      final String initial = hasChannel
-          ? (channel?.name.isNotEmpty == true ? channel!.name.substring(0, 1).toUpperCase() : 'C')
-          : (user?.email?.isNotEmpty == true
+      final photoUrl = authService.activePhotoUrl;
+      final initial = hasChannel
+          ? (channel?.name.isNotEmpty ?? false ? channel!.name.substring(0, 1).toUpperCase() : 'C')
+          : (user?.email?.isNotEmpty ?? false
               ? user!.email!.substring(0, 1).toUpperCase()
-              : (user?.displayName?.isNotEmpty == true
+              : (user?.displayName?.isNotEmpty ?? false
                   ? user!.displayName!.substring(0, 1).toUpperCase()
                   : 'U'));
 
@@ -98,8 +96,8 @@ class PremiumCommentInput extends StatelessWidget {
             photoUrl: photoUrl,
             displayName: initial,
             radius: 18,
-            backgroundColor: Colors.blue,
-            textColor: Colors.white,
+            backgroundColor: AppColors.info,
+            textColor: AppColors.textPrimary,
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -113,32 +111,30 @@ class PremiumCommentInput extends StatelessWidget {
                   minLines: 1,
                   textInputAction: TextInputAction.send,
                   onSubmitted: (_) => submitComment(),
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     fontSize: 14,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                   ),
                   decoration: InputDecoration(
                     hintText: isReply ? 'Add a reply...' : 'Add a comment...',
-                    hintStyle: GoogleFonts.roboto(
-                      color: Colors.grey.shade500,
+                    hintStyle: const TextStyle(
+                      color: AppColors.textSecondary,
                       fontSize: 14,
                     ),
-                    enabledBorder: UnderlineInputBorder(
+                    enabledBorder: const UnderlineInputBorder(
                       borderSide: BorderSide(
-                        color: Colors.grey.shade800,
-                        width: 1.0,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                     focusedBorder: const UnderlineInputBorder(
                       borderSide: BorderSide(
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         width: 1.5,
                       ),
                     ),
-                    border: UnderlineInputBorder(
+                    border: const UnderlineInputBorder(
                       borderSide: BorderSide(
-                        color: Colors.grey.shade800,
-                        width: 1.0,
+                        color: AppColors.textSecondary,
                       ),
                     ),
                     contentPadding: const EdgeInsets.symmetric(vertical: 8),
@@ -158,7 +154,7 @@ class PremiumCommentInput extends StatelessWidget {
                               if (onCancel != null) onCancel!();
                             },
                             style: TextButton.styleFrom(
-                              foregroundColor: Colors.white70,
+                              foregroundColor: AppColors.textSecondary,
                             ),
                             child: const Text('Cancel'),
                           ),
@@ -170,11 +166,11 @@ class PremiumCommentInput extends StatelessWidget {
                                 : submitComment,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: controller.hasText.value
-                                  ? Colors.blue
-                                  : Colors.white.withValues(alpha: 0.1),
+                                  ? AppColors.info
+                                  : AppColors.textPrimary.withValues(alpha: 0.1),
                               foregroundColor: controller.hasText.value
-                                  ? Colors.white
-                                  : Colors.white.withValues(alpha: 0.3),
+                                  ? AppColors.textPrimary
+                                  : AppColors.textPrimary.withValues(alpha: 0.3),
                               elevation: 0,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(18),

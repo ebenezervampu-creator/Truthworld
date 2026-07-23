@@ -43,7 +43,7 @@ class FirestoreService extends GetxService {
   Future<({List<Map<String, dynamic>> videos, DocumentSnapshot? lastDoc})>
   getFeedVideos({DocumentSnapshot? lastDocument}) async {
     try {
-      Query<Map<String, dynamic>> query = _firestore
+      var query = _firestore
           .collection('videos/videoCache')
           .where('visibility', isEqualTo: 'public')
           .orderBy('createdAt', descending: true)
@@ -115,7 +115,7 @@ class FirestoreService extends GetxService {
   Future<({List<Map<String, dynamic>> videos, DocumentSnapshot? lastDoc})>
   getChannelVideos(String channelId, {DocumentSnapshot? lastDocument}) async {
     try {
-      Query<Map<String, dynamic>> query = _firestore
+      var query = _firestore
           .collection('channels')
           .doc(channelId)
           .collection('videoList')
@@ -203,7 +203,7 @@ class FirestoreService extends GetxService {
   Future<({List<Map<String, dynamic>> comments, DocumentSnapshot? lastDoc})>
   getVideoComments(String videoId, {DocumentSnapshot? lastDocument}) async {
     try {
-      Query<Map<String, dynamic>> query = _firestore
+      var query = _firestore
           .collection('comments')
           .doc(videoId)
           .collection('list')
@@ -520,9 +520,9 @@ class FirestoreService extends GetxService {
     writes,
   }) async {
     try {
-      const int maxBatchSize = 500;
+      const maxBatchSize = 500;
 
-      for (int i = 0; i < writes.length; i += maxBatchSize) {
+      for (var i = 0; i < writes.length; i += maxBatchSize) {
         final batch = _firestore.batch();
         final chunk = writes.sublist(
           i,

@@ -9,12 +9,6 @@ import 'package:truthworld/features/video/data/models/video.dart';
 /// Separated from playback state to prevent unnecessary rebuilds.
 @immutable
 class MiniplayerVideoInfo {
-  final String id;
-  final String title;
-  final String channelName;
-  final String thumbnailUrl;
-  final String videoUrl;
-  final Duration totalDuration;
 
   const MiniplayerVideoInfo({
     required this.id,
@@ -35,6 +29,12 @@ class MiniplayerVideoInfo {
       totalDuration: video.durationValue,
     );
   }
+  final String id;
+  final String title;
+  final String channelName;
+  final String thumbnailUrl;
+  final String videoUrl;
+  final Duration totalDuration;
 
   @override
   bool operator ==(Object other) =>
@@ -76,6 +76,13 @@ enum MiniplayerMode {
 /// around the viewport, dismissable, and expandable to fullscreen.
 @immutable
 class MiniplayerConfig {
+
+  const MiniplayerConfig({
+    this.enabled = true,
+    this.autoShowOnNavigate = true,
+    this.pauseOnClose = true,
+    this.enableDrag = true,
+  });
   // ── Feature Toggles ──
   final bool enabled;
   final bool autoShowOnNavigate;
@@ -84,29 +91,29 @@ class MiniplayerConfig {
 
   // ── YouTube-style sizing (logical pixels) ──
   /// Default width of the floating miniplayer card.
-  static const double defaultWidth = 400.0;
+  static const double defaultWidth = 400;
 
   /// Minimum width on small viewports.
-  static const double minWidth = 280.0;
+  static const double minWidth = 280;
 
   /// Maximum width on large viewports.
-  static const double maxWidth = 480.0;
+  static const double maxWidth = 480;
 
   /// Height of the info row beneath the 16:9 video frame.
-  static const double infoBarHeight = 56.0;
+  static const double infoBarHeight = 56;
 
   /// Aspect ratio of the video portion.
   static const double videoAspectRatio = 16.0 / 9.0;
 
   /// Edge inset from viewport when docked.
-  static const double dockInset = 16.0;
+  static const double dockInset = 16;
 
   /// Legacy alias — kept for backwards-compat with code that read the old
   /// "collapsed bar" height. New layout computes height from width.
-  static const double collapsedHeight = 72.0;
+  static const double collapsedHeight = 72;
 
   /// Expanded panel reserved fraction of screen height (0.0–1.0).
-  static const double expandedHeightFraction = 1.0;
+  static const double expandedHeightFraction = 1;
 
   /// Width fraction of screen when collapsed (legacy).
   static const double collapsedWidthFraction = 0.30;
@@ -129,8 +136,8 @@ class MiniplayerConfig {
   static const double dismissThreshold = 0.15;
 
   // ── Styling ──
-  static const double borderRadius = 12.0;
-  static const double elevation = 24.0;
+  static const double borderRadius = 12;
+  static const double elevation = 24;
 
   /// Compute the total panel height for a given width (16:9 video + info row).
   static double heightForWidth(double width) =>
@@ -142,13 +149,6 @@ class MiniplayerConfig {
     final target = screenWidth * 0.30;
     return target.clamp(minWidth, maxWidth);
   }
-
-  const MiniplayerConfig({
-    this.enabled = true,
-    this.autoShowOnNavigate = true,
-    this.pauseOnClose = true,
-    this.enableDrag = true,
-  });
 
   MiniplayerConfig copyWith({
     bool? enabled,

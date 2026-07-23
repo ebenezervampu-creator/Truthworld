@@ -1,15 +1,14 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/services/video_hydration_service.dart';
 
 // Constants for consistent styling
-const double kBorderRadius = 16.0;
-const double kSmallPadding = 8.0;
-const double kMediumPadding = 16.0;
-const double kLargePadding = 24.0;
+const double kBorderRadius = 16;
+const double kSmallPadding = 8;
+const double kMediumPadding = 16;
+const double kLargePadding = 24;
 
 class VideoLoaderScreen extends StatefulWidget {
   const VideoLoaderScreen({super.key});
@@ -47,7 +46,7 @@ class _VideoLoaderScreenState extends State<VideoLoaderScreen>
     final videoId = Get.parameters['v'] ?? Get.parameters['videoId'];
 
     if (videoId == null) {
-      _showErrorSnackbar("Error", "No video ID found in URL");
+      _showErrorSnackbar('Error', 'No video ID found in URL');
       return;
     }
 
@@ -88,13 +87,13 @@ class _VideoLoaderScreenState extends State<VideoLoaderScreen>
       if (video == null) {
         debugPrint('⏳ Loading video from Firestore: $videoId');
 
-        DocumentSnapshot doc = await FirebaseFirestore.instance
+        final DocumentSnapshot doc = await FirebaseFirestore.instance
             .collection('videos')
             .doc(videoId)
             .get();
 
         if (!doc.exists) {
-          _showErrorSnackbar("Error", "Video not found");
+          _showErrorSnackbar('Error', 'Video not found');
           return;
         }
 
@@ -102,10 +101,15 @@ class _VideoLoaderScreenState extends State<VideoLoaderScreen>
       }
 
       // Navigate with loaded video
-      Get.offNamed("/watch?v=${video.id}", arguments: {"video": video});
-      debugPrint("🧭 Video loaded and navigating to video screen");
+      final args = <String, dynamic>{'video': video};
+      final rawArgs = Get.arguments;
+      if (rawArgs is Map && rawArgs['clip'] != null) {
+        args['clip'] = rawArgs['clip'];
+      }
+      Get.offNamed<void>('/watch?v=${video.id}', arguments: args);
+      debugPrint('🧭 Video loaded and navigating to video screen');
     } catch (e) {
-      _showErrorSnackbar("Error", "Something went wrong: $e");
+      _showErrorSnackbar('Error', 'Something went wrong: $e');
       debugPrint('❌ Error loading video: $e');
     }
   }
@@ -117,7 +121,7 @@ class _VideoLoaderScreenState extends State<VideoLoaderScreen>
       snackPosition: SnackPosition.BOTTOM,
       backgroundColor: Get.theme.colorScheme.errorContainer,
       colorText: Get.theme.colorScheme.onErrorContainer,
-      margin: EdgeInsets.all(kMediumPadding),
+      margin: const EdgeInsets.all(kMediumPadding),
       borderRadius: kBorderRadius,
       icon: Icon(
         Icons.error_rounded,
@@ -162,7 +166,7 @@ class _VideoLoaderScreenState extends State<VideoLoaderScreen>
             const SizedBox(height: kLargePadding),
             Text(
               'Loading Video...',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,
                 color: colorScheme.onSurface,
@@ -171,7 +175,7 @@ class _VideoLoaderScreenState extends State<VideoLoaderScreen>
             const SizedBox(height: kSmallPadding),
             Text(
               'Please wait a moment while we fetch your content.',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 14,
                 color: colorScheme.onSurface.withValues(alpha: 0.7),
               ),

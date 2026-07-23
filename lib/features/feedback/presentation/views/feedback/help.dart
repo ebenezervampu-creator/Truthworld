@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 // Constants for consistent styling
-const double kBorderRadius = 16.0;
-const double kSmallPadding = 8.0;
-const double kMediumPadding = 16.0;
-const double kLargePadding = 24.0;
+const double kBorderRadius = 16;
+const double kSmallPadding = 8;
+const double kMediumPadding = 16;
+const double kLargePadding = 24;
 
 class HelpPage extends StatelessWidget {
+  HelpPage({super.key, this.isDashboard = false});
   final List<ModernFAQItem> faqItems = [
     ModernFAQItem(
       question: 'How do I upload a video?',
@@ -35,7 +35,6 @@ class HelpPage extends StatelessWidget {
   ];
 
   final bool isDashboard;
-  HelpPage({super.key, this.isDashboard = false});
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +45,7 @@ class HelpPage extends StatelessWidget {
       appBar: AppBar(
         title: Text(
           'Help & Support',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontWeight: FontWeight.bold,
             color: colorScheme.onSurface,
           ),
@@ -68,11 +67,11 @@ class HelpPage extends StatelessWidget {
       body: LayoutBuilder(
         builder: (context, constraints) {
           return ListView(
-            padding: EdgeInsets.all(kMediumPadding),
+            padding: const EdgeInsets.all(kMediumPadding),
             children: [
               Text(
                 'Frequently Asked Questions',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: colorScheme.primary,
@@ -98,7 +97,7 @@ class HelpPage extends StatelessWidget {
                   ),
                   label: Text(
                     'Contact Support',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: colorScheme.onPrimary,
@@ -106,7 +105,7 @@ class HelpPage extends StatelessWidget {
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: colorScheme.primary,
-                    padding: EdgeInsets.symmetric(
+                    padding: const EdgeInsets.symmetric(
                       horizontal: kLargePadding,
                       vertical: kMediumPadding,
                     ),
@@ -127,16 +126,16 @@ class HelpPage extends StatelessWidget {
 }
 
 class ModernFAQItem {
-  final String question;
-  final String answer;
 
   ModernFAQItem({required this.question, required this.answer});
+  final String question;
+  final String answer;
 }
 
 class ModernFAQTile extends StatefulWidget {
-  final ModernFAQItem item;
 
-  const ModernFAQTile({super.key, required this.item});
+  const ModernFAQTile({required this.item, super.key});
+  final ModernFAQItem item;
 
   @override
   State<ModernFAQTile> createState() => _ModernFAQTileState();
@@ -168,7 +167,7 @@ class _ModernFAQTileState extends State<ModernFAQTile>
     final colorScheme = Theme.of(context).colorScheme;
 
     return Card(
-      margin: EdgeInsets.symmetric(vertical: kSmallPadding),
+      margin: const EdgeInsets.symmetric(vertical: kSmallPadding),
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(kBorderRadius),
@@ -180,13 +179,13 @@ class _ModernFAQTileState extends State<ModernFAQTile>
         ).copyWith(dividerColor: Colors.transparent), // Hide default divider
         child: ExpansionTile(
           key: PageStorageKey(widget.item.question), // Preserve expansion state
-          tilePadding: EdgeInsets.symmetric(
+          tilePadding: const EdgeInsets.symmetric(
             horizontal: kMediumPadding,
             vertical: kSmallPadding,
           ),
           title: Text(
             widget.item.question,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontWeight: FontWeight.w500,
               fontSize: 16,
               color: colorScheme.onSurface,
@@ -201,7 +200,7 @@ class _ModernFAQTileState extends State<ModernFAQTile>
           ),
           children: [
             Padding(
-              padding: EdgeInsets.fromLTRB(
+              padding: const EdgeInsets.fromLTRB(
                 kMediumPadding,
                 0,
                 kMediumPadding,
@@ -211,7 +210,7 @@ class _ModernFAQTileState extends State<ModernFAQTile>
                 alignment: Alignment.topLeft,
                 child: Text(
                   widget.item.answer,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 14,
                     color: colorScheme.onSurfaceVariant,
                   ),

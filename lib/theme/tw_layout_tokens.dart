@@ -1,17 +1,7 @@
 import 'package:flutter/material.dart';
-import 'device_state.dart';
+import 'package:truthworld/theme/device_state.dart';
 
 class TWLayoutTokens extends ThemeExtension<TWLayoutTokens> {
-  final double sidebarWidth;
-  final double compactSidebarWidth;
-  final double navigationRailWidth;
-  final double contentMaxWidth;
-  final double dialogMaxWidth;
-  final double sheetMaxWidth;
-  final double bottomSheetMaxWidth;
-  final double videoPlayerMaxWidth;
-  final double feedMaxWidth;
-  final double analyticsPanelWidth;
 
   const TWLayoutTokens({
     required this.sidebarWidth,
@@ -95,6 +85,16 @@ class TWLayoutTokens extends ThemeExtension<TWLayoutTokens> {
       );
     }
   }
+  final double sidebarWidth;
+  final double compactSidebarWidth;
+  final double navigationRailWidth;
+  final double contentMaxWidth;
+  final double dialogMaxWidth;
+  final double sheetMaxWidth;
+  final double bottomSheetMaxWidth;
+  final double videoPlayerMaxWidth;
+  final double feedMaxWidth;
+  final double analyticsPanelWidth;
 
   @override
   TWLayoutTokens copyWith({
@@ -127,7 +127,7 @@ class TWLayoutTokens extends ThemeExtension<TWLayoutTokens> {
   TWLayoutTokens lerp(ThemeExtension<TWLayoutTokens>? other, double t) {
     if (other is! TWLayoutTokens) return this;
     return TWLayoutTokens(
-      sidebarWidth: Color.lerp(Colors.black, Colors.black, t)!.opacity * (other.sidebarWidth - sidebarWidth) + sidebarWidth, // dummy lerp for double
+      sidebarWidth: _lerp(sidebarWidth, other.sidebarWidth, t),
       compactSidebarWidth: _lerp(compactSidebarWidth, other.compactSidebarWidth, t),
       navigationRailWidth: _lerp(navigationRailWidth, other.navigationRailWidth, t),
       contentMaxWidth: _lerp(contentMaxWidth, other.contentMaxWidth, t),

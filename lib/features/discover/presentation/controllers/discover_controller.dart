@@ -1,14 +1,14 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 
 class DiscoverCategoryData {
-  final String name;
-  final String imageUrl;
 
   const DiscoverCategoryData({required this.name, required this.imageUrl});
+  final String name;
+  final String imageUrl;
 }
 
 class DiscoverController extends GetxController {
@@ -198,10 +198,10 @@ class DiscoverController extends GetxController {
           .get();
 
       final results = snapshot.docs
-          .map((doc) => Channel.fromDocumentSnapshot(doc))
+          .map(Channel.fromDocumentSnapshot)
           .toList();
       // Use denormalized subscriberCount from channel doc (YouTube-standard)
-      for (var channel in results) {
+      for (final channel in results) {
         if (!ChannelController.globalSubscriberCounts.containsKey(
           channel.channelId,
         )) {

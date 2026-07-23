@@ -5,15 +5,6 @@
 library;
 
 class ScoringFactors {
-  final double accuracy;
-  final double evidence;
-  final double consensus;
-  final double consistency;
-  final double integrity;
-  final double expertise;
-  final double freshness;
-  final double safety;
-  final double honesty;
 
   ScoringFactors({
     required this.accuracy,
@@ -40,6 +31,15 @@ class ScoringFactors {
       honesty: (map['honesty'] ?? 0).toDouble(),
     );
   }
+  final double accuracy;
+  final double evidence;
+  final double consensus;
+  final double consistency;
+  final double integrity;
+  final double expertise;
+  final double freshness;
+  final double safety;
+  final double honesty;
 
   Map<String, dynamic> toMap() => {
     'accuracy': accuracy,
@@ -55,13 +55,6 @@ class ScoringFactors {
 }
 
 class HonestyBreakdown {
-  final double score;
-  final int opinionLabeledOpinion;
-  final int beliefLabeledBelief;
-  final int beliefPresentedAsFact;
-  final int opinionPresentedAsFact;
-  final int speculationLabeledSpeculation;
-  final double assertivenessMismatchPenalty;
 
   HonestyBreakdown({
     required this.score,
@@ -84,6 +77,13 @@ class HonestyBreakdown {
       assertivenessMismatchPenalty: (map['assertivenessMismatchPenalty'] ?? 0).toDouble(),
     );
   }
+  final double score;
+  final int opinionLabeledOpinion;
+  final int beliefLabeledBelief;
+  final int beliefPresentedAsFact;
+  final int opinionPresentedAsFact;
+  final int speculationLabeledSpeculation;
+  final double assertivenessMismatchPenalty;
 
   Map<String, dynamic> toMap() => {
     'score': score,
@@ -97,10 +97,6 @@ class HonestyBreakdown {
 }
 
 class ContextualFlag {
-  final String topic;
-  final String claimText;
-  final List<Perspective> perspectives;
-  final String aiNote;
 
   ContextualFlag({
     required this.topic,
@@ -119,6 +115,10 @@ class ContextualFlag {
       aiNote: map['aiNote'] ?? '',
     );
   }
+  final String topic;
+  final String claimText;
+  final List<Perspective> perspectives;
+  final String aiNote;
 
   Map<String, dynamic> toMap() => {
     'topic': topic,
@@ -129,9 +129,6 @@ class ContextualFlag {
 }
 
 class Perspective {
-  final String label;
-  final String explanation;
-  final List<String> sources;
 
   Perspective({
     required this.label,
@@ -146,6 +143,9 @@ class Perspective {
       sources: List<String>.from(map['sources'] ?? []),
     );
   }
+  final String label;
+  final String explanation;
+  final List<String> sources;
 
   Map<String, dynamic> toMap() => {
     'label': label,
@@ -155,9 +155,6 @@ class Perspective {
 }
 
 class TrustDeduction {
-  final String factor;
-  final double points;
-  final String reason;
 
   TrustDeduction({
     required this.factor,
@@ -172,6 +169,9 @@ class TrustDeduction {
       reason: map['reason'] ?? '',
     );
   }
+  final String factor;
+  final double points;
+  final String reason;
 
   Map<String, dynamic> toMap() => {
     'factor': factor,
@@ -181,10 +181,6 @@ class TrustDeduction {
 }
 
 class FactCheckStats {
-  final int totalClaims;
-  final int correct;
-  final int incorrect;
-  final int unverifiable;
 
   FactCheckStats({
     required this.totalClaims,
@@ -201,6 +197,10 @@ class FactCheckStats {
       unverifiable: map['unverifiable'] ?? 0,
     );
   }
+  final int totalClaims;
+  final int correct;
+  final int incorrect;
+  final int unverifiable;
 
   Map<String, dynamic> toMap() => {
     'totalClaims': totalClaims,
@@ -211,22 +211,11 @@ class FactCheckStats {
 }
 
 class HardeningMetadata {
-  final bool truthFloorApplied;
-  final String? truthFloorReason;
-  final DomainOverride? domainOverride;
-  final bool consensusGateTriggered;
-  final double intentToMisleadScore;
-  final List<Map<String, dynamic>> penalties;
-  final String auditTimestamp;
 
   HardeningMetadata({
     required this.truthFloorApplied,
-    this.truthFloorReason,
+    required this.consensusGateTriggered, required this.intentToMisleadScore, required this.penalties, required this.auditTimestamp, this.truthFloorReason,
     this.domainOverride,
-    required this.consensusGateTriggered,
-    required this.intentToMisleadScore,
-    required this.penalties,
-    required this.auditTimestamp,
   });
 
   factory HardeningMetadata.fromMap(Map<String, dynamic> map) {
@@ -240,6 +229,13 @@ class HardeningMetadata {
       auditTimestamp: map['auditTimestamp'] ?? '',
     );
   }
+  final bool truthFloorApplied;
+  final String? truthFloorReason;
+  final DomainOverride? domainOverride;
+  final bool consensusGateTriggered;
+  final double intentToMisleadScore;
+  final List<Map<String, dynamic>> penalties;
+  final String auditTimestamp;
 
   Map<String, dynamic> toMap() => {
     'truthFloorApplied': truthFloorApplied,
@@ -253,18 +249,11 @@ class HardeningMetadata {
 }
 
 class DomainOverride {
-  final bool triggered;
-  final String? from;
-  final String? to;
-  final double penalty;
-  final double riskDelta;
 
   DomainOverride({
     required this.triggered,
-    this.from,
+    required this.penalty, required this.riskDelta, this.from,
     this.to,
-    required this.penalty,
-    required this.riskDelta,
   });
 
   factory DomainOverride.fromMap(Map<String, dynamic> map) {
@@ -276,6 +265,11 @@ class DomainOverride {
       riskDelta: (map['riskDelta'] ?? 0).toDouble(),
     );
   }
+  final bool triggered;
+  final String? from;
+  final String? to;
+  final double penalty;
+  final double riskDelta;
 
   Map<String, dynamic> toMap() => {
     'triggered': triggered,
@@ -287,9 +281,7 @@ class DomainOverride {
 }
 
 
-class UIDriver {
-  final String text;
-  final String impact; // 'high' | 'medium'
+class UIDriver { // 'high' | 'medium'
 
   UIDriver({required this.text, required this.impact});
 
@@ -299,6 +291,8 @@ class UIDriver {
       impact: map['impact'] ?? 'medium',
     );
   }
+  final String text;
+  final String impact;
 
   Map<String, dynamic> toMap() => {
     'text': text,
@@ -307,21 +301,11 @@ class UIDriver {
 }
 
 class UISource {
-  final String title;
-  final String? url;
-  final String? domain;
-  final String trustLevel; // 'High' | 'Medium' | 'Low'
-  final String type; // 'Primary' | 'Secondary' | 'Supporting'
-  final int citationCount;
-  final String? snippet;
-  final String? retrievalProvider;
 
   UISource({
     required this.title,
-    this.url,
+    required this.trustLevel, required this.type, this.url,
     this.domain,
-    required this.trustLevel,
-    required this.type,
     this.citationCount = 0,
     this.snippet,
     this.retrievalProvider,
@@ -339,6 +323,14 @@ class UISource {
       retrievalProvider: map['retrievalProvider'],
     );
   }
+  final String title;
+  final String? url;
+  final String? domain;
+  final String trustLevel; // 'High' | 'Medium' | 'Low'
+  final String type; // 'Primary' | 'Secondary' | 'Supporting'
+  final int citationCount;
+  final String? snippet;
+  final String? retrievalProvider;
 
   Map<String, dynamic> toMap() => {
     'title': title,
@@ -353,8 +345,6 @@ class UISource {
 }
 
 class UIEvidence {
-  final String type;
-  final String strength;
 
   UIEvidence({required this.type, required this.strength});
 
@@ -362,6 +352,8 @@ class UIEvidence {
     type: map['type'] ?? '',
     strength: map['strength'] ?? '',
   );
+  final String type;
+  final String strength;
 
   Map<String, dynamic> toMap() => {
     'type': type,
@@ -370,8 +362,6 @@ class UIEvidence {
 }
 
 class UIConsensus {
-  final String domain;
-  final String level;
 
   UIConsensus({required this.domain, required this.level});
 
@@ -379,6 +369,8 @@ class UIConsensus {
     domain: map['domain'] ?? '',
     level: map['level'] ?? '',
   );
+  final String domain;
+  final String level;
 
   Map<String, dynamic> toMap() => {
     'domain': domain,
@@ -387,23 +379,6 @@ class UIConsensus {
 }
 
 class ClaimResult {
-  final String text;
-  final String verdict;
-  final double? start;
-  final double? end;
-  final bool? isLowRiskTrivia;
-  final List<UISource> effectiveSources;
-  /// Confidence in the categorization of the claim nature (e.g. 1.0 = 100% sure this is a RELIGIOUS_CLAIM).
-  final double? classificationConfidence;
-  /// Confidence in the historical/empirical evidence backing the claim (e.g. 0.9 = 90% sure Siddhartha Gautama existed historically).
-  final double? historicalEvidenceConfidence;
-  final Map<String, String>? evidenceDetails;
-  final Map<String, String>? consensusDetails;
-  final String? claimDomain;
-  final String? claimNature;
-  final List<String>? verdictBasis;
-  final List<UIEvidence>? evidence;
-  final List<UIConsensus>? consensus;
 
   ClaimResult({
     required this.text,
@@ -454,6 +429,23 @@ class ClaimResult {
           .toList(),
     );
   }
+  final String text;
+  final String verdict;
+  final double? start;
+  final double? end;
+  final bool? isLowRiskTrivia;
+  final List<UISource> effectiveSources;
+  /// Confidence in the categorization of the claim nature (e.g. 1.0 = 100% sure this is a RELIGIOUS_CLAIM).
+  final double? classificationConfidence;
+  /// Confidence in the historical/empirical evidence backing the claim (e.g. 0.9 = 90% sure Siddhartha Gautama existed historically).
+  final double? historicalEvidenceConfidence;
+  final Map<String, String>? evidenceDetails;
+  final Map<String, String>? consensusDetails;
+  final String? claimDomain;
+  final String? claimNature;
+  final List<String>? verdictBasis;
+  final List<UIEvidence>? evidence;
+  final List<UIConsensus>? consensus;
 
   Map<String, dynamic> toMap() => {
     'text': text,
@@ -475,22 +467,12 @@ class ClaimResult {
 }
 
 class UISummary {
-  final double? rating;
-  final double? truthScore;
-  final double? honestyScore;
-  final double? rationalityScore;
-  final String label;
-  final String confidence;
-  final String? confidenceInterpretation;
-  final String? analysisState;
 
   UISummary({
-    this.rating,
+    required this.label, required this.confidence, this.rating,
     this.truthScore,
     this.honestyScore,
     this.rationalityScore,
-    required this.label,
-    required this.confidence,
     this.confidenceInterpretation,
     this.analysisState,
   });
@@ -507,6 +489,14 @@ class UISummary {
       analysisState: map['analysisState'],
     );
   }
+  final double? rating;
+  final double? truthScore;
+  final double? honestyScore;
+  final double? rationalityScore;
+  final String label;
+  final String confidence;
+  final String? confidenceInterpretation;
+  final String? analysisState;
 
   Map<String, dynamic> toMap() => {
     'rating': rating,
@@ -521,17 +511,6 @@ class UISummary {
 }
 
 class UIReport {
-  final UISummary summary;
-  final String quickVerdict;
-  final String narrative;
-  final String riskNote;
-  final List<UIDriver> positiveDrivers;
-  final List<UIDriver> negativeDrivers;
-  final List<UISource> sources;
-  final String conclusion;
-  final List<String> counterSignals;
-  final bool reviewRequestEnabled;
-  final List<ClaimResult> keyClaims;
 
   UIReport({
     required this.summary,
@@ -570,6 +549,17 @@ class UIReport {
           .toList(),
     );
   }
+  final UISummary summary;
+  final String quickVerdict;
+  final String narrative;
+  final String riskNote;
+  final List<UIDriver> positiveDrivers;
+  final List<UIDriver> negativeDrivers;
+  final List<UISource> sources;
+  final String conclusion;
+  final List<String> counterSignals;
+  final bool reviewRequestEnabled;
+  final List<ClaimResult> keyClaims;
 
   Map<String, dynamic> toMap() {
     return {

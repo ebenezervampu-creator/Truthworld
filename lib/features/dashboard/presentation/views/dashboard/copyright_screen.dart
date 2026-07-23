@@ -1,13 +1,12 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class CopyrightScreen extends StatelessWidget {
-  final String? channelId;
   CopyrightScreen({super.key, this.channelId});
+  final String? channelId;
 
   final RxInt _retryTrigger = 0.obs;
 
@@ -39,11 +38,11 @@ class CopyrightScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: isDarkMode ? const Color(0xFF0F0F0F) : const Color(0xFFF9F9F9),
       appBar: AppBar(
-        title: Text(
+        title: const Text(
           'Channel copyright',
-          style: GoogleFonts.roboto(fontWeight: FontWeight.w700),
+          style: TextStyle(fontWeight: FontWeight.w700),
         ),
-        backgroundColor: isDarkMode ? AppColors.bgSurface : Colors.white,
+        backgroundColor: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
         elevation: 0,
         actions: [
           IconButton(icon: const Icon(Icons.help_outline), onPressed: () {}),
@@ -82,7 +81,7 @@ class CopyrightScreen extends StatelessWidget {
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
-                          final data = docs[index].data() as Map<String, dynamic>;
+                          final data = docs[index].data()! as Map<String, dynamic>;
                           return _buildClaimCard(data, isDarkMode);
                         },
                         childCount: docs.length,
@@ -104,11 +103,10 @@ class CopyrightScreen extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: isDarkMode ? AppColors.bgSurface : Colors.white,
+        color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
         border: Border(
           bottom: BorderSide(
-            color: isDarkMode ? Colors.white10 : Colors.black12,
-            width: 1,
+            color: isDarkMode ? AppColors.bgDivider : Colors.black12,
           ),
         ),
       ),
@@ -120,12 +118,12 @@ class CopyrightScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: totalClaims > 0 ? AppColors.error.withValues(alpha: 0.1) : Colors.green.withValues(alpha: 0.1),
+                  color: totalClaims > 0 ? AppColors.error.withValues(alpha: 0.1) : AppColors.success.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
                   totalClaims > 0 ? Icons.copyright : Icons.check_circle_outline,
-                  color: totalClaims > 0 ? AppColors.error : Colors.green,
+                  color: totalClaims > 0 ? AppColors.error : AppColors.success,
                   size: 28,
                 ),
               ),
@@ -136,10 +134,10 @@ class CopyrightScreen extends StatelessWidget {
                   children: [
                     Text(
                       totalClaims > 0 ? '$totalClaims Copyright claims' : 'No copyright strikes',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: isDarkMode ? Colors.white : Colors.black87,
+                        color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -147,9 +145,9 @@ class CopyrightScreen extends StatelessWidget {
                       totalClaims > 0 
                         ? 'Review details to see how these affect your channel.' 
                         : 'Your channel is in good standing.',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 14,
-                        color: isDarkMode ? Colors.white70 : Colors.black54,
+                        color: isDarkMode ? AppColors.textSecondary : AppColors.bgPage54,
                       ),
                     ),
                   ],
@@ -183,19 +181,19 @@ class CopyrightScreen extends StatelessWidget {
   Widget _buildStatusItem(IconData icon, String title, String subtitle, bool isDarkMode) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: isDarkMode ? Colors.white54 : Colors.black45),
+        Icon(icon, size: 20, color: isDarkMode ? AppColors.textSecondary : Colors.black45),
         const SizedBox(width: 12),
         Text(
           '$title: ',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontWeight: FontWeight.w500,
-            color: isDarkMode ? Colors.white70 : Colors.black87,
+            color: isDarkMode ? AppColors.textSecondary : AppColors.bgPage,
           ),
         ),
         Text(
           subtitle,
-          style: GoogleFonts.roboto(
-            color: isDarkMode ? Colors.white38 : Colors.black45,
+          style: TextStyle(
+            color: isDarkMode ? AppColors.textTertiary : Colors.black45,
           ),
         ),
       ],
@@ -215,10 +213,10 @@ class CopyrightScreen extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: isDarkMode ? Colors.white10 : Colors.black12,
+          color: isDarkMode ? AppColors.bgDivider : Colors.black12,
         ),
       ),
-      color: isDarkMode ? AppColors.bgSurface : Colors.white,
+      color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
       child: InkWell(
         onTap: () => _showClaimDetailsBottomSheet(data, isDarkMode),
         borderRadius: BorderRadius.circular(12),
@@ -235,8 +233,8 @@ class CopyrightScreen extends StatelessWidget {
                     height: 45,
                     decoration: BoxDecoration(
                       color: isDarkMode
-                          ? Colors.white.withValues(alpha: 0.05)
-                          : Colors.black.withValues(alpha: 0.05),
+                          ? AppColors.textPrimary.withValues(alpha: 0.05)
+                          : AppColors.bgPage.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Icon(Icons.video_library_outlined, size: 20),
@@ -250,7 +248,7 @@ class CopyrightScreen extends StatelessWidget {
                           videoTitle,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.roboto(
+                          style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 15,
                           ),
@@ -258,7 +256,7 @@ class CopyrightScreen extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           claimType,
-                          style: GoogleFonts.roboto(
+                          style: const TextStyle(
                             fontSize: 13,
                             color: AppColors.error,
                             fontWeight: FontWeight.w500,
@@ -267,7 +265,7 @@ class CopyrightScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const Icon(Icons.chevron_right, size: 20, color: Colors.white24),
+                  const Icon(Icons.chevron_right, size: 20, color: AppColors.textDisabled),
                 ],
               ),
               const SizedBox(height: 16),
@@ -294,9 +292,9 @@ class CopyrightScreen extends StatelessWidget {
       children: [
         Text(
           label,
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 11,
-            color: isDarkMode ? Colors.white38 : Colors.black38,
+            color: isDarkMode ? AppColors.textTertiary : Colors.black38,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -307,9 +305,9 @@ class CopyrightScreen extends StatelessWidget {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 12,
-              color: isDarkMode ? Colors.white70 : Colors.black87,
+              color: isDarkMode ? AppColors.textSecondary : AppColors.bgPage,
             ),
           ),
         ),
@@ -334,12 +332,12 @@ class CopyrightScreen extends StatelessWidget {
           Icon(
             Icons.check_circle_outline,
             size: 80,
-            color: Colors.green.withValues(alpha: 0.5),
+            color: AppColors.success.withValues(alpha: 0.5),
           ),
           const SizedBox(height: 16),
-          Text(
+          const Text(
             'Channel content is claim-free',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -347,7 +345,7 @@ class CopyrightScreen extends StatelessWidget {
           const SizedBox(height: 8),
           const Text(
             'Keep up the great work creating original content!',
-            style: TextStyle(color: Colors.grey),
+            style: TextStyle(color: AppColors.textSecondary),
           ),
         ],
       ),
@@ -363,15 +361,15 @@ class CopyrightScreen extends StatelessWidget {
           children: [
             const Icon(Icons.error_outline, size: 48, color: AppColors.error),
             const SizedBox(height: 16),
-            Text(
+            const Text(
               'Failed to load copyright data',
-              style: GoogleFonts.roboto(fontWeight: FontWeight.bold, fontSize: 16),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             const SizedBox(height: 8),
             Text(
               error,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.grey, fontSize: 13),
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
@@ -387,16 +385,16 @@ class CopyrightScreen extends StatelessWidget {
 }
 
 class _ClaimDetailsBottomSheet extends StatelessWidget {
-  final Map<String, dynamic> data;
-  final bool isDarkMode;
 
   const _ClaimDetailsBottomSheet({required this.data, required this.isDarkMode});
+  final Map<String, dynamic> data;
+  final bool isDarkMode;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: isDarkMode ? AppColors.bgSurface : Colors.white,
+        color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
       padding: const EdgeInsets.all(24),
@@ -407,9 +405,9 @@ class _ClaimDetailsBottomSheet extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
+              const Text(
                 'Claim details',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
@@ -428,12 +426,12 @@ class _ClaimDetailsBottomSheet extends StatelessWidget {
           _buildDetailRow('Description', data['description'] ?? 'No additional details provided.'),
           
           const SizedBox(height: 32),
-          Text(
+          const Text(
             'SELECT ACTION',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w900,
-              color: Colors.grey,
+              color: AppColors.textSecondary,
               letterSpacing: 1.2,
             ),
           ),
@@ -458,7 +456,7 @@ class _ClaimDetailsBottomSheet extends StatelessWidget {
             label,
             style: TextStyle(
               fontSize: 13,
-              color: isDarkMode ? Colors.white38 : Colors.black38,
+              color: isDarkMode ? AppColors.textTertiary : Colors.black38,
             ),
           ),
           const SizedBox(height: 4),
@@ -477,7 +475,7 @@ class _ClaimDetailsBottomSheet extends StatelessWidget {
       title: Text(
         label,
         style: TextStyle(
-          color: isDestructive ? AppColors.error : (isDarkMode ? Colors.white : Colors.black),
+          color: isDestructive ? AppColors.error : (isDarkMode ? AppColors.textPrimary : AppColors.bgPage),
           fontWeight: FontWeight.w500,
         ),
       ),

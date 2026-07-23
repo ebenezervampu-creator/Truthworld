@@ -23,6 +23,8 @@ type EventType =
 
 interface WatchEventPayload {
   videoId: string;
+  channelId?: string;
+  eventId?: string;
   userId: string;
   sessionId: string;
   eventType: EventType;
@@ -143,7 +145,7 @@ export const trackWatchEvent = onRequest(
     try {
       const body = req.body as Partial<WatchEventPayload>;
 
-      // â”€â”€ Field validation â”€â”€
+      // ——— Field validation ———
       const required = ["videoId", "userId", "sessionId", "eventType", "position", "duration"] as const;
       for (const f of required) {
         if (body[f] === undefined || body[f] === null || body[f] === "") {
@@ -161,13 +163,13 @@ export const trackWatchEvent = onRequest(
         return;
       }
 
-      // â”€â”€ Ignore pings that haven't reached 3 s yet â”€â”€
+      // ——— Ignore pings that haven't reached 3 s yet ———
       if (body.eventType === "watch_ping" && position < 3) {
         res.status(200).send({ success: true, skipped: true });
         return;
       }
 
-      // â”€â”€ Anti-spam â”€â”€
+      // ——— Anti-spam ———
       if (await isSpam(body.sessionId!)) {
         res.status(429).send({ error: "Rate limit" });
         return;
@@ -213,7 +215,56 @@ export const trackWatchEvent = onRequest(
         lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
 
-      res.status(200).send({ success: true, trackingId: docId });
+      // Transactional Idempotency & Real-Time Channel Watch Time Increment
+      const secondsDelta = body.watchTimeSecondsDelta ? Math.max(0, Math.round(Number(body.watchTimeSecondsDelta))) : 0;
+      let targetChannelId = body.channelId;
+
+      if (!targetChannelId && body.videoId) {
+        const videoSnap = await db.collection("videos").doc(body.videoId).get();
+        if (videoSnap.exists) {
+          targetChannelId = videoSnap.data()?.channelId;
+        }
+      }
+
+      const eventId = body.eventId || `${body.sessionId}_${body.position}_${body.eventType}`;
+      const eventRef = db.collection("processedWatchEvents").doc(eventId);
+      let isDuplicate = false;
+
+      if (secondsDelta > 0 && targetChannelId) {
+        const channelRef = db.collection("channels").doc(targetChannelId);
+
+        await db.runTransaction(async (transaction) => {
+          const eventSnap = await transaction.get(eventRef);
+          if (eventSnap.exists) {
+            isDuplicate = true;
+            return;
+          }
+
+          transaction.set(eventRef, {
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            sessionId: body.sessionId,
+            videoId: body.videoId,
+            channelId: targetChannelId,
+            secondsDelta,
+          });
+
+          transaction.set(
+            channelRef,
+            {
+              totalWatchTimeSeconds: admin.firestore.FieldValue.increment(secondsDelta),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+        });
+      }
+
+      if (isDuplicate) {
+        res.status(200).send({ success: true, processed: false, reason: "duplicate_event", trackingId: docId });
+        return;
+      }
+
+      res.status(200).send({ success: true, processed: true, trackingId: docId });
     } catch (err) {
       logger.error("trackWatchEvent", err);
       res.status(500).send({ error: "Internal server error" });
@@ -367,8 +418,16 @@ export const aggregateWatchStats = onSchedule(
     >();
 
     for (const s of sessions.values()) {
-      // â”€â”€ FIX 2: only count sessions that actually started â”€â”€
-      if (!s.started) continue;
+      // ── Qualified View Threshold ──
+      // A session is only counted as a Qualified View if playback reached at least 10 seconds,
+      // 30% of video duration, or video completion.
+      const isQualifiedView = s.started && (
+        s.deltaSeconds >= 10 || 
+        (s.duration > 0 && (s.deltaSeconds / s.duration) >= 0.3) || 
+        s.completed
+      );
+
+      if (!isQualifiedView) continue;
 
       const vid = s.videoId;
 

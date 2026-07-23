@@ -1,5 +1,5 @@
 import 'dart:typed_data';
-import 'audio_extractor_base.dart';
+import 'package:truthworld/core/utils/audio_extractor_base.dart';
 
 class AudioExtractorImpl implements AudioExtractorBase {
   @override

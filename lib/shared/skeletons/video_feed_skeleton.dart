@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-import 'skeleton_base.dart';
+import 'package:truthworld/shared/skeletons/skeleton_base.dart';
 
 /// Skeleton loading state for the home video feed grid.
 class VideoFeedSkeleton extends StatelessWidget {
-  /// Number of placeholder cards to display.
-  final int itemCount;
 
   const VideoFeedSkeleton({super.key, this.itemCount = 12});
+  /// Number of placeholder cards to display.
+  final int itemCount;
 
   @override
   Widget build(BuildContext context) {
@@ -52,26 +52,26 @@ class VideoCardSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 16:9 thumbnail
-        const AspectRatio(
+        AspectRatio(
           aspectRatio: 16 / 9,
           child: SkeletonBox(borderRadius: 12),
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: 12),
 
         // Bottom row: avatar + text
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SkeletonCircle(size: 36),
-            const SizedBox(width: 12),
+            SkeletonCircle(size: 36),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
+                children: [
                   SkeletonBox(height: 14, width: double.infinity),
                   SizedBox(height: 8),
                   SkeletonBox(height: 12, width: 160),

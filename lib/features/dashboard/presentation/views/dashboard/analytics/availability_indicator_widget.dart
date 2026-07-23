@@ -1,36 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Widget that displays availability status with animated indicators
 class AvailabilityIndicatorWidget extends StatelessWidget {
+
+  const AvailabilityIndicatorWidget({
+    required this.status, required this.isDarkMode, super.key,
+    this.size = 20.0,
+    this.showMessage = true,
+  });
   final AvailabilityStatus status;
   final bool isDarkMode;
   final double size;
   final bool showMessage;
 
-  const AvailabilityIndicatorWidget({
-    super.key,
-    required this.status,
-    required this.isDarkMode,
-    this.size = 20.0,
-    this.showMessage = true,
-  });
-
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
-      duration: Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           _buildIcon(),
           if (showMessage && status.message.isNotEmpty) ...[
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
             _buildMessage(),
           ],
         ],
@@ -40,7 +37,7 @@ class AvailabilityIndicatorWidget extends StatelessWidget {
 
   Widget _buildIcon() {
     return AnimatedSwitcher(
-      duration: Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 300),
       transitionBuilder: (Widget child, Animation<double> animation) {
         return ScaleTransition(scale: animation, child: child);
       },
@@ -64,14 +61,14 @@ class AvailabilityIndicatorWidget extends StatelessWidget {
 
   Widget _buildMessage() {
     return AnimatedSwitcher(
-      duration: Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 300),
       transitionBuilder: (Widget child, Animation<double> animation) {
         return FadeTransition(opacity: animation, child: child);
       },
       child: Text(
         status.message,
         key: ValueKey(status.message),
-        style: GoogleFonts.roboto(
+        style: TextStyle(
           fontSize: 12,
           color: status.color,
           fontWeight: FontWeight.w500,
@@ -83,6 +80,15 @@ class AvailabilityIndicatorWidget extends StatelessWidget {
 
 /// Enhanced text field with real-time availability checking
 class AvailabilityTextField extends StatefulWidget {
+
+  const AvailabilityTextField({
+    required this.controller, required this.labelText, required this.hintText, required this.icon, required this.isDarkMode, required this.onChanged, required this.availabilityStatus, super.key,
+    this.validator,
+    this.maxLength,
+    this.isRequired = false,
+    this.prefixText,
+    this.inputFormatters,
+  });
   final TextEditingController controller;
   final String labelText;
   final String hintText;
@@ -95,22 +101,6 @@ class AvailabilityTextField extends StatefulWidget {
   final bool isRequired;
   final String? prefixText;
   final List<TextInputFormatter>? inputFormatters;
-
-  const AvailabilityTextField({
-    super.key,
-    required this.controller,
-    required this.labelText,
-    required this.hintText,
-    required this.icon,
-    required this.isDarkMode,
-    required this.onChanged,
-    required this.availabilityStatus,
-    this.validator,
-    this.maxLength,
-    this.isRequired = false,
-    this.prefixText,
-    this.inputFormatters,
-  });
 
   @override
   State<AvailabilityTextField> createState() => _AvailabilityTextFieldState();
@@ -126,10 +116,10 @@ class _AvailabilityTextFieldState extends State<AvailabilityTextField>
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 200),
       vsync: this,
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.02).animate(
+    _scaleAnimation = Tween<double>(begin: 1, end: 1.02).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
     );
   }
@@ -151,7 +141,7 @@ class _AvailabilityTextFieldState extends State<AvailabilityTextField>
             BoxShadow(
               color: widget.isDarkMode
                   ? Colors.black26
-                  : Colors.black.withValues(alpha: 0.08),
+                  : AppColors.bgPage.withValues(alpha: 0.08),
               blurRadius: _isFocused.value ? 15 : 10,
               spreadRadius: _isFocused.value ? 2 : 1,
               offset: Offset(0, _isFocused.value ? 6 : 4),
@@ -171,9 +161,9 @@ class _AvailabilityTextFieldState extends State<AvailabilityTextField>
             controller: widget.controller,
             maxLength: widget.maxLength,
             inputFormatters: widget.inputFormatters,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 16,
-              color: widget.isDarkMode ? Colors.white : AppTheme.colors.surface,
+              color: widget.isDarkMode ? AppColors.textPrimary : AppTheme.colors.surface,
               fontWeight: FontWeight.w500,
             ),
             decoration: InputDecoration(
@@ -182,14 +172,14 @@ class _AvailabilityTextFieldState extends State<AvailabilityTextField>
                   : widget.labelText,
               hintText: widget.hintText,
               prefixText: widget.prefixText,
-              prefixStyle: GoogleFonts.roboto(
+              prefixStyle: TextStyle(
                 fontSize: 16,
-                color: widget.isDarkMode ? Colors.white70 : AppTheme.colors.surface,
+                color: widget.isDarkMode ? AppColors.textSecondary : AppTheme.colors.surface,
                 fontWeight: FontWeight.w500,
               ),
               prefixIcon: Container(
-                margin: EdgeInsets.all(12),
-                padding: EdgeInsets.all(8),
+                margin: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: AppTheme.colors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
@@ -203,7 +193,7 @@ class _AvailabilityTextFieldState extends State<AvailabilityTextField>
               suffixIcon:
                   widget.availabilityStatus != AvailabilityStatus.unknown
                   ? Padding(
-                      padding: EdgeInsets.only(right: 12),
+                      padding: const EdgeInsets.only(right: 12),
                       child: AvailabilityIndicatorWidget(
                         status: widget.availabilityStatus,
                         isDarkMode: widget.isDarkMode,
@@ -211,19 +201,19 @@ class _AvailabilityTextFieldState extends State<AvailabilityTextField>
                       ),
                     )
                   : null,
-              labelStyle: GoogleFonts.roboto(
+              labelStyle: TextStyle(
                 color: widget.isDarkMode
-                    ? Colors.white70
+                    ? AppColors.textSecondary
                     : AppTheme.colors.textSecondary,
                 fontWeight: FontWeight.w500,
               ),
-              hintStyle: GoogleFonts.roboto(
-                color: widget.isDarkMode ? Colors.white38 : Color(0xFFA0AEC0),
+              hintStyle: TextStyle(
+                color: widget.isDarkMode ? AppColors.textTertiary : const Color(0xFFA0AEC0),
               ),
               filled: true,
               fillColor: widget.isDarkMode
                   ? AppTheme.colors.surface
-                  : Colors.white,
+                  : AppColors.textPrimary,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide.none,
@@ -243,13 +233,13 @@ class _AvailabilityTextFieldState extends State<AvailabilityTextField>
                 borderRadius: BorderRadius.circular(16),
                 borderSide: BorderSide(color: AppTheme.colors.error, width: 2),
               ),
-              contentPadding: EdgeInsets.symmetric(
+              contentPadding: const EdgeInsets.symmetric(
                 horizontal: 20,
                 vertical: 20,
               ),
-              counterStyle: GoogleFonts.roboto(
+              counterStyle: TextStyle(
                 color: widget.isDarkMode
-                    ? Colors.white60
+                    ? AppColors.textSecondary
                     : AppTheme.colors.textSecondary,
                 fontSize: 12,
               ),
@@ -281,29 +271,27 @@ class _AvailabilityTextFieldState extends State<AvailabilityTextField>
 
 /// Widget to display availability message below text field
 class AvailabilityMessageWidget extends StatelessWidget {
+
+  const AvailabilityMessageWidget({
+    required this.status, required this.isDarkMode, super.key,
+    this.customMessage,
+  });
   final AvailabilityStatus status;
   final bool isDarkMode;
   final String? customMessage;
-
-  const AvailabilityMessageWidget({
-    super.key,
-    required this.status,
-    required this.isDarkMode,
-    this.customMessage,
-  });
 
   @override
   Widget build(BuildContext context) {
     final message = customMessage ?? status.message;
 
     if (message.isEmpty) {
-      return SizedBox.shrink();
+      return const SizedBox.shrink();
     }
 
     return AnimatedContainer(
-      duration: Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
-      margin: EdgeInsets.only(top: 8, left: 16),
+      margin: const EdgeInsets.only(top: 8, left: 16),
       child: Row(
         children: [
           AvailabilityIndicatorWidget(
@@ -312,17 +300,17 @@ class AvailabilityMessageWidget extends StatelessWidget {
             size: 16,
             showMessage: false,
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           Expanded(
             child: AnimatedSwitcher(
-              duration: Duration(milliseconds: 300),
+              duration: const Duration(milliseconds: 300),
               transitionBuilder: (Widget child, Animation<double> animation) {
                 return FadeTransition(opacity: animation, child: child);
               },
               child: Text(
                 message,
                 key: ValueKey(message),
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 13,
                   color: status.color,
                   fontWeight: FontWeight.w500,
@@ -338,16 +326,13 @@ class AvailabilityMessageWidget extends StatelessWidget {
 
 /// Helper widget for channel creation limits display
 class ChannelLimitIndicatorWidget extends StatelessWidget {
+
+  const ChannelLimitIndicatorWidget({
+    required this.currentCount, required this.maxCount, required this.isDarkMode, super.key,
+  });
   final int currentCount;
   final int maxCount;
   final bool isDarkMode;
-
-  const ChannelLimitIndicatorWidget({
-    super.key,
-    required this.currentCount,
-    required this.maxCount,
-    required this.isDarkMode,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -355,11 +340,11 @@ class ChannelLimitIndicatorWidget extends StatelessWidget {
     final color = isAtLimit ? AppTheme.colors.error : AppTheme.colors.primary;
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -369,20 +354,20 @@ class ChannelLimitIndicatorWidget extends StatelessWidget {
             color: color,
             size: 20,
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Text(
             'Channels: $currentCount / $maxCount',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
               color: color,
             ),
           ),
           if (isAtLimit) ...[
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
             Text(
               '(Limit reached)',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 12,
                 color: color,
                 fontWeight: FontWeight.w500,
@@ -397,16 +382,13 @@ class ChannelLimitIndicatorWidget extends StatelessWidget {
 
 /// Advanced settings section widget
 class AdvancedSettingsSection extends StatefulWidget {
+
+  const AdvancedSettingsSection({
+    required this.isDarkMode, required this.settings, required this.onSettingsChanged, super.key,
+  });
   final bool isDarkMode;
   final Map<String, dynamic> settings;
   final Function(Map<String, dynamic>) onSettingsChanged;
-
-  const AdvancedSettingsSection({
-    super.key,
-    required this.isDarkMode,
-    required this.settings,
-    required this.onSettingsChanged,
-  });
 
   @override
   State<AdvancedSettingsSection> createState() =>
@@ -423,7 +405,7 @@ class _AdvancedSettingsSectionState extends State<AdvancedSettingsSection>
   void initState() {
     super.initState();
     _animationController = AnimationController(
-      duration: Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 300),
       vsync: this,
     );
     _expandAnimation = CurvedAnimation(
@@ -456,25 +438,25 @@ class _AdvancedSettingsSectionState extends State<AdvancedSettingsSection>
           onTap: _toggleExpanded,
           borderRadius: BorderRadius.circular(16),
           child: Container(
-            padding: EdgeInsets.all(20),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: widget.isDarkMode ? AppTheme.colors.surface : Colors.white,
+              color: widget.isDarkMode ? AppTheme.colors.surface : AppColors.textPrimary,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
                   color: widget.isDarkMode
                       ? Colors.black26
-                      : Colors.black.withValues(alpha: 0.08),
+                      : AppColors.bgPage.withValues(alpha: 0.08),
                   blurRadius: 10,
                   spreadRadius: 1,
-                  offset: Offset(0, 4),
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
             child: Row(
               children: [
                 Container(
-                  padding: EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
                     color: AppTheme.colors.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -485,27 +467,27 @@ class _AdvancedSettingsSectionState extends State<AdvancedSettingsSection>
                     size: 20,
                   ),
                 ),
-                SizedBox(width: 16),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Advanced Settings',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
                           color: widget.isDarkMode
-                              ? Colors.white
+                              ? AppColors.textPrimary
                               : AppTheme.colors.surface,
                         ),
                       ),
                       Text(
                         'Configure additional channel options',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 14,
                           color: widget.isDarkMode
-                              ? Colors.white60
+                              ? AppColors.textSecondary
                               : AppTheme.colors.textSecondary,
                         ),
                       ),
@@ -514,11 +496,11 @@ class _AdvancedSettingsSectionState extends State<AdvancedSettingsSection>
                 ),
                 Obx(() => AnimatedRotation(
                   turns: _isExpanded.value ? 0.5 : 0.0,
-                  duration: Duration(milliseconds: 300),
+                  duration: const Duration(milliseconds: 300),
                   child: Icon(
                     Icons.expand_more_rounded,
                     color: widget.isDarkMode
-                        ? Colors.white70
+                        ? AppColors.textSecondary
                         : AppTheme.colors.textSecondary,
                   ),
                 )),
@@ -529,19 +511,19 @@ class _AdvancedSettingsSectionState extends State<AdvancedSettingsSection>
         SizeTransition(
           sizeFactor: _expandAnimation,
           child: Container(
-            margin: EdgeInsets.only(top: 16),
-            padding: EdgeInsets.all(20),
+            margin: const EdgeInsets.only(top: 16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: widget.isDarkMode ? AppTheme.colors.surface : Colors.white,
+              color: widget.isDarkMode ? AppTheme.colors.surface : AppColors.textPrimary,
               borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
                   color: widget.isDarkMode
                       ? Colors.black26
-                      : Colors.black.withValues(alpha: 0.08),
+                      : AppColors.bgPage.withValues(alpha: 0.08),
                   blurRadius: 10,
                   spreadRadius: 1,
-                  offset: Offset(0, 4),
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
@@ -555,7 +537,7 @@ class _AdvancedSettingsSectionState extends State<AdvancedSettingsSection>
                   widget.settings['allowComments'] ?? true,
                   (value) => _updateSetting('allowComments', value),
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 _buildSettingSwitch(
                   'Allow Subscriptions',
                   'Let users subscribe to your channel',
@@ -563,7 +545,7 @@ class _AdvancedSettingsSectionState extends State<AdvancedSettingsSection>
                   widget.settings['allowSubscriptions'] ?? true,
                   (value) => _updateSetting('allowSubscriptions', value),
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 _buildSettingSwitch(
                   'Show Subscriber Count',
                   'Display subscriber count publicly',
@@ -589,34 +571,34 @@ class _AdvancedSettingsSectionState extends State<AdvancedSettingsSection>
     return Row(
       children: [
         Container(
-          padding: EdgeInsets.all(8),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: AppTheme.colors.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(icon, color: AppTheme.colors.primary, size: 20),
         ),
-        SizedBox(width: 16),
+        const SizedBox(width: 16),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 title,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
                   color: widget.isDarkMode
-                      ? Colors.white
+                      ? AppColors.textPrimary
                       : AppTheme.colors.surface,
                 ),
               ),
               Text(
                 subtitle,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 14,
                   color: widget.isDarkMode
-                      ? Colors.white60
+                      ? AppColors.textSecondary
                       : AppTheme.colors.textSecondary,
                 ),
               ),

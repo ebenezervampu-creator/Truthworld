@@ -1,54 +1,36 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:timeago/timeago.dart' as timeago;
+import 'package:truthworld/components/ui/video_options_sheet.dart';
 import 'package:truthworld/core/services/auth_service.dart';
-import 'package:truthworld/theme/app_theme.dart';
+import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
-import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
-import 'dart:ui';
-import 'package:truthworld/features/topics/presentation/widgets/topic_card_widget.dart';
-
-// PlaylistScreen identical visual constants
-const kPrimaryDark = Color(0xFFA50E2D); // Crimson primary accent (non-purple)
-const kSecondaryDark = Color(0xFF7B0A21); // Keep special crimson brand shade
-const kDarkBackground = AppColors.bgPage;
-const kDarkSurface = AppColors.bgSurface;
-const kDarksurfaceContainerHighest = AppColors.bgSurfaceHover;
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class FollowingTopicsPage extends StatefulWidget {
-  final bool isDashboard;
   const FollowingTopicsPage({super.key, this.isDashboard = false});
+  final bool isDashboard;
 
   @override
   State<FollowingTopicsPage> createState() => _FollowingTopicsPageState();
 }
 
-class _FollowingTopicsPageState extends State<FollowingTopicsPage>
-    with SingleTickerProviderStateMixin {
+class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
   final FollowingTopicsController controller =
       Get.isRegistered<FollowingTopicsController>()
       ? Get.find<FollowingTopicsController>()
       : Get.put(FollowingTopicsController());
   final TextEditingController _searchController = TextEditingController();
 
-  late AnimationController _animationController;
-  late Animation<double> _fadeAnimation;
-
   @override
   void initState() {
     super.initState();
-
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
-    );
-
-    _animationController.forward();
-
     _searchController.addListener(() {
       controller.updateSearchQuery(_searchController.text);
     });
@@ -57,7 +39,6 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
   @override
   void dispose() {
     _searchController.dispose();
-    _animationController.dispose();
     super.dispose();
   }
 
@@ -70,506 +51,615 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 600;
     final isTablet = screenWidth >= 600 && screenWidth < 1200;
-    final isDesktop = screenWidth >= 1200;
 
     return Scaffold(
-      backgroundColor: AppColors.bgPage, // Rich dark background
-      body: Stack(
-        children: [
-          // Premium glowing background effects
-          Positioned(
-            top: -150,
-            right: -100,
-            child: Container(
-              width: 400,
-              height: 400,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: kPrimaryDark.withValues(alpha: 0.08),
-              ),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100),
-                child: Container(color: Colors.transparent),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: -150,
-            left: -100,
-            child: Container(
-              width: 400,
-              height: 400,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: kPrimaryDark.withValues(alpha: 0.08),
-              ),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 100, sigmaY: 100),
-                child: Container(color: Colors.transparent),
-              ),
-            ),
-          ),
-          FadeTransition(
-            opacity: _fadeAnimation,
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                // 1. Header
-                SliverToBoxAdapter(child: _buildHeader(isMobile)),
+      backgroundColor: AppColors.bgPage,
+      body: SafeArea(
+        child: CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            // Top Header (Back button + Search bar only)
+            SliverToBoxAdapter(child: _buildHeader(isMobile)),
 
-                // Tab Selector
-                SliverToBoxAdapter(child: _buildTabSelector()),
+            // Horizontal Topic Pills (Chips)
+            SliverToBoxAdapter(child: _buildTopicPills()),
 
-                // 2. Category Chips
-                SliverToBoxAdapter(child: _buildCategoryChips()),
+            // Saved Topics Horizontal Video Content
+            Obx(() {
+              if (!AuthService.to.isAuthenticated.value) {
+                return SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _buildAuthRequiredState(),
+                );
+              }
 
-                // 3. Following Topics Grid or List contents
-                Obx(() {
-                  if (!AuthService.to.isAuthenticated.value) {
-                    return SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: _buildAuthRequiredState(),
-                    );
-                  }
+              if (controller.isLoading.value) {
+                return SliverToBoxAdapter(
+                  child: _buildLoadingState(isMobile, isTablet),
+                );
+              }
 
-                  if (controller.isLoading.value) {
-                    return SliverFillRemaining(
-                      child: _buildLoadingState(isMobile, isTablet, isDesktop),
-                    );
-                  }
+              if (controller.errorMessage.isNotEmpty) {
+                return SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _buildErrorState(),
+                );
+              }
 
-                  if (controller.errorMessage.isNotEmpty) {
-                    return SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: _buildErrorState(),
-                    );
-                  }
+              var topics = List<Topic>.from(controller.followedTopics);
 
-                  // Apply search & category filter rules locally
-                  List<Topic> topics;
-                  if (controller.activeTab.value == 'Favorites') {
-                    topics = List<Topic>.from(controller.favoriteTopics);
-                  } else {
-                    topics = List<Topic>.from(controller.followedTopics);
-                  }
-
-                  // Search filter
-                  if (controller.searchQuery.value.isNotEmpty) {
-                    topics = topics.where((t) {
-                      return t.title.toLowerCase().contains(
-                        controller.searchQuery.value.toLowerCase(),
-                      );
-                    }).toList();
-                  }
-
-                  // Category filter
-                  if (controller.selectedCategory.value != 'All') {
-                    final catLower = controller.selectedCategory.value
-                        .toLowerCase();
-                    topics = topics.where((t) {
-                      return t.category.toLowerCase() == catLower;
-                    }).toList();
-                  }
-
-                  if (topics.isEmpty) {
-                    if (controller.searchQuery.value.isNotEmpty) {
-                      return SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: _buildNoResultsWidget(),
-                      );
-                    }
-                    return SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: _buildEmptyStateWidget(context),
-                    );
-                  }
-
-                  return SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
-                    sliver: _buildSavedGrid(
-                      topics,
-                      widget.isDashboard,
-                      isMobile,
-                      isTablet,
-                      isDesktop,
-                    ),
+              // Filter by search query if active
+              if (controller.searchQuery.value.isNotEmpty) {
+                topics = topics.where((t) {
+                  return t.title.toLowerCase().contains(
+                    controller.searchQuery.value.toLowerCase(),
                   );
-                }),
-              ],
-            ),
-          ),
-        ],
+                }).toList();
+              }
+
+              if (topics.isEmpty) {
+                if (controller.searchQuery.value.isNotEmpty) {
+                  return SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _buildNoResultsWidget(),
+                  );
+                }
+                return SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _buildEmptyStateWidget(context),
+                );
+              }
+
+              // Display active selected topic or all topics
+              final selectedTopic = controller.selectedTopic.value;
+              var displayTopics = topics;
+              if (selectedTopic != null &&
+                  topics.any((t) => t.id == selectedTopic.id)) {
+                displayTopics = [selectedTopic];
+              }
+
+              return SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final topic = displayTopics[index];
+                    return _buildTopicVideoSection(context, topic, isMobile);
+                  },
+                  childCount: displayTopics.length,
+                ),
+              );
+            }),
+
+            const SliverToBoxAdapter(child: SizedBox(height: 40)),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildHeader(bool isMobile) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 56, 24, 16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Obx(
-            () => controller.isSearchExpanded.value
-                ? Expanded(
-                    child: Container(
-                      height: 48,
-                      margin: const EdgeInsets.only(right: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: kPrimaryDark.withValues(alpha: 0.3),
-                          width: 1.5,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: kPrimaryDark.withValues(alpha: 0.1),
-                            blurRadius: 10,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: BackdropFilter(
-                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                          child: TextField(
-                            controller: _searchController,
-                            style: AppTextStyles.inputText.copyWith(
-                              color: Colors.white,
-                              fontSize: 16,
-                            ),
-                            decoration: InputDecoration(
-                              hintText: 'Search followed topics...',
-                              hintStyle: AppTextStyles.inputHint.copyWith(
-                                color: Colors.white.withValues(alpha: 0.4),
-                              ),
-                              prefixIcon: const Icon(
-                                Icons.search,
-                                color: kPrimaryDark,
-                                size: 22,
-                              ),
-                              suffixIcon: IconButton(
-                                icon: const Icon(
-                                  Icons.close,
-                                  color: Colors.white70,
-                                  size: 20,
-                                ),
-                                onPressed: () {
-                                  controller.isSearchExpanded.value = false;
-                                  _searchController.clear();
-                                  controller.updateSearchQuery('');
-                                },
-                              ),
-                              border: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 12,
-                              ),
-                            ),
-                          ),
-                        ),
+          IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+            onPressed: () {
+              if (widget.isDashboard) {
+                Get.find<HomeController>().sideNavSelectedIndex.value =
+                    HomeController.indexLibrary;
+              } else {
+                Get.back();
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Search followed topics...',
+                hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 14),
+                prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textSecondary, size: 20),
+                suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _searchController,
+                  builder: (context, value, child) {
+                    if (value.text.isNotEmpty) {
+                      return IconButton(
+                        icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary, size: 20),
+                        onPressed: () {
+                          _searchController.clear();
+                          controller.updateSearchQuery('');
+                        },
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+                filled: true,
+                fillColor: const Color(0xFF272727),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopicPills() {
+    return Obx(() {
+      final topics = controller.followedTopics;
+      if (topics.isEmpty) return const SizedBox.shrink();
+
+      final selected = controller.selectedTopic.value;
+
+      return Container(
+        height: 48,
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: topics.length + 1,
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              final isAllSelected = selected == null;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () => controller.selectTopic(null),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isAllSelected ? AppColors.textPrimary : const Color(0xFF272727),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      'All Topics',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: isAllSelected ? FontWeight.bold : FontWeight.w500,
+                        color: isAllSelected ? AppColors.bgPage : AppColors.textPrimary,
                       ),
                     ),
-                  )
-                : Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
-                        onPressed: () {
-                          if (widget.isDashboard) {
-                            Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexLibrary;
-                          } else {
-                            Get.back();
-                          }
-                        },
-                      ),
-                      const SizedBox(width: 8),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Following Topics',
-                            style: AppTextStyles.displaySmall.copyWith(
-                              fontSize: 36,
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: -0.5,
-                              foreground: Paint()
-                                ..shader = const LinearGradient(
-                                  colors: [Colors.white, Color(0xFFE0E0E0)],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ).createShader(const Rect.fromLTWH(0, 0, 200, 40)),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Your curated knowledge base',
-                            style: AppTextStyles.labelLarge.copyWith(
-                              color: kPrimaryDark.withValues(alpha: 0.8),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-          ),
-          Row(
-            children: [
-              Obx(
-                () => !controller.isSearchExpanded.value
-                    ? Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.05),
-                          shape: BoxShape.circle,
-                        ),
-                        child: IconButton(
-                          icon: const Icon(Icons.search, color: Colors.white),
-                          onPressed: () =>
-                              controller.isSearchExpanded.value = true,
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                  onPressed: _refreshFollowingTopics,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabSelector() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-      ),
-      child: Row(
-        children: [
-          _buildTabItem('Following', Icons.person_add_alt_1_rounded),
-          _buildTabItem('Favorites', Icons.favorite_rounded),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTabItem(String tabName, IconData icon) {
-    return Obx(() {
-      final isSelected = controller.activeTab.value == tabName;
-      return Expanded(
-        child: GestureDetector(
-          onTap: () {
-            controller.activeTab.value = tabName;
-            controller.selectedCategory.value =
-                'All'; // Reset category filter on tab switch
-          },
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOutCubic,
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              color: isSelected ? kPrimaryDark : Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: kPrimaryDark.withValues(alpha: 0.3),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  icon,
-                  size: 16,
-                  color: isSelected ? Colors.white : Colors.white60,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  tabName,
-                  style: AppTextStyles.labelLarge.copyWith(
-                    color: isSelected ? Colors.white : Colors.white60,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   ),
                 ),
-              ],
-            ),
-          ),
-        ),
-      );
-    });
-  }
+              );
+            }
 
-  Widget _buildCategoryChips() {
-    return Container(
-      height: 70,
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Obx(() {
-        final List<String> categories = controller.derivedCategories;
-        return ListView.builder(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          itemCount: categories.length,
-          itemBuilder: (context, index) {
-            final cat = categories[index];
-            final isSelected = controller.selectedCategory.value == cat;
-            return Container(
-              margin: const EdgeInsets.only(right: 12),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOutQuart,
-                decoration: BoxDecoration(
-                  gradient: isSelected
-                      ? const LinearGradient(
-                          colors: [kPrimaryDark, Color(0xFFFF5252)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        )
-                      : null,
-                  color: isSelected
-                      ? null
-                      : Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(30),
-                  border: Border.all(
-                    color: isSelected
-                        ? Colors.transparent
-                        : Colors.white.withValues(alpha: 0.1),
+            final topic = topics[index - 1];
+            final isSelected = selected?.id == topic.id;
+
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: GestureDetector(
+                onTap: () => controller.selectTopic(topic),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  constraints: const BoxConstraints(maxWidth: 240),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.textPrimary : const Color(0xFF272727),
+                    borderRadius: BorderRadius.circular(20),
                   ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: kPrimaryDark.withValues(alpha: 0.3),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ]
-                      : [],
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () => controller.setCategory(cat),
-                    borderRadius: BorderRadius.circular(30),
-                    splashColor: Colors.white.withValues(alpha: 0.2),
-                    highlightColor: Colors.white.withValues(alpha: 0.1),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 12,
-                      ),
-                      child: Text(
-                        cat,
-                        style: AppTextStyles.labelLarge.copyWith(
-                          color: isSelected ? Colors.white : Colors.white70,
-                          fontWeight: isSelected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          fontSize: 15,
-                        ),
-                      ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    topic.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      color: isSelected ? AppColors.bgPage : AppColors.textPrimary,
                     ),
                   ),
                 ),
               ),
             );
           },
-        );
-      }),
-    );
-  }
-
-  Widget _buildSavedGrid(
-    List<Topic> topics,
-    bool isDashboard,
-    bool isMobile,
-    bool isTablet,
-    bool isDesktop,
-  ) {
-    final int crossAxisCount = isMobile ? 1 : 2;
-    final double childAspectRatio = 16 / 9;
-
-    return SliverGrid(
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        childAspectRatio: childAspectRatio,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 24,
-      ),
-      delegate: SliverChildBuilderDelegate((context, index) {
-        final topic = topics[index];
-        return TopicCardWidget(
-          topic: topic,
-          isDashboard: isDashboard,
-          onFollowToggle: () => controller.toggleFollowTopic(topic),
-          accentColor: kPrimaryDark,
-        );
-      }, childCount: topics.length),
-    );
-  }
-
-  Widget _buildLoadingState(bool isMobile, bool isTablet, bool isDesktop) {
-    final int crossAxisCount = isMobile ? 1 : 2;
-    final double childAspectRatio = 16 / 9;
-
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: GridView.builder(
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: crossAxisCount,
-          childAspectRatio: childAspectRatio,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 24,
         ),
-        itemCount: 6,
-        itemBuilder: (context, index) =>
-            const TopicCardWidget(topic: null, isHero: false, accentColor: kPrimaryDark),
+      );
+    });
+  }
+
+  Widget _buildTopicVideoSection(
+    BuildContext context,
+    Topic topic,
+    bool isMobile,
+  ) {
+    final key = topic.id;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Explore Topic Header Row
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    Get.toNamed(
+                      topic.topicRoute,
+                      arguments: {
+                        'slug': topic.slug,
+                        'fromCard': true,
+                        'topic': topic,
+                      },
+                    );
+                  },
+                  child: Text(
+                    'Explore ${topic.title}',
+                    style: TextStyle(
+                      fontSize: isMobile ? 18 : 22,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
+                color: const Color(0xFF212121),
+                onSelected: (value) {
+                  if (value == 'view_topic') {
+                    Get.toNamed(
+                      topic.topicRoute,
+                      arguments: {
+                        'slug': topic.slug,
+                        'fromCard': true,
+                        'topic': topic,
+                      },
+                    );
+                  } else if (value == 'unfollow') {
+                    controller.toggleFollowTopic(topic);
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'view_topic',
+                    child: Row(
+                      children: [
+                        Icon(Icons.visibility_outlined, color: AppColors.textPrimary, size: 20),
+                        SizedBox(width: 12),
+                        Text('View Topic Details', style: TextStyle(color: AppColors.textPrimary)),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'unfollow',
+                    child: Row(
+                      children: [
+                        Icon(Icons.bookmark_remove_outlined, color: AppColors.textPrimary, size: 20),
+                        SizedBox(width: 12),
+                        Text('Unfollow Topic', style: TextStyle(color: AppColors.textPrimary)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+
+        // Horizontal Video Cards List
+        Obx(() {
+          final isLoading = controller.isLoadingVideosMap[key] ?? false;
+          final videos = controller.topicVideosMap[key];
+
+          if (isLoading && (videos == null || videos.isEmpty)) {
+            return _buildHorizontalVideoSkeleton(isMobile);
+          }
+
+          if (videos == null || videos.isEmpty) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.ondemand_video_rounded, color: AppColors.textTertiary, size: 36),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'No videos found for this topic',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Check back later or tap to view details',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          return SizedBox(
+            height: isMobile ? 260 : 300,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: videos.length,
+              itemBuilder: (context, index) {
+                final video = videos[index];
+                return _buildHorizontalVideoCard(context, topic, video, isMobile);
+              },
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildHorizontalVideoCard(
+    BuildContext context,
+    Topic topic,
+    Video video,
+    bool isMobile,
+  ) {
+    final cardWidth = isMobile ? 280.0 : 320.0;
+
+    return Container(
+      width: cardWidth,
+      margin: const EdgeInsets.only(right: 16),
+      child: GestureDetector(
+        onTap: () {
+          MiniplayerNavigationHelper.navigateToVideoScreen(
+            video: video,
+            routeArguments: {
+              'video': video,
+              'heroTag': 'saved_topic_${topic.id}_${video.id}',
+            },
+          );
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Video Thumbnail
+            Stack(
+              children: [
+                AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: CachedNetworkImage(
+                      imageUrl: video.thumbnailUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        color: const Color(0xFF272727),
+                      ),
+                      errorWidget: (context, url, error) => const ColoredBox(
+                        color: Color(0xFF272727),
+                        child: Icon(
+                          Icons.videocam_off_rounded,
+                          color: AppColors.textTertiary,
+                          size: 36,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Fact Checked Badge (if applicable)
+                if (video.videoRating > 0 || video.factCheckUrl.isNotEmpty)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.verified_rounded, color: AppColors.textPrimary, size: 10),
+                          SizedBox(width: 4),
+                          Text(
+                            'Fact Checked',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // Duration Badge
+                Positioned(
+                  bottom: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgPage.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      video.duration,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            // Video Title & Options Menu
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    video.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                      height: 1.25,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.more_vert, size: 18, color: AppColors.textSecondary),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () => VideoOptionsSheet.show(context, video),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 4),
+
+            // Channel Name
+            Text(
+              video.channelName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+
+            const SizedBox(height: 2),
+
+            // Views & Upload Time
+            Text(
+              '${FormatUtils.formatCount(video.views)} views • ${timeago.format(video.uploadedAt.toDate())}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppColors.textTertiary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHorizontalVideoSkeleton(bool isMobile) {
+    final cardWidth = isMobile ? 280.0 : 320.0;
+    return SizedBox(
+      height: isMobile ? 260 : 300,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: 4,
+        itemBuilder: (context, index) {
+          return Container(
+            width: cardWidth,
+            margin: const EdgeInsets.only(right: 16),
+            child: Shimmer.fromColors(
+              baseColor: const Color(0xFF272727),
+              highlightColor: const Color(0xFF3F3F3F),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.textPrimary,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(width: double.infinity, height: 14, color: AppColors.textPrimary),
+                  const SizedBox(height: 6),
+                  Container(width: 140, height: 12, color: AppColors.textPrimary),
+                  const SizedBox(height: 4),
+                  Container(width: 100, height: 12, color: AppColors.textPrimary),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildLoadingState(bool isMobile, bool isTablet) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHorizontalVideoSkeleton(isMobile),
+          const SizedBox(height: 24),
+          _buildHorizontalVideoSkeleton(isMobile),
+        ],
       ),
     );
   }
 
   Widget _buildAuthRequiredState() {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.lock_person_rounded,
-              color: Colors.white38,
+              color: AppColors.textTertiary,
               size: 80,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               'Sign In Required',
-              style: AppTextStyles.videoTitleLarge.copyWith(
-                color: Colors.white70,
+              style: TextStyle(
+                fontSize: 20,
+                color: AppColors.textSecondary,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Please authenticate to follow topics and build interest graphs.',
-              style: TextStyle(color: Colors.white38, fontSize: 13),
+            SizedBox(height: 8),
+            Text(
+              'Please authenticate to follow topics and view saved topic feeds.',
+              style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
               textAlign: TextAlign.center,
             ),
           ],
@@ -581,31 +671,31 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
   Widget _buildErrorState() {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(
               Icons.error_outline_rounded,
-              color: Colors.redAccent,
+              color: AppColors.error,
               size: 60,
             ),
             const SizedBox(height: 16),
             Text(
               controller.errorMessage.value,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white70),
+              style: const TextStyle(color: AppColors.textSecondary),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: _refreshFollowingTopics,
               style: ElevatedButton.styleFrom(
-                backgroundColor: kPrimaryDark,
-                foregroundColor: Colors.white,
+                backgroundColor: AppColors.brand,
+                foregroundColor: AppColors.textPrimary,
               ),
               child: const Text(
                 'Try Again',
-                style: TextStyle(color: Colors.white),
+                style: TextStyle(color: AppColors.textPrimary),
               ),
             ),
           ],
@@ -615,29 +705,6 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
   }
 
   Widget _buildEmptyStateWidget(BuildContext context) {
-    IconData icon = Icons.check_circle_outline_rounded;
-    String title = "No followed topics yet";
-    String description =
-        "Follow dynamic semantic interest graphs and curated trends to personalize your platform feed.";
-    String buttonText = "Explore Topics";
-    String routeName = '/explore-topics';
-
-    if (controller.activeTab.value == 'Favorites') {
-      icon = Icons.favorite_border_rounded;
-      title = "No favorite topics yet";
-      description =
-          "Love/like your favorite topics to automatically curate them here.";
-      buttonText = "Discover Topics";
-      routeName = '/explore-topics';
-    } else if (controller.activeTab.value == 'Shared') {
-      icon = Icons.share_rounded;
-      title = "No shared topics yet";
-      description =
-          "Topics you share with your friends and community will be collected here.";
-      buttonText = "Share a Topic";
-      routeName = '/explore-topics';
-    }
-
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
@@ -645,60 +712,56 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 120,
-              height: 120,
+              width: 100,
+              height: 100,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    kPrimaryDark.withValues(alpha: 0.2),
-                    kSecondaryDark.withValues(alpha: 0.15),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(60),
+                color: const Color(0xFF272727),
+                borderRadius: BorderRadius.circular(50),
               ),
-              child: Icon(icon, size: 60, color: kPrimaryDark),
+              child: const Icon(
+                Icons.bookmark_border_rounded,
+                size: 50,
+                color: AppColors.textSecondary,
+              ),
             ),
             const SizedBox(height: 24),
-            Text(
-              title,
-              style: AppTextStyles.headlineSmall.copyWith(
-                fontSize: 24,
+            const Text(
+              'No followed topics yet',
+              style: TextStyle(
+                fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 12),
-            Text(
-              description,
+            const Text(
+              'Follow dynamic semantic interest graphs and curated trends to personalize your platform feed.',
               textAlign: TextAlign.center,
-              style: AppTextStyles.bodyLarge.copyWith(
-                color: Colors.white.withValues(alpha: 0.6),
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
               ),
             ),
             const SizedBox(height: 32),
             ElevatedButton.icon(
-              onPressed: () => Get.toNamed(routeName),
-              icon: Icon(
-                icon == Icons.share_rounded ? Icons.explore_rounded : icon,
-                color: Colors.white,
-                size: 18,
-              ),
-              label: Text(
-                buttonText,
-                style: const TextStyle(
-                  color: Colors.white,
+              onPressed: () => Get.toNamed('/explore-topics'),
+              icon: const Icon(Icons.explore_rounded, color: AppColors.bgPage, size: 18),
+              label: const Text(
+                'Explore Topics',
+                style: TextStyle(
+                  color: AppColors.bgPage,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: kPrimaryDark,
-                foregroundColor: Colors.white,
+                backgroundColor: AppColors.textPrimary,
+                foregroundColor: AppColors.bgPage,
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
+                  horizontal: 24,
+                  vertical: 14,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(24),
                 ),
               ),
             ),
@@ -719,28 +782,30 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage>
               width: 100,
               height: 100,
               decoration: BoxDecoration(
-                color: kDarksurfaceContainerHighest,
+                color: const Color(0xFF272727),
                 borderRadius: BorderRadius.circular(50),
               ),
-              child: Icon(
+              child: const Icon(
                 Icons.search_off_rounded,
                 size: 50,
-                color: Colors.white.withValues(alpha: 0.6),
+                color: AppColors.textSecondary,
               ),
             ),
             const SizedBox(height: 24),
-            Text(
-              "No topics found",
-              style: AppTextStyles.titleLarge.copyWith(
+            const Text(
+              'No topics found',
+              style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                fontSize: 20,
+                color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              "Try adjusting your search terms",
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: Colors.white.withValues(alpha: 0.6),
+            const Text(
+              'Try adjusting your search terms',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 14,
               ),
             ),
           ],

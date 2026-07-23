@@ -1,12 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_dialog_controller.dart';
-import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 final playlistController = Get.put(PlaylistController());
 final playlistDialogController = Get.put(PlaylistDialogController());
@@ -25,7 +25,7 @@ void showModernizedPlaylistDialog({
       return Theme(
         data: Theme.of(context).copyWith(
           colorScheme: ColorScheme.fromSeed(
-            seedColor: Color(0xFF8B5CF6),
+            seedColor: const Color(0xFF8B5CF6),
             brightness: Theme.of(context).brightness,
           ),
         ),
@@ -48,13 +48,13 @@ void showModernizedPlaylistDialog({
 }
 
 class _ModernizedPlaylistDialog extends StatefulWidget {
-  final String videoId;
-  final Animation<double> animation;
 
   const _ModernizedPlaylistDialog({
     required this.videoId,
     required this.animation,
   });
+  final String videoId;
+  final Animation<double> animation;
 
   @override
   State<_ModernizedPlaylistDialog> createState() =>
@@ -89,11 +89,11 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
       vsync: this,
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1).animate(
       CurvedAnimation(parent: _scaleController, curve: Curves.easeOutBack),
     );
 
-    _listAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    _listAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _listController, curve: Curves.easeOutCubic),
     );
 
@@ -131,7 +131,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
               maxHeight: screenSize.height * 0.8,
               minHeight: 400,
             ),
-            margin: EdgeInsets.all(20),
+            margin: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: colorScheme.surface,
               borderRadius: BorderRadius.circular(28),
@@ -167,7 +167,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
       child: Row(
         children: [
           Container(
-            padding: EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: colorScheme.primary.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(16),
@@ -244,7 +244,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
                 ),
               ),
               Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
                   'Or choose existing',
                   style: TextStyle(
@@ -273,7 +273,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
 
   Widget _buildCreatePlaylistSection(ColorScheme colorScheme, bool isTablet) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colorScheme.secondaryContainer.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(20),
@@ -338,7 +338,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
                   duration: const Duration(milliseconds: 200),
                   child: _dialogController.isCreatingPlaylist.value
                       ? Padding(
-                          padding: EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(12),
                           child: SizedBox(
                             width: 20,
                             height: 20,
@@ -380,9 +380,9 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
   Widget _buildPlaylistsList(ColorScheme colorScheme, bool isTablet) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection("users")
+          .collection('users')
           .doc(FirebaseAuth.instance.currentUser!.uid)
-          .collection("playlists")
+          .collection('playlists')
           //.orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
@@ -395,7 +395,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
         }
 
         final playlists = snapshot.data!.docs
-            .map((doc) => PlaylistModel.fromDocumentSnapshot(doc))
+            .map(PlaylistModel.fromDocumentSnapshot)
             .toList();
 
         return FadeTransition(
@@ -478,7 +478,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
                             ),
                             child: const Icon(
                               Icons.check_rounded,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                               size: 20,
                             ),
                           )
@@ -525,7 +525,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
                     scale: isSelected ? 1.0 : 0.0,
                     duration: const Duration(milliseconds: 200),
                     child: Container(
-                      padding: EdgeInsets.all(4),
+                      padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         color: colorScheme.tertiary,
                         shape: BoxShape.circle,
@@ -573,7 +573,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            padding: EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: colorScheme.tertiaryContainer.withValues(alpha: 0.3),
               shape: BoxShape.circle,
@@ -690,7 +690,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
     _dialogController.setCreatingPlaylist(true);
 
     try {
-      await playlistController.createPlayList(name, isPublic: false);
+      await playlistController.createPlayList(name);
 
       newPlaylistCtrl.clear();
 

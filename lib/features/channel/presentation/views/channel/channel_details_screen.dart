@@ -1,22 +1,21 @@
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
-import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
-import 'package:truthworld/data/models/playlist_model.dart';
-import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
-import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/components/ui/animated_interaction_buttons.dart';
 import 'package:truthworld/components/ui/community_post_card.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // ==========================================================================
 // YOUTUBE THEME COLORS
@@ -24,10 +23,10 @@ import 'package:truthworld/components/ui/community_post_card.dart';
 const Color ytBackground = AppColors.bgPage;
 const Color ytSurface = Color(0xFF1A1A1A);
 const Color ytSurfaceLight = Color(0xFF262626);
-const Color ytTextPrimary = Colors.white;
+const Color ytTextPrimary = AppColors.textPrimary;
 const Color ytTextSecondary = AppColors.textSecondary;
 const Color ytTextTertiary = AppColors.textTertiary;
-const Color ytSubscribeBtn = Colors.white;
+const Color ytSubscribeBtn = AppColors.textPrimary;
 const Color ytSubscribeBtnText = AppColors.bgPage;
 const Color ytSubscribedBtn = Color(0xFF262626);
 const Color ytLinkBlue = AppColors.textLink;
@@ -36,18 +35,18 @@ const Color ytBorder = AppColors.searchBorder;
 // ==========================================================================
 // RESPONSIVE BREAKPOINTS
 // ==========================================================================
-const double kMobileBreakpoint = 600.0;
-const double kTabletBreakpoint = 1000.0;
-const double kDesktopBreakpoint = 1200.0;
+const double kMobileBreakpoint = 600;
+const double kTabletBreakpoint = 1000;
+const double kDesktopBreakpoint = 1200;
 
 // ==========================================================================
 // SLIVER APP BAR DELEGATE
 // ==========================================================================
 class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
-  final Widget child;
-  final double maxHeight;
 
   _SliverTabBarDelegate(this.child, {required this.maxHeight});
+  final Widget child;
+  final double maxHeight;
 
   @override
   double get minExtent => maxHeight;
@@ -60,7 +59,7 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
     double shrinkOffset,
     bool overlapsContent,
   ) {
-    return Container(color: ytBackground, child: child);
+    return ColoredBox(color: ytBackground, child: child);
   }
 
   @override
@@ -72,9 +71,9 @@ class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
 // CHANNEL DETAILS PAGE - YOUTUBE STYLE
 // ==========================================================================
 class ChannelDetailsPage extends GetView<ChannelController> {
+  const ChannelDetailsPage({super.key, this.channel, this.isDashboard = false});
   final Channel? channel;
   final bool isDashboard;
-  const ChannelDetailsPage({super.key, this.channel, this.isDashboard = false});
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +83,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     if (targetChannel == null) {
       return Scaffold(
         backgroundColor: ytBackground,
-        body: _buildErrorState('Channel data is missing.', () => Get.back()),
+        body: _buildErrorState('Channel data is missing.', Get.back),
       );
     }
 
@@ -105,7 +104,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
   Widget _buildChannelContent(BuildContext context, Channel channel) {
     return Obx(() {
       if (controller.selectedChannel.value == null) {
-        return Scaffold(
+        return const Scaffold(
           backgroundColor: ytBackground,
           body: Center(child: CircularProgressIndicator(color: ytTextPrimary)),
         );
@@ -118,8 +117,8 @@ class ChannelDetailsPage extends GetView<ChannelController> {
   Widget _buildResponsiveLayout(BuildContext context, Channel channel) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final bool isDesktop = constraints.maxWidth >= kDesktopBreakpoint;
-        final bool isTablet =
+        final isDesktop = constraints.maxWidth >= kDesktopBreakpoint;
+        final isTablet =
             constraints.maxWidth >= kMobileBreakpoint &&
             constraints.maxWidth < kDesktopBreakpoint;
 
@@ -177,7 +176,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
   }) {
     return Obx(() {
       final activeTabs = controller.activeTabs;
-      final int tabCount = activeTabs.length;
+      final tabCount = activeTabs.length;
 
       return DefaultTabController(
         key: ValueKey('tab-controller-${channel.channelId}-${activeTabs.join(",")}'),
@@ -205,7 +204,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                 pinned: true,
                 delegate: _SliverTabBarDelegate(
                   _buildYouTubeTabBar(activeTabs),
-                  maxHeight: 48.0,
+                  maxHeight: 48,
                 ),
               ),
             ];
@@ -278,7 +277,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                   child: CachedNetworkImage(
                     imageUrl: channel.bannerImageUrl,
                     fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
+                    placeholder: (context, url) => const ColoredBox(
                       color: ytSurface,
                       child: Center(
                         child: CircularProgressIndicator(
@@ -287,7 +286,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                         ),
                       ),
                     ),
-                    errorWidget: (context, url, error) => Container(
+                    errorWidget: (context, url, error) => const ColoredBox(
                       color: ytSurface,
                       child: Center(
                         child: Icon(Icons.image_not_supported, color: ytTextTertiary),
@@ -301,11 +300,11 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                     left: 12,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.6),
+                        color: AppColors.bgPage.withValues(alpha: 0.6),
                         shape: BoxShape.circle,
                       ),
                       child: IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
                         tooltip: 'Back',
                         onPressed: () {
                           if (isDashboard && Get.isRegistered<HomeController>()) {
@@ -324,25 +323,25 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                   }
 
                   final status = controller.detailsBannerStatus.value;
-                  if (status.isEmpty || status == "APPROVED") {
+                  if (status.isEmpty || status == 'APPROVED') {
                     return const SizedBox.shrink();
                   }
 
-                  Color overlayColor = Colors.black54;
-                  Color badgeColor = const Color(0xFF3B82F6);
-                  String text = "Banner Verification Pending";
-                  IconData icon = Icons.sync_rounded;
-                  bool isPending = status == "PENDING";
+                  var overlayColor = AppColors.bgPage54;
+                  var badgeColor = const Color(0xFF3B82F6);
+                  var text = 'Banner Verification Pending';
+                  var icon = Icons.sync_rounded;
+                  final isPending = status == 'PENDING';
 
-                  if (status == "REJECTED") {
-                    overlayColor = Colors.black.withValues(alpha: 0.8);
+                  if (status == 'REJECTED') {
+                    overlayColor = AppColors.bgPage.withValues(alpha: 0.8);
                     badgeColor = const Color(0xFFEF4444);
                     text = "Banner Rejected: ${controller.detailsBannerReason.value.isNotEmpty ? controller.detailsBannerReason.value : 'Violated Community Guidelines'}";
                     icon = Icons.error_outline_rounded;
-                  } else if (status == "FLAGGED") {
-                    overlayColor = Colors.black.withValues(alpha: 0.7);
+                  } else if (status == 'FLAGGED') {
+                    overlayColor = AppColors.bgPage.withValues(alpha: 0.7);
                     badgeColor = const Color(0xFFF59E0B);
-                    text = "Banner Review Needed: ${controller.detailsBannerReason.value}";
+                    text = 'Banner Review Needed: ${controller.detailsBannerReason.value}';
                     icon = Icons.warning_amber_rounded;
                   }
 
@@ -373,17 +372,17 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                                   height: 16,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
                                   ),
                                 )
                               else
-                                Icon(icon, color: Colors.white, size: 18),
+                                Icon(icon, color: AppColors.textPrimary, size: 18),
                               const SizedBox(width: 8),
                               Flexible(
                                 child: Text(
                                   text,
-                                  style: GoogleFonts.roboto(
-                                    color: Colors.white,
+                                  style: const TextStyle(
+                                    color: AppColors.textPrimary,
                                     fontSize: 13,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -427,7 +426,6 @@ class ChannelDetailsPage extends GetView<ChannelController> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Hero(
                 tag: 'channel-avatar-${channel.channelId}',
@@ -436,7 +434,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                   height: avatarSize,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: ytSurfaceLight, width: 1),
+                    border: Border.all(color: ytSurfaceLight),
                   ),
                   child: ClipOval(
                     child: Stack(
@@ -445,7 +443,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                           child: CachedNetworkImage(
                             imageUrl: channel.avatarUrl,
                             fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(
+                            placeholder: (context, url) => ColoredBox(
                               color: ytSurface,
                               child: Icon(
                                 Icons.person,
@@ -453,7 +451,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                                 size: avatarSize * 0.4,
                               ),
                             ),
-                            errorWidget: (context, url, error) => Container(
+                            errorWidget: (context, url, error) => ColoredBox(
                               color: ytSurface,
                               child: Icon(
                                 Icons.person,
@@ -470,32 +468,32 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                           }
 
                           final status = controller.detailsAvatarStatus.value;
-                          if (status.isEmpty || status == "APPROVED") {
+                          if (status.isEmpty || status == 'APPROVED') {
                             return const SizedBox.shrink();
                           }
 
-                          Color overlayColor = Colors.black54;
-                          Color badgeColor = const Color(0xFF3B82F6);
-                          IconData icon = Icons.sync_rounded;
-                          bool isPending = status == "PENDING";
+                          var overlayColor = AppColors.bgPage54;
+                          var badgeColor = const Color(0xFF3B82F6);
+                          var icon = Icons.sync_rounded;
+                          final isPending = status == 'PENDING';
 
-                          if (status == "REJECTED") {
-                            overlayColor = Colors.black.withValues(alpha: 0.8);
+                          if (status == 'REJECTED') {
+                            overlayColor = AppColors.bgPage.withValues(alpha: 0.8);
                             badgeColor = const Color(0xFFEF4444);
                             icon = Icons.error_outline_rounded;
-                          } else if (status == "FLAGGED") {
-                            overlayColor = Colors.black.withValues(alpha: 0.7);
+                          } else if (status == 'FLAGGED') {
+                            overlayColor = AppColors.bgPage.withValues(alpha: 0.7);
                             badgeColor = const Color(0xFFF59E0B);
                             icon = Icons.warning_amber_rounded;
                           }
 
                           return Positioned.fill(
-                            child: Container(
+                            child: ColoredBox(
                               color: overlayColor,
                               child: Tooltip(
-                                message: status == "REJECTED"
-                                    ? "Avatar Rejected: ${controller.detailsAvatarReason.value}"
-                                    : (status == "FLAGGED" ? "Review Needed: ${controller.detailsAvatarReason.value}" : "Avatar Verification Pending"),
+                                message: status == 'REJECTED'
+                                    ? 'Avatar Rejected: ${controller.detailsAvatarReason.value}'
+                                    : (status == 'FLAGGED' ? 'Review Needed: ${controller.detailsAvatarReason.value}' : 'Avatar Verification Pending'),
                                 child: Center(
                                   child: Container(
                                     padding: const EdgeInsets.all(8),
@@ -509,10 +507,10 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                                             height: 14,
                                             child: CircularProgressIndicator(
                                               strokeWidth: 2,
-                                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                              valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
                                             ),
                                           )
-                                        : Icon(icon, color: Colors.white, size: 14),
+                                        : Icon(icon, color: AppColors.textPrimary, size: 14),
                                   ),
                                 ),
                               ),
@@ -534,7 +532,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                         Flexible(
                           child: Text(
                             channel.channelName,
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: isDesktop ? 32 : (isTablet ? 28 : 24),
                               fontWeight: FontWeight.w700,
                               color: ytTextPrimary,
@@ -543,7 +541,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                           ),
                         ),
                         if (channel.isVerified) ...[
-                          SizedBox(width: 8),
+                          const SizedBox(width: 8),
                           Icon(
                             Icons.check_circle,
                             color: ytTextSecondary,
@@ -552,23 +550,23 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                         ],
                       ],
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Obx(() {
                       final handle = channel.handle.isNotEmpty
                           ? channel.handle
                           : '@${channel.channelName.toLowerCase().replaceAll(' ', '')}';
                       return Text(
                         '$handle • ${controller.formattedSubscribers} subscribers • ${channel.videoCount} videos',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: isDesktop ? 14 : 12,
                           color: ytTextSecondary,
                         ),
                       );
                     }),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     _buildExpandableDescription(channel, isDesktop: isDesktop),
-                    SizedBox(height: 8),
-                    if (channel.socialLinks?.isNotEmpty == true ||
+                    const SizedBox(height: 8),
+                    if ((channel.socialLinks?.isNotEmpty ?? false) ||
                         channel.websiteUrl.isNotEmpty)
                       _buildChannelLinks(channel),
                   ],
@@ -576,7 +574,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
               ),
             ],
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           _buildSubscribeRow(
             context,
             channel,
@@ -605,12 +603,12 @@ class ChannelDetailsPage extends GetView<ChannelController> {
           children: [
             TextSpan(
               text: text,
-              style: GoogleFonts.roboto(fontSize: 12, color: ytTextSecondary),
+              style: const TextStyle(fontSize: 12, color: ytTextSecondary),
             ),
             if (text.length > 80)
-              TextSpan(
+              const TextSpan(
                 text: ' ...more',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 12,
                   color: ytTextPrimary,
                   fontWeight: FontWeight.w500,
@@ -623,7 +621,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
   }
 
   Widget _buildChannelLinks(Channel channel) {
-    if (channel.websiteUrl.isEmpty) return SizedBox.shrink();
+    if (channel.websiteUrl.isEmpty) return const SizedBox.shrink();
 
     final uri = Uri.tryParse(channel.websiteUrl);
     final domain = uri?.host.replaceAll('www.', '') ?? channel.websiteUrl;
@@ -635,12 +633,12 @@ class ChannelDetailsPage extends GetView<ChannelController> {
         children: [
           Text(
             domain,
-            style: GoogleFonts.roboto(fontSize: 12, color: ytLinkBlue),
+            style: const TextStyle(fontSize: 12, color: ytLinkBlue),
           ),
-          if (channel.socialLinks?.isNotEmpty == true) ...[
+          if (channel.socialLinks?.isNotEmpty ?? false) ...[
             Text(
               ' and ${channel.socialLinks!.length} more links',
-              style: GoogleFonts.roboto(fontSize: 12, color: ytTextSecondary),
+              style: const TextStyle(fontSize: 12, color: ytTextSecondary),
             ),
           ],
         ],
@@ -658,89 +656,24 @@ class ChannelDetailsPage extends GetView<ChannelController> {
       children: [
         Obx(() {
           final isSubscribed = controller.isSubscribed.value;
-          return Row(
-            children: [
-              Container(
-                height: 36,
-                decoration: BoxDecoration(
-                  color: isSubscribed ? ytSubscribedBtn : ytSubscribeBtn,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: FirebaseAuth.instance.currentUser == null
-                        ? null
-                        : () async {
-                            HapticFeedback.lightImpact();
-                            if (isSubscribed) {
-                              _showUnsubscribeConfirmation(context, channel);
-                            } else {
-                              await controller.toggleSubscription(
-                                channel.channelId,
-                              );
-                            }
-                          },
-                    borderRadius: BorderRadius.circular(18),
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        children: [
-                          Icon(
-                            isSubscribed
-                                ? (controller.notificationsEnabled.value
-                                    ? Icons.notifications_active
-                                    : Icons.notifications_off)
-                                : Icons.notifications,
-                            color: isSubscribed
-                                ? ytTextPrimary
-                                : ytSubscribeBtnText,
-                            size: 18,
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            isSubscribed ? 'Subscribed' : 'Subscribe',
-                            style: GoogleFonts.roboto(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                              color: isSubscribed
-                                  ? ytTextPrimary
-                                  : ytSubscribeBtnText,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              if (isSubscribed) ...[
-                SizedBox(width: 8),
-                Container(
-                  height: 36,
-                  width: 36,
-                  decoration: BoxDecoration(
-                    color: ytSubscribedBtn,
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () => _showNotificationsDialog(context),
-                      borderRadius: BorderRadius.circular(18),
-                      child: Icon(
-                        Icons.expand_more,
-                        color: ytTextPrimary,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ],
+          final notificationsEnabled = controller.notificationsEnabled.value;
+          return AnimatedSubscribeButton(
+            isSubscribed: isSubscribed,
+            notificationsEnabled: notificationsEnabled,
+            onPressed: FirebaseAuth.instance.currentUser == null
+                ? () {}
+                : () async {
+                    if (isSubscribed) {
+                      _showUnsubscribeConfirmation(context, channel);
+                    } else {
+                      await controller.toggleSubscription(
+                        channel.channelId,
+                      );
+                    }
+                  },
           );
         }),
-        SizedBox(width: 8),
+        const SizedBox(width: 8),
         Container(
           height: 36,
           decoration: BoxDecoration(
@@ -752,7 +685,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
             child: InkWell(
               onTap: () => controller.shareChannel(channel.channelId),
               borderRadius: BorderRadius.circular(18),
-              child: Padding(
+              child: const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: [
@@ -760,7 +693,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                     SizedBox(width: 6),
                     Text(
                       'Share',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
                         color: ytTextPrimary,
@@ -780,20 +713,19 @@ class ChannelDetailsPage extends GetView<ChannelController> {
   // YOUTUBE TAB BAR
   // ==========================================================================
   Widget _buildYouTubeTabBar(List<String> activeTabs) {
-    return Container(
+    return ColoredBox(
       color: ytBackground,
       child: TabBar(
         isScrollable: true,
         indicatorColor: ytTextPrimary,
-        indicatorWeight: 2,
         indicatorSize: TabBarIndicatorSize.label,
         labelColor: ytTextPrimary,
         unselectedLabelColor: ytTextSecondary,
-        labelStyle: GoogleFonts.roboto(
+        labelStyle: const TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w500,
         ),
-        unselectedLabelStyle: GoogleFonts.roboto(
+        unselectedLabelStyle: const TextStyle(
           fontSize: 14,
           fontWeight: FontWeight.w400,
         ),
@@ -809,40 +741,40 @@ class ChannelDetailsPage extends GetView<ChannelController> {
         backgroundColor: ytSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Padding(
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 'Unsubscribe from ${channel.channelName}?',
-                style: GoogleFonts.roboto(
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w500,
                   color: ytTextPrimary,
                 ),
               ),
-              SizedBox(height: 8),
-              Text(
+              const SizedBox(height: 8),
+              const Text(
                 "You will no longer see this channel's content in your feed.",
                 textAlign: TextAlign.center,
-                style: GoogleFonts.roboto(fontSize: 14, color: ytTextSecondary),
+                style: TextStyle(fontSize: 14, color: ytTextSecondary),
               ),
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
               Row(
                 children: [
                   Expanded(
                     child: TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: Text(
+                      child: const Text(
                         'Cancel',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           color: ytTextPrimary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: ElevatedButton(
                       onPressed: () {
@@ -857,9 +789,9 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      child: Text(
+                      child: const Text(
                         'Unsubscribe',
-                        style: GoogleFonts.roboto(fontWeight: FontWeight.w500),
+                        style: TextStyle(fontWeight: FontWeight.w500),
                       ),
                     ),
                   ),
@@ -897,17 +829,17 @@ class ChannelDetailsPage extends GetView<ChannelController> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildSectionTitle('For you'),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               _buildFeaturedVideoCard(context, isDesktop: isDesktop),
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
               _buildSectionTitle('Recent uploads'),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               _buildVideoGrid(
                 context,
                 isDesktop: isDesktop,
                 isTablet: isTablet,
               ),
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
               _buildPlaylistsSection(
                 context,
                 channel,
@@ -943,7 +875,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildFilterChips(context),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               _buildVideoGrid(
                 context,
                 isDesktop: isDesktop,
@@ -965,7 +897,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('public_playlists')
-          .where("channelId", isEqualTo: channel.channelId)
+          .where('channelId', isEqualTo: channel.channelId)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -981,12 +913,12 @@ class ChannelDetailsPage extends GetView<ChannelController> {
           return _buildEmptyTabState(
             icon: Icons.playlist_play,
             title: 'No playlists yet',
-            subtitle: 'This channel hasn\'t created any playlists',
+            subtitle: "This channel hasn't created any playlists",
           );
         }
 
-        List<PlaylistModel> playlists = snapshot.data!.docs
-            .map((doc) => PlaylistModel.fromDocumentSnapshot(doc))
+        final playlists = snapshot.data!.docs
+            .map(PlaylistModel.fromDocumentSnapshot)
             .toList();
 
         return _buildPlaylistGrid(
@@ -1009,11 +941,11 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     final isOwner = currentUser != null && currentUser.uid == channel.ownerId;
     final baseQuery = FirebaseFirestore.instance
         .collection('Community')
-        .where("channelId", isEqualTo: channel.channelId);
+        .where('channelId', isEqualTo: channel.channelId);
 
     final query = isOwner
-        ? baseQuery.where("ownerId", isEqualTo: currentUser.uid)
-        : baseQuery.where("visibility", isEqualTo: "Public");
+        ? baseQuery.where('ownerId', isEqualTo: currentUser.uid)
+        : baseQuery.where('visibility', isEqualTo: 'Public');
 
     return StreamBuilder<QuerySnapshot>(
       stream: query.snapshots(),
@@ -1036,7 +968,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
         }
 
         final posts = snapshot.data!.docs
-            .map((doc) => CommunityPostModel.fromMap(doc.data() as Map<String, dynamic>))
+            .map((doc) => CommunityPostModel.fromMap(doc.data()! as Map<String, dynamic>))
             .toList();
 
         // Sort posts by uploadedAt descending
@@ -1072,7 +1004,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
-      style: GoogleFonts.roboto(
+      style: const TextStyle(
         fontSize: 20,
         fontWeight: FontWeight.w700,
         color: ytTextPrimary,
@@ -1085,14 +1017,14 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     bool isDesktop = false,
   }) {
     return Obx(() {
-      if (controller.videos.isEmpty) return SizedBox.shrink();
+      if (controller.videos.isEmpty) return const SizedBox.shrink();
 
       final video = controller.videos.first;
       return InkWell(
         onTap: () {
           MiniplayerNavigationHelper.navigateToVideoScreen(
             video: video,
-            routeArguments: {"video": video},
+            routeArguments: {'video': video},
           );
         },
         child: Container(
@@ -1104,7 +1036,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ClipRRect(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                 child: AspectRatio(
                   aspectRatio: 16 / 9,
                   child: CachedNetworkImage(
@@ -1113,12 +1045,12 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                     placeholder: (context, url) =>
                         Container(color: ytSurfaceLight),
                     errorWidget: (context, url, error) =>
-                        Icon(Icons.error, color: ytTextSecondary),
+                        const Icon(Icons.error, color: ytTextSecondary),
                   ),
                 ),
               ),
               Padding(
-                padding: EdgeInsets.all(12),
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1126,16 +1058,16 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                       video.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: GoogleFonts.roboto(
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w500,
                         color: ytTextPrimary,
                       ),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text(
                       '${_formatViews(video.views)} views • ${timeago.format(video.uploadedAt.toDate())}',
-                      style: GoogleFonts.roboto(
+                      style: const TextStyle(
                         fontSize: 12,
                         color: ytTextSecondary,
                       ),
@@ -1164,13 +1096,13 @@ class ChannelDetailsPage extends GetView<ChannelController> {
         return _buildEmptyTabState(
           icon: Icons.videocam_off,
           title: 'No videos yet',
-          subtitle: 'This channel hasn\'t uploaded any videos',
+          subtitle: "This channel hasn't uploaded any videos",
         );
       }
 
       return ListView.builder(
         shrinkWrap: true,
-        physics: NeverScrollableScrollPhysics(),
+        physics: const NeverScrollableScrollPhysics(),
         itemCount: controller.videos.length,
         itemBuilder: (context, index) {
           final video = controller.videos[index];
@@ -1191,7 +1123,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
         onTap: () {
           MiniplayerNavigationHelper.navigateToVideoScreen(
             video: video,
-            routeArguments: {"video": video},
+            routeArguments: {'video': video},
           );
         },
         child: Row(
@@ -1208,7 +1140,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                     fit: BoxFit.cover,
                     placeholder: (context, url) =>
                         Container(color: ytSurfaceLight),
-                    errorWidget: (context, url, error) => Container(
+                    errorWidget: (context, url, error) => const ColoredBox(
                       color: ytSurfaceLight,
                       child: Icon(
                         Icons.play_circle_outline,
@@ -1221,15 +1153,15 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                   bottom: 4,
                   right: 4,
                   child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.8),
+                      color: AppColors.bgPage.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       video.duration,
-                      style: GoogleFonts.roboto(
-                        color: Colors.white,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
                         fontSize: 10,
                         fontWeight: FontWeight.w500,
                       ),
@@ -1238,7 +1170,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                 ),
               ],
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1247,16 +1179,16 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                     video.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: ytTextPrimary,
                       fontSize: isDesktop ? 16 : 14,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
                     '${_formatViews(video.views)} views • ${timeago.format(video.uploadedAt.toDate())}',
-                    style: GoogleFonts.roboto(
+                    style: const TextStyle(
                       color: ytTextSecondary,
                       fontSize: 12,
                     ),
@@ -1286,7 +1218,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
             },
             backgroundColor: ytSurface,
             selectedColor: ytTextPrimary,
-            labelStyle: GoogleFonts.roboto(
+            labelStyle: TextStyle(
               color: isSelected ? ytBackground : ytTextPrimary,
               fontSize: 14,
             ),
@@ -1311,23 +1243,23 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('public_playlists')
-          .where("channelId", isEqualTo: channel.channelId)
+          .where('channelId', isEqualTo: channel.channelId)
           .limit(5)
           .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return SizedBox.shrink();
+          return const SizedBox.shrink();
         }
 
-        List<PlaylistModel> playlists = snapshot.data!.docs
-            .map((doc) => PlaylistModel.fromDocumentSnapshot(doc))
+        final playlists = snapshot.data!.docs
+            .map(PlaylistModel.fromDocumentSnapshot)
             .toList();
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildSectionTitle('Created playlists'),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             SizedBox(
               height: isDesktop ? 200 : (isTablet ? 180 : 160),
               child: ListView.builder(
@@ -1355,7 +1287,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
   }) {
     return Container(
       width: isDesktop ? 200 : (isTablet ? 180 : 160),
-      margin: EdgeInsets.only(right: 12),
+      margin: const EdgeInsets.only(right: 12),
       child: InkWell(
         onTap: () {
           // Check if HomeController is available (we're in home screen context)
@@ -1392,11 +1324,9 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
                         gradient: LinearGradient(
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight,
                           colors: [
                             Colors.transparent,
-                            Colors.black.withValues(alpha: 0.3),
+                            AppColors.bgPage.withValues(alpha: 0.3),
                           ],
                         ),
                       ),
@@ -1407,19 +1337,19 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                       bottom: 0,
                       child: Container(
                         width: 40,
-                        color: Colors.black.withValues(alpha: 0.6),
+                        color: AppColors.bgPage.withValues(alpha: 0.6),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
+                            const Icon(
                               Icons.playlist_play,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                               size: 20,
                             ),
                             Text(
                               '${playlist.videoIds.length}',
-                              style: GoogleFonts.roboto(
-                                color: Colors.white,
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -1432,20 +1362,20 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                 ),
               ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               playlist.playlistName,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.roboto(
+              style: const TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
                 color: ytTextPrimary,
               ),
             ),
-            Text(
+            const Text(
               'View full playlist',
-              style: GoogleFonts.roboto(fontSize: 12, color: ytTextSecondary),
+              style: TextStyle(fontSize: 12, color: ytTextSecondary),
             ),
           ],
         ),
@@ -1463,11 +1393,10 @@ class ChannelDetailsPage extends GetView<ChannelController> {
 
     return GridView.builder(
       shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
-      padding: EdgeInsets.all(16),
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio: 1.0,
         crossAxisSpacing: 12,
         mainAxisSpacing: 16,
       ),
@@ -1491,20 +1420,20 @@ class ChannelDetailsPage extends GetView<ChannelController> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(icon, size: 64, color: ytTextTertiary),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Text(
             title,
-            style: GoogleFonts.roboto(
+            style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.w500,
               color: ytTextPrimary,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: GoogleFonts.roboto(fontSize: 14, color: ytTextSecondary),
+            style: const TextStyle(fontSize: 14, color: ytTextSecondary),
           ),
         ],
       ),
@@ -1517,7 +1446,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
       highlightColor: ytSurfaceLight,
       child: ListView.builder(
         shrinkWrap: true,
-        physics: NeverScrollableScrollPhysics(),
+        physics: const NeverScrollableScrollPhysics(),
         itemCount: 4,
         itemBuilder: (context, index) => Padding(
           padding: const EdgeInsets.only(bottom: 12),
@@ -1531,13 +1460,13 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(height: 16, color: ytSurfaceLight),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Container(height: 12, width: 100, color: ytSurfaceLight),
                   ],
                 ),
@@ -1550,19 +1479,19 @@ class ChannelDetailsPage extends GetView<ChannelController> {
   }
 
   Widget _buildChannelSidebar(BuildContext context, Channel channel) {
-    return Container(
+    return ColoredBox(
       color: ytSurface,
       child: Column(
         children: [
           Container(
-            padding: EdgeInsets.all(20),
-            child: Row(
+            padding: const EdgeInsets.all(20),
+            child: const Row(
               children: [
                 Icon(Icons.analytics_outlined, color: ytTextPrimary, size: 24),
                 SizedBox(width: 12),
                 Text(
                   'Stats',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w500,
                     color: ytTextPrimary,
@@ -1571,10 +1500,10 @@ class ChannelDetailsPage extends GetView<ChannelController> {
               ],
             ),
           ),
-          Divider(color: ytBorder, height: 1),
+          const Divider(color: ytBorder, height: 1),
           Expanded(
             child: SingleChildScrollView(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
                   _buildStatItem(
@@ -1582,13 +1511,13 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                     label: 'Subscribers',
                     value: controller.formattedSubscribers,
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   _buildStatItem(
                     icon: Icons.video_library_outlined,
                     label: 'Videos',
                     value: channel.videoCount.toString(),
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   _buildStatItem(
                     icon: Icons.visibility_outlined,
                     label: 'Views',
@@ -1611,16 +1540,16 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     return Row(
       children: [
         Icon(icon, color: ytTextSecondary, size: 20),
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
         Expanded(
           child: Text(
             label,
-            style: GoogleFonts.roboto(fontSize: 14, color: ytTextSecondary),
+            style: const TextStyle(fontSize: 14, color: ytTextSecondary),
           ),
         ),
         Text(
           value,
-          style: GoogleFonts.roboto(
+          style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
             color: ytTextPrimary,
@@ -1635,21 +1564,21 @@ class ChannelDetailsPage extends GetView<ChannelController> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline, size: 48, color: ytTextSecondary),
-          SizedBox(height: 16),
+          const Icon(Icons.error_outline, size: 48, color: ytTextSecondary),
+          const SizedBox(height: 16),
           Text(
             message,
             textAlign: TextAlign.center,
-            style: GoogleFonts.roboto(fontSize: 16, color: ytTextSecondary),
+            style: const TextStyle(fontSize: 16, color: ytTextSecondary),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           ElevatedButton(
             onPressed: onRetry,
             style: ElevatedButton.styleFrom(
               backgroundColor: ytTextPrimary,
               foregroundColor: ytBackground,
             ),
-            child: Text('Retry'),
+            child: const Text('Retry'),
           ),
         ],
       ),
@@ -1668,7 +1597,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     return views.toString();
   }
 
-  void _launchURL(String url) async {
+  Future<void> _launchURL(String url) async {
     final uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
@@ -1681,11 +1610,11 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     showModalBottomSheet(
       context: context,
       backgroundColor: ytSurface,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
       builder: (context) => Container(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1697,16 +1626,16 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            SizedBox(height: 16),
-            Text(
+            const SizedBox(height: 16),
+            const Text(
               'Notification settings',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,
                 color: ytTextPrimary,
               ),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Obx(() {
               final isAll = controller.notificationsEnabled.value;
               return Column(
@@ -1718,12 +1647,12 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                     ),
                     title: Text(
                       'All notifications',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: isAll ? AppColors.brand : ytTextPrimary,
                         fontWeight: isAll ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
-                    trailing: isAll ? Icon(Icons.check, color: AppColors.brand) : null,
+                    trailing: isAll ? const Icon(Icons.check, color: AppColors.brand) : null,
                     onTap: () {
                       Navigator.pop(context);
                       controller.updateNotificationPreference(channel!.channelId, true);
@@ -1736,12 +1665,12 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                     ),
                     title: Text(
                       'None',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: !isAll ? AppColors.brand : ytTextPrimary,
                         fontWeight: !isAll ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
-                    trailing: !isAll ? Icon(Icons.check, color: AppColors.brand) : null,
+                    trailing: !isAll ? const Icon(Icons.check, color: AppColors.brand) : null,
                     onTap: () {
                       Navigator.pop(context);
                       controller.updateNotificationPreference(channel!.channelId, false);

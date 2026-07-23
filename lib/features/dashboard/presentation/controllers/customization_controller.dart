@@ -1,17 +1,19 @@
 import 'dart:async';
 import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class CustomizationController extends GetxController {
-  final String channelId;
-  final String ownerId;
 
   CustomizationController({required this.channelId, required this.ownerId});
+  final String channelId;
+  final String ownerId;
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
@@ -141,8 +143,8 @@ class CustomizationController extends GetxController {
     } catch (e) {
       Get.snackbar('Error', 'Failed to load channel data: $e', 
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white);
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary);
     } finally {
       isLoading.value = false;
     }
@@ -170,28 +172,28 @@ class CustomizationController extends GetxController {
       }
 
       Get.snackbar(
-        "Verification Bypassed",
+        'Verification Bypassed',
         "Successfully approved the ${isBanner ? 'banner' : 'avatar'} for local testing.",
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
       );
     } catch (e) {
       Get.snackbar(
-        "Bypass Failed",
+        'Bypass Failed',
         e.toString(),
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
     }
   }
 
   Future<void> pickImage(bool isAvatar) async {
     try {
-      final ImagePicker picker = ImagePicker();
-      final XFile? pickedFile = await picker.pickImage(source: ImageSource.gallery);
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
       if (pickedFile != null) {
-        final Uint8List pickedImage = await pickedFile.readAsBytes();
+        final pickedImage = await pickedFile.readAsBytes();
         if (isAvatar) {
           newAvatarBytes.value = pickedImage;
           newAvatarName.value = 'avatar_${DateTime.now().millisecondsSinceEpoch}.jpg';
@@ -203,8 +205,8 @@ class CustomizationController extends GetxController {
     } catch (e) {
       Get.snackbar('Error', 'Failed to pick image: $e',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white);
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary);
     }
   }
 
@@ -259,7 +261,7 @@ class CustomizationController extends GetxController {
         if (websiteUrlController.text.isNotEmpty) 'website': websiteUrlController.text,
       };
 
-      final Map<String, dynamic> updateData = {
+      final updateData = <String, dynamic>{
         'name': channelNameController.text,
         'nameLowercase': channelNameController.text.toLowerCase(),
         'channelName': channelNameController.text,
@@ -309,8 +311,8 @@ class CustomizationController extends GetxController {
 
       Get.snackbar('Success', 'Channel updated successfully!',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.green,
-        colorText: Colors.white);
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary);
 
       // Redirect to the Dashboard tab (tab index 1)
       try {
@@ -320,8 +322,8 @@ class CustomizationController extends GetxController {
     } catch (e) {
       Get.snackbar('Error', 'Failed to save changes: $e',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white);
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary);
     } finally {
       isSaving.value = false;
     }

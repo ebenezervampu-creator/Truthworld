@@ -1,6 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/data/models/channel.dart';
 
 class ChannelLoaderController extends GetxController {
@@ -29,7 +29,7 @@ class ChannelLoaderController extends GetxController {
             .doc(channelId)
             .get();
       } else if (handle != null) {
-        String cleanHandle = handle;
+        var cleanHandle = handle;
         if (cleanHandle.startsWith('@')) {
           cleanHandle = cleanHandle.substring(1);
         }
@@ -44,17 +44,17 @@ class ChannelLoaderController extends GetxController {
       }
 
       if (doc == null || !doc.exists) {
-        Get.snackbar("Error", "Channel not found");
+        Get.snackbar('Error', 'Channel not found');
         Get.offAllNamed('/');
         return;
       }
 
       final channel = Channel.fromDocumentSnapshot(doc);
 
-      Get.offNamed(channel.channelRoute, arguments: {"channel": channel});
-      debugPrint("🧭 All route params: ${Get.parameters}");
+      Get.offNamed(channel.channelRoute, arguments: {'channel': channel});
+      debugPrint('🧭 All route params: ${Get.parameters}');
     } catch (e) {
-      Get.snackbar("Error", "Something went wrong: $e");
+      Get.snackbar('Error', 'Something went wrong: $e');
       Get.offAllNamed('/');
     }
   }
@@ -66,7 +66,7 @@ class ChannelLoaderScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Get.put(ChannelLoaderController());
-    return Scaffold(body: Center(child: CircularProgressIndicator()));
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
   }
 }
 

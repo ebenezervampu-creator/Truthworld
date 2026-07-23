@@ -13,54 +13,20 @@ enum ReportReason {
   const ReportReason(this.label);
 }
 
-class CommentReport {
-  final String id;
-  final String commentId;
-  final String? replyId; // Null if reporting comment, filled if reporting reply
-  final String videoId;
-  final String reporterId;
-  final String reporterName;
-  final ReportReason reason;
-  final String? description;
-  final Timestamp createdAt;
-  final bool isResolved;
-  final String? resolvedBy; // Admin/Moderator ID
-  final String? resolution; // Notes on resolution
+class CommentReport { // Notes on resolution
 
   CommentReport({
     required this.id,
     required this.commentId,
-    this.replyId,
-    required this.videoId,
-    required this.reporterId,
-    required this.reporterName,
-    required this.reason,
+    required this.videoId, required this.reporterId, required this.reporterName, required this.reason, required this.createdAt, this.replyId,
     this.description,
-    required this.createdAt,
     this.isResolved = false,
     this.resolvedBy,
     this.resolution,
   });
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'commentId': commentId,
-      'replyId': replyId,
-      'videoId': videoId,
-      'reporterId': reporterId,
-      'reporterName': reporterName,
-      'reason': reason.name,
-      'description': description,
-      'createdAt': createdAt,
-      'isResolved': isResolved,
-      'resolvedBy': resolvedBy,
-      'resolution': resolution,
-    };
-  }
-
   factory CommentReport.fromDocumentSnapshot(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = doc.data()! as Map<String, dynamic>;
     return CommentReport(
       id: doc.id,
       commentId: data['commentId'] ?? '',
@@ -78,6 +44,35 @@ class CommentReport {
       resolvedBy: data['resolvedBy'],
       resolution: data['resolution'],
     );
+  }
+  final String id;
+  final String commentId;
+  final String? replyId; // Null if reporting comment, filled if reporting reply
+  final String videoId;
+  final String reporterId;
+  final String reporterName;
+  final ReportReason reason;
+  final String? description;
+  final Timestamp createdAt;
+  final bool isResolved;
+  final String? resolvedBy; // Admin/Moderator ID
+  final String? resolution;
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'commentId': commentId,
+      'replyId': replyId,
+      'videoId': videoId,
+      'reporterId': reporterId,
+      'reporterName': reporterName,
+      'reason': reason.name,
+      'description': description,
+      'createdAt': createdAt,
+      'isResolved': isResolved,
+      'resolvedBy': resolvedBy,
+      'resolution': resolution,
+    };
   }
 
   CommentReport copyWith({

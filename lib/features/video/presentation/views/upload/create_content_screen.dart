@@ -1,36 +1,38 @@
-import 'package:truthworld/theme/app_theme.dart';
+import 'dart:io' as io;
 import 'dart:ui';
+
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
-import 'package:truthworld/data/models/playlist_model.dart';
-import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:intl/intl.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
 import 'package:truthworld/features/video/presentation/views/upload/ai_features_selector.dart';
 import 'package:truthworld/features/video/presentation/views/upload/models/upload_type.dart';
-import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:io' as io;
-import 'package:intl/intl.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:truthworld/features/video/presentation/views/upload/widgets/topic_selection_bottom_sheet.dart';
+import 'package:truthworld/theme/app_theme.dart';
+
 
 // ==========================================================================
 // CREATE CONTENT SCREEN - Refactored to support specific upload types
 // ==========================================================================
 
 class CreateContentScreen extends StatefulWidget {
-  final UploadType uploadType;
 
   const CreateContentScreen({
-    super.key,
-    required this.uploadType,
+    required this.uploadType, super.key,
   });
+  final UploadType uploadType;
 
   @override
   State<CreateContentScreen> createState() => _CreateContentScreenState();
@@ -95,10 +97,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       vsync: this,
     );
 
-    _fadeInAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    _fadeInAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
         parent: _mainAnimationController,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeOutCubic),
+        curve: const Interval(0, 0.6, curve: Curves.easeOutCubic),
       ),
     );
 
@@ -117,7 +119,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
   void _validateForm() {
     if (!mounted) return;
-    final bool isValid =
+    final isValid =
         _titleController.text.trim().length >= 5 &&
         _descriptionController.text.trim().length >= 10;
     _uploadController.setFormValid(isValid);
@@ -145,14 +147,14 @@ class _CreateContentScreenState extends State<CreateContentScreen>
   bool get isDesktop => MediaQuery.of(context).size.width >= 1200;
 
   double get responsivePadding {
-    if (isDesktop) return 32.0;
-    if (isTablet) return 24.0;
-    return 16.0;
+    if (isDesktop) return 32;
+    if (isTablet) return 24;
+    return 16;
   }
 
   double get maxContentWidth {
-    if (isDesktop) return 1200.0;
-    if (isTablet) return 800.0;
+    if (isDesktop) return 1200;
+    if (isTablet) return 800;
     return double.infinity;
   }
 
@@ -216,7 +218,6 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 border: Border(
                   right: BorderSide(
                     color: context.colors.divider,
-                    width: 1,
                   ),
                 ),
               ),
@@ -264,7 +265,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     IconData icon;
     String title;
     String subtitle;
-    bool showButton = false;
+    var showButton = false;
 
     if (channel.status == ChannelStatus.underReview) {
       statusColor = context.colors.info;
@@ -349,10 +350,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           Text(
             subtitle,
             textAlign: TextAlign.center,
-            style: GoogleFonts.roboto(
-              fontSize: 14,
+            style: context.themeTypography.body.copyWith(
               color: context.colors.textSecondary,
-              height: 1.5,
             ),
           ),
           if (showButton) ...[
@@ -367,14 +366,11 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               icon: const Icon(Icons.description_outlined, size: 20),
               label: Text(
                 'Review Community Guidelines',
-                style: GoogleFonts.roboto(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: context.themeTypography.button,
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: statusColor,
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.textPrimary,
                 padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
@@ -399,7 +395,6 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         border: Border(
           bottom: BorderSide(
             color: context.colors.divider,
-            width: 1,
           ),
         ),
       ),
@@ -422,17 +417,14 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                       child: const Icon(
                         Icons.cloud_upload_rounded,
                         size: 20,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Text(
                       'Upload Content',
-                      style: GoogleFonts.roboto(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
+                      style: context.themeTypography.headline.copyWith(
                         color: context.colors.textPrimary,
-                        letterSpacing: -0.5,
                       ),
                     ),
                   ],
@@ -483,19 +475,15 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           const SizedBox(height: 24),
           Text(
             'No Channels Yet',
-            style: GoogleFonts.roboto(
-              fontSize: 20,
-              fontWeight: FontWeight.w700,
+            style: context.themeTypography.headline.copyWith(
               color: context.colors.textPrimary,
-              letterSpacing: -0.3,
             ),
           ),
           const SizedBox(height: 12),
           Text(
             'Create your first channel to start\nuploading amazing content',
             textAlign: TextAlign.center,
-            style: GoogleFonts.roboto(
-              fontSize: 14,
+            style: context.themeTypography.body.copyWith(
               color: context.colors.textSecondary,
               height: 1.5,
             ),
@@ -506,14 +494,11 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             icon: const Icon(Icons.add_circle_outline, size: 20),
             label: Text(
               'Create Channel',
-              style: GoogleFonts.roboto(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
+              style: context.themeTypography.button,
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: context.colors.brand,
-              foregroundColor: Colors.white,
+              foregroundColor: AppColors.textPrimary,
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
               elevation: 0,
               shape: RoundedRectangleBorder(
@@ -530,19 +515,18 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
   Widget _buildCompactAppBar(bool isDark) {
     return Container(
-      padding: EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
             color: isDark ? const Color(0xFF21262D) : const Color(0xFFE5E7EB),
-            width: 1,
           ),
         ),
       ),
       child: Column(
         children: [
           Container(
-            padding: EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
@@ -552,17 +536,14 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             child: const Icon(
               Icons.cloud_upload_rounded,
               size: 28,
-              color: Colors.white,
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 12),
           Text(
             'Upload',
-            style: GoogleFonts.roboto(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
-              letterSpacing: -0.5,
+            style: context.themeTypography.headline.copyWith(
+              color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
             ),
           ),
         ],
@@ -578,10 +559,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         children: [
           Text(
             'STEPS',
-            style: GoogleFonts.roboto(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: isDark ? Colors.white38 : const Color(0xFF9CA3AF),
+            style: context.themeTypography.label.copyWith(
+              color: isDark ? AppColors.textTertiary : const Color(0xFF9CA3AF),
               letterSpacing: 1,
             ),
           ),
@@ -605,7 +584,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         final isActive = index == _uploadController.uploadStage.value;
         final isCompleted = index < _uploadController.uploadStage.value;
         return Padding(
-          padding: EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.only(bottom: 8),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
@@ -623,7 +602,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               },
               // Disable on desktop/tablet (no PageView there)
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                 child: Row(
                   children: [
                     Container(
@@ -645,34 +624,30 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                       child: Icon(
                         isCompleted
                             ? Icons.check_rounded
-                            : steps[index]['icon'] as IconData,
+                            : steps[index]['icon']! as IconData,
                         size: 16,
                         color: isActive || isCompleted
-                            ? Colors.white
+                            ? AppColors.textPrimary
                             : isDark
-                            ? Colors.white30
+                            ? AppColors.textTertiary
                             : const Color(0xFF9CA3AF),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        steps[index]['label'] as String,
-                        style: GoogleFonts.roboto(
-                          fontSize: 13,
-                          fontWeight: isActive
-                              ? FontWeight.w500
-                              : FontWeight.w500,
+                        steps[index]['label']! as String,
+                        style: context.themeTypography.bodySmall.copyWith(
                           color: isActive
                               ? (isDark
-                                    ? Colors.white
+                                    ? AppColors.textPrimary
                                     : const Color(0xFF0F172A))
                               : isCompleted
                               ? (isDark
-                                    ? Colors.white70
+                                    ? AppColors.textSecondary
                                     : AppColors.textSecondary)
                               : (isDark
-                                    ? Colors.white30
+                                    ? AppColors.textTertiary
                                     : const Color(0xFF9CA3AF)),
                         ),
                       ),
@@ -684,7 +659,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                       size: 12,
                       color: isActive
                           ? const Color(0xFF6366F1)
-                          : (isDark ? Colors.white24 : const Color(0xFFD1D5DB)),
+                          : (isDark ? AppColors.textDisabled : const Color(0xFFD1D5DB)),
                     ),
                   ],
                 ),
@@ -701,7 +676,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       // Show loading state
       if (_uploadController.isChannelsLoading.value) {
         return Container(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF161B22) : const Color(0xFFF9FAFB),
             borderRadius: BorderRadius.circular(14),
@@ -718,16 +693,15 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 child: CircularProgressIndicator(
                   strokeWidth: 2.5,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    isDark ? Colors.white : const Color(0xFF6366F1),
+                    isDark ? AppColors.textPrimary : const Color(0xFF6366F1),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               Text(
                 'Loading channels...',
-                style: GoogleFonts.roboto(
-                  fontSize: 14,
-                  color: isDark ? Colors.white60 : AppColors.textSecondary,
+                style: context.themeTypography.body.copyWith(
+                  color: isDark ? AppColors.textSecondary : AppColors.textSecondary,
                 ),
               ),
             ],
@@ -738,7 +712,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       // Show error state
       if (_uploadController.channelsError.value.isNotEmpty) {
         return Container(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: const Color(0xFFEF4444).withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(14),
@@ -761,9 +735,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   Expanded(
                     child: Text(
                       _uploadController.channelsError.value,
-                      style: GoogleFonts.roboto(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                      style: context.themeTypography.body.copyWith(
                         color: const Color(0xFFEF4444),
                       ),
                     ),
@@ -774,13 +746,13 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: () => _uploadController.fetchChannelsWithRetry(),
+                  onPressed: _uploadController.fetchChannelsWithRetry,
                   icon: const Icon(Icons.refresh_rounded, size: 16),
                   label: const Text('Retry'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFEF4444),
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 10),
+                    foregroundColor: AppColors.textPrimary,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -795,9 +767,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       // Show empty channels state
       if (_uploadController.channels.isEmpty) {
         return Container(
-          padding: EdgeInsets.all(20),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF161B22) : Colors.white,
+            color: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
@@ -810,23 +782,20 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               Icon(
                 Icons.video_library_outlined,
                 size: 32,
-                color: isDark ? Colors.white38 : const Color(0xFFD1D5DB),
+                color: isDark ? AppColors.textTertiary : const Color(0xFFD1D5DB),
               ),
               const SizedBox(height: 12),
               Text(
                 'No Channels Yet',
-                style: GoogleFonts.roboto(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? Colors.white : const Color(0xFF0F172A),
+                style: context.themeTypography.title.copyWith(
+                  color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
                 ),
               ),
               const SizedBox(height: 8),
               Text(
                 'Create a channel to start uploading',
-                style: GoogleFonts.roboto(
-                  fontSize: 13,
-                  color: isDark ? Colors.white60 : AppColors.textSecondary,
+                style: context.themeTypography.bodySmall.copyWith(
+                  color: isDark ? AppColors.textSecondary : AppColors.textSecondary,
                 ),
               ),
               const SizedBox(height: 16),
@@ -838,8 +807,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   label: const Text('Create Channel'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF6366F1),
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 12),
+                    foregroundColor: AppColors.textPrimary,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -879,10 +848,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 children: [
                   Text(
                     channel.channelName,
-                    style: GoogleFonts.roboto(
-                      fontSize: 14,
+                    style: context.themeTypography.body.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : const Color(0xFF0F172A),
+                      color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -896,10 +864,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                                 : channel.status == ChannelStatus.verificationPending
                                     ? 'Pending Verification'
                                     : 'Suspended',
-                    style: GoogleFonts.roboto(
-                      fontSize: 11,
+                    style: context.themeTypography.label.copyWith(
                       color: channel.status == ChannelStatus.active
-                          ? (isDark ? Colors.white38 : Colors.black45)
+                          ? (isDark ? AppColors.textTertiary : Colors.black45)
                           : channel.status == ChannelStatus.underReview
                               ? const Color(0xFF3B82F6)
                               : channel.status == ChannelStatus.verificationRejected
@@ -918,9 +885,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
   Widget _buildPublishPreview(bool isDark) {
     return Container(
-      padding: EdgeInsets.all(28),
+      padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
+        color: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
@@ -933,7 +900,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           Row(
             children: [
               Container(
-                padding: EdgeInsets.all(10),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
@@ -950,17 +917,14 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 child: const Icon(
                   Icons.visibility_rounded,
                   size: 20,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(width: 12),
               Text(
                 'Preview',
-                style: GoogleFonts.roboto(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? Colors.white : const Color(0xFF0F172A),
-                  letterSpacing: -0.3,
+                style: context.themeTypography.headline.copyWith(
+                  color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
                 ),
               ),
             ],
@@ -998,20 +962,18 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                             bottom: 8,
                             right: 8,
                             child: Container(
-                              padding: EdgeInsets.symmetric(
+                              padding: const EdgeInsets.symmetric(
                                 horizontal: 6,
                                 vertical: 3,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.8),
+                                color: AppColors.bgPage.withValues(alpha: 0.8),
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
                                 '00:00',
-                                style: GoogleFonts.roboto(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.white,
+                                style: context.themeTypography.label.copyWith(
+                                  color: AppColors.textPrimary,
                                 ),
                               ),
                             ),
@@ -1024,7 +986,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         Icons.image_outlined,
                         size: 32,
                         color: isDark
-                            ? Colors.white.withValues(alpha: 0.2)
+                            ? AppColors.textPrimary.withValues(alpha: 0.2)
                             : const Color(0xFFD1D5DB),
                       ),
                     );
@@ -1041,10 +1003,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                       _titleController.text.isNotEmpty
                           ? _titleController.text
                           : 'Untitled Video',
-                      style: GoogleFonts.roboto(
-                        fontSize: 15,
+                      style: context.themeTypography.body.copyWith(
                         fontWeight: FontWeight.w500,
-                        color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
                         height: 1.4,
                       ),
                       maxLines: 2,
@@ -1065,21 +1026,21 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                                   ),
                               placeholder: (context, url) => const CircleAvatar(
                                 radius: 10,
-                                backgroundColor: Colors.grey,
+                                backgroundColor: AppColors.textSecondary,
                                 child: Icon(
                                   Icons.person,
                                   size: 10,
-                                  color: Colors.white70,
+                                  color: AppColors.textSecondary,
                                 ),
                               ),
                               errorWidget: (context, url, error) =>
-                                  CircleAvatar(
+                                  const CircleAvatar(
                                     radius: 10,
-                                    backgroundColor: Colors.grey.shade800,
-                                    child: const Icon(
+                                    backgroundColor: AppColors.textSecondary,
+                                    child: Icon(
                                       Icons.person,
                                       size: 10,
-                                      color: Colors.white,
+                                      color: AppColors.textPrimary,
                                     ),
                                   ),
                             ),
@@ -1088,10 +1049,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                           Flexible(
                             child: Text(
                               channel?.channelName ?? 'No channel',
-                              style: GoogleFonts.roboto(
-                                fontSize: 13,
+                              style: context.themeTypography.bodySmall.copyWith(
                                 color: isDark
-                                    ? Colors.white60
+                                    ? AppColors.textSecondary
                                     : AppColors.textSecondary,
                                 fontWeight: FontWeight.w500,
                               ),
@@ -1104,7 +1064,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     const SizedBox(height: 10),
                     Obx(() {
                       return Container(
-                        padding: EdgeInsets.symmetric(
+                        padding: const EdgeInsets.symmetric(
                           horizontal: 10,
                           vertical: 5,
                         ),
@@ -1129,8 +1089,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                             const SizedBox(width: 6),
                             Text(
                               _uploadController.selectedVisibility.value,
-                              style: GoogleFonts.roboto(
-                                fontSize: 12,
+                              style: context.themeTypography.bodySmall.copyWith(
                                 color: _getVisibilityColor(
                                   _uploadController.selectedVisibility.value,
                                 ),
@@ -1147,7 +1106,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                       if (playlistId.isEmpty) return const SizedBox.shrink();
 
                       return Padding(
-                        padding: const EdgeInsets.only(top: 10.0),
+                        padding: const EdgeInsets.only(top: 10),
                         child: Row(
                           children: [
                             const Icon(
@@ -1159,10 +1118,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                             Flexible(
                               child: Text(
                                 _getPlaylistName(playlistId),
-                                style: GoogleFonts.roboto(
-                                  fontSize: 12,
+                                style: context.themeTypography.bodySmall.copyWith(
                                   color: isDark
-                                      ? Colors.white70
+                                      ? AppColors.textSecondary
                                       : AppColors.textSecondary,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -1210,9 +1168,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
   Widget _buildFinalPublishSection(bool isDark) {
     return Container(
-      padding: EdgeInsets.all(32),
+      padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
+        color: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
@@ -1224,7 +1182,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           Row(
             children: [
               Container(
-                padding: EdgeInsets.all(14),
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     colors: [Color(0xFF10B981), Color(0xFF059669)],
@@ -1241,7 +1199,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 child: const Icon(
                   Icons.verified_rounded,
                   size: 28,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(width: 20),
@@ -1251,20 +1209,16 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   children: [
                     Text(
                       'Ready to Publish',
-                      style: GoogleFonts.roboto(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white : const Color(0xFF111827),
-                        letterSpacing: -0.3,
+                      style: context.themeTypography.headline.copyWith(
+                        color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       'Your video will be processed and made available to viewers',
-                      style: GoogleFonts.roboto(
-                        fontSize: 14,
+                      style: context.themeTypography.body.copyWith(
                         color: isDark
-                            ? Colors.white.withValues(alpha: 0.75)
+                            ? AppColors.textPrimary.withValues(alpha: 0.75)
                             : const Color(0xFF6B7280),
                         fontWeight: FontWeight.w500,
                         height: 1.4,
@@ -1280,9 +1234,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           const SizedBox(height: 20),
           Obx(
             () => Container(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1F2937) : Colors.white,
+                color: isDark ? const Color(0xFF1F2937) : AppColors.textPrimary,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isDark
@@ -1292,10 +1246,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               ),
               child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.info_outline_rounded,
                     size: 18,
-                    color: const Color(0xFF3B82F6),
+                    color: Color(0xFF3B82F6),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -1303,11 +1257,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          "Thumbnail Status: ${_uploadController.finalstatus.value.toString()}",
-                          style: GoogleFonts.roboto(
-                            fontSize: 13,
+                          'Thumbnail Status: ${_uploadController.finalstatus.value}',
+                          style: context.themeTypography.bodySmall.copyWith(
                             color: isDark
-                                ? Colors.white.withValues(alpha: 0.8)
+                                ? AppColors.textPrimary.withValues(alpha: 0.8)
                                 : const Color(0xFF6B7280),
                             fontWeight: FontWeight.w500,
                           ),
@@ -1354,18 +1307,18 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           isUploading,
         ),
         (
-          _uploadController.finalstatus.value == "APPROVED"
+          _uploadController.finalstatus.value == 'APPROVED'
               ? 'Thumbnail approved'
-              : (_uploadController.finalstatus.value == "REJECTED"
+              : (_uploadController.finalstatus.value == 'REJECTED'
                     ? 'Thumbnail rejected'
-                    : (_uploadController.finalstatus.value == "PENDING"
+                    : (_uploadController.finalstatus.value == 'PENDING'
                           ? 'Verifying thumbnail...'
                           : 'Thumbnail added')),
-          _uploadController.finalstatus.value == "APPROVED",
-          _uploadController.finalstatus.value == "REJECTED"
+          _uploadController.finalstatus.value == 'APPROVED',
+          _uploadController.finalstatus.value == 'REJECTED'
               ? Icons.error_outline_rounded
               : Icons.image_rounded,
-          _uploadController.finalstatus.value == "PENDING",
+          _uploadController.finalstatus.value == 'PENDING',
         ),
         (
           'Title (min. 5 chars)',
@@ -1380,8 +1333,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           final (label, isComplete, icon, isProcessing) = check;
           return AnimatedContainer(
             duration: const Duration(milliseconds: 300),
-            margin: EdgeInsets.only(bottom: 10),
-            padding: EdgeInsets.all(14),
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: isComplete
                   ? const Color(0xFF10B981).withValues(alpha: 0.1)
@@ -1402,7 +1355,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               children: [
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
-                  padding: EdgeInsets.all(6),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: isComplete
                         ? const Color(0xFF10B981)
@@ -1415,9 +1368,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     isComplete ? Icons.check_rounded : icon,
                     size: 14,
                     color: isComplete
-                        ? Colors.white
+                        ? AppColors.textPrimary
                         : isDark
-                        ? Colors.white.withValues(alpha: 0.4)
+                        ? AppColors.textPrimary.withValues(alpha: 0.4)
                         : const Color(0xFF9CA3AF),
                   ),
                 ),
@@ -1428,16 +1381,15 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     children: [
                       Text(
                         label,
-                        style: GoogleFonts.roboto(
-                          fontSize: 14,
+                        style: context.themeTypography.body.copyWith(
                           color: isComplete
                               ? (isDark
-                                    ? Colors.white
+                                    ? AppColors.textPrimary
                                     : const Color(0xFF111827))
                               : (isProcessing && isDark
-                                    ? Colors.white
+                                    ? AppColors.textPrimary
                                     : isDark
-                                    ? Colors.white.withValues(alpha: 0.6)
+                                    ? AppColors.textPrimary.withValues(alpha: 0.6)
                                     : const Color(0xFF6B7280)),
                           fontWeight: isComplete
                               ? FontWeight.w500
@@ -1451,8 +1403,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                           child: LinearProgressIndicator(
                             value: videoProgress,
                             backgroundColor: isDark
-                                ? Colors.white.withValues(alpha: 0.1)
-                                : Colors.black.withValues(alpha: 0.05),
+                                ? AppColors.textPrimary.withValues(alpha: 0.1)
+                                : AppColors.bgPage.withValues(alpha: 0.05),
                             valueColor: const AlwaysStoppedAnimation<Color>(
                               Color(0xFF6366F1),
                             ),
@@ -1488,13 +1440,13 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       if (isVideoUrlEmpty &&
           _uploadController.pickedVideo.value != null &&
           !isUploading) {
-        return _buildProcessingButton(isDark, "Finalizing Video...");
+        return _buildProcessingButton(isDark, 'Finalizing Video...');
       }
 
       if (isThumbnailUrlEmpty &&
           _uploadController.pickedImage.value != null &&
           !isUploading) {
-        return _buildProcessingButton(isDark, "Finalizing Thumbnail...");
+        return _buildProcessingButton(isDark, 'Finalizing Thumbnail...');
       }
 
       return AnimatedContainer(
@@ -1533,9 +1485,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(14),
-            onTap: canPublish ? () => _handleVideoUpload() : null,
+            onTap: canPublish ? _handleVideoUpload : null,
             child: Container(
-              padding: EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -1545,9 +1497,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         : Icons.cloud_upload_rounded,
                     size: 22,
                     color: canPublish
-                        ? Colors.white
+                        ? AppColors.textPrimary
                         : isDark
-                        ? Colors.white.withValues(alpha: 0.3)
+                        ? AppColors.textPrimary.withValues(alpha: 0.3)
                         : const Color(0xFF9CA3AF),
                   ),
                   const SizedBox(width: 12),
@@ -1555,15 +1507,12 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     _uploadController.isScheduled.value
                         ? 'Schedule Upload'
                         : 'Publish Now',
-                    style: GoogleFonts.roboto(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                    style: context.themeTypography.title.copyWith(
                       color: canPublish
-                          ? Colors.white
+                          ? AppColors.textPrimary
                           : isDark
-                          ? Colors.white.withValues(alpha: 0.3)
+                          ? AppColors.textPrimary.withValues(alpha: 0.3)
                           : const Color(0xFF9CA3AF),
-                      letterSpacing: -0.3,
                     ),
                   ),
                 ],
@@ -1601,10 +1550,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           const SizedBox(width: 16),
           Text(
             message,
-            style: GoogleFonts.roboto(
-              fontSize: 15,
+            style: context.themeTypography.body.copyWith(
               fontWeight: FontWeight.w500,
-              color: isDark ? Colors.white70 : const Color(0xFF6B7280),
+              color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
             ),
           ),
         ],
@@ -1619,9 +1567,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
       return Container(
         width: double.infinity,
-        padding: EdgeInsets.all(20),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF161B22) : Colors.white,
+          color: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: const Color(0xFF6366F1).withValues(alpha: 0.3),
@@ -1633,7 +1581,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             Row(
               children: [
                 Container(
-                  padding: EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [Color(0xFF6366F1), Color(0xFF8B5CF6)],
@@ -1646,7 +1594,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     child: CircularProgressIndicator(
                       strokeWidth: 2.5,
                       valueColor: const AlwaysStoppedAnimation<Color>(
-                        Colors.white,
+                        AppColors.textPrimary,
                       ),
                       value: progress,
                     ),
@@ -1659,21 +1607,19 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     children: [
                       Text(
                         'Uploading...',
-                        style: GoogleFonts.roboto(
-                          fontSize: 15,
+                        style: context.themeTypography.body.copyWith(
                           fontWeight: FontWeight.w500,
                           color: isDark
-                              ? Colors.white
+                              ? AppColors.textPrimary
                               : const Color(0xFF0F172A),
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Processing your video',
-                        style: GoogleFonts.roboto(
-                          fontSize: 13,
+                        style: context.themeTypography.bodySmall.copyWith(
                           color: isDark
-                              ? Colors.white60
+                              ? AppColors.textSecondary
                               : AppColors.textSecondary,
                         ),
                       ),
@@ -1682,9 +1628,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 ),
                 Text(
                   progressText,
-                  style: GoogleFonts.roboto(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
+                  style: context.themeTypography.headline.copyWith(
                     color: const Color(0xFF6366F1),
                   ),
                 ),
@@ -1717,7 +1661,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     Widget? customAction,
   }) {
     return Container(
-      padding: EdgeInsets.symmetric(vertical: 24),
+      padding: const EdgeInsets.symmetric(vertical: 24),
       child: Row(
         children: [
           if (showBack) ...[
@@ -1728,7 +1672,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.05),
+                      color: AppColors.bgPage.withValues(alpha: 0.05),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
@@ -1739,14 +1683,11 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   icon: const Icon(Icons.arrow_back, size: 20),
                   label: Text(
                     'Back',
-                    style: GoogleFonts.roboto(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: context.themeTypography.button,
                   ),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: isDark
-                        ? Colors.white
+                        ? AppColors.textPrimary
                         : const Color(0xFF374151),
                     side: BorderSide(
                       color: isDark
@@ -1756,8 +1697,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     ),
                     backgroundColor: isDark
                         ? const Color(0xFF1F2937)
-                        : Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 16),
+                        : AppColors.textPrimary,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
@@ -1783,7 +1724,6 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         color: const Color(0xFF3B82F6).withValues(alpha: 0.4),
                         blurRadius: 16,
                         offset: const Offset(0, 6),
-                        spreadRadius: 0,
                       ),
                     ],
                   ),
@@ -1792,20 +1732,18 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     icon: const Icon(Icons.arrow_forward_rounded, size: 20),
                     label: Text(
                       nextLabel ?? 'Continue',
-                      style: GoogleFonts.roboto(
-                        fontSize: 15,
+                      style: context.themeTypography.button.copyWith(
                         fontWeight: FontWeight.w700,
-                        letterSpacing: 0.3,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.transparent,
-                      foregroundColor: Colors.white,
+                      foregroundColor: AppColors.textPrimary,
                       shadowColor: Colors.transparent,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      padding: EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                     ),
                   ),
                 ),
@@ -1817,14 +1755,14 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
   void _handleNextStep() {
     debugPrint(
-      "--- Navigating to next step from step ${_uploadController.uploadStage.value} ---",
+      '--- Navigating to next step from step ${_uploadController.uploadStage.value} ---',
     );
-    bool canProceed = true;
-    String errorMessage = '';
+    var canProceed = true;
+    var errorMessage = '';
 
     switch (_uploadController.uploadStage.value) {
       case 0:
-        debugPrint("Validating Step 1: Media Selection");
+        debugPrint('Validating Step 1: Media Selection');
         if (_uploadController.pickedVideo.value == null) {
           errorMessage += 'Please select a video.\n';
           canProceed = false;
@@ -1833,7 +1771,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           errorMessage += 'Please select a thumbnail.\n';
           canProceed = false;
         }
-        if (_uploadController.finalstatus.value == "REJECTED") {
+        if (_uploadController.finalstatus.value == 'REJECTED') {
           errorMessage +=
               'Thumbnail was rejected. Please upload a different one.';
           canProceed = false;
@@ -1841,9 +1779,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         debugPrint(
           "Step 1 validation result: canProceed=$canProceed, errorMessage='$errorMessage'",
         );
-        break;
       case 1:
-        debugPrint("Validating Step 2: Basic Info");
+        debugPrint('Validating Step 2: Basic Info');
         if (_videoDetailsFormKey.currentState != null &&
             !_videoDetailsFormKey.currentState!.validate()) {
           canProceed = false;
@@ -1855,31 +1792,27 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         debugPrint(
           "Step 2 validation result: canProceed=$canProceed, errorMessage='$errorMessage'",
         );
-        break;
       case 2:
-        debugPrint("Validating Step 3: Advanced Settings");
+        debugPrint('Validating Step 3: Advanced Settings');
         // Additional validation if needed for step 3
         debugPrint(
           "Step 3 validation result: canProceed=true, errorMessage=''",
         );
-        break;
       case 3:
-        debugPrint("Step 4: No validation needed for final step");
-        break;
+        debugPrint('Step 4: No validation needed for final step');
       // For other steps, assume can proceed
     }
 
     if (canProceed) {
-      debugPrint("Proceeding to next step.");
+      debugPrint('Proceeding to next step.');
       _goToNextStep();
     } else {
-      debugPrint("Cannot proceed. Showing error snackbar.");
+      debugPrint('Cannot proceed. Showing error snackbar.');
       Get.snackbar(
         'Cannot Proceed',
         errorMessage.trim(),
         backgroundColor: const Color(0xFFEF4444),
-        colorText: Colors.white,
-        duration: const Duration(seconds: 3),
+        colorText: AppColors.textPrimary,
       );
       HapticFeedback.heavyImpact();
     }
@@ -1892,10 +1825,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       children: [
         Text(
           'Media',
-          style: GoogleFonts.roboto(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: isDark ? Colors.white : const Color(0xFF111827),
+          style: context.themeTypography.title.copyWith(
+            color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
           ),
         ),
         const SizedBox(height: 12),
@@ -1919,7 +1850,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         child: Container(
           height: isMobile ? 180 : 200,
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF161B22) : Colors.white,
+            color: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: hasImage
@@ -1965,7 +1896,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               top: 16,
               right: 16,
               child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: const Color(0xFF10B981),
                   borderRadius: BorderRadius.circular(20),
@@ -1976,14 +1907,13 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     const Icon(
                       Icons.check_circle_rounded,
                       size: 16,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       'Uploaded',
-                      style: GoogleFonts.roboto(
-                        fontSize: 12,
-                        color: Colors.white,
+                      style: context.themeTypography.bodySmall.copyWith(
+                        color: AppColors.textPrimary,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -2001,7 +1931,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
             shape: BoxShape.circle,
@@ -2015,27 +1945,23 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         const SizedBox(height: 20),
         Text(
           'Upload Image',
-          style: GoogleFonts.roboto(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: isDark ? Colors.white : const Color(0xFF111827),
+          style: context.themeTypography.headline.copyWith(
+            color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
           ),
         ),
         const SizedBox(height: 8),
         Text(
           'Add an image to your community post',
-          style: GoogleFonts.roboto(
-            fontSize: 14,
-            color: isDark ? Colors.white60 : const Color(0xFF6B7280),
+          style: context.themeTypography.body.copyWith(
+            color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
           ),
         ),
         const SizedBox(height: 4),
         Text(
           'JPEG, PNG, GIF • Max 20MB',
-          style: GoogleFonts.roboto(
-            fontSize: 12,
+          style: context.themeTypography.bodySmall.copyWith(
             color: isDark
-                ? Colors.white.withValues(alpha: 0.4)
+                ? AppColors.textPrimary.withValues(alpha: 0.4)
                 : const Color(0xFF9CA3AF),
           ),
         ),
@@ -2049,17 +1975,15 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       children: [
         Text(
           'Post Details',
-          style: GoogleFonts.roboto(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: isDark ? Colors.white : const Color(0xFF111827),
+          style: context.themeTypography.title.copyWith(
+            color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
           ),
         ),
         const SizedBox(height: 12),
         _buildEnhancedTextField(
           controller: _communityTitleController,
           label: 'Title',
-          hint: 'What\'s happening?',
+          hint: "What's happening?",
           icon: Icons.campaign_rounded,
           isDark: isDark,
           maxLength: 100,
@@ -2107,27 +2031,26 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         width: double.infinity,
         height: 56,
         child: ElevatedButton.icon(
-          onPressed: () => _handleCommunityUpload(),
+          onPressed: _handleCommunityUpload,
           icon: isUploading
               ? const SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
                   ),
                 )
               : const Icon(Icons.publish_rounded, size: 20),
           label: Text(
             isUploading ? 'Publishing...' : 'Publish Post',
-            style: GoogleFonts.roboto(
-              fontSize: 16,
+            style: context.themeTypography.title.copyWith(
               fontWeight: FontWeight.w700,
             ),
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: const Color(0xFFF59E0B),
-            foregroundColor: Colors.white,
+            foregroundColor: AppColors.textPrimary,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
@@ -2158,7 +2081,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     final hasValidDesc = _descriptionController.text.trim().length >= 10;
     final hasCategory = selectedCategory.isNotEmpty;
     final isNotUploading = !isUploading;
-    final isThumbnailApproved = finalStatus == "APPROVED";
+    final isThumbnailApproved = finalStatus == 'APPROVED';
 
     final result =
         hasVideo &&
@@ -2212,26 +2135,22 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       String label;
 
       switch (status) {
-        case "APPROVED":
+        case 'APPROVED':
           color = const Color(0xFF10B981);
           icon = Icons.check_circle_rounded;
-          label = "Approved";
-          break;
-        case "REJECTED":
+          label = 'Approved';
+        case 'REJECTED':
           color = const Color(0xFFEF4444);
           icon = Icons.error_rounded;
-          label = "Rejected";
-          break;
-        case "FLAGGED":
+          label = 'Rejected';
+        case 'FLAGGED':
           color = const Color(0xFFF59E0B);
           icon = Icons.warning_rounded;
-          label = "Review Needed";
-          break;
-        case "PENDING":
+          label = 'Review Needed';
+        case 'PENDING':
           color = const Color(0xFF3B82F6);
           icon = Icons.sync_rounded;
-          label = "Verifying...";
-          break;
+          label = 'Verifying...';
         default:
           return const SizedBox.shrink();
       }
@@ -2252,23 +2171,22 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (status == "PENDING")
-              SizedBox(
+            if (status == 'PENDING')
+              const SizedBox(
                 width: 12,
                 height: 12,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
                 ),
               )
             else
-              Icon(icon, size: 14, color: Colors.white),
+              Icon(icon, size: 14, color: AppColors.textPrimary),
             const SizedBox(width: 6),
             Text(
               label,
-              style: GoogleFonts.roboto(
-                fontSize: 11,
-                color: Colors.white,
+              style: context.themeTypography.label.copyWith(
+                color: AppColors.textPrimary,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -2276,7 +2194,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         ),
       );
 
-      if (status == "REJECTED") {
+      if (status == 'REJECTED') {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           mainAxisSize: MainAxisSize.min,
@@ -2287,17 +2205,17 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               constraints: const BoxConstraints(maxWidth: 160),
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.8),
+                color: AppColors.bgPage.withValues(alpha: 0.8),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.1),
+                  color: AppColors.textPrimary.withValues(alpha: 0.1),
                   width: 0.5,
                 ),
               ),
               child: Text(
                 reason,
-                style: GoogleFonts.roboto(
-                  color: Colors.white,
+                style: context.themeTypography.bodySmall.copyWith(
+                  color: AppColors.textPrimary,
                   fontSize: 10,
                   fontWeight: FontWeight.w500,
                 ),
@@ -2357,11 +2275,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               children: [
                 Text(
                   '$label validation',
-                  style: GoogleFonts.roboto(
-                    fontSize: 13,
+                  style: context.themeTypography.bodySmall.copyWith(
                     fontWeight: FontWeight.w700,
                     color: isDark
-                        ? Colors.white
+                        ? AppColors.textPrimary
                         : const Color(0xFF111827),
                   ),
                 ),
@@ -2372,10 +2289,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                       : (pending
                           ? 'Validation is in progress...'
                           : 'No validation details available.'),
-                  style: GoogleFonts.roboto(
-                    fontSize: 12,
+                  style: context.themeTypography.bodySmall.copyWith(
                     color: isDark
-                        ? Colors.white.withValues(alpha: 0.75)
+                        ? AppColors.textPrimary.withValues(alpha: 0.75)
                         : const Color(0xFF4B5563),
                     fontWeight: FontWeight.w500,
                   ),
@@ -2462,7 +2378,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
   }
 
   Future<void> _selectScheduleDateTime() async {
-    final DateTime? pickedDate = await showDatePicker(
+    final pickedDate = await showDatePicker(
       context: context,
       initialDate: _uploadController.scheduledDate.value.isAfter(DateTime.now())
           ? _uploadController.scheduledDate.value
@@ -2473,7 +2389,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
     if (pickedDate != null) {
       if (!mounted) return;
-      final TimeOfDay? pickedTime = await showTimePicker(
+      final pickedTime = await showTimePicker(
         context: context,
         initialTime: TimeOfDay.fromDateTime(
           _uploadController.scheduledDate.value,
@@ -2491,10 +2407,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
         if (finalDateTime.isBefore(DateTime.now())) {
           Get.snackbar(
-            "Invalid Date",
-            "Scheduled date cannot be in the past",
+            'Invalid Date',
+            'Scheduled date cannot be in the past',
             backgroundColor: const Color(0xFFEF4444),
-            colorText: Colors.white,
+            colorText: AppColors.textPrimary,
           );
           _uploadController.isScheduled.value = false;
         } else {
@@ -2506,14 +2422,14 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
   // ========== VIDEO/MEDIA PICKER METHODS ==========
 
-  void _handleVideoUpload() async {
-    debugPrint("--- Step 4: Publish Review ---");
-    debugPrint("Initiating video upload process...");
+  Future<void> _handleVideoUpload() async {
+    debugPrint('--- Step 4: Publish Review ---');
+    debugPrint('Initiating video upload process...');
 
     // 1️⃣ Validation: Required fields
     final selectedChannel = _uploadController.selectedChannel.value;
     if (selectedChannel != null && selectedChannel.status != ChannelStatus.active) {
-      String message = 'Your channel is not active.';
+      var message = 'Your channel is not active.';
       if (selectedChannel.status == ChannelStatus.underReview) {
         message = 'Your channel details are currently under review by Gemini AI. You can publish videos once approved.';
       } else if (selectedChannel.status == ChannelStatus.verificationRejected) {
@@ -2529,7 +2445,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         'Verification Required',
         message,
         backgroundColor: const Color(0xFFEF4444),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         duration: const Duration(seconds: 5),
       );
       return;
@@ -2537,7 +2453,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
     final canPublish = _canPublishVideo();
     if (!canPublish) {
-      String errorMessage = 'Cannot publish. Validation checks:\n';
+      var errorMessage = 'Cannot publish. Validation checks:\n';
       if (_uploadController.videoUrl.value.isEmpty) {
         errorMessage += '- Video not uploaded yet.\n';
       }
@@ -2565,7 +2481,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         'Cannot Publish',
         errorMessage.trim(),
         backgroundColor: const Color(0xFFEF4444),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         duration: const Duration(seconds: 5),
       );
       return;
@@ -2575,20 +2491,20 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     final status = _uploadController.finalstatus.value;
     if (status == 'REJECTED') {
       Get.snackbar(
-        "Thumbnail Rejected",
-        "You cannot publish because the thumbnail was rejected: ${_uploadController.finalstatusReason.value}",
+        'Thumbnail Rejected',
+        'You cannot publish because the thumbnail was rejected: ${_uploadController.finalstatusReason.value}',
         backgroundColor: const Color(0xFFEF4444),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         duration: const Duration(seconds: 4),
       );
       return;
     }
     if (status != 'APPROVED') {
       Get.snackbar(
-        "Verification Pending",
-        "Your thumbnail is still being verified. Please wait a moment.",
+        'Verification Pending',
+        'Your thumbnail is still being verified. Please wait a moment.',
         backgroundColor: const Color(0xFF3B82F6),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         duration: const Duration(seconds: 4),
       );
       return;
@@ -2597,19 +2513,19 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     // 3️⃣ Manual form validation
     if (_titleController.text.trim().length < 5) {
       Get.snackbar(
-        "Form Error",
-        "Title must be at least 5 characters long",
+        'Form Error',
+        'Title must be at least 5 characters long',
         backgroundColor: const Color(0xFFEF4444),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
       );
       return;
     }
     if (_descriptionController.text.trim().length < 10) {
       Get.snackbar(
-        "Form Error",
-        "Description must be at least 10 characters long",
+        'Form Error',
+        'Description must be at least 10 characters long',
         backgroundColor: const Color(0xFFEF4444),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
       );
       return;
     }
@@ -2617,10 +2533,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     // 4️⃣ Ensure channel is selected
     if (_uploadController.selectedChannel.value == null) {
       Get.snackbar(
-        "Channel Required",
-        "Please select a channel to publish to",
+        'Channel Required',
+        'Please select a channel to publish to',
         backgroundColor: const Color(0xFFEF4444),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
       );
       return;
     }
@@ -2655,14 +2571,13 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
       HapticFeedback.mediumImpact();
       Get.snackbar(
-        "Upload Started",
-        "Your video is being processed and will be available soon",
+        'Upload Started',
+        'Your video is being processed and will be available soon',
         backgroundColor: const Color(0xFF10B981),
-        colorText: Colors.white,
-        duration: const Duration(seconds: 3),
+        colorText: AppColors.textPrimary,
       );
     } catch (e) {
-      String errorMessage = 'Failed to upload video. Please try again.';
+      var errorMessage = 'Failed to upload video. Please try again.';
       if (e is FirebaseException) {
         errorMessage = 'Firebase error: ${e.message}';
       } else if (e is io.IOException) {
@@ -2671,10 +2586,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         errorMessage = 'Invalid data format. Please check your input.';
       }
       Get.snackbar(
-        "Upload Error",
+        'Upload Error',
         errorMessage,
         backgroundColor: const Color(0xFFEF4444),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
       );
       debugPrint('Video upload error: $e');
     } finally {
@@ -2683,9 +2598,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     }
   }
 
-  void _handleCommunityUpload() async {
+  Future<void> _handleCommunityUpload() async {
     if (!_canPublishCommunity()) {
-      String errorMessage = '';
+      var errorMessage = '';
       if (_uploadController.communityImageUrl.value.isEmpty) {
         errorMessage += 'Image not added.\n';
       }
@@ -2702,28 +2617,27 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         'Cannot Publish',
         errorMessage.trim(),
         backgroundColor: const Color(0xFFEF4444),
-        colorText: Colors.white,
-        duration: const Duration(seconds: 3),
+        colorText: AppColors.textPrimary,
       );
       return;
     }
 
     if (!_communityDetailsFormKey.currentState!.validate()) {
       Get.snackbar(
-        "Form Error",
-        "Please fill in all required fields correctly",
+        'Form Error',
+        'Please fill in all required fields correctly',
         backgroundColor: const Color(0xFFEF4444),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
       );
       return;
     }
 
     if (_uploadController.selectedChannel.value == null) {
       Get.snackbar(
-        "Channel Required",
-        "Please select a channel to publish to",
+        'Channel Required',
+        'Please select a channel to publish to',
         backgroundColor: const Color(0xFFEF4444),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
       );
       return;
     }
@@ -2752,15 +2666,14 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
       // Show success feedback
       Get.snackbar(
-        "Post Published",
-        "Your community post has been published successfully",
+        'Post Published',
+        'Your community post has been published successfully',
         backgroundColor: const Color(0xFF10B981),
-        colorText: Colors.white,
-        duration: const Duration(seconds: 3),
+        colorText: AppColors.textPrimary,
       );
     } catch (e) {
       // Enhanced error handling
-      String errorMessage =
+      var errorMessage =
           'Failed to publish community post. Please try again.';
       if (e is FirebaseException) {
         errorMessage = 'Firebase error: ${e.message}';
@@ -2770,10 +2683,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         errorMessage = 'Invalid data format. Please check your input.';
       }
       Get.snackbar(
-        "Publish Error",
+        'Publish Error',
         errorMessage,
         backgroundColor: const Color(0xFFEF4444),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
       );
       debugPrint('Community post upload error: $e');
     } finally {
@@ -2841,17 +2754,16 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         borderRadius: BorderRadius.circular(12),
         onTap: _handleBackNavigation,
         child: Container(
-          padding: EdgeInsets.all(12),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: isDark ? const Color(0xFF161B22) : const Color(0xFFF9FAFB),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
-              width: 1,
             ),
           ),
           child: Icon(Icons.arrow_back, size: 20,
-            color: isDark ? Colors.white : const Color(0xFF0F172A),
+            color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
           ),
         ),
       ),
@@ -2869,7 +2781,6 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         border: Border(
           bottom: BorderSide(
             color: isDark ? const Color(0xFF21262D) : const Color(0xFFE5E7EB),
-            width: 1,
           ),
         ),
       ),
@@ -2915,7 +2826,6 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                                             0xFF6366F1,
                                           ).withValues(alpha: 0.4),
                                           blurRadius: 12,
-                                          spreadRadius: 0,
                                         ),
                                       ]
                                     : [],
@@ -2926,30 +2836,26 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                                     : _getStepIcon(index),
                                 size: 18,
                                 color: isCompleted || isActive
-                                    ? Colors.white
+                                    ? AppColors.textPrimary
                                     : isDark
-                                    ? Colors.white.withValues(alpha: 0.3)
+                                    ? AppColors.textPrimary.withValues(alpha: 0.3)
                                     : const Color(0xFF9CA3AF),
                               ),
                             ),
                             const SizedBox(height: 8),
                             Text(
                               stepNames[index],
-                              style: GoogleFonts.roboto(
-                                fontSize: 12,
-                                fontWeight: isActive
-                                    ? FontWeight.w500
-                                    : FontWeight.w500,
+                              style: context.themeTypography.bodySmall.copyWith(
                                 color: isActive
                                     ? (isDark
-                                          ? Colors.white
+                                          ? AppColors.textPrimary
                                           : const Color(0xFF0F172A))
                                     : isCompleted
                                     ? (isDark
-                                          ? Colors.white70
+                                          ? AppColors.textSecondary
                                           : AppColors.textSecondary)
                                     : (isDark
-                                          ? Colors.white.withValues(alpha: 0.3)
+                                          ? AppColors.textPrimary.withValues(alpha: 0.3)
                                           : const Color(0xFF9CA3AF)),
                               ),
                             ),
@@ -2960,7 +2866,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         Expanded(
                           child: Container(
                             height: 2,
-                            margin: EdgeInsets.only(bottom: 24),
+                            margin: const EdgeInsets.only(bottom: 24),
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(1),
                               color: isCompleted
@@ -3001,9 +2907,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     return PageView(
       controller: _pageController,
       physics: const NeverScrollableScrollPhysics(),
-      onPageChanged: (index) {
-        _uploadController.setUploadStage(index);
-      },
+      onPageChanged: _uploadController.setUploadStage,
       children: [
         _buildStep1MediaSelection(isDark),
         _buildStep2BasicInfo(isDark),
@@ -3257,7 +3161,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     required Color color,
   }) {
     return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
+      tween: Tween(begin: 0, end: 1),
       duration: const Duration(milliseconds: 600),
       curve: Curves.easeOutCubic,
       builder: (context, value, child) {
@@ -3266,7 +3170,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           child: Opacity(
             opacity: value,
             child: Container(
-              padding: EdgeInsets.all(28),
+              padding: const EdgeInsets.all(28),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
@@ -3291,8 +3195,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   ),
                   BoxShadow(
                     color: isDark
-                        ? Colors.black.withValues(alpha: 0.3)
-                        : Colors.white,
+                        ? AppColors.bgPage.withValues(alpha: 0.3)
+                        : AppColors.textPrimary,
                     blurRadius: 16,
                     offset: const Offset(0, -4),
                     spreadRadius: -4,
@@ -3302,7 +3206,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               child: Row(
                 children: [
                   Container(
-                    padding: EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
@@ -3318,7 +3222,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         ),
                       ],
                     ),
-                    child: Icon(icon, size: 32, color: Colors.white),
+                    child: Icon(icon, size: 32, color: AppColors.textPrimary),
                   ),
                   const SizedBox(width: 24),
                   Expanded(
@@ -3327,23 +3231,19 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                       children: [
                         Text(
                           title,
-                          style: GoogleFonts.roboto(
-                            fontSize: isMobile ? 22 : 26,
-                            fontWeight: FontWeight.w700,
+                          style: context.themeTypography.headline.copyWith(
                             color: isDark
-                                ? Colors.white
+                                ? AppColors.textPrimary
                                 : const Color(0xFF111827),
                             height: 1.2,
-                            letterSpacing: -0.5,
                           ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           subtitle,
-                          style: GoogleFonts.roboto(
-                            fontSize: isMobile ? 14 : 16,
+                          style: context.themeTypography.body.copyWith(
                             color: isDark
-                                ? Colors.white70
+                                ? AppColors.textSecondary
                                 : const Color(0xFF6B7280),
                             fontWeight: FontWeight.w500,
                             height: 1.4,
@@ -3353,7 +3253,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     ),
                   ),
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
@@ -3361,7 +3261,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     ),
                     child: Text(
                       'Step ${_uploadController.uploadStage.value + 1}/$_totalSteps',
-                      style: GoogleFonts.roboto(
+                      style: AppTextStyles.labelMedium.copyWith(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
                         color: color,
@@ -3384,7 +3284,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         Row(
           children: [
             Container(
-              padding: EdgeInsets.all(10),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
@@ -3402,18 +3302,15 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 children: [
                   Text(
                     'Video File',
-                    style: GoogleFonts.roboto(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? Colors.white : const Color(0xFF111827),
+                    style: context.themeTypography.headline.copyWith(
+                      color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     'Select your video file to upload',
-                    style: GoogleFonts.roboto(
-                      fontSize: 13,
-                      color: isDark ? Colors.white60 : const Color(0xFF6B7280),
+                    style: context.themeTypography.bodySmall.copyWith(
+                      color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -3444,14 +3341,12 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          isDark
-                              ? const Color(0xFF1F2937)
-                              : const Color(0xFFF9FAFB),
-                          isDark ? const Color(0xFF161B22) : Colors.white,
+                          if (isDark) const Color(0xFF1F2937) else const Color(0xFFF9FAFB),
+                          if (isDark) const Color(0xFF161B22) else AppColors.textPrimary,
                         ],
                       ),
                 color: hasVideo
-                    ? (isDark ? const Color(0xFF161B22) : Colors.white)
+                    ? (isDark ? const Color(0xFF161B22) : AppColors.textPrimary)
                     : null,
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(
@@ -3466,7 +3361,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   BoxShadow(
                     color: hasVideo
                         ? const Color(0xFF3B82F6).withValues(alpha: 0.2)
-                        : Colors.black.withValues(alpha: 0.05),
+                        : AppColors.bgPage.withValues(alpha: 0.05),
                     blurRadius: hasVideo ? 28 : 20,
                     offset: const Offset(0, 8),
                     spreadRadius: hasVideo ? 2 : 0,
@@ -3522,15 +3417,15 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     ),
                     if (!controller.value.isPlaying)
                       Container(
-                        padding: EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.7),
+                          color: AppColors.bgPage.withValues(alpha: 0.7),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(
                           Icons.play_arrow_rounded,
                           size: 32,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                         ),
                       ),
                   ],
@@ -3542,7 +3437,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           if (isUploading)
             Container(
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.8),
+                color: AppColors.bgPage.withValues(alpha: 0.8),
                 borderRadius: BorderRadius.circular(18),
               ),
               child: Center(
@@ -3558,25 +3453,21 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         valueColor: const AlwaysStoppedAnimation<Color>(
                           Color(0xFF3B82F6),
                         ),
-                        backgroundColor: Colors.white.withValues(alpha: 0.3),
+                        backgroundColor: AppColors.textPrimary.withValues(alpha: 0.3),
                       ),
                     ),
                     const SizedBox(height: 16),
                     Text(
                       'Uploading Video...',
-                      style: GoogleFonts.roboto(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                      style: context.themeTypography.title.copyWith(
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       '${(progress * 100).toInt()}%',
-                      style: GoogleFonts.roboto(
-                        color: Colors.white70,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
+                      style: context.themeTypography.body.copyWith(
+                        color: AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -3591,7 +3482,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               top: 16,
               right: 16,
               child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: const Color(0xFF10B981),
                   borderRadius: BorderRadius.circular(20),
@@ -3609,14 +3500,13 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     const Icon(
                       Icons.check_circle_rounded,
                       size: 16,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                     const SizedBox(width: 4),
                     Text(
                       'Uploaded',
-                      style: GoogleFonts.roboto(
-                        color: Colors.white,
-                        fontSize: 12,
+                      style: context.themeTypography.bodySmall.copyWith(
+                        color: AppColors.textPrimary,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -3632,9 +3522,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               left: 16,
               right: 16,
               child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.7),
+                  color: AppColors.bgPage.withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -3642,15 +3532,14 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     const Icon(
                       Icons.videocam_rounded,
                       size: 16,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         _uploadController.pickedVideo.value?.name ?? 'Video',
-                        style: GoogleFonts.roboto(
-                          color: Colors.white,
-                          fontSize: 12,
+                        style: context.themeTypography.bodySmall.copyWith(
+                          color: AppColors.textPrimary,
                           fontWeight: FontWeight.w500,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -3670,7 +3559,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
             shape: BoxShape.circle,
@@ -3684,27 +3573,23 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         const SizedBox(height: 20),
         Text(
           'Upload Video',
-          style: GoogleFonts.roboto(
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-            color: isDark ? Colors.white : const Color(0xFF111827),
+          style: context.themeTypography.headline.copyWith(
+            color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
           ),
         ),
         const SizedBox(height: 8),
         Text(
           'Drag and drop or click to browse',
-          style: GoogleFonts.roboto(
-            fontSize: 14,
-            color: isDark ? Colors.white60 : const Color(0xFF6B7280),
+          style: context.themeTypography.body.copyWith(
+            color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
             fontWeight: FontWeight.w500,
           ),
         ),
         const SizedBox(height: 4),
         Text(
           'MP4, MOV, AVI • Max 500MB • Up to 10 minutes',
-          style: GoogleFonts.roboto(
-            fontSize: 12,
-            color: isDark ? Colors.white38 : const Color(0xFF9CA3AF),
+          style: context.themeTypography.bodySmall.copyWith(
+            color: isDark ? AppColors.textTertiary : const Color(0xFF9CA3AF),
           ),
         ),
       ],
@@ -3718,7 +3603,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         Row(
           children: [
             Container(
-              padding: EdgeInsets.all(10),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: const Color(0xFF10B981).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
@@ -3736,18 +3621,15 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 children: [
                   Text(
                     'Thumbnail',
-                    style: GoogleFonts.roboto(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: isDark ? Colors.white : const Color(0xFF111827),
+                    style: context.themeTypography.headline.copyWith(
+                      color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     'Upload an eye-catching thumbnail image',
-                    style: GoogleFonts.roboto(
-                      fontSize: 13,
-                      color: isDark ? Colors.white60 : const Color(0xFF6B7280),
+                    style: context.themeTypography.bodySmall.copyWith(
+                      color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -3778,14 +3660,12 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          isDark
-                              ? const Color(0xFF1F2937)
-                              : const Color(0xFFF9FAFB),
-                          isDark ? const Color(0xFF161B22) : Colors.white,
+                          if (isDark) const Color(0xFF1F2937) else const Color(0xFFF9FAFB),
+                          if (isDark) const Color(0xFF161B22) else AppColors.textPrimary,
                         ],
                       ),
                 color: hasImage
-                    ? (isDark ? const Color(0xFF161B22) : Colors.white)
+                    ? (isDark ? const Color(0xFF161B22) : AppColors.textPrimary)
                     : null,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
@@ -3800,7 +3680,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   BoxShadow(
                     color: hasImage
                         ? const Color(0xFF10B981).withValues(alpha: 0.15)
-                        : Colors.black.withValues(alpha: 0.05),
+                        : AppColors.bgPage.withValues(alpha: 0.05),
                     blurRadius: hasImage ? 24 : 16,
                     offset: const Offset(0, 6),
                     spreadRadius: hasImage ? 2 : 0,
@@ -3897,7 +3777,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
-          padding: EdgeInsets.all(16),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: const Color(0xFF10B981).withValues(alpha: 0.1),
             shape: BoxShape.circle,
@@ -3911,18 +3791,15 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         const SizedBox(height: 12),
         Text(
           'Add Thumbnail',
-          style: GoogleFonts.roboto(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            color: isDark ? Colors.white : const Color(0xFF111827),
+          style: context.themeTypography.title.copyWith(
+            color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
           ),
         ),
         const SizedBox(height: 4),
         Text(
           'JPEG, PNG • 16:9 ratio recommended',
-          style: GoogleFonts.roboto(
-            fontSize: 12,
-            color: isDark ? Colors.white60 : const Color(0xFF6B7280),
+          style: context.themeTypography.bodySmall.copyWith(
+            color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
           ),
         ),
       ],
@@ -3943,11 +3820,11 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: EdgeInsets.only(left: 4, bottom: 10),
+          padding: const EdgeInsets.only(left: 4, bottom: 10),
           child: Row(
             children: [
               Container(
-                padding: EdgeInsets.all(6),
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: const Color(0xFF3B82F6).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
@@ -3957,11 +3834,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               const SizedBox(width: 10),
               Text(
                 label,
-                style: GoogleFonts.roboto(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                  color: isDark ? Colors.white : const Color(0xFF111827),
-                  letterSpacing: -0.2,
+                style: context.themeTypography.title.copyWith(
+                  color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
                 ),
               ),
             ],
@@ -3974,19 +3848,16 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             maxLines: maxLines,
             maxLength: maxLength,
             validator: validator,
-            style: GoogleFonts.roboto(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: isDark ? Colors.white : const Color(0xFF0F172A),
+            style: context.themeTypography.body.copyWith(
+              color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
               height: 1.5,
             ),
             decoration: InputDecoration(
               hintText: hint,
-              hintStyle: GoogleFonts.roboto(
+              hintStyle: context.themeTypography.body.copyWith(
                 color: isDark
-                    ? Colors.white.withValues(alpha: 0.3)
+                    ? AppColors.textPrimary.withValues(alpha: 0.3)
                     : const Color(0xFF9CA3AF),
-                fontSize: 14,
               ),
               filled: true,
               fillColor: isDark
@@ -4012,15 +3883,15 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: Color(0xFF6366F1), width: 2),
+                borderSide: const BorderSide(color: Color(0xFF6366F1), width: 2),
               ),
               errorBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: Color(0xFFEF4444), width: 1.5),
+                borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
               ),
               focusedErrorBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide(color: Color(0xFFEF4444), width: 2),
+                borderSide: const BorderSide(color: Color(0xFFEF4444), width: 2),
               ),
               contentPadding: EdgeInsets.symmetric(
                 horizontal: 18,
@@ -4042,10 +3913,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         children: [
           Text(
             'Visibility',
-            style: GoogleFonts.roboto(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: isDark ? Colors.white : const Color(0xFF111827),
+            style: AppTextStyles.titleMedium.copyWith(
+              color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
             ),
           ),
           const SizedBox(height: 12),
@@ -4055,27 +3924,23 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             final isSelected =
                 _uploadController.selectedVisibility.value == visibility;
             return Container(
-              margin: EdgeInsets.only(bottom: 8),
+              margin: const EdgeInsets.only(bottom: 8),
               child: InkWell(
                 onTap: () {
                   _uploadController.selectedVisibility.value = visibility;
                   HapticFeedback.lightImpact();
                 },
                 child: Container(
-                  padding: EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? const Color(0xFF3B82F6).withValues(alpha: 0.1)
-                        : isDark
-                        ? const Color(0xFF161B22)
-                        : Colors.white,
+                        ? AppColors.brand.withValues(alpha: 0.1)
+                        : AppColors.bgSurface,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: isSelected
-                          ? const Color(0xFF3B82F6)
-                          : isDark
-                          ? const Color(0xFF30363D)
-                          : const Color(0xFFE5E7EB),
+                          ? AppColors.brand
+                          : AppColors.bgDivider,
                     ),
                   ),
                   child: Row(
@@ -4084,10 +3949,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         _getVisibilityIcon(visibility),
                         size: 20,
                         color: isSelected
-                            ? const Color(0xFF3B82F6)
-                            : isDark
-                            ? Colors.white60
-                            : const Color(0xFF6B7280),
+                            ? AppColors.brand
+                            : AppColors.textTertiary,
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -4096,23 +3959,17 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                           children: [
                             Text(
                               visibility,
-                              style: GoogleFonts.roboto(
-                                fontSize: 14,
+                              style: AppTextStyles.bodyMedium.copyWith(
                                 fontWeight: FontWeight.w500,
                                 color: isSelected
-                                    ? const Color(0xFF3B82F6)
-                                    : isDark
-                                    ? Colors.white
-                                    : const Color(0xFF111827),
+                                    ? AppColors.brand
+                                    : AppColors.textPrimary,
                               ),
                             ),
                             Text(
                               _getVisibilityDescription(visibility),
-                              style: GoogleFonts.roboto(
-                                fontSize: 12,
-                                color: isDark
-                                    ? Colors.white60
-                                    : const Color(0xFF6B7280),
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.textSecondary,
                               ),
                             ),
                           ],
@@ -4138,9 +3995,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
   Widget _buildAudienceSettings(bool isDark) {
     return Obx(() {
       return Container(
-        padding: EdgeInsets.all(20),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF161B22) : Colors.white,
+          color: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
@@ -4149,7 +4006,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         child: Row(
           children: [
             Container(
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: const Color(0xFF10B981).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
@@ -4167,18 +4024,15 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 children: [
                   Text(
                     'Made for kids',
-                    style: GoogleFonts.roboto(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: isDark ? Colors.white : const Color(0xFF111827),
+                    style: context.themeTypography.body.copyWith(
+                      color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     'Content designed for viewers under 13',
-                    style: GoogleFonts.roboto(
-                      fontSize: 12,
-                      color: isDark ? Colors.white60 : const Color(0xFF6B7280),
+                    style: context.themeTypography.bodySmall.copyWith(
+                      color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
                     ),
                   ),
                 ],
@@ -4202,9 +4056,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
   Widget _buildScheduleSettings(bool isDark) {
     return Obx(() {
       return Container(
-        padding: EdgeInsets.all(20),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF161B22) : Colors.white,
+          color: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
@@ -4216,7 +4070,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             Row(
               children: [
                 Container(
-                  padding: EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
@@ -4234,21 +4088,18 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     children: [
                       Text(
                         'Schedule for later',
-                        style: GoogleFonts.roboto(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
+                        style: context.themeTypography.body.copyWith(
                           color: isDark
-                              ? Colors.white
+                              ? AppColors.textPrimary
                               : const Color(0xFF111827),
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Publish automatically at a specific time',
-                        style: GoogleFonts.roboto(
-                          fontSize: 12,
+                        style: context.themeTypography.bodySmall.copyWith(
                           color: isDark
-                              ? Colors.white60
+                              ? AppColors.textSecondary
                               : const Color(0xFF6B7280),
                         ),
                       ),
@@ -4272,7 +4123,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             if (_uploadController.isScheduled.value) ...[
               const SizedBox(height: 20),
               Container(
-                padding: EdgeInsets.all(16),
+                padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: const Color(0xFF8B5CF6).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
@@ -4290,9 +4141,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Scheduled: ${DateFormat('MMM d, yyyy \'at\' h:mm a').format(_uploadController.scheduledDate.value)}',
-                        style: GoogleFonts.roboto(
-                          fontSize: 12,
+                        'Scheduled: ${DateFormat("MMM d, yyyy 'at' h:mm a").format(_uploadController.scheduledDate.value)}',
+                        style: context.themeTypography.bodySmall.copyWith(
                           fontWeight: FontWeight.w500,
                           color: const Color(0xFF8B5CF6),
                         ),
@@ -4302,8 +4152,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                       onPressed: _selectScheduleDateTime,
                       child: Text(
                         'Change',
-                        style: GoogleFonts.roboto(
-                          fontSize: 12,
+                        style: context.themeTypography.bodySmall.copyWith(
                           fontWeight: FontWeight.w500,
                           color: const Color(0xFF8B5CF6),
                         ),
@@ -4334,10 +4183,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             children: [
               Text(
                 'Add to Public Playlist',
-                style: GoogleFonts.roboto(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: isDark ? Colors.white : const Color(0xFF111827),
+                style: context.themeTypography.body.copyWith(
+                  color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
                 ),
               ),
               const Spacer(),
@@ -4355,9 +4202,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 icon: const Icon(Icons.refresh_rounded, size: 18),
                 style: IconButton.styleFrom(
                   foregroundColor: isDark
-                      ? Colors.white70
+                      ? AppColors.textSecondary
                       : AppColors.textSecondary,
-                  padding: EdgeInsets.all(8),
+                  padding: const EdgeInsets.all(8),
                 ),
                 tooltip: 'Refresh public playlists',
               ),
@@ -4372,9 +4219,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
   Widget _buildNoPublicPlaylistsMessage(bool isDark) {
     return Container(
-      padding: EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF161B22) : Colors.white,
+        color: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
@@ -4385,23 +4232,20 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           Icon(
             Icons.public_rounded,
             size: 32,
-            color: isDark ? Colors.white38 : const Color(0xFF9CA3AF),
+            color: isDark ? AppColors.textTertiary : const Color(0xFF9CA3AF),
           ),
           const SizedBox(height: 12),
           Text(
             'No public playlists',
-            style: GoogleFonts.roboto(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: isDark ? Colors.white : const Color(0xFF111827),
+            style: context.themeTypography.body.copyWith(
+              color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
             ),
           ),
           const SizedBox(height: 4),
           Text(
             'Public playlists will appear here',
-            style: GoogleFonts.roboto(
-              fontSize: 12,
-              color: isDark ? Colors.white60 : const Color(0xFF6B7280),
+            style: context.themeTypography.bodySmall.copyWith(
+              color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
             ),
           ),
           const SizedBox(height: 16),
@@ -4417,14 +4261,14 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   label: const Text('Refresh'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: isDark
-                        ? Colors.white70
+                        ? AppColors.textSecondary
                         : AppColors.textSecondary,
                     side: BorderSide(
                       color: isDark
                           ? const Color(0xFF30363D)
                           : const Color(0xFFE5E7EB),
                     ),
-                    padding: EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -4439,8 +4283,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   label: const Text('Create'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF3B82F6),
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 12),
+                    foregroundColor: AppColors.textPrimary,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -4455,19 +4299,17 @@ class _CreateContentScreenState extends State<CreateContentScreen>
   }
 
   void _showCreatePublicPlaylistDialog(bool isDark) {
-    final TextEditingController nameController = TextEditingController();
+    final nameController = TextEditingController();
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF161B22) : Colors.white,
+        backgroundColor: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Create Public Playlist',
-          style: GoogleFonts.roboto(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: isDark ? Colors.white : const Color(0xFF111827),
+          style: context.themeTypography.headline.copyWith(
+            color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
           ),
         ),
         content: Column(
@@ -4476,23 +4318,21 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           children: [
             Text(
               'Playlist Name',
-              style: GoogleFonts.roboto(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: isDark ? Colors.white70 : AppColors.textSecondary,
+              style: context.themeTypography.label.copyWith(
+                color: isDark ? AppColors.textSecondary : AppColors.textSecondary,
               ),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: nameController,
               autofocus: true,
-              style: GoogleFonts.roboto(
-                color: isDark ? Colors.white : const Color(0xFF111827),
+              style: context.themeTypography.body.copyWith(
+                color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
               ),
               decoration: InputDecoration(
                 hintText: 'Enter playlist name',
-                hintStyle: GoogleFonts.roboto(
-                  color: isDark ? Colors.white38 : const Color(0xFF9CA3AF),
+                hintStyle: context.themeTypography.body.copyWith(
+                  color: isDark ? AppColors.textTertiary : const Color(0xFF9CA3AF),
                 ),
                 filled: true,
                 fillColor: isDark
@@ -4502,7 +4342,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: EdgeInsets.symmetric(
+                contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 14,
                 ),
@@ -4515,8 +4355,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             onPressed: () => Navigator.pop(context),
             child: Text(
               'Cancel',
-              style: GoogleFonts.roboto(
-                color: isDark ? Colors.white70 : AppColors.textSecondary,
+              style: context.themeTypography.body.copyWith(
+                color: isDark ? AppColors.textSecondary : AppColors.textSecondary,
               ),
             ),
           ),
@@ -4545,14 +4385,14 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF3B82F6),
-              foregroundColor: Colors.white,
+              foregroundColor: AppColors.textPrimary,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
             child: Text(
               'Create',
-              style: GoogleFonts.roboto(fontWeight: FontWeight.w500),
+              style: context.themeTypography.button,
             ),
           ),
         ],
@@ -4567,7 +4407,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     return Obx(() {
       final currentPlaylistId = _uploadController.selectedPlaylist.value;
 
-      List<DropdownMenuItem<String>> items = playlists.map((playlist) {
+      final items = playlists.map((playlist) {
         return DropdownMenuItem<String>(
           key: ValueKey('playlist_${playlist.id}'),
           value: playlist.id,
@@ -4579,7 +4419,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         0,
         const DropdownMenuItem<String>(
           value: '',
-          child: Text('None (don\'t add to playlist)'),
+          child: Text("None (don't add to playlist)"),
         ),
       );
 
@@ -4617,7 +4457,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             color: Color(0xFF3B82F6),
           ),
           filled: true,
-          fillColor: isDark ? const Color(0xFF161B22) : Colors.white,
+          fillColor: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide(
@@ -4632,14 +4472,13 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: Color(0xFF3B82F6), width: 2),
+            borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
           ),
-          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
-        dropdownColor: isDark ? const Color(0xFF161B22) : Colors.white,
-        style: GoogleFonts.roboto(
-          fontSize: 14,
-          color: isDark ? Colors.white : const Color(0xFF111827),
+        dropdownColor: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
+        style: context.themeTypography.body.copyWith(
+          color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
         ),
         items: items,
         onChanged: (String? value) {
@@ -4656,7 +4495,21 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
   Widget _buildTopicSelection(bool isDark) {
     return Obx(() {
-      final topics = _uploadController.availableTopics.toList();
+      final selectedSlug = _uploadController.selectedTopicId.value;
+      final hasDraft = _uploadController.newTopicData.isNotEmpty;
+      final topics = _uploadController.availableTopics;
+
+      Topic? selectedTopic;
+      if (selectedSlug.isNotEmpty && selectedSlug != 'new_topic_draft') {
+        for (final t in topics) {
+          if (t.slug == selectedSlug) {
+            selectedTopic = t;
+            break;
+          }
+        }
+      }
+
+      final draftTitle = hasDraft ? (_uploadController.newTopicData['title'] as String? ?? 'New Draft') : '';
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4665,10 +4518,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             children: [
               Text(
                 'Add to Topic',
-                style: GoogleFonts.roboto(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: isDark ? Colors.white : const Color(0xFF111827),
+                style: context.themeTypography.title.copyWith(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
                 ),
               ),
               const Spacer(),
@@ -4679,296 +4532,202 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               else
-                IconButton(
-                  onPressed: () async {
-                    await _uploadController.fetchAvailableTopics();
-                    Get.snackbar(
-                      'Refreshing',
-                      'Loading available topics...',
-                      snackPosition: SnackPosition.BOTTOM,
-                      duration: const Duration(seconds: 1),
-                    );
-                  },
-                  icon: const Icon(Icons.refresh_rounded, size: 18),
-                  style: IconButton.styleFrom(
-                    foregroundColor: isDark
-                        ? Colors.white70
-                        : const Color(0xFF6B7280),
-                    padding: const EdgeInsets.all(8),
+                TextButton.icon(
+                  onPressed: () => _showCreateTopicModal(isDark),
+                  icon: const Icon(Icons.add_rounded, size: 16),
+                  label: const Text('+ New Topic'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF3B82F6),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   ),
-                  tooltip: 'Refresh topics',
                 ),
             ],
           ),
           const SizedBox(height: 8),
-          _buildTopicDropdown(topics, isDark),
-        ],
-      );
-    });
-  }
 
-  Widget _buildTopicDropdown(List<Topic> topics, bool isDark) {
-    return Obx(() {
-      final currentTopicId = _uploadController.selectedTopicId.value;
-      final hasNewTopicDraft = _uploadController.newTopicData.isNotEmpty;
-      final draftTitle = hasNewTopicDraft ? _uploadController.newTopicData['title'] as String : '';
-
-      List<DropdownMenuItem<String>> items = [];
-
-      items.add(
-        const DropdownMenuItem<String>(
-          value: '',
-          child: Text('None (don\'t add to topic)'),
-        ),
-      );
-
-      // Add existing topics
-      for (var topic in topics) {
-        IconData visIcon = Icons.public_rounded;
-        Color visColor = Colors.green;
-        if (topic.visibilityType == TopicVisibilityType.private) {
-          visIcon = Icons.lock_rounded;
-          visColor = Colors.amber;
-        } else if (topic.visibilityType == TopicVisibilityType.channelOnly) {
-          visIcon = Icons.person_rounded;
-          visColor = Colors.blue;
-        }
-
-        items.add(
-          DropdownMenuItem<String>(
-            key: ValueKey('topic_${topic.slug}'),
-            value: topic.slug,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(visIcon, size: 14, color: visColor),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    topic.title,
-                    overflow: TextOverflow.ellipsis,
+          // Selected Topic Trigger Card
+          InkWell(
+            onTap: () => TopicSelectionBottomSheet.show(
+              context,
+              _uploadController,
+              onCreateNewTopic: _showCreateTopicModal,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: (selectedTopic != null || hasDraft)
+                      ? const Color(0xFF3B82F6)
+                      : (isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB)),
+                  width: (selectedTopic != null || hasDraft) ? 1.5 : 1.0,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.bgPage.withValues(alpha: 0.04),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
                   ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-
-      // Add mock item for the unsaved draft
-      if (hasNewTopicDraft) {
-        items.add(
-          DropdownMenuItem<String>(
-            value: 'new_topic_draft',
-            child: Row(
-              children: [
-                const Icon(Icons.edit_document, size: 14, color: Colors.purpleAccent),
-                const SizedBox(width: 8),
-                Text(
-                  'Draft: $draftTitle',
-                  style: const TextStyle(
-                    color: Colors.purpleAccent,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-
-      items.add(
-        const DropdownMenuItem<String>(
-          value: 'add_private_by_passcode',
-          child: Row(
-            children: [
-              Icon(Icons.vpn_key_rounded, size: 16, color: Colors.amber),
-              SizedBox(width: 8),
-              Text(
-                'Add Private Topic by Passcode',
-                style: TextStyle(
-                  color: Colors.amber,
-                  fontWeight: FontWeight.w500,
-                ),
+                ],
               ),
-            ],
-          ),
-        ),
-      );
-
-      items.add(
-        const DropdownMenuItem<String>(
-          value: 'create_new_topic',
-          child: Row(
-            children: [
-              Icon(Icons.add_rounded, size: 16, color: Color(0xFF3B82F6)),
-              SizedBox(width: 8),
-              Text(
-                'Create new topic',
-                style: TextStyle(
-                  color: Color(0xFF3B82F6),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-
-      String initialVal = '';
-      if (hasNewTopicDraft && currentTopicId == 'new_topic_draft') {
-        initialVal = 'new_topic_draft';
-      } else if (items.any((item) => item.value == currentTopicId)) {
-        initialVal = currentTopicId;
-      }
-
-      return DropdownButtonFormField<String>(
-        key: ValueKey(
-          'topic_dropdown_${topics.length}_${currentTopicId}_$hasNewTopicDraft',
-        ),
-        initialValue: initialVal,
-        decoration: InputDecoration(
-          hintText: 'Select topic',
-          prefixIcon: const Icon(
-            Icons.topic_rounded,
-            size: 20,
-            color: Color(0xFF3B82F6),
-          ),
-          filled: true,
-          fillColor: isDark ? const Color(0xFF161B22) : Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
-            ),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(
-              color: isDark ? const Color(0xFF30363D) : const Color(0xFFE5E7EB),
-            ),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: const Color(0xFF3B82F6), width: 2),
-          ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        ),
-        dropdownColor: isDark ? const Color(0xFF161B22) : Colors.white,
-        style: GoogleFonts.roboto(
-          fontSize: 14,
-          color: isDark ? Colors.white : const Color(0xFF111827),
-        ),
-        items: items,
-        onChanged: (String? value) {
-          if (value == 'create_new_topic') {
-            _showCreateTopicModal(isDark);
-          } else if (value == 'add_private_by_passcode') {
-            _showAddPrivateTopicByPasscodeModal(isDark);
-          } else {
-            _uploadController.selectTopic(value ?? '');
-            if (value != 'new_topic_draft') {
-              _uploadController.newTopicData.clear();
-            }
-            HapticFeedback.lightImpact();
-          }
-        },
-      );
-    });
-  }
-
-  void _showAddPrivateTopicByPasscodeModal(bool isDark) {
-    final slugController = TextEditingController();
-    final passcodeController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-    final isUnlocking = false.obs;
-
-    Get.dialog(
-      AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF161B22) : Colors.white,
-        title: Text(
-          'Unlock Private Topic',
-          style: GoogleFonts.roboto(
-            fontWeight: FontWeight.bold,
-            color: isDark ? Colors.white : const Color(0xFF111827),
-          ),
-        ),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: slugController,
-                style: TextStyle(color: isDark ? Colors.white : Colors.black),
-                decoration: const InputDecoration(
-                  labelText: 'Topic Slug',
-                  hintText: 'e.g. artificial-intelligence',
-                ),
-                validator: (val) {
-                  if (val == null || val.trim().isEmpty) {
-                    return 'Slug is required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: passcodeController,
-                obscureText: true,
-                style: TextStyle(color: isDark ? Colors.white : Colors.black),
-                decoration: const InputDecoration(
-                  labelText: 'Passcode',
-                  hintText: 'Enter passcode',
-                ),
-                validator: (val) {
-                  if (val == null || val.trim().isEmpty) {
-                    return 'Passcode is required';
-                  }
-                  return null;
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              _uploadController.selectTopic('');
-              Get.back();
-            },
-            child: const Text('Cancel'),
-          ),
-          Obx(() {
-            return ElevatedButton(
-              onPressed: isUnlocking.value
-                  ? null
-                  : () async {
-                      if (formKey.currentState!.validate()) {
-                        isUnlocking.value = true;
-                        final success = await _uploadController.unlockPrivateTopic(
-                          slugController.text.trim(),
-                          passcodeController.text.trim(),
-                        );
-                        isUnlocking.value = false;
-                        if (success) {
-                          Get.back();
-                        }
-                      }
-                    },
-              child: isUnlocking.value
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+              child: Row(
+                children: [
+                  // Topic Thumbnail or Icon
+                  if (hasDraft)
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: AppColors.brand.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.edit_document, color: AppColors.brandHover, size: 22),
                     )
-                  : const Text('Unlock & Add'),
-            );
-          }),
+                  else if (selectedTopic != null)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        width: 46,
+                        height: 46,
+                        color: isDark ? const Color(0xFF21262D) : const Color(0xFFE5E7EB),
+                        child: (selectedTopic.thumbnailUrl ?? selectedTopic.coverImage) != null &&
+                                (selectedTopic.thumbnailUrl ?? selectedTopic.coverImage)!.isNotEmpty
+                            ? Image.network(
+                                (selectedTopic.thumbnailUrl ?? selectedTopic.coverImage)!,
+                                width: 46,
+                                height: 46,
+                                fit: BoxFit.cover,
+                              )
+                            : ColoredBox(
+                                color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+                                child: const Icon(Icons.topic_rounded, color: Color(0xFF3B82F6), size: 22),
+                              ),
+                      ),
+                    )
+                  else
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration: BoxDecoration(
+                        color: isDark ? const Color(0xFF21262D) : const Color(0xFFF3F4F6),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(
+                        Icons.topic_rounded,
+                        color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
+                        size: 22,
+                      ),
+                    ),
+
+                  const SizedBox(width: 14),
+
+                  // Info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (hasDraft) ...[
+                          Text(
+                            'Draft: $draftTitle',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.brandHover,
+                            ),
+                          ),
+                          Text(
+                            'Will be created upon upload',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ] else if (selectedTopic != null) ...[
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  selectedTopic.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTextStyles.bodyMedium.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ),
+                              if (selectedTopic.visibilityType == TopicVisibilityType.private)
+                                const Icon(Icons.lock_rounded, size: 14, color: AppColors.warning)
+                              else if (selectedTopic.visibilityType == TopicVisibilityType.channelOnly)
+                                const Icon(Icons.group_rounded, size: 14, color: AppColors.info)
+                              else
+                                const Icon(Icons.public_rounded, size: 14, color: AppColors.success),
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Text(
+                                '${FormatUtils.formatCount(selectedTopic.followerCount)} followers • ${FormatUtils.formatCount(selectedTopic.videoCount)} videos',
+                                style: AppTextStyles.caption.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          Text(
+                            'Select Topic knowledge hub',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Tap to search and select a topic or create new',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(width: 10),
+
+                  // Action Chevron / Clear button
+                  if (selectedTopic != null || hasDraft)
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      onPressed: () {
+                        _uploadController.selectTopic('');
+                        _uploadController.newTopicData.clear();
+                        HapticFeedback.lightImpact();
+                      },
+                      tooltip: 'Remove topic',
+                      style: IconButton.styleFrom(
+                        foregroundColor: AppColors.textSecondary,
+                        padding: const EdgeInsets.all(4),
+                      ),
+                    )
+                  else
+                    const Icon(
+                      Icons.search_rounded,
+                      color: AppColors.brand,
+                      size: 20,
+                    ),
+                ],
+              ),
+            ),
+          ),
         ],
-      ),
-    );
+      );
+    });
   }
+
+
 
   void _showCreateTopicModal(bool isDark) {
     final titleController = TextEditingController();
@@ -4981,20 +4740,20 @@ class _CreateContentScreenState extends State<CreateContentScreen>
     final obscureAccessCode = true.obs;
     
     final thumbnailSource = 'video'.obs;
-    final Rx<Uint8List?> customImageBytes = Rx<Uint8List?>(null);
-    final RxString customImageName = ''.obs;
+    final customImageBytes = Rx<Uint8List?>(null);
+    final customImageName = ''.obs;
 
     final formKey = GlobalKey<FormState>();
 
     Get.dialog(
       Obx(() {
         return AlertDialog(
-          backgroundColor: isDark ? const Color(0xFF161B22) : Colors.white,
+          backgroundColor: AppColors.bgSurface,
           title: Text(
             'Create New Topic',
-            style: GoogleFonts.roboto(
+            style: AppTextStyles.titleMedium.copyWith(
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : const Color(0xFF111827),
+              color: AppColors.textPrimary,
             ),
           ),
           content: SingleChildScrollView(
@@ -5006,7 +4765,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 children: [
                   TextFormField(
                     controller: titleController,
-                    style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                    style: TextStyle(color: isDark ? AppColors.textPrimary : AppColors.bgPage),
                     decoration: const InputDecoration(
                       labelText: 'Topic Title',
                       hintText: 'Enter topic title',
@@ -5024,7 +4783,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: handleController,
-                    style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                    style: TextStyle(color: isDark ? AppColors.textPrimary : AppColors.bgPage),
                     decoration: const InputDecoration(
                       labelText: 'Topic Handle',
                       hintText: 'e.g. war',
@@ -5041,7 +4800,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: descriptionController,
-                    style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                    style: TextStyle(color: isDark ? AppColors.textPrimary : AppColors.bgPage),
                     decoration: const InputDecoration(
                       labelText: 'Description',
                       hintText: 'Enter topic description',
@@ -5052,8 +4811,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   
                   DropdownButtonFormField<String>(
                     initialValue: categoryController.text,
-                    dropdownColor: isDark ? const Color(0xFF161B22) : Colors.white,
-                    style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                    dropdownColor: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
+                    style: TextStyle(color: isDark ? AppColors.textPrimary : AppColors.bgPage),
                     decoration: const InputDecoration(
                       labelText: 'Category',
                     ),
@@ -5076,14 +4835,14 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white70 : Colors.black87,
+                      color: isDark ? AppColors.textSecondary : AppColors.bgPage,
                     ),
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<TopicVisibilityType>(
                     initialValue: selectedVisibility.value,
-                    dropdownColor: isDark ? const Color(0xFF161B22) : Colors.white,
-                    style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                    dropdownColor: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
+                    style: TextStyle(color: isDark ? AppColors.textPrimary : AppColors.bgPage),
                     items: const [
                       DropdownMenuItem(
                         value: TopicVisibilityType.public,
@@ -5106,7 +4865,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     TextFormField(
                       controller: accessCodeController,
                       obscureText: obscureAccessCode.value,
-                      style: TextStyle(color: isDark ? Colors.white : Colors.black),
+                      style: TextStyle(color: isDark ? AppColors.textPrimary : AppColors.bgPage),
                       decoration: InputDecoration(
                         labelText: 'Passcode',
                         hintText: 'Enter passcode',
@@ -5116,7 +4875,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                                 ? Icons.visibility_off
                                 : Icons.visibility,
                           ),
-                          onPressed: () => obscureAccessCode.toggle(),
+                          onPressed: obscureAccessCode.toggle,
                         ),
                       ),
                       validator: (val) {
@@ -5139,7 +4898,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white70 : Colors.black87,
+                      color: isDark ? AppColors.textSecondary : AppColors.bgPage,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -5218,7 +4977,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   }
                   
                   // Clean handle
-                  String cleanHandle = handleVal;
+                  var cleanHandle = handleVal;
                   if (cleanHandle.startsWith('T/')) {
                     cleanHandle = cleanHandle.substring(2);
                   }
@@ -5226,14 +4985,14 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     cleanHandle = cleanHandle.substring(2);
                   }
                   cleanHandle = cleanHandle
-                      .replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '-')
-                      .replaceAll(RegExp(r'-+'), '-');
+                      .replaceAll(RegExp('[^a-zA-Z0-9_-]'), '-')
+                      .replaceAll(RegExp('-+'), '-');
                   if (cleanHandle.isEmpty) {
                     Get.snackbar('Error', 'Topic handle must contain alphanumeric characters');
                     return;
                   }
-                  final String finalHandle = 'T/$cleanHandle';
-                  final String finalHandleLowercase = finalHandle.toLowerCase();
+                  final finalHandle = 'T/$cleanHandle';
+                  final finalHandleLowercase = finalHandle.toLowerCase();
 
                   // Check handle uniqueness in Firestore
                   final existingHandle = await FirebaseFirestore.instance
@@ -5288,10 +5047,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         children: [
           Text(
             'Publishing channel',
-            style: GoogleFonts.roboto(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: isDark ? Colors.white : const Color(0xFF111827),
+            style: AppTextStyles.titleMedium.copyWith(
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 12),
@@ -5313,7 +5070,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
             color: Color(0xFF3B82F6),
           ),
           filled: true,
-          fillColor: isDark ? const Color(0xFF161B22) : Colors.white,
+          fillColor: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
             borderSide: BorderSide(
@@ -5328,14 +5085,14 @@ class _CreateContentScreenState extends State<CreateContentScreen>
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: Color(0xFF3B82F6), width: 2),
+            borderSide: const BorderSide(color: Color(0xFF3B82F6), width: 2),
           ),
-          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
-        dropdownColor: isDark ? const Color(0xFF161B22) : Colors.white,
-        style: GoogleFonts.roboto(
+        dropdownColor: AppColors.bgSurface,
+        style: AppTextStyles.bodyMedium.copyWith(
           fontSize: 14,
-          color: isDark ? Colors.white : const Color(0xFF111827),
+          color: AppColors.textPrimary,
         ),
         items: _uploadController.channels.map((channel) {
           return DropdownMenuItem<String>(
@@ -5357,9 +5114,8 @@ class _CreateContentScreenState extends State<CreateContentScreen>
   }
 
   void showCreatePlaylistModal(bool isDark) {
-    final TextEditingController playListNameController =
+    final playListNameController =
         TextEditingController();
-    final colorScheme = Theme.of(context).colorScheme;
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
 
@@ -5368,35 +5124,28 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       useSafeArea: true,
-      enableDrag: true,
       showDragHandle: false,
       builder: (context) {
-        bool isPublic = true;
+        const isPublic = true;
         return AnimatedContainer(
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOutCubic,
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [colorScheme.surface, Colors.black],
-            ),
+            color: AppColors.bgSurface,
             borderRadius: const BorderRadius.only(
               topLeft: Radius.circular(28),
               topRight: Radius.circular(28),
             ),
-            border: Border(
+            border: const Border(
               top: BorderSide(
-                color: Colors.white.withValues(alpha: 0.08),
-                width: 1,
+                color: AppColors.bgDivider,
               ),
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.6),
+                color: AppColors.bgPage.withValues(alpha: 0.6),
                 blurRadius: 32,
                 offset: const Offset(0, -8),
-                spreadRadius: 0,
               ),
             ],
           ),
@@ -5416,7 +5165,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     width: 48,
                     height: 5,
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.3),
+                      color: AppColors.textTertiary,
                       borderRadius: BorderRadius.circular(3),
                     ),
                   ),
@@ -5425,21 +5174,20 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 Row(
                   children: [
                     Container(
-                      padding: EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            Color(0xFF1DB954).withValues(alpha: 0.2),
-                            Color(0xFF106E3A).withValues(alpha: 0.1),
+                            const Color(0xFF1DB954).withValues(alpha: 0.2),
+                            const Color(0xFF106E3A).withValues(alpha: 0.1),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(
-                          color: Color(0xFF1DB954).withValues(alpha: 0.3),
-                          width: 1,
+                          color: const Color(0xFF1DB954).withValues(alpha: 0.3),
                         ),
                       ),
-                      child: Icon(
+                      child: const Icon(
                         Icons.playlist_add_rounded,
                         color: Color(0xFF1DB954),
                         size: 24,
@@ -5451,21 +5199,21 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            "Create Playlist",
-                            style: GoogleFonts.roboto(
+                            'Create Playlist',
+                            style: AppTextStyles.titleLarge.copyWith(
                               fontSize: isTablet ? 26 : 22,
                               fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                               letterSpacing: -0.5,
                             ),
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            "Name your new collection",
-                            style: GoogleFonts.roboto(
+                            'Name your new collection',
+                            style: AppTextStyles.caption.copyWith(
                               fontSize: 14,
                               fontWeight: FontWeight.w400,
-                              color: Colors.white.withValues(alpha: 0.6),
+                              color: AppColors.textSecondary,
                               letterSpacing: 0,
                             ),
                           ),
@@ -5480,7 +5228,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
+                        color: AppColors.bgPage.withValues(alpha: 0.2),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -5488,50 +5236,40 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                   ),
                   child: TextField(
                     controller: playListNameController,
-                    style: GoogleFonts.roboto(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
-                      fontSize: 16,
-                    ),
+                    style: AppTextStyles.inputText,
                     decoration: InputDecoration(
-                      labelText: "Playlist Name",
-                      labelStyle: GoogleFonts.roboto(
-                        color: Colors.white.withValues(alpha: 0.7),
-                        fontWeight: FontWeight.w400,
-                      ),
-                      hintText: "Enter a descriptive name...",
-                      hintStyle: GoogleFonts.roboto(
-                        color: Colors.white.withValues(alpha: 0.4),
-                        fontWeight: FontWeight.w400,
-                      ),
-                      prefixIcon: Icon(
+                      labelText: 'Playlist Name',
+                      labelStyle: AppTextStyles.inputHint,
+                      hintText: 'Enter a descriptive name...',
+                      hintStyle: AppTextStyles.inputHint,
+                      prefixIcon: const Icon(
                         Icons.title_rounded,
-                        color: Colors.white.withValues(alpha: 0.6),
+                        color: AppColors.textTertiary,
                       ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(20),
-                        borderSide: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.3),
+                        borderSide: const BorderSide(
+                          color: AppColors.bgDivider,
                           width: 1.5,
                         ),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(20),
-                        borderSide: BorderSide(
-                          color: Colors.white.withValues(alpha: 0.3),
+                        borderSide: const BorderSide(
+                          color: AppColors.bgDivider,
                           width: 1.5,
                         ),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(20),
-                        borderSide: BorderSide(
+                        borderSide: const BorderSide(
                           color: Color(0xFF1DB954),
                           width: 2,
                         ),
                       ),
                       filled: true,
-                      fillColor: Colors.grey[900],
-                      contentPadding: EdgeInsets.symmetric(
+                      fillColor: AppColors.bgInput,
+                      contentPadding: const EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 16,
                       ),
@@ -5550,7 +5288,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: Color(0xFF1DB954).withValues(alpha: 0.3),
+                        color: const Color(0xFF1DB954).withValues(alpha: 0.3),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -5570,15 +5308,15 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                     ),
                     icon: const Icon(
                       Icons.add_rounded,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       size: 20,
                     ),
                     label: Text(
-                      "CREATE PLAYLIST",
-                      style: GoogleFonts.roboto(
+                      'CREATE PLAYLIST',
+                      style: AppTextStyles.buttonText.copyWith(
                         fontWeight: FontWeight.w700,
                         fontSize: isTablet ? 17 : 16,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         letterSpacing: 0.5,
                       ),
                     ),
@@ -5586,17 +5324,16 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                       final playlistName = playListNameController.text.trim();
                       if (playlistName.isEmpty) {
                         Get.snackbar(
-                          "Missing Information",
-                          "Please enter a playlist name",
+                          'Missing Information',
+                          'Please enter a playlist name',
                           snackPosition: SnackPosition.TOP,
                           backgroundColor: const Color(0xFFEF4444),
-                          colorText: Colors.white,
+                          colorText: AppColors.textPrimary,
                           borderRadius: 12,
-                          margin: EdgeInsets.all(16),
-                          duration: const Duration(seconds: 3),
+                          margin: const EdgeInsets.all(16),
                           icon: const Icon(
                             Icons.error_outline,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                           ),
                         );
                         return;
@@ -5631,17 +5368,16 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                       }
 
                       Get.snackbar(
-                        "Success",
-                        "Playlist created successfully!",
+                        'Success',
+                        'Playlist created successfully!',
                         snackPosition: SnackPosition.TOP,
                         backgroundColor: const Color(0xFF1DB954),
-                        colorText: Colors.white,
+                        colorText: AppColors.textPrimary,
                         borderRadius: 12,
-                        margin: EdgeInsets.all(16),
-                        duration: const Duration(seconds: 3),
+                        margin: const EdgeInsets.all(16),
                         icon: const Icon(
                           Icons.check_circle_outline,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                         ),
                       );
                     },

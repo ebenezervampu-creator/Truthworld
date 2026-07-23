@@ -1,48 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:truthworld/data/models/user_model.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
+import 'package:truthworld/data/models/user_model.dart';
 
 /// User profile model for storing user data in Firestore
 class UserProfile {
-  final String uid;
-  final String email;
-  final String? displayName;
-  final String? photoUrl;
-  final String provider; // 'google', 'email', 'apple', etc.
-  final DateTime createdAt;
-  final DateTime lastLogin;
-  final bool isEmailVerified;
-  final bool isActive;
-  final Map<String, dynamic>? metadata;
 
   UserProfile({
     required this.uid,
     required this.email,
-    this.displayName,
+    required this.provider, required this.createdAt, required this.lastLogin, this.displayName,
     this.photoUrl,
-    required this.provider,
-    required this.createdAt,
-    required this.lastLogin,
     this.isEmailVerified = false,
     this.isActive = true,
     this.metadata,
   });
-
-  /// Convert to Firestore document
-  Map<String, dynamic> toFirestore() {
-    return {
-      'uid': uid,
-      'email': email,
-      'displayName': displayName,
-      'photoUrl': photoUrl,
-      'provider': provider,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'lastLogin': Timestamp.fromDate(lastLogin),
-      'isEmailVerified': isEmailVerified,
-      'isActive': isActive,
-      'metadata': metadata,
-    };
-  }
 
   /// Create from Firestore document
   factory UserProfile.fromFirestore(
@@ -79,9 +50,34 @@ class UserProfile {
       createdAt: firebaseUser.createdAt ?? now,
       lastLogin: now,
       isEmailVerified: firebaseUser.metadata['emailVerified'] as bool? ?? false,
-      isActive: true,
       metadata: metadata,
     );
+  }
+  final String uid;
+  final String email;
+  final String? displayName;
+  final String? photoUrl;
+  final String provider; // 'google', 'email', 'apple', etc.
+  final DateTime createdAt;
+  final DateTime lastLogin;
+  final bool isEmailVerified;
+  final bool isActive;
+  final Map<String, dynamic>? metadata;
+
+  /// Convert to Firestore document
+  Map<String, dynamic> toFirestore() {
+    return {
+      'uid': uid,
+      'email': email,
+      'displayName': displayName,
+      'photoUrl': photoUrl,
+      'provider': provider,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'lastLogin': Timestamp.fromDate(lastLogin),
+      'isEmailVerified': isEmailVerified,
+      'isActive': isActive,
+      'metadata': metadata,
+    };
   }
 
   /// Create a copy with updated fields

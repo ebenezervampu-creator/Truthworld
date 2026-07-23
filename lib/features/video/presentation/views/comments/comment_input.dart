@@ -2,22 +2,21 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
-import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Modern, responsive, and adaptive CommentInput with enhanced UI/UX
 /// Preserves all original backend functionality while providing premium user experience
 class ModernCommentInput extends StatefulWidget {
-  final String videoId;
-  final bool enableComments;
 
   const ModernCommentInput({
     required this.videoId,
-    super.key,
-    required this.enableComments,
+    required this.enableComments, super.key,
   });
+  final String videoId;
+  final bool enableComments;
 
   @override
   State<ModernCommentInput> createState() => _ModernCommentInputState();
@@ -110,8 +109,8 @@ class _ModernCommentInputState extends State<ModernCommentInput>
 
     // Elevation Animation (no context dependency)
     _elevationAnimation = Tween<double>(
-      begin: 0.0,
-      end: 8.0,
+      begin: 0,
+      end: 8,
     ).animate(_focusAnimation);
   }
 
@@ -220,13 +219,13 @@ class _ModernCommentInputState extends State<ModernCommentInput>
   void _showSuccessSnackBar() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
+        content: const Row(
           children: [
-            Icon(Icons.check_circle_outline, color: Colors.white, size: 20),
-            const SizedBox(width: 12),
+            Icon(Icons.check_circle_outline, color: AppColors.textPrimary, size: 20),
+            SizedBox(width: 12),
             Text(
               'Comment posted successfully',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontWeight: FontWeight.w500,
                 fontSize: 14,
               ),
@@ -241,7 +240,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
           right: 16,
         ),
         duration: const Duration(seconds: 2),
-        backgroundColor: Colors.green.shade600,
+        backgroundColor: AppColors.success,
       ),
     );
   }
@@ -249,13 +248,13 @@ class _ModernCommentInputState extends State<ModernCommentInput>
   void _showErrorSnackBar() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Row(
+        content: const Row(
           children: [
-            Icon(Icons.error_outline, color: Colors.white, size: 20),
-            const SizedBox(width: 12),
+            Icon(Icons.error_outline, color: AppColors.textPrimary, size: 20),
+            SizedBox(width: 12),
             Text(
               'Failed to post comment. Please try again.',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontWeight: FontWeight.w500,
                 fontSize: 14,
               ),
@@ -270,10 +269,10 @@ class _ModernCommentInputState extends State<ModernCommentInput>
           right: 16,
         ),
         duration: const Duration(seconds: 3),
-        backgroundColor: Colors.red.shade600,
+        backgroundColor: AppColors.error,
         action: SnackBarAction(
           label: 'Retry',
-          textColor: Colors.white,
+          textColor: AppColors.textPrimary,
           onPressed: _submitComment,
         ),
       ),
@@ -282,32 +281,32 @@ class _ModernCommentInputState extends State<ModernCommentInput>
 
   @override
   Widget build(BuildContext context) {
-    final bool isUserSignedIn = FirebaseAuth.instance.currentUser != null;
+    final isUserSignedIn = FirebaseAuth.instance.currentUser != null;
     final theme = Theme.of(context);
     final size = MediaQuery.of(context).size;
 
     // Responsive breakpoints
-    final bool isMobile = size.width < 600;
-    final bool isTablet = size.width >= 600 && size.width < 1000;
-    final bool isDesktop = size.width >= 1000;
+    final isMobile = size.width < 600;
+    final isTablet = size.width >= 600 && size.width < 1000;
+    final isDesktop = size.width >= 1000;
 
     // Responsive dimensions
-    final double horizontalPadding = isMobile
+    final horizontalPadding = isMobile
         ? 12.0
         : isTablet
         ? 16.0
         : 20.0;
-    final double verticalPadding = isMobile
+    final verticalPadding = isMobile
         ? 12.0
         : isTablet
         ? 16.0
         : 20.0;
-    final double avatarRadius = isMobile
+    final avatarRadius = isMobile
         ? 20.0
         : isTablet
         ? 24.0
         : 28.0;
-    final double iconSize = isMobile
+    final iconSize = isMobile
         ? 20.0
         : isTablet
         ? 22.0
@@ -353,7 +352,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
           final isHovering = _isHovering.value;
           return AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            transform: Matrix4.identity()..scaleByDouble(isHovering ? 1.02 : 1.0, isHovering ? 1.02 : 1.0, 1.0, 1.0),
+            transform: Matrix4.identity()..scaleByDouble(isHovering ? 1.02 : 1.0, isHovering ? 1.02 : 1.0, 1, 1),
             child: Card(
               elevation: isHovering ? 8 : 2,
               margin: EdgeInsets.zero,
@@ -361,7 +360,6 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                 borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
                 side: BorderSide(
                   color: theme.colorScheme.outline.withValues(alpha: 0.2),
-                  width: 1,
                 ),
               ),
               color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
@@ -393,7 +391,6 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                         ),
                         border: Border.all(
                           color: theme.colorScheme.primary.withValues(alpha: 0.3),
-                          width: 1,
                         ),
                       ),
                       child: Icon(
@@ -409,7 +406,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                         children: [
                           Text(
                             'Join the conversation',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               color: theme.colorScheme.onSurfaceVariant,
                               fontSize: isMobile ? 14 : 16,
                               fontWeight: FontWeight.w500,
@@ -419,7 +416,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                           const SizedBox(height: 2),
                           Text(
                             'Sign in to share your thoughts',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               color: theme.colorScheme.onSurfaceVariant
                                   .withValues(alpha: 0.7),
                               fontSize: isMobile ? 12 : 13,
@@ -454,7 +451,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
-                          foregroundColor: Colors.white,
+                          foregroundColor: AppColors.textPrimary,
                           elevation: 0,
                           padding: EdgeInsets.symmetric(
                             horizontal: isMobile ? 16 : 20,
@@ -469,7 +466,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                         icon: Icon(Icons.login_rounded, size: iconSize - 2),
                         label: Text(
                           'Sign In',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontWeight: FontWeight.w500,
                             fontSize: isMobile ? 13 : 14,
                           ),
@@ -525,7 +522,6 @@ class _ModernCommentInputState extends State<ModernCommentInput>
     return Hero(
       tag: 'user_avatar_${user.uid}',
       child: Material(
-        elevation: 0,
         shape: const CircleBorder(),
         clipBehavior: Clip.hardEdge,
         color: Colors.transparent,
@@ -613,7 +609,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                     ]
                   : [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
+                        color: AppColors.bgPage.withValues(alpha: 0.05),
                         blurRadius: 4,
                         offset: const Offset(0, 1),
                       ),
@@ -632,7 +628,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                     textCapitalization: TextCapitalization.sentences,
                     textInputAction: TextInputAction.send,
                     onSubmitted: (_) => _submitComment(),
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: isMobile ? 14 : 15,
                       color: theme.colorScheme.onSurface,
                       fontWeight: FontWeight.w400,
@@ -641,7 +637,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                       hintText: isFocused
                           ? 'What are your thoughts?'
                           : 'Share your thoughts...',
-                      hintStyle: GoogleFonts.roboto(
+                      hintStyle: TextStyle(
                         color: theme.colorScheme.onSurfaceVariant.withValues(
                           alpha: 0.6,
                         ),
@@ -686,7 +682,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                         children: [
                           Text(
                             'Press Enter to send',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               color: theme.colorScheme.onSurfaceVariant
                                   .withValues(alpha: 0.6),
                               fontSize: 11,
@@ -695,11 +691,11 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                           ),
                           Text(
                             '$characterCount/500',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               color: characterCount > 450
-                                  ? Colors.orange
+                                  ? AppColors.warning
                                   : characterCount > 480
-                                      ? Colors.red
+                                      ? AppColors.error
                                       : theme.colorScheme.onSurfaceVariant
                                           .withValues(alpha: 0.6),
                               fontSize: 11,
@@ -767,7 +763,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                       ? Icon(
                           Icons.send_rounded,
                           key: const ValueKey('send'),
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           size: iconSize,
                         )
                           : Icon(
@@ -779,10 +775,7 @@ class _ModernCommentInputState extends State<ModernCommentInput>
                 ),
                 onPressed: hasText && !isSubmitting
                     ? _submitComment
-                    : () {
-                        // Could implement emoji picker here
-                        HapticFeedback.lightImpact();
-                      },
+                    : HapticFeedback.lightImpact,
                 tooltip: hasText ? 'Send comment' : 'Add emoji',
               ),
             );

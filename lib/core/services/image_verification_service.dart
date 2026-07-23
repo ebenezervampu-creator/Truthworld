@@ -28,11 +28,6 @@ enum VerificationStatus {
 
 /// Result of image verification containing status and reason
 class VerificationResult {
-  final VerificationStatus status;
-  final String reason;
-  final String? filePath;
-  final DateTime? approvedAt;
-  final double? score;
 
   VerificationResult({
     required this.status,
@@ -66,6 +61,11 @@ class VerificationResult {
       score: (data['score'] as num?)?.toDouble(),
     );
   }
+  final VerificationStatus status;
+  final String reason;
+  final String? filePath;
+  final DateTime? approvedAt;
+  final double? score;
 
   @override
   String toString() =>
@@ -151,8 +151,8 @@ class ImageVerificationService {
       logger.info('Starting upload: $storagePath', tag: 'UPLOAD');
 
       // Upload to Firebase Storage
-      final Reference ref = _storage.ref(storagePath);
-      final UploadTask uploadTask = ref.putFile(
+      final ref = _storage.ref(storagePath);
+      final uploadTask = ref.putFile(
         File(localImagePath),
         SettableMetadata(
           contentType: _getContentType(localImagePath),
@@ -201,8 +201,8 @@ class ImageVerificationService {
     int maxAttempts = maxPollingAttempts,
     int initialDelayMs = ImageVerificationService.initialDelayMs,
   }) async {
-    int attempts = 0;
-    int delayMs = initialDelayMs;
+    var attempts = 0;
+    var delayMs = initialDelayMs;
 
     logger.info('Starting verification status poll for: $docId', tag: 'POLL');
 
@@ -211,7 +211,7 @@ class ImageVerificationService {
         final doc = await _firestore
             .collection('image_verification')
             .doc(docId)
-            .get(GetOptions(source: Source.server));
+            .get(const GetOptions(source: Source.server));
 
         if (doc.exists) {
           final result = VerificationResult.fromFirestore(doc);

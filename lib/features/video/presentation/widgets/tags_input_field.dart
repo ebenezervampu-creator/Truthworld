@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 class TagInputField extends StatelessWidget {
+
+  TagInputField({required this.onTagsChanged, super.key});
   final Function(List<String>) onTagsChanged;
   final RxList<String> tags = <String>[].obs;
   final TextEditingController _tagController = TextEditingController();
-
-  TagInputField({super.key, required this.onTagsChanged});
 
   void _addTag(String tag) {
     tag = tag.trim().toLowerCase(); // Normalize tag input
@@ -30,7 +30,7 @@ class TagInputField extends StatelessWidget {
         TextField(
           controller: _tagController,
           decoration: InputDecoration(
-            labelText: "Enter tags",
+            labelText: 'Enter tags',
             border: const OutlineInputBorder(),
             suffixIcon: IconButton(
               icon: const Icon(Icons.add),
@@ -41,7 +41,7 @@ class TagInputField extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Obx(() => Wrap(
-          spacing: 8.0,
+          spacing: 8,
           children: tags.map((tag) {
             return Chip(
               label: Text(tag),

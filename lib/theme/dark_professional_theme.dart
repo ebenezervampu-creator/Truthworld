@@ -6,18 +6,18 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
-final Color darkBackground = AppColors.bgPage; // Deeper black
-final Color darkSurface = AppColors.bgInput; // Rich dark surface
-final Color darkSurfaceVariant = const Color(0xFF1E1E1E); // Elevated surfaces
-final Color darkOnSurface = const Color(0xFFE8E8E8); // Crisp white text
-final Color darkOnSurfaceVariant = const Color(0xFFB8B8B8); // Muted text
-final Color primaryAccent = const Color(0xFF9B30FF); // Brand Electric Purple
-final Color secondaryAccent = const Color(0xFFBF00FF); // Accent purple
-final Color tertiaryAccent = const Color(0xFFD4B2FF); // Subtle purple
+const Color darkBackground = AppColors.bgPage; // Deeper black
+const Color darkSurface = AppColors.bgInput; // Rich dark surface
+const Color darkSurfaceVariant = Color(0xFF1E1E1E); // Elevated surfaces
+const Color darkOnSurface = Color(0xFFE8E8E8); // Crisp white text
+const Color darkOnSurfaceVariant = Color(0xFFB8B8B8); // Muted text
+const Color primaryAccent = Color(0xFF9B30FF); // Brand Electric Purple
+const Color secondaryAccent = Color(0xFFBF00FF); // Accent purple
+const Color tertiaryAccent = Color(0xFFD4B2FF); // Subtle purple
 
 ThemeData darkProfessionalTheme = ThemeData(
   brightness: Brightness.dark,
-  fontFamily: 'Roboto',
+  
   primaryColor: primaryAccent,
   colorScheme: ColorScheme.dark(
     primary: primaryAccent,
@@ -32,7 +32,6 @@ ThemeData darkProfessionalTheme = ThemeData(
     onTertiary: Colors.white,
     tertiaryContainer: tertiaryAccent.withValues(alpha: 0.12),
     onTertiaryContainer: tertiaryAccent,
-    surface: darkSurface,
     onSurface: darkOnSurface,
     surfaceContainerHighest: darkSurfaceVariant,
     onSurfaceVariant: darkOnSurfaceVariant,
@@ -157,7 +156,8 @@ ThemeData darkProfessionalTheme = ThemeData(
     backgroundColor: Color(0xFF161618), // matching darkSurface
     foregroundColor: Color(0xFFE8E8E8), // darkOnSurface
     elevation: 0,
-    scrolledUnderElevation: 1,
+    scrolledUnderElevation: 0,
+    surfaceTintColor: Colors.transparent,
     titleTextStyle: TextStyle(
       fontSize: 20,
       fontWeight: FontWeight.w600,
@@ -232,7 +232,7 @@ ThemeData darkProfessionalTheme = ThemeData(
     labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
     iconTheme: WidgetStateProperty.resolveWith((states) {
       if (states.contains(WidgetState.selected)) {
-        return IconThemeData(color: primaryAccent, size: 24);
+        return const IconThemeData(color: primaryAccent, size: 24);
       }
       return const IconThemeData(color: Color(0xFFB8B8B8), size: 24);
     }),
@@ -253,9 +253,9 @@ ThemeData darkProfessionalTheme = ThemeData(
     backgroundColor: darkSurface,
     indicatorColor: primaryAccent.withValues(alpha: 0.15),
     elevation: 1,
-    groupAlignment: -1.0,
+    groupAlignment: -1,
     labelType: NavigationRailLabelType.none,
-    selectedLabelTextStyle: TextStyle(
+    selectedLabelTextStyle: const TextStyle(
       fontSize: 12,
       color: primaryAccent,
       fontWeight: FontWeight.w500,
@@ -269,7 +269,7 @@ ThemeData darkProfessionalTheme = ThemeData(
       letterSpacing: 0.5,
       height: 1.33,
     ),
-    selectedIconTheme: IconThemeData(color: primaryAccent, size: 24),
+    selectedIconTheme: const IconThemeData(color: primaryAccent, size: 24),
     unselectedIconTheme: const IconThemeData(
       color: Color(0xFFB8B8B8),
       size: 24,
@@ -286,7 +286,7 @@ ThemeData darkProfessionalTheme = ThemeData(
       fontWeight: FontWeight.w500,
       letterSpacing: 0.1,
     ),
-    secondaryLabelStyle: TextStyle(
+    secondaryLabelStyle: const TextStyle(
       fontSize: 14,
       color: primaryAccent,
       fontWeight: FontWeight.w600,
@@ -335,7 +335,7 @@ ThemeData darkProfessionalTheme = ThemeData(
     fillColor: darkSurfaceVariant.withValues(alpha: 0.3),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: darkSurfaceVariant),
+      borderSide: const BorderSide(color: darkSurfaceVariant),
     ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
@@ -343,7 +343,7 @@ ThemeData darkProfessionalTheme = ThemeData(
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: primaryAccent, width: 2),
+      borderSide: const BorderSide(color: primaryAccent, width: 2),
     ),
     errorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),

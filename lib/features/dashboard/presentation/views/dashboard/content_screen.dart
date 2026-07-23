@@ -1,32 +1,29 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/edit_videoscreen.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/video_pipeline_status.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/edit_videoscreen.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/widgets/video_pipeline_status.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class ContentScreen extends StatelessWidget {
+
+  const ContentScreen({
+    required this.channelId, required this.isDarkMode, super.key,
+    this.searchQuery = '',
+  });
   final String channelId;
   final bool isDarkMode;
   final String searchQuery;
 
-  const ContentScreen({
-    super.key,
-    required this.channelId,
-    required this.isDarkMode,
-    this.searchQuery = '',
-  });
-
   @override
   Widget build(BuildContext context) {
-    final VideoManagementController controller =
+    final controller =
         Get.isRegistered<VideoManagementController>()
             ? Get.find<VideoManagementController>()
             : Get.put(VideoManagementController());
@@ -34,13 +31,9 @@ class ContentScreen extends StatelessWidget {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        backgroundColor: isDarkMode
-            ? AppTheme.colors.background
-            : AppTheme.colors.textPrimary,
+        backgroundColor: AppColors.bgPage,
         appBar: AppBar(
-          backgroundColor: isDarkMode
-              ? AppTheme.colors.surface
-              : AppTheme.colors.textPrimary,
+          backgroundColor: AppColors.bgSurface,
           elevation: 0,
           toolbarHeight: 0, // Hide the app bar title portion, only keep TabBar
           bottom: PreferredSize(
@@ -50,12 +43,11 @@ class ContentScreen extends StatelessWidget {
               child: TabBar(
                 isScrollable: true,
                 indicatorColor: AppColors.brand,
-                labelColor: isDarkMode ? Colors.white : Colors.black,
-                unselectedLabelColor: Colors.grey,
+                labelColor: AppColors.textPrimary,
+                unselectedLabelColor: AppColors.textSecondary,
                 indicatorSize: TabBarIndicatorSize.tab,
-                labelStyle: GoogleFonts.roboto(
+                labelStyle: AppTextStyles.titleMedium.copyWith(
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
                 ),
                 tabs: const [
                   Tab(text: 'Videos'),
@@ -86,39 +78,36 @@ class ContentScreen extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
+          return Center(
+            child: Text(
+              'Error: ${snapshot.error}',
+              style: AppTextStyles.bodyMedium.copyWith(color: AppColors.error),
+            ),
+          );
         }
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
+                const Icon(
                   Icons.videocam_off_outlined,
                   size: 80,
-                  color: isDarkMode
-                      ? AppColors.textPrimary38
-                      : AppTheme.colors.textSecondary,
+                  color: AppColors.textTertiary,
                 ),
                 const SizedBox(height: 20),
                 Text(
                   'No Content Yet',
-                  style: GoogleFonts.roboto(
+                  style: AppTextStyles.pageTitle.copyWith(
                     fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: isDarkMode
-                        ? AppTheme.colors.textPrimary70
-                        : AppTheme.colors.background54,
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Upload your first video to get started!',
-                  style: GoogleFonts.roboto(
-                    fontSize: 16,
-                    color: isDarkMode
-                        ? AppTheme.colors.textPrimary54
-                        : AppTheme.colors.background45,
+                  style: AppTextStyles.bodyLarge.copyWith(
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
@@ -148,32 +137,23 @@ class ContentScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
+                const Icon(
                   Icons.search_off_rounded,
                   size: 80,
-                  color: isDarkMode
-                      ? AppTheme.colors.textPrimary30
-                      : AppTheme.colors.textSecondary,
+                  color: AppColors.textTertiary,
                 ),
                 const SizedBox(height: 20),
                 Text(
                   'No matching content found',
-                  style: GoogleFonts.roboto(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                    color: isDarkMode
-                        ? AppTheme.colors.textPrimary70
-                        : AppTheme.colors.background54,
+                  style: AppTextStyles.titleLarge.copyWith(
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Try searching with different keywords',
-                  style: GoogleFonts.roboto(
-                    fontSize: 14,
-                    color: isDarkMode
-                        ? AppTheme.colors.textPrimary54
-                        : AppTheme.colors.background45,
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
@@ -211,9 +191,9 @@ class ContentScreen extends StatelessWidget {
           return _buildNoPostsYetWidget();
         }
 
-        var docs = snapshot.data!.docs;
-        List<CommunityPostModel> posts = docs
-            .map((doc) => CommunityPostModel.fromMap(doc.data() as Map<String, dynamic>))
+        final docs = snapshot.data!.docs;
+        var posts = docs
+            .map((doc) => CommunityPostModel.fromMap(doc.data()! as Map<String, dynamic>))
             .toList();
 
         // Filter posts based on search query
@@ -252,10 +232,10 @@ class ContentScreen extends StatelessWidget {
     return Card(
       elevation: 2,
       margin: const EdgeInsets.only(bottom: 16),
-      color: isDarkMode ? AppTheme.colors.surface : AppTheme.colors.textPrimary,
+      color: AppColors.bgSurface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.all(12.0),
+        padding: const EdgeInsets.all(12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -265,7 +245,7 @@ class ContentScreen extends StatelessWidget {
               height: 70,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
-                color: isDarkMode ? AppTheme.colors.background : Colors.grey[200],
+                color: AppColors.bgInput,
               ),
               child: hasImages
                   ? ClipRRect(
@@ -273,10 +253,10 @@ class ContentScreen extends StatelessWidget {
                       child: CachedNetworkImage(
                         imageUrl: post.images.first,
                         fit: BoxFit.cover,
-                        errorWidget: (context, url, error) => const Icon(Icons.error),
+                        errorWidget: (context, url, error) => const Icon(Icons.error, color: AppColors.error),
                       ),
                     )
-                  : const Icon(Icons.article_outlined, size: 36, color: Colors.grey),
+                  : const Icon(Icons.article_outlined, size: 36, color: AppColors.textTertiary),
             ),
             const SizedBox(width: 16),
             // Post Details
@@ -288,42 +268,36 @@ class ContentScreen extends StatelessWidget {
                     post.title.isNotEmpty ? post.title : post.description,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.roboto(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 16,
-                      color: isDarkMode
-                          ? AppTheme.colors.textPrimary
-                          : AppTheme.colors.background87,
+                    style: AppTextStyles.videoTitleMedium.copyWith(
+                      color: AppColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.thumb_up_outlined,
                         size: 14,
-                        color: AppTheme.colors.textSecondary,
+                        color: AppColors.textSecondary,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         '${post.likes} likes',
-                        style: TextStyle(
-                          color: AppTheme.colors.textSecondary,
-                          fontSize: 12,
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textSecondary,
                         ),
                       ),
                       const SizedBox(width: 12),
-                      Icon(
+                      const Icon(
                         Icons.calendar_today,
                         size: 14,
-                        color: AppTheme.colors.textSecondary,
+                        color: AppColors.textSecondary,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         DateFormat('MMM d, yyyy').format(post.uploadedAt),
-                        style: TextStyle(
-                          color: AppTheme.colors.textSecondary,
-                          fontSize: 12,
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textSecondary,
                         ),
                       ),
                     ],
@@ -336,12 +310,12 @@ class ContentScreen extends StatelessWidget {
               onSelected: (value) {
                 if (value == 'delete') {
                   Get.defaultDialog(
-                    title: "Delete Post?",
+                    title: 'Delete Post?',
                     middleText:
-                        "Are you sure you want to delete this post? This action cannot be undone.",
-                    textConfirm: "Delete",
-                    textCancel: "Cancel",
-                    confirmTextColor: AppTheme.colors.textPrimary,
+                        'Are you sure you want to delete this post? This action cannot be undone.',
+                    textConfirm: 'Delete',
+                    textCancel: 'Cancel',
+                    confirmTextColor: AppColors.textPrimary,
                     onConfirm: () async {
                       try {
                         await FirebaseFirestore.instance
@@ -349,9 +323,9 @@ class ContentScreen extends StatelessWidget {
                             .doc(post.id)
                             .delete();
                         Get.back(); // Close dialog
-                        Get.snackbar("Success", "Post deleted successfully.");
+                        Get.snackbar('Success', 'Post deleted successfully.');
                       } catch (e) {
-                        Get.snackbar("Error", "Failed to delete post: $e");
+                        Get.snackbar('Error', 'Failed to delete post: $e');
                       }
                     },
                   );
@@ -361,22 +335,20 @@ class ContentScreen extends StatelessWidget {
                 PopupMenuItem<String>(
                   value: 'delete',
                   child: ListTile(
-                    leading: Icon(
+                    leading: const Icon(
                       Icons.delete_outline,
-                      color: AppTheme.colors.primary,
+                      color: AppColors.brand,
                     ),
                     title: Text(
                       'Delete',
-                      style: TextStyle(color: AppTheme.colors.primary),
+                      style: AppTextStyles.bodyMedium.copyWith(color: AppColors.brand),
                     ),
                   ),
                 ),
               ],
-              icon: Icon(
+              icon: const Icon(
                 Icons.more_vert,
-                color: isDarkMode
-                    ? AppTheme.colors.textPrimary70
-                    : AppTheme.colors.background54,
+                color: AppColors.textSecondary,
               ),
             ),
           ],
@@ -393,19 +365,14 @@ class ContentScreen extends StatelessWidget {
           Icon(
             isSearchFiltered ? Icons.search_off_rounded : Icons.chat_bubble_outline,
             size: 80,
-            color: isDarkMode
-                ? AppColors.textPrimary38
-                : AppTheme.colors.textSecondary,
+            color: AppColors.textTertiary,
           ),
           const SizedBox(height: 20),
           Text(
             isSearchFiltered ? 'No matching posts found' : 'No Community Posts Yet',
-            style: GoogleFonts.roboto(
+            style: AppTextStyles.pageTitle.copyWith(
               fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: isDarkMode
-                  ? AppTheme.colors.textPrimary70
-                  : AppTheme.colors.background54,
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
@@ -413,11 +380,8 @@ class ContentScreen extends StatelessWidget {
             isSearchFiltered
                 ? 'Try searching with different keywords'
                 : 'Create your first post in the upload section!',
-            style: GoogleFonts.roboto(
-              fontSize: 16,
-              color: isDarkMode
-                  ? AppTheme.colors.textPrimary54
-                  : AppTheme.colors.background45,
+            style: AppTextStyles.bodyLarge.copyWith(
+              color: AppColors.textSecondary,
             ),
           ),
         ],
@@ -431,11 +395,11 @@ class ContentScreen extends StatelessWidget {
   ) {
     return Card(
       elevation: 2,
-      margin: EdgeInsets.only(bottom: 16),
-      color: isDarkMode ? AppTheme.colors.surface : AppTheme.colors.textPrimary,
+      margin: const EdgeInsets.only(bottom: 16),
+      color: AppColors.bgSurface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: EdgeInsets.all(12.0),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -463,44 +427,38 @@ class ContentScreen extends StatelessWidget {
                         video.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.roboto(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 16,
-                          color: isDarkMode
-                              ? AppTheme.colors.textPrimary
-                              : AppTheme.colors.background87,
+                        style: AppTextStyles.videoTitleMedium.copyWith(
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          Icon(
+                          const Icon(
                             Icons.visibility,
                             size: 14,
-                            color: AppTheme.colors.textSecondary,
+                            color: AppColors.textSecondary,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             '${video.views} views',
-                            style: TextStyle(
-                              color: AppTheme.colors.textSecondary,
-                              fontSize: 12,
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textSecondary,
                             ),
                           ),
                           const SizedBox(width: 12),
-                          Icon(
+                          const Icon(
                             Icons.calendar_today,
                             size: 14,
-                            color: AppTheme.colors.textSecondary,
+                            color: AppColors.textSecondary,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             DateFormat(
                               'MMM d, yyyy',
                             ).format(video.uploadedAt.toDate()),
-                            style: TextStyle(
-                              color: AppTheme.colors.textSecondary,
-                              fontSize: 12,
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textSecondary,
                             ),
                           ),
                         ],
@@ -515,12 +473,12 @@ class ContentScreen extends StatelessWidget {
                       Get.to(() => EditVideoScreen(video: video));
                     } else if (value == 'delete') {
                       Get.defaultDialog(
-                        title: "Delete Video?",
+                        title: 'Delete Video?',
                         middleText:
                             "Are you sure you want to delete '${video.title}'? This action cannot be undone.",
-                        textConfirm: "Delete",
-                        textCancel: "Cancel",
-                        confirmTextColor: AppTheme.colors.textPrimary,
+                        textConfirm: 'Delete',
+                        textCancel: 'Cancel',
+                        confirmTextColor: AppColors.textPrimary,
                         onConfirm: () {
                           controller.deleteVideo(video);
                           Get.back(); // Close dialog
@@ -532,29 +490,27 @@ class ContentScreen extends StatelessWidget {
                     PopupMenuItem<String>(
                       value: 'edit',
                       child: ListTile(
-                        leading: Icon(Icons.edit_outlined),
-                        title: Text('Edit'),
+                        leading: const Icon(Icons.edit_outlined),
+                        title: Text('Edit', style: AppTextStyles.bodyMedium),
                       ),
                     ),
                     PopupMenuItem<String>(
                       value: 'delete',
                       child: ListTile(
-                        leading: Icon(
+                        leading: const Icon(
                           Icons.delete_outline,
-                          color: AppTheme.colors.primary,
+                          color: AppColors.brand,
                         ),
                         title: Text(
                           'Delete',
-                          style: TextStyle(color: AppTheme.colors.primary),
+                          style: AppTextStyles.bodyMedium.copyWith(color: AppColors.brand),
                         ),
                       ),
                     ),
                   ],
-                  icon: Icon(
+                  icon: const Icon(
                     Icons.more_vert,
-                    color: isDarkMode
-                        ? AppTheme.colors.textPrimary70
-                        : AppTheme.colors.background54,
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],

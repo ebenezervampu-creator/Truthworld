@@ -6,19 +6,15 @@
 
 import 'dart:async';
 import 'dart:math';
+
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
 // ignore: avoid_web_libraries_in_flutter, deprecated_member_use
 import 'package:universal_html/js.dart' as js;
-import 'package:get/get.dart';
 import 'package:video_player/video_player.dart';
 
 /// Represents a single resolution tier in the quality ladder
-class ResolutionTier {
-  final String label; // e.g. "1080p", "720p"
-  final String url; // HLS/DASH segment URL
-  final int height; // Vertical pixels
-  final int bitrate; // Target bitrate in kbps
-  final int minBandwidth; // Minimum bandwidth required (kbps) to sustain
+class ResolutionTier { // Minimum bandwidth required (kbps) to sustain
 
   const ResolutionTier({
     required this.label,
@@ -27,6 +23,11 @@ class ResolutionTier {
     required this.bitrate,
     required this.minBandwidth,
   });
+  final String label; // e.g. "1080p", "720p"
+  final String url; // HLS/DASH segment URL
+  final int height; // Vertical pixels
+  final int bitrate; // Target bitrate in kbps
+  final int minBandwidth;
 
   /// Standard OTT resolution ladder (matches Netflix/YouTube encoding specs)
   static List<ResolutionTier> get defaultLadder => [
@@ -99,11 +100,6 @@ enum NetworkQuality {
 
 /// ABR decision record for analytics
 class AbrDecision {
-  final DateTime timestamp;
-  final int fromTierIndex;
-  final int toTierIndex;
-  final double measuredBandwidth;
-  final String reason;
 
   AbrDecision({
     required this.timestamp,
@@ -112,6 +108,11 @@ class AbrDecision {
     required this.measuredBandwidth,
     required this.reason,
   });
+  final DateTime timestamp;
+  final int fromTierIndex;
+  final int toTierIndex;
+  final double measuredBandwidth;
+  final String reason;
 }
 
 /// Core ABR Controller
@@ -146,9 +147,9 @@ class AdaptiveBitrateController extends GetxController {
   static const double _downgradeHysteresisFactor =
       0.85; // Must drop 15% below tier to downgrade
   static const double _minBufferToUpgrade =
-      8.0; // Seconds of buffer before allowing upgrade
+      8; // Seconds of buffer before allowing upgrade
   static const double _panicBufferLevel =
-      2.0; // Drop to lowest tier if buffer < 2s
+      2; // Drop to lowest tier if buffer < 2s
   static const int _measurementWindowCount =
       5; // Rolling average over 5 measurements
 
@@ -229,7 +230,7 @@ class AdaptiveBitrateController extends GetxController {
 
   ResolutionTier get currentTier {
     if (resolutionLadder.isEmpty) {
-      return ResolutionTier(
+      return const ResolutionTier(
         label: 'Auto',
         url: '',
         height: 0,
@@ -269,8 +270,8 @@ class AdaptiveBitrateController extends GetxController {
     }
 
     // ── Find best sustainable tier ──
-    int bestTier = 0;
-    for (int i = resolutionLadder.length - 1; i >= 0; i--) {
+    var bestTier = 0;
+    for (var i = resolutionLadder.length - 1; i >= 0; i--) {
       if (effectiveBw >= resolutionLadder[i].minBandwidth) {
         bestTier = i;
         break;

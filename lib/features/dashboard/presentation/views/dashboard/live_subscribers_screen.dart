@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class LiveSubscribersScreen extends StatelessWidget {
-  final bool isDarkMode;
 
-  const LiveSubscribersScreen({super.key, required this.isDarkMode});
+  const LiveSubscribersScreen({required this.isDarkMode, super.key});
+  final bool isDarkMode;
 
   @override
   Widget build(BuildContext context) {
-    final DashboardController controller = Get.find<DashboardController>();
+    final controller = Get.find<DashboardController>();
 
     return Scaffold(
       backgroundColor: isDarkMode
@@ -20,15 +20,15 @@ class LiveSubscribersScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: isDarkMode ? Colors.white : Colors.black,
+          icon: Icon(Icons.arrow_back, color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
           ),
-          onPressed: () => Get.back(),
+          onPressed: Get.back,
         ),
         title: Text(
           'Live Subscriber Count',
           style: TextStyle(
-            fontFamily: 'Roboto',
-            color: isDarkMode ? Colors.white : Colors.black,
+            
+            color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -40,19 +40,19 @@ class LiveSubscribersScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.1),
+                color: AppColors.error.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(24),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.circle, color: Colors.red, size: 12),
-                  const SizedBox(width: 8),
+                  Icon(Icons.circle, color: AppColors.error, size: 12),
+                  SizedBox(width: 8),
                   Text(
                     'LIVE',
                     style: TextStyle(
-                      fontFamily: 'Roboto',
-                      color: Colors.red,
+                      
+                      color: AppColors.error,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 2,
                     ),
@@ -66,11 +66,11 @@ class LiveSubscribersScreen extends StatelessWidget {
               return Text(
                 '$rawSubs',
                 style: TextStyle(
-                  fontFamily: 'Roboto',
+                  
                   fontSize: 120,
                   fontWeight: FontWeight.w600,
-                  color: isDarkMode ? Colors.white : Colors.black,
-                  height: 1.0,
+                  color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                  height: 1,
                   letterSpacing: -2,
                 ),
               );
@@ -79,7 +79,7 @@ class LiveSubscribersScreen extends StatelessWidget {
             Text(
               'Subscribers',
               style: TextStyle(
-                fontFamily: 'Roboto',
+                
                 fontSize: 24,
                 color: isDarkMode
                     ? AppTheme.colors.textSecondary
@@ -95,9 +95,9 @@ class LiveSubscribersScreen extends StatelessWidget {
               return Text(
                 channelName,
                 style: TextStyle(
-                  fontFamily: 'Roboto',
+                  
                   fontSize: 20,
-                  color: isDarkMode ? Colors.white70 : Colors.black87,
+                  color: isDarkMode ? AppColors.textSecondary : AppColors.bgPage,
                   fontWeight: FontWeight.w600,
                 ),
               );

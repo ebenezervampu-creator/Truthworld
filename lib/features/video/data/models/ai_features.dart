@@ -3,9 +3,6 @@ library;
 
 /// Text-to-Speech configuration for video processing.
 class TTSConfig {
-  final bool enabled;
-  final String voiceType; // "standard" | "voice_clone"
-  final String? clonedVoiceId;
 
   const TTSConfig({
     this.enabled = false,
@@ -13,33 +10,25 @@ class TTSConfig {
     this.clonedVoiceId,
   });
 
-  Map<String, dynamic> toMap() => {
-    'enabled': enabled,
-    'voiceType': voiceType,
-    if (clonedVoiceId != null) 'clonedVoiceId': clonedVoiceId,
-  };
-
   factory TTSConfig.fromMap(Map<String, dynamic> data) => TTSConfig(
     enabled: data['enabled'] ?? false,
     voiceType: data['voiceType'] ?? 'standard',
     clonedVoiceId: data['clonedVoiceId'],
   );
+  final bool enabled;
+  final String voiceType; // "standard" | "voice_clone"
+  final String? clonedVoiceId;
+
+  Map<String, dynamic> toMap() => {
+    'enabled': enabled,
+    'voiceType': voiceType,
+    if (clonedVoiceId != null) 'clonedVoiceId': clonedVoiceId,
+  };
 }
 
 /// AI feature selections for video processing pipeline.
 /// Controls which features are applied during backend processing.
-class AIFeatures {
-  final bool transcript; // AssemblyAI
-  final bool genLangSubs; // Google Cloud Translate
-  final bool generateDubbing; // ElevenLabs
-  final List<String> translationLanguages; // ISO 639-1 codes
-  final TTSConfig tts;
-  final bool factChecking; // Gemini
-  final bool diarization;
-  final bool summary;
-  final bool autoChapters; // AssemblyAI
-  final String speakerCount; // "1" | "2" | "3" | "4" | "5+" | "not_sure"
-  final String? pipelineStage; // "draft" | "published" | "processing" | "completed"
+class AIFeatures { // "draft" | "published" | "processing" | "completed"
 
   const AIFeatures({
     this.transcript = true,
@@ -54,20 +43,6 @@ class AIFeatures {
     this.speakerCount = 'not_sure',
     this.pipelineStage,
   });
-
-  Map<String, dynamic> toMap() => {
-    'transcript': transcript,
-    'genLangSubs': genLangSubs,
-    'generateDubbing': generateDubbing,
-    'translationLanguages': translationLanguages,
-    'tts': tts.toMap(),
-    'factChecking': factChecking,
-    'diarization': diarization,
-    'summary': summary,
-    'autoChapters': autoChapters,
-    'speakerCount': speakerCount,
-    if (pipelineStage != null) 'pipelineStage': pipelineStage,
-  };
 
   factory AIFeatures.fromMap(Map<String, dynamic> data) => AIFeatures(
     transcript: data['transcript'] ?? true,
@@ -84,6 +59,31 @@ class AIFeatures {
     speakerCount: data['speakerCount'] ?? 'not_sure',
     pipelineStage: data['pipelineStage'],
   );
+  final bool transcript; // AssemblyAI
+  final bool genLangSubs; // Google Cloud Translate
+  final bool generateDubbing; // ElevenLabs
+  final List<String> translationLanguages; // ISO 639-1 codes
+  final TTSConfig tts;
+  final bool factChecking; // Gemini
+  final bool diarization;
+  final bool summary;
+  final bool autoChapters; // AssemblyAI
+  final String speakerCount; // "1" | "2" | "3" | "4" | "5+" | "not_sure"
+  final String? pipelineStage;
+
+  Map<String, dynamic> toMap() => {
+    'transcript': transcript,
+    'genLangSubs': genLangSubs,
+    'generateDubbing': generateDubbing,
+    'translationLanguages': translationLanguages,
+    'tts': tts.toMap(),
+    'factChecking': factChecking,
+    'diarization': diarization,
+    'summary': summary,
+    'autoChapters': autoChapters,
+    'speakerCount': speakerCount,
+    if (pipelineStage != null) 'pipelineStage': pipelineStage,
+  };
 
   static const AIFeatures defaultFeatures = AIFeatures();
 }
@@ -93,10 +93,6 @@ enum LanguageCategory { global, indian, other }
 
 /// Supported languages for translation.
 class TranslationLanguage {
-  final String code;
-  final String name;
-  final String nativeName;
-  final LanguageCategory category;
 
   const TranslationLanguage({
     required this.code,
@@ -104,6 +100,10 @@ class TranslationLanguage {
     required this.nativeName,
     required this.category,
   });
+  final String code;
+  final String name;
+  final String nativeName;
+  final LanguageCategory category;
 }
 
 /// All supported translation languages (Google Cloud Translation v3).

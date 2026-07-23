@@ -1,6 +1,7 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/data/models/channel.dart';
 
@@ -66,9 +67,7 @@ class DiscoverChannelsController extends GetxController {
   void onSearchChanged(String query) {
     searchQuery.value = query;
     if (_debounce?.isActive ?? false) _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      loadChannels();
-    });
+    _debounce = Timer(const Duration(milliseconds: 500), loadChannels);
   }
 
   void clearSearch() {
@@ -98,37 +97,29 @@ class DiscoverChannelsController extends GetxController {
         switch (selectedFilter.value) {
           case 'Top Channels':
             query = query.orderBy('subscriberCount', descending: true);
-            break;
           case 'Emerging':
             query = query.orderBy('createdAt', descending: true);
-            break;
           case 'Verified Only':
             query = query.where('isVerified', isEqualTo: true);
-            break;
           case 'Most Active':
             query = query.orderBy('videoCount', descending: true);
-            break;
         }
       }
 
       final snapshot = await query.limit(50).get();
-      List<Channel> loadedChannels = snapshot.docs.map((doc) => Channel.fromDocumentSnapshot(doc)).toList();
+      var loadedChannels = snapshot.docs.map(Channel.fromDocumentSnapshot).toList();
 
       // Apply client-side sorting when search query is active
       if (searchQuery.value.isNotEmpty) {
         switch (selectedFilter.value) {
           case 'Top Channels':
             loadedChannels.sort((a, b) => b.subscriberCount.compareTo(a.subscriberCount));
-            break;
           case 'Emerging':
             loadedChannels.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-            break;
           case 'Verified Only':
             loadedChannels = loadedChannels.where((c) => c.isVerified).toList();
-            break;
           case 'Most Active':
             loadedChannels.sort((a, b) => b.videoCount.compareTo(a.videoCount));
-            break;
         }
       }
 

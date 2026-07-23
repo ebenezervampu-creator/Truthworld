@@ -1,14 +1,6 @@
 import 'dart:typed_data';
 
-class OfflineVideo {
-  final String id;
-  final String title;
-  final String channelName;
-  final String channelImage;
-  final String views;
-  final String thumbnailUrl;
-  final DateTime downloadedAt;
-  final Uint8List? videoBytes; // optional: only when playing offline
+class OfflineVideo { // optional: only when playing offline
 
   OfflineVideo({
     required this.id,
@@ -20,6 +12,14 @@ class OfflineVideo {
     required this.downloadedAt,
     this.videoBytes,
   });
+  final String id;
+  final String title;
+  final String channelName;
+  final String channelImage;
+  final String views;
+  final String thumbnailUrl;
+  final DateTime downloadedAt;
+  final Uint8List? videoBytes;
 
   Map<String, dynamic> toJson() => {
     'id': id,

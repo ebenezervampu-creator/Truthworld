@@ -64,7 +64,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '768266102263',
     projectId: 'truthworld-1',
     storageBucket: 'truthworld-1.firebasestorage.app',
-    iosBundleId: 'com.example.truthworld',
+    iosBundleId: 'com.truthworld.app',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(
@@ -73,7 +73,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '768266102263',
     projectId: 'truthworld-1',
     storageBucket: 'truthworld-1.firebasestorage.app',
-    iosBundleId: 'com.example.truthworld',
+    iosBundleId: 'com.truthworld.app',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(

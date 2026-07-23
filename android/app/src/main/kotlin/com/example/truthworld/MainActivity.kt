@@ -45,17 +45,42 @@ class MainActivity : FlutterActivity() {
         // Check if the application is running in debug/development mode
         val isDebug = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
         if (isDebug) {
-            val debugToken = "5542fb9f-655d-48d1-a32a-eefa5dc82365"
-            // Set the static App Check debug token in debug mode so the emulator/device doesn't generate a new one
-            val prefsKeys = listOf(
-                "com.google.firebase.appcheck.debug.store.[DEFAULT]",
-                "com.google.firebase.appcheck.debug.store.truthworld-1"
-            )
+            val tokenResId = resources.getIdentifier("firebase_app_check_debug_token", "string", packageName)
+            val debugToken = if (tokenResId != 0) getString(tokenResId) else "26B7C98E-FC8F-4580-BA97-455ADBE131BC"
+            val prefsKeys = mutableListOf<String>()
+
+            // 1. Try dynamic generation using resource lookup for google_app_id
+            try {
+                val appIdResId = resources.getIdentifier("google_app_id", "string", packageName)
+                if (appIdResId != 0) {
+                    val appId = getString(appIdResId)
+                    val nameBytes = "[DEFAULT]".toByteArray(Charsets.UTF_8)
+                    val appIdBytes = appId.toByteArray(Charsets.UTF_8)
+                    val nameBase64 = android.util.Base64.encodeToString(nameBytes, android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP).trim()
+                    val appIdBase64 = android.util.Base64.encodeToString(appIdBytes, android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP).trim()
+                    prefsKeys.add("com.google.firebase.appcheck.debug.store.$nameBase64+$appIdBase64")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Failed to resolve google_app_id dynamically: ${e.message}", e)
+            }
+
+            // 2. Add pre-calculated key for current config
+            prefsKeys.add("com.google.firebase.appcheck.debug.store.W0RFRkFVTFRd+MTo3NjgyNjYxMDIyNjM6YW5kcm9pZDplNWM5OGRkM2ZiNmM2Nzg4MTQzYWYy")
+
+            // 3. Keep old keys just in case
+            prefsKeys.add("com.google.firebase.appcheck.debug.store.[DEFAULT]")
+            prefsKeys.add("com.google.firebase.appcheck.debug.store.truthworld-1")
+
             for (prefsKey in prefsKeys) {
-                val prefs = getSharedPreferences(prefsKey, Context.MODE_PRIVATE)
-                prefs.edit()
-                    .putString("com.google.firebase.appcheck.debug.DEBUG_SECRET", debugToken)
-                    .apply()
+                try {
+                    val prefs = getSharedPreferences(prefsKey, Context.MODE_PRIVATE)
+                    prefs.edit()
+                        .putString("com.google.firebase.appcheck.debug.DEBUG_SECRET", debugToken)
+                        .apply()
+                    android.util.Log.d("MainActivity", "Set App Check debug token in prefs: $prefsKey")
+                } catch (e: Exception) {
+                    android.util.Log.e("MainActivity", "Failed to write to prefs $prefsKey: ${e.message}")
+                }
             }
         }
     }

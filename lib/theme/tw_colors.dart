@@ -5,6 +5,36 @@ import 'package:flutter/material.dart';
 /// Backed by a permanent dark theme. Exposes semantic color roles
 /// not supported natively by Flutter's standard ColorScheme.
 class TWColors extends ThemeExtension<TWColors> {
+
+  const TWColors({
+    required this.brand,
+    required this.brandContainer,
+    required this.brandVariant,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.textTertiary,
+    required this.textDisabled,
+    required this.background,
+    required this.surface,
+    required this.surfaceContainer,
+    required this.surfaceContainerHigh,
+    required this.surfaceContainerHighest,
+    required this.surfaceInput,
+    required this.appBarSurface,
+    required this.divider,
+    required this.success,
+    required this.warning,
+    required this.error,
+    required this.info,
+    required this.successContainer,
+    required this.warningContainer,
+    required this.errorContainer,
+    required this.infoContainer,
+    required this.selectedOverlay,
+    required this.hoverOverlay,
+    required this.pressedOverlay,
+    required this.focusRing,
+  });
   // ── Brand
   final Color brand;
   final Color brandContainer;
@@ -41,36 +71,6 @@ class TWColors extends ThemeExtension<TWColors> {
   final Color hoverOverlay;
   final Color pressedOverlay;
   final Color focusRing;
-
-  const TWColors({
-    required this.brand,
-    required this.brandContainer,
-    required this.brandVariant,
-    required this.textPrimary,
-    required this.textSecondary,
-    required this.textTertiary,
-    required this.textDisabled,
-    required this.background,
-    required this.surface,
-    required this.surfaceContainer,
-    required this.surfaceContainerHigh,
-    required this.surfaceContainerHighest,
-    required this.surfaceInput,
-    required this.appBarSurface,
-    required this.divider,
-    required this.success,
-    required this.warning,
-    required this.error,
-    required this.info,
-    required this.successContainer,
-    required this.warningContainer,
-    required this.errorContainer,
-    required this.infoContainer,
-    required this.selectedOverlay,
-    required this.hoverOverlay,
-    required this.pressedOverlay,
-    required this.focusRing,
-  });
 
   @override
   ThemeExtension<TWColors> copyWith({
@@ -171,4 +171,5 @@ class TWColors extends ThemeExtension<TWColors> {
 /// Helper extension to easily access TruthWorld colors from [BuildContext].
 extension TWColorsExtension on BuildContext {
   TWColors get colors => Theme.of(this).extension<TWColors>()!;
+  TWColors get twColors => Theme.of(this).extension<TWColors>()!;
 }

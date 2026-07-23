@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'skeleton_base.dart';
+import 'package:truthworld/shared/skeletons/skeleton_base.dart';
 
 /// Skeleton loading state for the channel / profile page.
 class ChannelSkeleton extends StatelessWidget {
@@ -26,16 +26,16 @@ class ChannelSkeleton extends StatelessWidget {
                 const SizedBox(height: 16),
 
                 // Channel header: avatar + name + subs
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     children: [
-                      const SkeletonCircle(size: 72),
-                      const SizedBox(width: 16),
+                      SkeletonCircle(size: 72),
+                      SizedBox(width: 16),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
+                          children: [
                             SkeletonBox(height: 18, width: 200),
                             SizedBox(height: 8),
                             SkeletonBox(height: 14, width: 140),
@@ -44,7 +44,7 @@ class ChannelSkeleton extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const SkeletonBox(
+                      SkeletonBox(
                         height: 36,
                         width: 110,
                         borderRadius: 20,
@@ -55,10 +55,10 @@ class ChannelSkeleton extends StatelessWidget {
                 const SizedBox(height: 20),
 
                 // Tab bar placeholder
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
-                    children: const [
+                    children: [
                       SkeletonBox(height: 32, width: 72, borderRadius: 16),
                       SizedBox(width: 12),
                       SkeletonBox(height: 32, width: 72, borderRadius: 16),
@@ -117,9 +117,9 @@ class _ChannelVideoCardSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: const [
+      children: [
         AspectRatio(aspectRatio: 16 / 9, child: SkeletonBox(borderRadius: 12)),
         SizedBox(height: 10),
         SkeletonBox(height: 14, width: double.infinity),

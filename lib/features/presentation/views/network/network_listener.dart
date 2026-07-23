@@ -1,10 +1,16 @@
 import 'dart:async';
-// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
-import 'package:universal_html/html.dart' as html;
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/theme/app_theme.dart';
+// ignore: avoid_web_libraries_in_flutter, deprecated_member_use
+import 'package:universal_html/html.dart' as html;
 
 class NetworkStatusController extends GetxController {
+
+  NetworkStatusController({
+    this.debounceDuration = const Duration(milliseconds: 500),
+  });
   final RxBool isOnline = (html.window.navigator.onLine ?? true).obs;
   final RxBool showBanner = false.obs;
   final RxString lastRoute = '/'.obs; // Store last online route
@@ -13,10 +19,6 @@ class NetworkStatusController extends GetxController {
   Timer? _debounceTimer;
   StreamSubscription<html.Event>? _onlineSub;
   StreamSubscription<html.Event>? _offlineSub;
-
-  NetworkStatusController({
-    this.debounceDuration = const Duration(milliseconds: 500),
-  });
 
   @override
   void onInit() {
@@ -68,20 +70,19 @@ class NetworkStatusController extends GetxController {
 /// Network Status Banner
 /// ---------------------------
 class NetworkStatusListener extends StatelessWidget {
-  final Widget child;
-  final String? onlineMessage;
-  final String? offlineMessage;
-  final Color? onlineColor;
-  final Color? offlineColor;
 
   const NetworkStatusListener({
-    super.key,
-    required this.child,
+    required this.child, super.key,
     this.onlineMessage,
     this.offlineMessage,
     this.onlineColor,
     this.offlineColor,
   });
+  final Widget child;
+  final String? onlineMessage;
+  final String? offlineMessage;
+  final Color? onlineColor;
+  final Color? offlineColor;
 
   @override
   Widget build(BuildContext context) {
@@ -94,8 +95,8 @@ class NetworkStatusListener extends StatelessWidget {
           final isOnline = controller.isOnline.value;
           final show = controller.showBanner.value;
           final color = isOnline
-              ? (onlineColor ?? Colors.green)
-              : (offlineColor ?? Colors.red);
+              ? (onlineColor ?? AppColors.success)
+              : (offlineColor ?? AppColors.error);
           final message = isOnline
               ? (onlineMessage ?? '✅ You are online')
               : (offlineMessage ?? '⚠️ You are offline');
@@ -115,8 +116,8 @@ class NetworkStatusListener extends StatelessWidget {
                   alignment: Alignment.center,
                   child: Text(
                     message,
-                    style: TextStyle(
-                      color: Colors.white,
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
                       fontWeight: FontWeight.w500,
                       fontSize: 16,
                     ),

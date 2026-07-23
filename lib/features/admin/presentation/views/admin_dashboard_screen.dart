@@ -1,13 +1,13 @@
+import 'package:chewie/chewie.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:chewie/chewie.dart';
-import 'package:video_player/video_player.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:intl/intl.dart';
+import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
+import 'package:video_player/video_player.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
   const AdminDashboardScreen({super.key});
@@ -31,7 +31,7 @@ class AdminDashboardScreen extends StatelessWidget {
                 SizedBox(height: 16),
                 Text(
                   'Verifying admin console credentials...',
-                  style: TextStyle(color: Colors.white70, fontSize: 16),
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
                 ),
               ],
             ),
@@ -101,14 +101,14 @@ class AdminDashboardScreen extends StatelessWidget {
       decoration: const BoxDecoration(
         color: AppColors.bgSurface,
         border: Border(
-          right: BorderSide(color: AppColors.bgDivider, width: 1),
+          right: BorderSide(color: AppColors.bgDivider),
         ),
       ),
       child: Column(
         children: [
           // Sidebar Header
           Padding(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(24),
             child: Row(
               children: [
                 ShaderMask(
@@ -119,7 +119,7 @@ class AdminDashboardScreen extends StatelessWidget {
                     'TruthWorld',
                     style: context.typography.logo.copyWith(
                       fontSize: 22,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ),
@@ -130,9 +130,9 @@ class AdminDashboardScreen extends StatelessWidget {
                     color: AppColors.brand.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: Text(
+                  child: const Text(
                     'Console',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       color: AppColors.brand,
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
@@ -207,7 +207,7 @@ class AdminDashboardScreen extends StatelessWidget {
                 ? (FirebaseAuth.instance.currentUser?.email ?? 'Admin User')
                 : 'Not Logged In';
             return Padding(
-              padding: const EdgeInsets.all(20.0),
+              padding: const EdgeInsets.all(20),
               child: Row(
                 children: [
                   CircleAvatar(
@@ -215,7 +215,7 @@ class AdminDashboardScreen extends StatelessWidget {
                     backgroundColor: AppColors.brand.withValues(alpha: 0.2),
                     child: Text(
                       email[0].toUpperCase(),
-                      style: GoogleFonts.roboto(
+                      style: const TextStyle(
                         color: AppColors.brand,
                         fontWeight: FontWeight.bold,
                       ),
@@ -228,7 +228,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       children: [
                         Text(
                           email,
-                          style: GoogleFonts.roboto(
+                          style: const TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
@@ -236,9 +236,9 @@ class AdminDashboardScreen extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                         const SizedBox(height: 2),
-                        Text(
+                        const Text(
                           'Moderation Administrator',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             color: AppColors.textTertiary,
                             fontSize: 11,
                           ),
@@ -260,8 +260,7 @@ class AdminDashboardScreen extends StatelessWidget {
     required IconData activeIcon,
     required String label,
     required String tabId,
-    int badgeCount = 0,
-    required AdminController controller,
+    required AdminController controller, int badgeCount = 0,
   }) {
     return Obx(() {
       final isSelected = controller.currentTab.value == tabId;
@@ -290,7 +289,7 @@ class AdminDashboardScreen extends StatelessWidget {
                   Expanded(
                     child: Text(
                       label,
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
                         fontSize: 14,
                         fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
@@ -306,8 +305,8 @@ class AdminDashboardScreen extends StatelessWidget {
                       ),
                       child: Text(
                         '$badgeCount',
-                        style: GoogleFonts.roboto(
-                          color: Colors.white,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                         ),
@@ -326,11 +325,11 @@ class AdminDashboardScreen extends StatelessWidget {
   Widget _buildHeader(BuildContext context, AdminController controller, bool isDesktop) {
     return Container(
       height: 70,
-      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
       decoration: const BoxDecoration(
         color: AppColors.bgSurface,
         border: Border(
-          bottom: BorderSide(color: AppColors.bgDivider, width: 1),
+          bottom: BorderSide(color: AppColors.bgDivider),
         ),
       ),
       child: Row(
@@ -341,7 +340,7 @@ class AdminDashboardScreen extends StatelessWidget {
               onPressed: () => Scaffold.of(context).openDrawer(),
             ),
           Obx(() {
-            String title = 'Dashboard Overview';
+            var title = 'Dashboard Overview';
             if (controller.currentTab.value == 'videos') title = 'Video Verification Queue';
             if (controller.currentTab.value == 'images') title = 'Image Moderation Grid';
             if (controller.currentTab.value == 'channels') title = 'Channel Verification Queue';
@@ -349,7 +348,7 @@ class AdminDashboardScreen extends StatelessWidget {
             if (controller.currentTab.value == 'logs') title = 'Audit History Logs';
             return Text(
               title,
-              style: GoogleFonts.roboto(
+              style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -360,9 +359,9 @@ class AdminDashboardScreen extends StatelessWidget {
           TextButton.icon(
             onPressed: () => controller.signOutAdmin(),
             icon: const Icon(Icons.logout_rounded, size: 16, color: AppColors.error),
-            label: Text(
+            label: const Text(
               'Sign Out',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 color: AppColors.error,
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
@@ -376,21 +375,21 @@ class AdminDashboardScreen extends StatelessWidget {
 
   // Formatting helpers
   String _formatTimestamp(dynamic val) {
-    if (val == null) return "N/A";
+    if (val == null) return 'N/A';
     DateTime? dt;
     if (val is Timestamp) {
       dt = val.toDate();
     } else if (val is String) {
       dt = DateTime.tryParse(val);
     }
-    if (dt == null) return "N/A";
+    if (dt == null) return 'N/A';
     return DateFormat('yyyy-MM-dd HH:mm:ss').format(dt);
   }
 
   // TAB 1: OVERVIEW TAB
   Widget _buildOverviewTab(BuildContext context, AdminController controller) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -425,7 +424,7 @@ class AdminDashboardScreen extends StatelessWidget {
                     value: controller.pendingChannels,
                     subtitle: 'AI verification warnings',
                     icon: Icons.account_circle_outlined,
-                    iconColor: Colors.amber,
+                    iconColor: AppColors.warning,
                   ),
                   _buildStatCard(
                     title: 'Pending Video Reports',
@@ -456,18 +455,18 @@ class AdminDashboardScreen extends StatelessWidget {
 
           // Recent Activity Card
           Container(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: AppColors.bgSurface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.bgDivider, width: 1),
+              border: Border.all(color: AppColors.bgDivider),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Recent Moderation Feed (Real-time)',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -486,18 +485,18 @@ class AdminDashboardScreen extends StatelessWidget {
                     final timeB = b['createdAt'] ?? b['flaggedAt'] ?? b['updatedAt'];
                     if (timeA == null) return 1;
                     if (timeB == null) return -1;
-                    DateTime dtA = timeA is Timestamp ? timeA.toDate() : DateTime.parse(timeA.toString());
-                    DateTime dtB = timeB is Timestamp ? timeB.toDate() : DateTime.parse(timeB.toString());
+                    final dtA = timeA is Timestamp ? timeA.toDate() : DateTime.parse(timeA.toString());
+                    final dtB = timeB is Timestamp ? timeB.toDate() : DateTime.parse(timeB.toString());
                     return dtB.compareTo(dtA);
                   });
 
                   if (list.isEmpty) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 40.0),
+                    return const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 40),
                       child: Center(
                         child: Text(
                           'No recent activity records available.',
-                          style: GoogleFonts.roboto(color: AppColors.textTertiary),
+                          style: TextStyle(color: AppColors.textTertiary),
                         ),
                       ),
                     );
@@ -515,7 +514,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       final isChannel = type == 'channel';
                       final isReport = type == 'report';
 
-                      String titleText = 'Unknown Item';
+                      var titleText = 'Unknown Item';
                       if (isVideo) {
                         titleText = item['title'] ?? 'Untitled Video';
                       } else if (isChannel) {
@@ -530,7 +529,7 @@ class AdminDashboardScreen extends StatelessWidget {
 
                       final timestamp = item['createdAt'] ?? item['flaggedAt'] ?? item['updatedAt'];
                       
-                      String status = 'pending';
+                      var status = 'pending';
                       if (isVideo) {
                         status = item['moderation']?['status'] ?? 'pending';
                       } else if (isChannel) {
@@ -541,14 +540,14 @@ class AdminDashboardScreen extends StatelessWidget {
                         status = item['status'] ?? 'PENDING';
                       }
 
-                      IconData iconData = Icons.help_outline;
-                      Color iconColor = Colors.grey;
+                      var iconData = Icons.help_outline;
+                      var iconColor = AppColors.textSecondary;
                       if (isVideo) {
                         iconData = Icons.movie_outlined;
                         iconColor = AppColors.brand;
                       } else if (isChannel) {
                         iconData = Icons.account_circle_outlined;
-                        iconColor = Colors.amber;
+                        iconColor = AppColors.warning;
                       } else if (isReport) {
                         iconData = Icons.report_gmailerrorred_rounded;
                         iconColor = Colors.deepOrangeAccent;
@@ -558,7 +557,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       }
 
                       return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12.0),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                         child: Row(
                           children: [
                             Container(
@@ -581,7 +580,7 @@ class AdminDashboardScreen extends StatelessWidget {
                                 children: [
                                   Text(
                                     titleText,
-                                    style: GoogleFonts.roboto(
+                                    style: const TextStyle(
                                       color: AppColors.textPrimary,
                                       fontSize: 13,
                                       fontWeight: FontWeight.w500,
@@ -592,7 +591,7 @@ class AdminDashboardScreen extends StatelessWidget {
                                   const SizedBox(height: 2),
                                   Text(
                                     _formatTimestamp(timestamp),
-                                    style: GoogleFonts.roboto(
+                                    style: const TextStyle(
                                       color: AppColors.textTertiary,
                                       fontSize: 11,
                                     ),
@@ -601,7 +600,7 @@ class AdminDashboardScreen extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 16),
-                            _buildStatusBadge(status.toString()),
+                            _buildStatusBadge(status),
                           ],
                         ),
                       );
@@ -624,11 +623,11 @@ class AdminDashboardScreen extends StatelessWidget {
     required Color iconColor,
   }) {
     return Container(
-      padding: const EdgeInsets.all(20.0),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.bgDivider, width: 1),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -639,7 +638,7 @@ class AdminDashboardScreen extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: GoogleFonts.roboto(
+                style: const TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
@@ -652,7 +651,7 @@ class AdminDashboardScreen extends StatelessWidget {
             final displayValue = value.value.toString();
             return Text(
               displayValue,
-              style: GoogleFonts.roboto(
+              style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
@@ -661,7 +660,7 @@ class AdminDashboardScreen extends StatelessWidget {
           }),
           Text(
             subtitle,
-            style: GoogleFonts.roboto(
+            style: const TextStyle(
               color: AppColors.textTertiary,
               fontSize: 11,
             ),
@@ -688,10 +687,10 @@ class AdminDashboardScreen extends StatelessWidget {
       }).toList();
 
       if (list.isEmpty) {
-        return Center(
+        return const Center(
           child: Text(
             'No videos in the moderation queue.',
-            style: GoogleFonts.roboto(color: AppColors.textTertiary),
+            style: TextStyle(color: AppColors.textTertiary),
           ),
         );
       }
@@ -703,7 +702,7 @@ class AdminDashboardScreen extends StatelessWidget {
             flex: 2,
             child: Container(
               decoration: const BoxDecoration(
-                border: Border(right: BorderSide(color: AppColors.bgDivider, width: 1)),
+                border: Border(right: BorderSide(color: AppColors.bgDivider)),
               ),
               child: ListView.separated(
                 itemCount: list.length,
@@ -751,7 +750,7 @@ class AdminDashboardScreen extends StatelessWidget {
                                 children: [
                                   Text(
                                     title,
-                                    style: GoogleFonts.roboto(
+                                    style: const TextStyle(
                                       color: AppColors.textPrimary,
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
@@ -762,7 +761,7 @@ class AdminDashboardScreen extends StatelessWidget {
                                   const SizedBox(height: 4),
                                   Text(
                                     'User: ${video['userId'] ?? video['ownerId'] ?? 'Unknown'}',
-                                    style: GoogleFonts.roboto(
+                                    style: const TextStyle(
                                       color: AppColors.textTertiary,
                                       fontSize: 11,
                                     ),
@@ -779,9 +778,9 @@ class AdminDashboardScreen extends StatelessWidget {
                                             color: AppColors.error.withValues(alpha: 0.15),
                                             borderRadius: BorderRadius.circular(4),
                                           ),
-                                          child: Text(
+                                          child: const Text(
                                             'TIMEOUT',
-                                            style: GoogleFonts.roboto(
+                                            style: TextStyle(
                                               color: AppColors.error,
                                               fontSize: 9,
                                               fontWeight: FontWeight.bold,
@@ -810,10 +809,10 @@ class AdminDashboardScreen extends StatelessWidget {
             child: Obx(() {
               final selected = controller.selectedVideo.value;
               if (selected == null) {
-                return Center(
+                return const Center(
                   child: Text(
                     'Select a video to inspect details',
-                    style: GoogleFonts.roboto(color: AppColors.textTertiary),
+                    style: TextStyle(color: AppColors.textTertiary),
                   ),
                 );
               }
@@ -823,13 +822,13 @@ class AdminDashboardScreen extends StatelessWidget {
               final status = mod?['status'] ?? selected['status'] ?? 'pending';
 
               return SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
+                padding: const EdgeInsets.all(24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       selected['title'] ?? 'Untitled Video',
-                      style: GoogleFonts.roboto(
+                      style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -871,7 +870,7 @@ class AdminDashboardScreen extends StatelessWidget {
                               children: [
                                 Text(
                                   'Current Status: ${status.toUpperCase()}',
-                                  style: GoogleFonts.roboto(
+                                  style: TextStyle(
                                     color: status == 'approved'
                                         ? AppColors.success
                                         : (status == 'rejected' ? AppColors.error : AppColors.warning),
@@ -883,7 +882,7 @@ class AdminDashboardScreen extends StatelessWidget {
                                   const SizedBox(height: 4),
                                   Text(
                                     mod['reason'].toString(),
-                                    style: GoogleFonts.roboto(
+                                    style: const TextStyle(
                                       color: AppColors.textPrimary,
                                       fontSize: 12,
                                     ),
@@ -900,8 +899,8 @@ class AdminDashboardScreen extends StatelessWidget {
                     if (videoUrl != null)
                       ClipRRect(
                         borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          color: Colors.black,
+                        child: ColoredBox(
+                          color: AppColors.bgPage,
                           child: AspectRatio(
                             aspectRatio: 16 / 9,
                             child: AdminVideoPlayer(
@@ -919,17 +918,17 @@ class AdminDashboardScreen extends StatelessWidget {
                           color: AppColors.bgSurface,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Text(
+                        child: const Text(
                           'No video URL metadata present.',
-                          style: GoogleFonts.roboto(color: AppColors.textTertiary),
+                          style: TextStyle(color: AppColors.textTertiary),
                         ),
                       ),
                     const SizedBox(height: 24),
 
                     // Metadata Details Table
-                    Text(
+                    const Text(
                       'Technical Metadata',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -954,7 +953,7 @@ class AdminDashboardScreen extends StatelessWidget {
                           onPressed: controller.isActionSubmitting.value
                               ? null
                               : () => _showDecisionDialog(context, controller, selected['id'], 'approve', true),
-                          icon: const Icon(Icons.check_circle_outline, size: 18, color: Colors.white),
+                          icon: const Icon(Icons.check_circle_outline, size: 18, color: AppColors.textPrimary),
                           label: const Text('Approve Video'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.success,
@@ -994,10 +993,10 @@ class AdminDashboardScreen extends StatelessWidget {
       final list = controller.channels;
 
       if (list.isEmpty) {
-        return Center(
+        return const Center(
           child: Text(
             'No channels in the database.',
-            style: GoogleFonts.roboto(color: AppColors.textTertiary),
+            style: TextStyle(color: AppColors.textTertiary),
           ),
         );
       }
@@ -1009,7 +1008,7 @@ class AdminDashboardScreen extends StatelessWidget {
             flex: 2,
             child: Container(
               decoration: const BoxDecoration(
-                border: Border(right: BorderSide(color: AppColors.bgDivider, width: 1)),
+                border: Border(right: BorderSide(color: AppColors.bgDivider)),
               ),
               child: ListView.separated(
                 itemCount: list.length,
@@ -1055,7 +1054,7 @@ class AdminDashboardScreen extends StatelessWidget {
                                 children: [
                                   Text(
                                     title,
-                                    style: GoogleFonts.roboto(
+                                    style: const TextStyle(
                                       color: AppColors.textPrimary,
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
@@ -1066,7 +1065,7 @@ class AdminDashboardScreen extends StatelessWidget {
                                   const SizedBox(height: 4),
                                   Text(
                                     'Handle: @${channel['handle'] ?? channel['customUrl'] ?? 'none'}',
-                                    style: GoogleFonts.roboto(
+                                    style: const TextStyle(
                                       color: AppColors.textTertiary,
                                       fontSize: 11,
                                     ),
@@ -1092,10 +1091,10 @@ class AdminDashboardScreen extends StatelessWidget {
             child: Obx(() {
               final selected = controller.selectedChannel.value;
               if (selected == null) {
-                return Center(
+                return const Center(
                   child: Text(
                     'Select a channel to inspect details',
-                    style: GoogleFonts.roboto(color: AppColors.textTertiary),
+                    style: TextStyle(color: AppColors.textTertiary),
                   ),
                 );
               }
@@ -1106,7 +1105,7 @@ class AdminDashboardScreen extends StatelessWidget {
               final geminiResponse = selected['moderationReason'] ?? 'No automated response logged.';
 
               return SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
+                padding: const EdgeInsets.all(24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1147,7 +1146,7 @@ class AdminDashboardScreen extends StatelessWidget {
                             children: [
                               Text(
                                 selected['channelName'] ?? selected['name'] ?? 'Unnamed Channel',
-                                style: GoogleFonts.roboto(
+                                style: const TextStyle(
                                   color: AppColors.textPrimary,
                                   fontSize: 18,
                                   fontWeight: FontWeight.w700,
@@ -1156,7 +1155,7 @@ class AdminDashboardScreen extends StatelessWidget {
                               const SizedBox(height: 4),
                               Text(
                                 '@${selected['handle'] ?? selected['customUrl'] ?? 'none'}',
-                                style: GoogleFonts.roboto(
+                                style: const TextStyle(
                                   color: AppColors.textSecondary,
                                   fontSize: 14,
                                 ),
@@ -1202,7 +1201,7 @@ class AdminDashboardScreen extends StatelessWidget {
                               children: [
                                 Text(
                                   'Current Status: ${status == 'active' ? 'APPROVED/ACTIVE' : (status == 'verificationRejected' ? 'REJECTED' : 'UNDER REVIEW')}',
-                                  style: GoogleFonts.roboto(
+                                  style: TextStyle(
                                     color: status == 'active'
                                         ? AppColors.success
                                         : (status == 'verificationRejected' ? AppColors.error : AppColors.warning),
@@ -1218,9 +1217,9 @@ class AdminDashboardScreen extends StatelessWidget {
                     ),
 
                     // Gemini response block
-                    Text(
+                    const Text(
                       'Gemini AI Moderation Analysis',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -1237,7 +1236,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       ),
                       child: Text(
                         geminiResponse,
-                        style: GoogleFonts.roboto(
+                        style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 13,
                           height: 1.4,
@@ -1247,9 +1246,9 @@ class AdminDashboardScreen extends StatelessWidget {
                     const SizedBox(height: 24),
 
                     // Metadata details
-                    Text(
+                    const Text(
                       'Channel Metadata',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -1275,7 +1274,7 @@ class AdminDashboardScreen extends StatelessWidget {
                           onPressed: controller.isActionSubmitting.value
                               ? null
                               : () => _showDecisionDialog(context, controller, selected['id'], 'approve', false, isChannel: true),
-                          icon: const Icon(Icons.check_circle_outline, size: 18, color: Colors.white),
+                          icon: const Icon(Icons.check_circle_outline, size: 18, color: AppColors.textPrimary),
                           label: const Text('Approve Channel'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.success,
@@ -1315,10 +1314,10 @@ class AdminDashboardScreen extends StatelessWidget {
       final list = controller.reports;
 
       if (list.isEmpty) {
-        return Center(
+        return const Center(
           child: Text(
             'No reports in the database.',
-            style: GoogleFonts.roboto(color: AppColors.textTertiary),
+            style: TextStyle(color: AppColors.textTertiary),
           ),
         );
       }
@@ -1330,7 +1329,7 @@ class AdminDashboardScreen extends StatelessWidget {
             flex: 2,
             child: Container(
               decoration: const BoxDecoration(
-                border: Border(right: BorderSide(color: AppColors.bgDivider, width: 1)),
+                border: Border(right: BorderSide(color: AppColors.bgDivider)),
               ),
               child: ListView.separated(
                 itemCount: list.length,
@@ -1371,7 +1370,7 @@ class AdminDashboardScreen extends StatelessWidget {
                                 children: [
                                   Text(
                                     reason,
-                                    style: GoogleFonts.roboto(
+                                    style: const TextStyle(
                                       color: AppColors.textPrimary,
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
@@ -1382,7 +1381,7 @@ class AdminDashboardScreen extends StatelessWidget {
                                   const SizedBox(height: 4),
                                   Text(
                                     'Reporter: $reporter',
-                                    style: GoogleFonts.roboto(
+                                    style: const TextStyle(
                                       color: AppColors.textTertiary,
                                       fontSize: 11,
                                     ),
@@ -1410,10 +1409,10 @@ class AdminDashboardScreen extends StatelessWidget {
             child: Obx(() {
               final selected = controller.selectedReport.value;
               if (selected == null) {
-                return Center(
+                return const Center(
                   child: Text(
                     'Select a report to inspect details',
-                    style: GoogleFonts.roboto(color: AppColors.textTertiary),
+                    style: TextStyle(color: AppColors.textTertiary),
                   ),
                 );
               }
@@ -1429,7 +1428,7 @@ class AdminDashboardScreen extends StatelessWidget {
               final createdAtStr = _formatTimestamp(selected['createdAt']);
 
               return SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
+                padding: const EdgeInsets.all(24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1439,17 +1438,17 @@ class AdminDashboardScreen extends StatelessWidget {
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: (status == 'pending' || status == 'PENDING')
-                            ? Colors.amber.withValues(alpha: 0.1)
+                            ? AppColors.warning.withValues(alpha: 0.1)
                             : (status == 'resolved_rejected'
-                                ? Colors.red.withValues(alpha: 0.1)
-                                : Colors.green.withValues(alpha: 0.1)),
+                                ? AppColors.error.withValues(alpha: 0.1)
+                                : AppColors.success.withValues(alpha: 0.1)),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: (status == 'pending' || status == 'PENDING')
-                              ? Colors.amber.withValues(alpha: 0.3)
+                              ? AppColors.warning.withValues(alpha: 0.3)
                               : (status == 'resolved_rejected'
-                                  ? Colors.red.withValues(alpha: 0.3)
-                                  : Colors.green.withValues(alpha: 0.3)),
+                                  ? AppColors.error.withValues(alpha: 0.3)
+                                  : AppColors.success.withValues(alpha: 0.3)),
                         ),
                       ),
                       child: Column(
@@ -1462,8 +1461,8 @@ class AdminDashboardScreen extends StatelessWidget {
                                     ? Icons.hourglass_empty_rounded
                                     : (status == 'resolved_rejected' ? Icons.cancel_outlined : Icons.check_circle_outline_rounded),
                                 color: (status == 'pending' || status == 'PENDING')
-                                    ? Colors.amber
-                                    : (status == 'resolved_rejected' ? Colors.red : Colors.green),
+                                    ? AppColors.warning
+                                    : (status == 'resolved_rejected' ? AppColors.error : AppColors.success),
                                 size: 20,
                               ),
                               const SizedBox(width: 8),
@@ -1471,10 +1470,10 @@ class AdminDashboardScreen extends StatelessWidget {
                                 (status == 'pending' || status == 'PENDING')
                                     ? 'UNDER MANUAL REVIEW'
                                     : (status == 'resolved_rejected' ? 'REPORT RESOLVED: VIDEO REJECTED' : 'REPORT RESOLVED: DISMISSED'),
-                                style: GoogleFonts.roboto(
+                                style: TextStyle(
                                   color: (status == 'pending' || status == 'PENDING')
-                                      ? Colors.amber
-                                      : (status == 'resolved_rejected' ? Colors.red : Colors.green),
+                                      ? AppColors.warning
+                                      : (status == 'resolved_rejected' ? AppColors.error : AppColors.success),
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,
                                   letterSpacing: 1.1,
@@ -1486,7 +1485,7 @@ class AdminDashboardScreen extends StatelessWidget {
                             const SizedBox(height: 12),
                             Text(
                               'Resolution Note: ${selected['resolutionComment']}',
-                              style: GoogleFonts.roboto(
+                              style: const TextStyle(
                                 color: AppColors.textPrimary,
                                 fontSize: 13,
                               ),
@@ -1498,9 +1497,9 @@ class AdminDashboardScreen extends StatelessWidget {
                     const SizedBox(height: 24),
 
                     // Video Section
-                    Text(
+                    const Text(
                       'Reported Video Details',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -1529,8 +1528,8 @@ class AdminDashboardScreen extends StatelessWidget {
                                   errorBuilder: (context, error, stackTrace) => Container(
                                     width: 120,
                                     height: 68,
-                                    color: Colors.grey.shade900,
-                                    child: const Icon(Icons.broken_image, color: Colors.grey),
+                                    color: AppColors.textSecondary,
+                                    child: const Icon(Icons.broken_image, color: AppColors.textSecondary),
                                   ),
                                 ),
                               )
@@ -1539,10 +1538,10 @@ class AdminDashboardScreen extends StatelessWidget {
                                 width: 120,
                                 height: 68,
                                 decoration: BoxDecoration(
-                                  color: Colors.grey.shade900,
+                                  color: AppColors.textSecondary,
                                   borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Icon(Icons.movie_creation_outlined, color: Colors.grey),
+                                child: const Icon(Icons.movie_creation_outlined, color: AppColors.textSecondary),
                               ),
                             const SizedBox(width: 16),
                             Expanded(
@@ -1551,7 +1550,7 @@ class AdminDashboardScreen extends StatelessWidget {
                                 children: [
                                   Text(
                                     video['title'] ?? 'Untitled Video',
-                                    style: GoogleFonts.roboto(
+                                    style: const TextStyle(
                                       color: AppColors.textPrimary,
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold,
@@ -1562,7 +1561,7 @@ class AdminDashboardScreen extends StatelessWidget {
                                   const SizedBox(height: 4),
                                   Text(
                                     'Channel: ${video['channelName'] ?? 'Unknown'}',
-                                    style: GoogleFonts.roboto(
+                                    style: const TextStyle(
                                       color: AppColors.textSecondary,
                                       fontSize: 12,
                                     ),
@@ -1570,7 +1569,7 @@ class AdminDashboardScreen extends StatelessWidget {
                                   const SizedBox(height: 4),
                                   Text(
                                     'Status: ${video['moderation']?['status'] ?? 'unknown'}',
-                                    style: GoogleFonts.roboto(
+                                    style: const TextStyle(
                                       color: AppColors.textTertiary,
                                       fontSize: 11,
                                     ),
@@ -1592,16 +1591,16 @@ class AdminDashboardScreen extends StatelessWidget {
                         ),
                         child: Text(
                           'Video ID: $videoId (Video details not cached or video deleted)',
-                          style: GoogleFonts.roboto(color: AppColors.textSecondary, fontSize: 13),
+                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
                         ),
                       ),
                     ],
                     const SizedBox(height: 24),
 
                     // Report Info Section
-                    Text(
+                    const Text(
                       'Report Submission Info',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -1617,9 +1616,9 @@ class AdminDashboardScreen extends StatelessWidget {
                     const SizedBox(height: 24),
 
                     // Reporter Comment block
-                    Text(
+                    const Text(
                       'Reporter Comment',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -1636,7 +1635,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       ),
                       child: Text(
                         comment,
-                        style: GoogleFonts.roboto(
+                        style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 13,
                           height: 1.4,
@@ -1653,7 +1652,7 @@ class AdminDashboardScreen extends StatelessWidget {
                             onPressed: controller.isActionSubmitting.value
                                 ? null
                                 : () => _showDecisionDialog(context, controller, selected['id'], 'dismiss', false, isReport: true),
-                            icon: const Icon(Icons.check_circle_outline, size: 18, color: Colors.white),
+                            icon: const Icon(Icons.check_circle_outline, size: 18, color: AppColors.textPrimary),
                             label: const Text('Dismiss Report (Keep Video)'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.success,
@@ -1693,10 +1692,10 @@ class AdminDashboardScreen extends StatelessWidget {
       final list = controller.images;
 
       if (list.isEmpty) {
-        return Center(
+        return const Center(
           child: Text(
             'No images in the moderation queue.',
-            style: GoogleFonts.roboto(color: AppColors.textTertiary),
+            style: TextStyle(color: AppColors.textTertiary),
           ),
         );
       }
@@ -1708,10 +1707,10 @@ class AdminDashboardScreen extends StatelessWidget {
             flex: 2,
             child: Container(
               decoration: const BoxDecoration(
-                border: Border(right: BorderSide(color: AppColors.bgDivider, width: 1)),
+                border: Border(right: BorderSide(color: AppColors.bgDivider)),
               ),
               child: GridView.builder(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(16),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 2,
                   crossAxisSpacing: 12,
@@ -1723,7 +1722,7 @@ class AdminDashboardScreen extends StatelessWidget {
                   final img = list[index];
                   final isSelected = controller.selectedImage.value?['id'] == img['id'];
                   final rawUrl = img['gcsUri'] ?? img['filePath'] ?? '';
-                  final displayUrl = rawUrl.toString().replaceAll("gs://", "https://storage.googleapis.com/").replaceAll("truthworld-1.firebasestorage.app/", "truthworld-1.firebasestorage.app/");
+                  final displayUrl = rawUrl.toString().replaceAll('gs://', 'https://storage.googleapis.com/').replaceAll('truthworld-1.firebasestorage.app/', 'truthworld-1.firebasestorage.app/');
 
                   return GestureDetector(
                     onTap: () {
@@ -1754,13 +1753,13 @@ class AdminDashboardScreen extends StatelessWidget {
                                 : const Icon(Icons.image, color: AppColors.textTertiary),
                           ),
                           Padding(
-                            padding: const EdgeInsets.all(8.0),
+                            padding: const EdgeInsets.all(8),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   img['fileName'] ?? 'Image File',
-                                  style: GoogleFonts.roboto(
+                                  style: const TextStyle(
                                     color: AppColors.textPrimary,
                                     fontSize: 11,
                                     fontWeight: FontWeight.w500,
@@ -1780,7 +1779,7 @@ class AdminDashboardScreen extends StatelessWidget {
                                       ),
                                       child: Text(
                                         img['category'] ?? 'Post',
-                                        style: GoogleFonts.roboto(
+                                        style: const TextStyle(
                                           color: AppColors.textSecondary,
                                           fontSize: 8,
                                         ),
@@ -1807,26 +1806,26 @@ class AdminDashboardScreen extends StatelessWidget {
             child: Obx(() {
               final selected = controller.selectedImage.value;
               if (selected == null) {
-                return Center(
+                return const Center(
                   child: Text(
                     'Select an image to inspect details',
-                    style: GoogleFonts.roboto(color: AppColors.textTertiary),
+                    style: TextStyle(color: AppColors.textTertiary),
                   ),
                 );
               }
 
               final rawUrl = selected['gcsUri'] ?? selected['filePath'] ?? '';
-              final displayUrl = rawUrl.toString().replaceAll("gs://", "https://storage.googleapis.com/").replaceAll("truthworld-1.firebasestorage.app/", "truthworld-1.firebasestorage.app/");
+              final displayUrl = rawUrl.toString().replaceAll('gs://', 'https://storage.googleapis.com/').replaceAll('truthworld-1.firebasestorage.app/', 'truthworld-1.firebasestorage.app/');
               final scores = selected['detailedScores'] as Map<String, dynamic>? ?? {};
 
               return SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
+                padding: const EdgeInsets.all(24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       selected['fileName'] ?? 'Inspect Image',
-                      style: GoogleFonts.roboto(
+                      style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
@@ -1855,9 +1854,9 @@ class AdminDashboardScreen extends StatelessWidget {
                     const SizedBox(height: 24),
 
                     // Safe Search Scores
-                    Text(
+                    const Text(
                       'AI SafeSearch Violations',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -1878,9 +1877,9 @@ class AdminDashboardScreen extends StatelessWidget {
                     const SizedBox(height: 24),
 
                     // Metadata Details Table
-                    Text(
+                    const Text(
                       'Verification Metadata',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -1906,7 +1905,7 @@ class AdminDashboardScreen extends StatelessWidget {
                             onPressed: controller.isActionSubmitting.value
                                 ? null
                                 : () => _showDecisionDialog(context, controller, selected['id'], 'approve', false),
-                            icon: const Icon(Icons.check_circle_outline, size: 18, color: Colors.white),
+                            icon: const Icon(Icons.check_circle_outline, size: 18, color: AppColors.textPrimary),
                             label: const Text('Approve Image'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.success,
@@ -1946,38 +1945,38 @@ class AdminDashboardScreen extends StatelessWidget {
       final logs = controller.auditLogs;
 
       if (logs.isEmpty) {
-        return Center(
+        return const Center(
           child: Text(
             'No manual rejection logs recorded.',
-            style: GoogleFonts.roboto(color: AppColors.textTertiary),
+            style: TextStyle(color: AppColors.textTertiary),
           ),
         );
       }
 
       return SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(24),
         child: Container(
           decoration: BoxDecoration(
             color: AppColors.bgSurface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.bgDivider, width: 1),
+            border: Border.all(color: AppColors.bgDivider),
           ),
           child: DataTable(
-            columnSpacing: 16.0,
-            horizontalMargin: 20.0,
-            columns: [
-              DataColumn(label: Text('Original Location', style: GoogleFonts.roboto(color: AppColors.textSecondary))),
-              DataColumn(label: Text('Quarantine GCS Path', style: GoogleFonts.roboto(color: AppColors.textSecondary))),
-              DataColumn(label: Text('Reason Code', style: GoogleFonts.roboto(color: AppColors.textSecondary))),
-              DataColumn(label: Text('Owner ID', style: GoogleFonts.roboto(color: AppColors.textSecondary))),
-              DataColumn(label: Text('Rejection Date', style: GoogleFonts.roboto(color: AppColors.textSecondary))),
+            columnSpacing: 16,
+            horizontalMargin: 20,
+            columns: const [
+              DataColumn(label: Text('Original Location', style: TextStyle(color: AppColors.textSecondary))),
+              DataColumn(label: Text('Quarantine GCS Path', style: TextStyle(color: AppColors.textSecondary))),
+              DataColumn(label: Text('Reason Code', style: TextStyle(color: AppColors.textSecondary))),
+              DataColumn(label: Text('Owner ID', style: TextStyle(color: AppColors.textSecondary))),
+              DataColumn(label: Text('Rejection Date', style: TextStyle(color: AppColors.textSecondary))),
             ],
             rows: logs.map((log) {
               return DataRow(
                 cells: [
                   DataCell(Text(
                     log['originalPath'] ?? 'N/A',
-                    style: GoogleFonts.roboto(color: AppColors.textPrimary, fontSize: 12),
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
                   )),
                   DataCell(Text(
                     log['quarantinePath'] ?? 'N/A',
@@ -1985,15 +1984,15 @@ class AdminDashboardScreen extends StatelessWidget {
                   )),
                   DataCell(Text(
                     log['reason'] ?? 'N/A',
-                    style: GoogleFonts.roboto(color: AppColors.textSecondary, fontSize: 12),
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                   )),
                   DataCell(Text(
                     log['userId'] ?? 'N/A',
-                    style: GoogleFonts.roboto(color: AppColors.textTertiary, fontSize: 12),
+                    style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
                   )),
                   DataCell(Text(
                     _formatTimestamp(log['rejectedAt']),
-                    style: GoogleFonts.roboto(color: AppColors.textTertiary, fontSize: 12),
+                    style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
                   )),
                 ],
               );
@@ -2021,7 +2020,7 @@ class AdminDashboardScreen extends StatelessWidget {
         backgroundColor: AppColors.bgSurface,
         title: Text(
           'Confirm Manual ${action.capitalizeFirst}',
-          style: GoogleFonts.roboto(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
+          style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -2030,7 +2029,7 @@ class AdminDashboardScreen extends StatelessWidget {
             Text(
               'Are you sure you want to manually $action this resource? '
               '${action == 'reject' ? 'This action logs an audit/moderation record.' : ''}',
-              style: GoogleFonts.roboto(color: AppColors.textSecondary, fontSize: 13),
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
             ),
             const SizedBox(height: 20),
             TextField(
@@ -2049,8 +2048,8 @@ class AdminDashboardScreen extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Get.back(),
-            child: Text('Cancel', style: GoogleFonts.roboto(color: AppColors.textSecondary)),
+            onPressed: Get.back,
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -2067,7 +2066,7 @@ class AdminDashboardScreen extends StatelessWidget {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: (action == 'approve' || action == 'dismiss') ? AppColors.success : AppColors.error,
-              foregroundColor: Colors.white,
+              foregroundColor: AppColors.textPrimary,
             ),
             child: Text('Confirm ${action.capitalizeFirst}'),
           ),
@@ -2079,7 +2078,7 @@ class AdminDashboardScreen extends StatelessWidget {
   // SafeSearch ratings chip helper
   Widget _buildSafeSearchChip(String label, dynamic val) {
     final score = int.tryParse(val?.toString() ?? '0') ?? 0;
-    Color scoreColor = AppColors.success;
+    var scoreColor = AppColors.success;
     if (score >= 3) scoreColor = AppColors.warning;
     if (score >= 5) scoreColor = AppColors.error;
 
@@ -2088,18 +2087,18 @@ class AdminDashboardScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: scoreColor.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: scoreColor.withValues(alpha: 0.3), width: 1),
+        border: Border.all(color: scoreColor.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             '$label: ',
-            style: GoogleFonts.roboto(color: AppColors.textSecondary, fontSize: 11),
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
           ),
           Text(
             '$score',
-            style: GoogleFonts.roboto(color: scoreColor, fontSize: 11, fontWeight: FontWeight.bold),
+            style: TextStyle(color: scoreColor, fontSize: 11, fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -2108,8 +2107,8 @@ class AdminDashboardScreen extends StatelessWidget {
 
   // Status Badge Builder
   Widget _buildStatusBadge(String status) {
-    Color color = AppColors.textTertiary;
-    String txt = status.toUpperCase();
+    var color = AppColors.textTertiary;
+    final txt = status.toUpperCase();
 
     if (txt == 'APPROVED' || txt == 'SUCCESS' || txt == 'RESOLVED_DISMISSED' || txt == 'RESOLVED') {
       color = AppColors.success;
@@ -2127,7 +2126,7 @@ class AdminDashboardScreen extends StatelessWidget {
       ),
       child: Text(
         txt,
-        style: GoogleFonts.roboto(
+        style: TextStyle(
           color: color,
           fontSize: 9,
           fontWeight: FontWeight.bold,
@@ -2147,17 +2146,17 @@ class AdminDashboardScreen extends StatelessWidget {
         return TableRow(
           children: [
             Padding(
-              padding: const EdgeInsets.only(top: 8.0, bottom: 8.0, right: 16.0),
+              padding: const EdgeInsets.only(top: 8, bottom: 8, right: 16),
               child: Text(
                 row.label,
-                style: GoogleFonts.roboto(color: AppColors.textTertiary, fontSize: 12),
+                style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
                 row.value,
-                style: GoogleFonts.roboto(color: AppColors.textPrimary, fontSize: 12),
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
               ),
             ),
           ],
@@ -2168,15 +2167,15 @@ class AdminDashboardScreen extends StatelessWidget {
 }
 
 class _MetadataRow {
+  const _MetadataRow(this.label, this.value);
   final String label;
   final String value;
-  const _MetadataRow(this.label, this.value);
 }
 
 // Stateful Video Player wrapper
 class AdminVideoPlayerController extends GetxController {
-  final String url;
   AdminVideoPlayerController(this.url);
+  final String url;
 
   late VideoPlayerController videoCtrl;
   ChewieController? chewieCtrl;
@@ -2196,8 +2195,6 @@ class AdminVideoPlayerController extends GetxController {
       chewieCtrl = ChewieController(
         videoPlayerController: videoCtrl,
         aspectRatio: videoCtrl.value.aspectRatio,
-        autoPlay: false,
-        looping: false,
         materialProgressColors: ChewieProgressColors(
           playedColor: AppColors.brand,
           handleColor: AppColors.brand,
@@ -2221,8 +2218,8 @@ class AdminVideoPlayerController extends GetxController {
 
 // GetX Video Player wrapper
 class AdminVideoPlayer extends StatelessWidget {
-  final String url;
   const AdminVideoPlayer({required this.url, super.key});
+  final String url;
 
   @override
   Widget build(BuildContext context) {
@@ -2233,10 +2230,10 @@ class AdminVideoPlayer extends StatelessWidget {
       if (controller.error.value != null) {
         return Center(
           child: Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(16),
             child: Text(
               controller.error.value!,
-              style: GoogleFonts.roboto(color: AppColors.error, fontSize: 12),
+              style: const TextStyle(color: AppColors.error, fontSize: 12),
               textAlign: TextAlign.center,
             ),
           ),

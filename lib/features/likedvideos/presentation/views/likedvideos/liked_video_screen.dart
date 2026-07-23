@@ -1,12 +1,11 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/likedvideos/presentation/controllers/likedvideos_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 // ==========================================================================
 // RESPONSIVE UTILITIES
@@ -49,8 +48,8 @@ class ResponsiveUtils {
 // ==========================================================================
 
 class LikedVideoScreen extends StatefulWidget {
-  final bool isDashboard;
   const LikedVideoScreen({super.key, this.isDashboard = false});
+  final bool isDashboard;
 
   @override
   State<LikedVideoScreen> createState() => _LikedVideoScreenState();
@@ -64,10 +63,10 @@ class _LikedVideoScreenState extends State<LikedVideoScreen> with TickerProvider
     final currentUser = FirebaseAuth.instance.currentUser;
     
     if (currentUser == null) {
-      return Scaffold(
+      return const Scaffold(
         backgroundColor: AppColors.bgPage,
-        body: const Center(
-          child: Text('Please login to see liked videos', style: TextStyle(color: Colors.white)),
+        body: Center(
+          child: Text('Please login to see liked videos', style: TextStyle(color: AppColors.textPrimary)),
         ),
       );
     }
@@ -106,7 +105,7 @@ class _LikedVideoScreenState extends State<LikedVideoScreen> with TickerProvider
                               onChanged: (value) =>
                                   controller.searchQuery.value = value,
                               style: const TextStyle(
-                                color: Colors.white,
+                                color: AppColors.textPrimary,
                                 fontSize: 14,
                               ),
                               decoration: InputDecoration(
@@ -145,7 +144,7 @@ class _LikedVideoScreenState extends State<LikedVideoScreen> with TickerProvider
                       : Row(
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.arrow_back, color: Colors.white),
+                              icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
                               onPressed: () {
                                 if (widget.isDashboard) {
                                   Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexLibrary;
@@ -155,9 +154,9 @@ class _LikedVideoScreenState extends State<LikedVideoScreen> with TickerProvider
                               },
                             ),
                             const SizedBox(width: 8),
-                            Text(
+                            const Text(
                               'Liked videos',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontSize: 32,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.textPrimary,
@@ -173,7 +172,7 @@ class _LikedVideoScreenState extends State<LikedVideoScreen> with TickerProvider
                           ? IconButton(
                               icon: const Icon(
                                 Icons.search,
-                                color: Colors.white,
+                                color: AppColors.textPrimary,
                               ),
                               onPressed: () =>
                                   controller.isSearchExpanded.value = true,
@@ -183,9 +182,9 @@ class _LikedVideoScreenState extends State<LikedVideoScreen> with TickerProvider
                     IconButton(
                       icon: Obx(() => Icon(
                         controller.isListView.value ? Icons.grid_view_rounded : Icons.view_list_rounded,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       )),
-                      onPressed: () => controller.toggleView(),
+                      onPressed: controller.toggleView,
                     ),
                   ],
                 ),
@@ -212,7 +211,7 @@ class _LikedVideoScreenState extends State<LikedVideoScreen> with TickerProvider
                   padding: const EdgeInsets.all(32),
                   child: Text(
                     'Error: ${controller.errorMessage.value}',
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: AppColors.textPrimary),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -226,7 +225,7 @@ class _LikedVideoScreenState extends State<LikedVideoScreen> with TickerProvider
               child: Center(
                 child: Text(
                   'No liked videos found',
-                  style: TextStyle(color: Colors.white),
+                  style: TextStyle(color: AppColors.textPrimary),
                 ),
               ),
             );
@@ -246,7 +245,7 @@ class _LikedVideoScreenState extends State<LikedVideoScreen> with TickerProvider
                     padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
                     child: Text(
                       dateKey,
-                      style: GoogleFonts.roboto(
+                      style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
@@ -286,10 +285,10 @@ class _LikedVideoScreenState extends State<LikedVideoScreen> with TickerProvider
                 onSelected: (selected) {
                   if (selected) controller.setCategory(category);
                 },
-                selectedColor: Colors.white,
+                selectedColor: AppColors.textPrimary,
                 backgroundColor: AppColors.bgSurfaceHover,
-                labelStyle: GoogleFonts.roboto(
-                  color: isSelected ? Colors.black : Colors.white,
+                labelStyle: TextStyle(
+                  color: isSelected ? AppColors.bgPage : AppColors.textPrimary,
                   fontWeight: FontWeight.w500,
                 ),
                 shape: RoundedRectangleBorder(
@@ -306,9 +305,9 @@ class _LikedVideoScreenState extends State<LikedVideoScreen> with TickerProvider
 }
 
 class _LikedVideoListCard extends StatelessWidget {
+  const _LikedVideoListCard({required this.video, required this.controller});
   final Video video;
   final LikedVideosController controller;
-  const _LikedVideoListCard({required this.video, required this.controller});
 
   @override
   Widget build(BuildContext context) {
@@ -345,13 +344,13 @@ class _LikedVideoListCard extends StatelessWidget {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.8),
+                      color: AppColors.bgPage.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Text(
                       '10:00', // Placeholder
                       style: TextStyle(
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
@@ -374,7 +373,7 @@ class _LikedVideoListCard extends StatelessWidget {
                           video.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.roboto(
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary,
@@ -384,7 +383,7 @@ class _LikedVideoListCard extends StatelessWidget {
                       IconButton(
                         icon: const Icon(
                           Icons.more_vert,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           size: 20,
                         ),
                         onPressed: () => _showOptions(context),
@@ -396,14 +395,14 @@ class _LikedVideoListCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${video.channelName} • ${video.views} views',
-                    style: GoogleFonts.roboto(
+                    style: const TextStyle(
                       fontSize: 13,
                       color: AppColors.textSecondary,
                     ),
                   ),
                   Text(
                     controller.formatTimeAgo(video.uploadedAt.toDate()),
-                    style: GoogleFonts.roboto(
+                    style: const TextStyle(
                       fontSize: 12,
                       color: AppColors.textSecondary,
                     ),
@@ -433,14 +432,14 @@ class _LikedVideoListCard extends StatelessWidget {
               height: 4,
               margin: const EdgeInsets.only(bottom: 24),
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: AppColors.textDisabled,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
             _buildOptionItem(
               icon: Icons.delete_outline_rounded,
               label: 'Remove from liked videos',
-              color: Colors.red,
+              color: AppColors.error,
               onTap: () {
                 Get.back();
                 _showRemoveConfirmation(context);
@@ -449,18 +448,12 @@ class _LikedVideoListCard extends StatelessWidget {
             _buildOptionItem(
               icon: Icons.share_outlined,
               label: 'Share',
-              onTap: () {
-                Get.back();
-                // Implement share
-              },
+              onTap: Get.back,
             ),
             _buildOptionItem(
               icon: Icons.playlist_add_rounded,
               label: 'Save to playlist',
-              onTap: () {
-                Get.back();
-                // Implement playlist save
-              },
+              onTap: Get.back,
             ),
           ],
         ),
@@ -486,7 +479,7 @@ class _LikedVideoListCard extends StatelessWidget {
       ),
       title: Text(
         label,
-        style: GoogleFonts.roboto(
+        style: TextStyle(
           color: textColor,
           fontWeight: FontWeight.w500,
           fontSize: 15,
@@ -502,23 +495,23 @@ class _LikedVideoListCard extends StatelessWidget {
     Get.dialog(
       AlertDialog(
         backgroundColor: AppColors.bgSurface,
-        title: Text(
+        title: const Text(
           'Remove from liked videos?',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             color: AppColors.textPrimary,
             fontWeight: FontWeight.bold,
           ),
         ),
         content: Text(
           'Are you sure you want to remove "${video.title}" from your liked videos?',
-          style: GoogleFonts.roboto(color: AppColors.textSecondary),
+          style: const TextStyle(color: AppColors.textSecondary),
         ),
         actions: [
           TextButton(
-            onPressed: () => Get.back(),
-            child: Text(
+            onPressed: Get.back,
+            child: const Text(
               'Cancel',
-              style: GoogleFonts.roboto(color: AppColors.textSecondary),
+              style: TextStyle(color: AppColors.textSecondary),
             ),
           ),
           ElevatedButton(
@@ -528,7 +521,7 @@ class _LikedVideoListCard extends StatelessWidget {
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.brand,
-              foregroundColor: Colors.white,
+              foregroundColor: AppColors.textPrimary,
               elevation: 0,
             ),
             child: const Text('Remove'),

@@ -4,14 +4,14 @@ import 'package:get/get.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
 class AnalyticsController extends GetxController {
+
+  AnalyticsController({required this.channelId});
   final String channelId;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  AnalyticsController({required this.channelId});
-
-  var topVideos = <Video>[].obs;
-  var isLoading = true.obs;
-  var errorMessage = ''.obs;
+  RxList<Video> topVideos = <Video>[].obs;
+  RxBool isLoading = true.obs;
+  RxString errorMessage = ''.obs;
 
   StreamSubscription? _videosSubscription;
 
@@ -22,7 +22,7 @@ class AnalyticsController extends GetxController {
       fetchTopVideos();
     } else {
       isLoading.value = false;
-      errorMessage.value = "No channel ID provided.";
+      errorMessage.value = 'No channel ID provided.';
     }
   }
 
@@ -44,18 +44,18 @@ class AnalyticsController extends GetxController {
       _videosSubscription = videosRef.snapshots().listen(
         (snapshot) {
           topVideos.value = snapshot.docs
-              .map((doc) => Video.fromDocumentSnapshot(doc))
+              .map(Video.fromDocumentSnapshot)
               .toList();
           isLoading.value = false;
         },
         onError: (error) {
           isLoading.value = false;
-          errorMessage.value = "Failed to load top videos: $error";
+          errorMessage.value = 'Failed to load top videos: $error';
         },
       );
     } catch (e) {
       isLoading.value = false;
-      errorMessage.value = "An unexpected error occurred: $e";
+      errorMessage.value = 'An unexpected error occurred: $e';
     }
   }
 }

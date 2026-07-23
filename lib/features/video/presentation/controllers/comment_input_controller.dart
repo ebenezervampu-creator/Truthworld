@@ -1,15 +1,15 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
-import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 
 class CommentInputController extends BaseController {
-  final String videoId;
-  final bool enableComments;
   
   CommentInputController({required this.videoId, required this.enableComments});
+  final String videoId;
+  final bool enableComments;
 
   // State Variables as observables
   final isFocused = false.obs;

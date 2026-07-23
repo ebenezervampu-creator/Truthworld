@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Branded loading screen used by all deep-link loaders (video, channel, playlist).
@@ -10,6 +9,14 @@ import 'package:truthworld/theme/app_theme.dart';
 /// - Error state with retry button
 /// - Consistent dark theme matching TruthWorld branding
 class DeepLinkLoaderWidget extends StatefulWidget {
+
+  const DeepLinkLoaderWidget({
+    required this.title, required this.subtitle, required this.icon, required this.accentColor, super.key,
+    this.hasError = false,
+    this.errorMessage,
+    this.onRetry,
+    this.onGoHome,
+  });
   final String title;
   final String subtitle;
   final IconData icon;
@@ -18,18 +25,6 @@ class DeepLinkLoaderWidget extends StatefulWidget {
   final String? errorMessage;
   final VoidCallback? onRetry;
   final VoidCallback? onGoHome;
-
-  const DeepLinkLoaderWidget({
-    super.key,
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.accentColor,
-    this.hasError = false,
-    this.errorMessage,
-    this.onRetry,
-    this.onGoHome,
-  });
 
   @override
   State<DeepLinkLoaderWidget> createState() => _DeepLinkLoaderWidgetState();
@@ -77,7 +72,7 @@ class _DeepLinkLoaderWidgetState extends State<DeepLinkLoaderWidget>
       backgroundColor: AppTheme.colors.surface,
       body: Center(
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 32),
+          padding: const EdgeInsets.symmetric(horizontal: 32),
           child: widget.hasError ? _buildErrorState() : _buildLoadingState(),
         ),
       ),
@@ -136,7 +131,7 @@ class _DeepLinkLoaderWidgetState extends State<DeepLinkLoaderWidget>
         // Title
         Text(
           widget.title,
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w500,
             color: AppTheme.colors.textPrimary,
@@ -146,7 +141,7 @@ class _DeepLinkLoaderWidgetState extends State<DeepLinkLoaderWidget>
         // Subtitle
         Text(
           widget.subtitle,
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 14,
             color: AppTheme.colors.textSecondary,
           ),
@@ -195,7 +190,7 @@ class _DeepLinkLoaderWidgetState extends State<DeepLinkLoaderWidget>
         // Error title
         Text(
           'Content Not Found',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.w500,
             color: AppTheme.colors.textPrimary,
@@ -205,8 +200,8 @@ class _DeepLinkLoaderWidgetState extends State<DeepLinkLoaderWidget>
         // Error message
         Text(
           widget.errorMessage ??
-              'The content you\'re looking for may have been removed or is unavailable.',
-          style: GoogleFonts.roboto(
+              "The content you're looking for may have been removed or is unavailable.",
+          style: TextStyle(
             fontSize: 14,
             color: AppTheme.colors.textSecondary,
             height: 1.5,
@@ -244,11 +239,6 @@ class _DeepLinkLoaderWidgetState extends State<DeepLinkLoaderWidget>
 }
 
 class _ActionButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final bool filled;
-  final VoidCallback onTap;
 
   const _ActionButton({
     required this.icon,
@@ -257,6 +247,11 @@ class _ActionButton extends StatelessWidget {
     required this.filled,
     required this.onTap,
   });
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool filled;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -266,12 +261,12 @@ class _ActionButton extends StatelessWidget {
         icon: Icon(icon, size: 18),
         label: Text(
           label,
-          style: GoogleFonts.roboto(fontSize: 14, fontWeight: FontWeight.w500),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: color,
           foregroundColor: AppTheme.colors.textPrimary,
-          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -284,12 +279,12 @@ class _ActionButton extends StatelessWidget {
       icon: Icon(icon, size: 18),
       label: Text(
         label,
-        style: GoogleFonts.roboto(fontSize: 14, fontWeight: FontWeight.w500),
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
       ),
       style: OutlinedButton.styleFrom(
         foregroundColor: AppTheme.colors.textPrimary,
         side: BorderSide(color: color),
-        padding: EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );

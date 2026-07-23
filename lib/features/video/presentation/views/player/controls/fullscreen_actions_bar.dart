@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-
 import 'package:truthworld/core/ux/app_snackbar.dart';
-import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
-import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
-import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class FullscreenVerticalActionsBar extends StatelessWidget {
+  const FullscreenVerticalActionsBar({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const FullscreenVerticalActionsBar({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
@@ -29,9 +29,9 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.4),
+        color: AppColors.bgPage.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -42,7 +42,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
               icon: vc.isLiked.value
                   ? Icons.thumb_up_rounded
                   : Icons.thumb_up_outlined,
-              onTap: () => vc.toggleLike(),
+              onTap: vc.toggleLike,
               isActive: vc.isLiked.value,
             );
           }),
@@ -54,7 +54,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
               icon: vc.isDisliked.value
                   ? Icons.thumb_down_rounded
                   : Icons.thumb_down_outlined,
-              onTap: () => vc.toggleDislike(),
+              onTap: vc.toggleDislike,
               isActive: vc.isDisliked.value,
             );
           }),
@@ -98,8 +98,8 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
                 'Saved',
                 'Video added to your library',
                 snackPosition: SnackPosition.BOTTOM,
-                backgroundColor: Colors.black87,
-                colorText: Colors.white,
+                backgroundColor: AppColors.bgPage,
+                colorText: AppColors.textPrimary,
               );
             },
           ),
@@ -165,13 +165,13 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
             decoration: BoxDecoration(
               color: isActive
                   ? PT.primary.withValues(alpha: 0.2)
-                  : Colors.white.withValues(alpha: 0.08),
+                  : AppColors.textPrimary.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
             child: _AnimatedBounceIcon(
               icon: icon,
               isActive: isActive,
-              color: isActive ? PT.primary : Colors.white,
+              color: isActive ? PT.primary : AppColors.textPrimary,
               textDirection: flipHorizontal ? TextDirection.rtl : null,
             ),
           ),
@@ -188,7 +188,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
               child: Text(
                 '$badgeCount',
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
                 ),
@@ -201,19 +201,18 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
 }
 
 class _AnimatedBounceIcon extends StatefulWidget {
-  final IconData icon;
-  final bool isActive;
-  final Color color;
-  final double size;
-  final TextDirection? textDirection;
 
   const _AnimatedBounceIcon({
     required this.icon,
     required this.isActive,
     required this.color,
-    this.size = 20,
     this.textDirection,
   });
+  final IconData icon;
+  final bool isActive;
+  final Color color;
+  final double size = 20;
+  final TextDirection? textDirection;
 
   @override
   State<_AnimatedBounceIcon> createState() => _AnimatedBounceIconState();
@@ -233,14 +232,14 @@ class _AnimatedBounceIconState extends State<_AnimatedBounceIcon>
     );
     _scaleAnimation = TweenSequence<double>([
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.0, end: 1.4)
+        tween: Tween<double>(begin: 1, end: 1.4)
             .chain(CurveTween(curve: Curves.easeOut)),
-        weight: 40.0,
+        weight: 40,
       ),
       TweenSequenceItem(
-        tween: Tween<double>(begin: 1.4, end: 1.0)
+        tween: Tween<double>(begin: 1.4, end: 1)
             .chain(CurveTween(curve: Curves.bounceOut)),
-        weight: 60.0,
+        weight: 60,
       ),
     ]).animate(_controller);
   }
@@ -249,7 +248,7 @@ class _AnimatedBounceIconState extends State<_AnimatedBounceIcon>
   void didUpdateWidget(covariant _AnimatedBounceIcon oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.isActive != oldWidget.isActive && widget.isActive) {
-      _controller.forward(from: 0.0);
+      _controller.forward(from: 0);
     }
   }
 

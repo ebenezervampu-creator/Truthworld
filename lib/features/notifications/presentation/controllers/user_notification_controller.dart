@@ -10,12 +10,12 @@ class UserNotificationController extends GetxController {
   final UserNotificationService _service = UserNotificationService();
   final String userId = FirebaseAuth.instance.currentUser?.uid ?? 'guest_user';
 
-  var notifications = <UserNotification>[].obs;
-  var isLoading = true.obs;
-  var selectedSeverityFilter = 'all'.obs;
-  var selectedTypeFilter = 'all'.obs;
-  var searchQuery = ''.obs;
-  var isSearching = false.obs;
+  RxList<UserNotification> notifications = <UserNotification>[].obs;
+  RxBool isLoading = true.obs;
+  RxString selectedSeverityFilter = 'all'.obs;
+  RxString selectedTypeFilter = 'all'.obs;
+  RxString searchQuery = ''.obs;
+  RxBool isSearching = false.obs;
 
   StreamSubscription<List<UserNotification>>? _subscription;
 
@@ -98,7 +98,7 @@ class UserNotificationController extends GetxController {
     if (unreadIds.isEmpty) return;
 
     // Optimistic update
-    for (var n in notifications) {
+    for (final n in notifications) {
       n.read = true;
     }
     notifications.refresh();

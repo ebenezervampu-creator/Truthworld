@@ -1,4 +1,4 @@
-import 'search_result.dart';
+import 'package:truthworld/features/search/data/models/search_result.dart';
 
 /// In-memory cache for search queries
 ///
@@ -56,7 +56,7 @@ class SearchCache {
   double _calculateHitRate() {
     // Placeholder for hit rate calculation
     // In production, track hits/misses in controller
-    return 0.0;
+    return 0;
   }
 
   /// Returns true if query is cached

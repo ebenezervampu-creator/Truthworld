@@ -1,10 +1,6 @@
-import 'tw_breakpoints.dart';
+import 'package:truthworld/theme/tw_breakpoints.dart';
 
 class DeviceState {
-  final double width;
-  final double height;
-  final DeviceType type;
-  final double fontScale;
 
   const DeviceState({
     required this.width,
@@ -34,6 +30,10 @@ class DeviceState {
       fontScale: fontScale,
     );
   }
+  final double width;
+  final double height;
+  final DeviceType type;
+  final double fontScale;
 
   bool get isMobile => type == DeviceType.mobile;
   bool get isTablet => type == DeviceType.tablet;

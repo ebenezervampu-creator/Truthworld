@@ -9,16 +9,16 @@ class LikedVideosController extends GetxController {
   final String userId = FirebaseAuth.instance.currentUser!.uid;
 
   // Observable state variables
-  var isListView = true.obs;
-  var searchQuery = ''.obs;
-  var isSearching = false.obs;
-  var sortBy = 'recent'.obs;
-  var isAscending = false.obs;
+  RxBool isListView = true.obs;
+  RxString searchQuery = ''.obs;
+  RxBool isSearching = false.obs;
+  RxString sortBy = 'recent'.obs;
+  RxBool isAscending = false.obs;
 
   // Observable data variables
-  var videos = <Video>[].obs;
-  var isLoading = true.obs;
-  var errorMessage = ''.obs;
+  RxList<Video> videos = <Video>[].obs;
+  RxBool isLoading = true.obs;
+  RxString errorMessage = ''.obs;
 
   StreamSubscription<QuerySnapshot>? _subscription;
 
@@ -71,9 +71,9 @@ class LikedVideosController extends GetxController {
   /// Batch video fetches to respect Firestore whereIn limit (max 10)
   Future<List<Video>> _fetchVideosInBatches(List<String> videoIds) async {
     const batchSize = 10;
-    final List<Video> allVideos = [];
+    final allVideos = <Video>[];
 
-    for (int i = 0; i < videoIds.length; i += batchSize) {
+    for (var i = 0; i < videoIds.length; i += batchSize) {
       final batch = videoIds.sublist(
         i,
         i + batchSize > videoIds.length ? videoIds.length : i + batchSize,
@@ -85,7 +85,7 @@ class LikedVideosController extends GetxController {
           .get();
 
       allVideos.addAll(
-        batchDocs.docs.map((doc) => Video.fromDocumentSnapshot(doc)),
+        batchDocs.docs.map(Video.fromDocumentSnapshot),
       );
     }
 
@@ -136,28 +136,24 @@ class LikedVideosController extends GetxController {
               ? a.uploadedAt.compareTo(b.uploadedAt)
               : b.uploadedAt.compareTo(a.uploadedAt),
         );
-        break;
       case 'views':
         filtered.sort(
           (a, b) => isAscending.value
               ? a.views.compareTo(b.views)
               : b.views.compareTo(a.views),
         );
-        break;
       case 'likes':
         filtered.sort(
           (a, b) => isAscending.value
               ? a.likeCount.compareTo(b.likeCount)
               : b.likeCount.compareTo(a.likeCount),
         );
-        break;
       case 'title':
         filtered.sort(
           (a, b) => isAscending.value
               ? a.title.compareTo(b.title)
               : b.title.compareTo(a.title),
         );
-        break;
     }
     return filtered;
   }

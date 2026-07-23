@@ -21,22 +21,21 @@ import 'package:truthworld/theme/app_theme.dart';
 /// )
 /// ```
 class ResponsivePageWrapper extends StatelessWidget {
-  final Widget body;
-  final EdgeInsetsGeometry? padding;
-  final Color? backgroundColor;
-  final ScrollController? scrollController;
-  final bool useScroll;
-  final bool useSafeArea;
 
   const ResponsivePageWrapper({
-    super.key,
-    required this.body,
+    required this.body, super.key,
     this.padding,
     this.backgroundColor,
     this.scrollController,
     this.useScroll = true,
     this.useSafeArea = true,
   });
+  final Widget body;
+  final EdgeInsetsGeometry? padding;
+  final Color? backgroundColor;
+  final ScrollController? scrollController;
+  final bool useScroll;
+  final bool useSafeArea;
 
   @override
   Widget build(BuildContext context) {
@@ -53,9 +52,9 @@ class ResponsivePageWrapper extends StatelessWidget {
       child: body,
     );
 
-    final Widget wrappedChild = useSafeArea ? SafeArea(child: child) : child;
+    final wrappedChild = useSafeArea ? SafeArea(child: child) : child;
 
-    return Container(
+    return ColoredBox(
       color: backgroundColor ?? AppTheme.colors.background,
       child: useScroll
           ? SingleChildScrollView(
@@ -93,20 +92,19 @@ class ResponsivePageWrapper extends StatelessWidget {
 /// )
 /// ```
 class ResponsiveSection extends StatelessWidget {
+
+  const ResponsiveSection({
+    required this.child, super.key,
+    this.title,
+    this.padding,
+    this.bottomSpacing,
+    this.titleStyle,
+  });
   final String? title;
   final Widget child;
   final EdgeInsetsGeometry? padding;
   final double? bottomSpacing;
   final TextStyle? titleStyle;
-
-  const ResponsiveSection({
-    super.key,
-    this.title,
-    required this.child,
-    this.padding,
-    this.bottomSpacing,
-    this.titleStyle,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -146,20 +144,19 @@ class ResponsiveSection extends StatelessWidget {
 /// )
 /// ```
 class ResponsiveGridWrapper extends StatelessWidget {
-  final List<Widget> children;
-  final int? columnsDesktop;
-  final int? columnsTablet;
-  final int? columnsMobile;
-  final double? spacing;
 
   const ResponsiveGridWrapper({
-    super.key,
-    required this.children,
+    required this.children, super.key,
     this.columnsDesktop,
     this.columnsTablet,
     this.columnsMobile,
     this.spacing,
   });
+  final List<Widget> children;
+  final int? columnsDesktop;
+  final int? columnsTablet;
+  final int? columnsMobile;
+  final double? spacing;
 
   @override
   Widget build(BuildContext context) {
@@ -204,14 +201,13 @@ class ResponsiveGridWrapper extends StatelessWidget {
 /// )
 /// ```
 class ResponsiveListWrapper extends StatelessWidget {
-  final List<Widget> children;
-  final double? spacing;
 
   const ResponsiveListWrapper({
-    super.key,
-    required this.children,
+    required this.children, super.key,
     this.spacing,
   });
+  final List<Widget> children;
+  final double? spacing;
 
   @override
   Widget build(BuildContext context) {

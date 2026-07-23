@@ -1,30 +1,30 @@
-import 'package:truthworld/theme/app_theme.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/watchhistory/presentation/controllers/watch_history_controller.dart';
+import 'package:truthworld/components/ui/video_options_sheet.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/watchhistory/presentation/controllers/watch_history_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 
 // ==========================================================================
 // YOUTUBE-STYLE THEME COLORS (Standardized)
 // ==========================================================================
 
-final Color bgColor = Colors.black;
-final Color surfaceColor = AppColors.bgPage;
-final Color cardColor = const Color(0xFF1E1E1E);
-final Color primaryText = Colors.white;
-final Color secondaryText = AppColors.textSecondary;
-final Color buttonBg = AppColors.bgSurfaceHover;
+const Color bgColor = AppColors.bgPage;
+const Color surfaceColor = AppColors.bgPage;
+const Color cardColor = Color(0xFF1E1E1E);
+const Color primaryText = AppColors.textPrimary;
+const Color secondaryText = AppColors.textSecondary;
+const Color buttonBg = AppColors.bgSurfaceHover;
 
 class WatchHistory extends StatefulWidget {
-  final bool isDashboard;
   const WatchHistory({super.key, this.isDashboard = false});
+  final bool isDashboard;
 
   @override
   State<WatchHistory> createState() => _WatchHistoryState();
@@ -71,7 +71,7 @@ class _WatchHistoryState extends State<WatchHistory>
                 Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
+                      icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
                       onPressed: () {
                         if (widget.isDashboard) {
                           Get.find<HomeController>().sideNavSelectedIndex.value = HomeController.indexLibrary;
@@ -81,9 +81,9 @@ class _WatchHistoryState extends State<WatchHistory>
                       },
                     ),
                     const SizedBox(width: 8),
-                    Text(
+                    const Text(
                       'Watch history',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.w700,
                         color: primaryText,
@@ -95,11 +95,11 @@ class _WatchHistoryState extends State<WatchHistory>
                 Row(
                   children: [
                     IconButton(
-                      icon: Icon(Icons.search, color: primaryText),
+                      icon: const Icon(Icons.search, color: primaryText),
                       onPressed: () {},
                     ),
                     IconButton(
-                      icon: Icon(Icons.more_vert, color: primaryText),
+                      icon: const Icon(Icons.more_vert, color: primaryText),
                       onPressed: _showHistorySettingsBottomSheet,
                     ),
                   ],
@@ -108,7 +108,6 @@ class _WatchHistoryState extends State<WatchHistory>
             ),
           ),
         ),
-        SliverToBoxAdapter(child: _buildCategoryChips()),
         StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('users')
@@ -132,7 +131,7 @@ class _WatchHistoryState extends State<WatchHistory>
                 child: Center(
                   child: Text(
                     'Error: ${snapshot.error}',
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: AppColors.textPrimary),
                   ),
                 ),
               );
@@ -143,42 +142,53 @@ class _WatchHistoryState extends State<WatchHistory>
                 child: Center(
                   child: Text(
                     'No watch history found',
-                    style: TextStyle(color: Colors.white),
+                    style: TextStyle(color: AppColors.textPrimary),
                   ),
                 ),
               );
             }
 
-            final List<Video> videos = snapshot.data!.docs.map((doc) {
-              final data = doc.data() as Map<String, dynamic>;
+            final videos = snapshot.data!.docs.map((doc) {
+              final data = doc.data()! as Map<String, dynamic>;
+              final durationRaw = (data['duration'] != null && data['duration'] != '0:00' && data['duration'] != '00:00')
+                  ? data['duration']
+                  : (data['videoDuration'] ?? data['durationMs']);
               return Video(
-                id: data['videoId'] ?? doc.id,
-                channelId: data['channelId'] ?? '',
-                channelName: data['channelName'] ?? '',
-                channelAvatarUrl: data['channelImage'] ?? '',
-                title: data['title'] ?? 'Unknown Video',
-                description: data['description'] ?? '',
-                thumbnailUrl: data['thumbnailUrl'] ?? '',
-                videoUrl: data['videoUrl'] ?? '',
-                ownerId: data['ownerId'] ?? '',
-                views: data['views'] ?? 0,
-                likeCount: data['likeCount'] ?? 0,
-                duration: data['duration'] ?? '0:00',
+                id: (data['videoId'] as String?) ?? doc.id,
+                channelId: (data['channelId'] as String?) ?? '',
+                channelName: (data['channelName'] as String?) ?? '',
+                channelAvatarUrl: (data['channelImage'] as String?) ?? (data['channelAvatarUrl'] as String?) ?? '',
+                title: (data['title'] as String?) ?? 'Unknown Video',
+                description: (data['description'] as String?) ?? '',
+                thumbnailUrl: (data['thumbnailUrl'] as String?) ?? '',
+                videoUrl: (data['videoUrl'] as String?) ?? '',
+                ownerId: (data['ownerId'] as String?) ?? '',
+                views: (data['views'] as int?) ?? 0,
+                likeCount: (data['likeCount'] as int?) ?? 0,
+                duration: durationRaw,
                 uploadedAt:
                     (data['watchedAt'] as Timestamp?)?.toDate() ??
                     DateTime.now(),
-                language: data['language'] ?? 'en',
-                category: data['category'] ?? 'General',
-                tags: List<String>.from(data['tags'] ?? []),
-                factCheckUrl: data['factCheckUrl'] ?? '',
+                language: (data['language'] as String?) ?? 'en',
+                category: (data['category'] as String?) ?? 'General',
+                tags: List<String>.from((data['tags'] as Iterable<dynamic>?) ?? []),
+                factCheckUrl: (data['factCheckUrl'] as String?) ?? '',
                 mediaSubtitles: {},
                 audioTracks: {},
                 chapters: [],
               );
             }).toList();
 
+            final categoriesSet = <String>{'All'};
+            for (final v in videos) {
+              if (v.category.isNotEmpty) {
+                categoriesSet.add(v.category);
+              }
+            }
+            final categories = categoriesSet.toList();
+
             return Obx(() {
-              List<Video> displayVideos = List.from(videos);
+              var displayVideos = List<Video>.from(videos);
 
               // Filter by category
               if (_controller.selectedCategory.value != 'All') {
@@ -193,31 +203,40 @@ class _WatchHistoryState extends State<WatchHistory>
                 displayVideos,
               );
 
-              return SliverList(
-                delegate: SliverChildBuilderDelegate((context, index) {
-                  final dateKey = groupedVideos.keys.elementAt(index);
-                  final dateVideos = groupedVideos[dateKey]!;
+              return SliverMainAxisGroup(
+                slivers: [
+                  if (categories.length > 1)
+                    SliverToBoxAdapter(child: _buildCategoryChips(categories)),
+                  SliverList(
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final dateKey = groupedVideos.keys.elementAt(index);
+                      final dateVideos = groupedVideos[dateKey]!;
 
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-                          child: Text(
-                            dateKey,
-                            style: GoogleFonts.roboto(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: primaryText,
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+                            child: Text(
+                              dateKey,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: primaryText,
+                              ),
                             ),
                           ),
-                        ),
-                      ...dateVideos.map(
-                        (video) => _WatchHistoryListCard(video: video),
-                      ),
-                    ],
-                  );
-                }, childCount: groupedVideos.length),
+                          ...dateVideos.map(
+                            (video) => _WatchHistoryListCard(
+                              video: video,
+                              controller: _controller,
+                            ),
+                          ),
+                        ],
+                      );
+                    }, childCount: groupedVideos.length),
+                  ),
+                ],
               );
             });
           },
@@ -226,8 +245,7 @@ class _WatchHistoryState extends State<WatchHistory>
     );
   }
 
-  Widget _buildCategoryChips() {
-    final categories = ['All', 'Podcasts', 'Music', 'Gaming', 'News'];
+  Widget _buildCategoryChips(List<String> categories) {
     return Container(
       height: 48,
       padding: const EdgeInsets.only(bottom: 8),
@@ -247,17 +265,16 @@ class _WatchHistoryState extends State<WatchHistory>
                 onSelected: (selected) {
                   if (selected) _controller.setCategory(category);
                 },
-                selectedColor: Colors.white,
+                selectedColor: AppColors.textPrimary,
                 backgroundColor: AppColors.bgSurfaceHover,
-                labelStyle: GoogleFonts.roboto(
-                  color: isSelected ? Colors.black : Colors.white,
+                labelStyle: TextStyle(
+                  color: isSelected ? AppColors.bgPage : AppColors.textPrimary,
                   fontWeight: FontWeight.w500,
                   fontSize: 14,
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
-                  side: BorderSide.none,
                 ),
                 showCheckmark: false,
               ),
@@ -276,23 +293,23 @@ class _WatchHistoryState extends State<WatchHistory>
           const Icon(
             Icons.history_rounded,
             size: 80,
-            color: Colors.white,
+            color: AppColors.textPrimary,
           ),
           const SizedBox(height: 24),
-          Text(
+          const Text(
             'Sign in to see your history',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 32),
           ElevatedButton(
             onPressed: () => Get.toNamed('/auth'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.textPrimary,
+              foregroundColor: AppColors.textPrimary,
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -309,9 +326,9 @@ class _WatchHistoryState extends State<WatchHistory>
     Get.bottomSheet(
       Container(
         padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           color: surfaceColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -328,9 +345,9 @@ class _WatchHistoryState extends State<WatchHistory>
               ),
             ),
             const SizedBox(height: 24),
-            Text(
+            const Text(
               'History Settings',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 color: primaryText,
@@ -344,8 +361,8 @@ class _WatchHistoryState extends State<WatchHistory>
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: _controller.isHistoryPaused.value
-                        ? Colors.orange.withValues(alpha: 0.1)
-                        : Colors.blue.withValues(alpha: 0.1),
+                        ? AppColors.warning.withValues(alpha: 0.1)
+                        : AppColors.info.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
@@ -353,13 +370,13 @@ class _WatchHistoryState extends State<WatchHistory>
                         ? Icons.pause_circle_filled_rounded
                         : Icons.play_circle_filled_rounded,
                     color: _controller.isHistoryPaused.value
-                        ? Colors.orange
-                        : Colors.blue,
+                        ? AppColors.warning
+                        : AppColors.info,
                   ),
                 ),
-                title: Text(
+                title: const Text(
                   'Pause Watch History',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontWeight: FontWeight.w500,
                     color: primaryText,
                   ),
@@ -368,33 +385,33 @@ class _WatchHistoryState extends State<WatchHistory>
                   _controller.isHistoryPaused.value
                       ? 'Your viewing history is currently paused'
                       : 'New videos you watch will be saved to your history',
-                  style: GoogleFonts.roboto(color: secondaryText),
+                  style: const TextStyle(color: secondaryText),
                 ),
                 trailing: Switch.adaptive(
                   value: _controller.isHistoryPaused.value,
                   onChanged: (_) => _controller.toggleHistoryPaused(),
-                  activeThumbColor: Colors.white,
-                  activeTrackColor: Colors.grey[800],
+                  activeThumbColor: AppColors.textPrimary,
+                  activeTrackColor: AppColors.textSecondary,
                 ),
               ),
             ),
-            const Divider(height: 32, color: Colors.white12),
+            const Divider(height: 32, color: AppColors.bgDivider),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.1),
+                  color: AppColors.warning.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
                   Icons.history_toggle_off_rounded,
-                  color: Colors.orange,
+                  color: AppColors.warning,
                 ),
               ),
-              title: Text(
+              title: const Text(
                 'Clear Last 24 Hours',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontWeight: FontWeight.w500,
                   color: primaryText,
                 ),
@@ -404,25 +421,25 @@ class _WatchHistoryState extends State<WatchHistory>
                 _controller.deleteLast24Hours();
               },
             ),
-            const Divider(height: 32, color: Colors.white12),
+            const Divider(height: 32, color: AppColors.bgDivider),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.1),
+                  color: AppColors.error.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
                   Icons.delete_sweep_rounded,
-                  color: Colors.red,
+                  color: AppColors.error,
                 ),
               ),
-              title: Text(
+              title: const Text(
                 'Clear All History',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontWeight: FontWeight.w500,
-                  color: Colors.red,
+                  color: AppColors.error,
                 ),
               ),
               onTap: () {
@@ -440,8 +457,9 @@ class _WatchHistoryState extends State<WatchHistory>
 }
 
 class _WatchHistoryListCard extends StatelessWidget {
+  const _WatchHistoryListCard({required this.video, required this.controller});
   final Video video;
-  const _WatchHistoryListCard({required this.video});
+  final WatchHistoryController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -480,13 +498,13 @@ class _WatchHistoryListCard extends StatelessWidget {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.8),
+                      color: AppColors.bgPage.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       video.duration,
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
@@ -509,7 +527,7 @@ class _WatchHistoryListCard extends StatelessWidget {
                           video.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.roboto(
+                          style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
                             color: primaryText,
@@ -517,12 +535,19 @@ class _WatchHistoryListCard extends StatelessWidget {
                         ),
                       ),
                       IconButton(
-                        icon: Icon(
+                        icon: const Icon(
                           Icons.more_vert,
                           color: primaryText,
                           size: 18,
                         ),
-                        onPressed: () {},
+                        onPressed: () {
+                          VideoOptionsSheet.show(
+                            context,
+                            video,
+                            onRemoveFromHistory:
+                                () => controller.deleteHistoryItem(video.id),
+                          );
+                        },
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
                       ),
@@ -531,7 +556,7 @@ class _WatchHistoryListCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${video.channelName} • ${video.views} views',
-                    style: GoogleFonts.roboto(
+                    style: const TextStyle(
                       fontSize: 13,
                       color: secondaryText,
                     ),

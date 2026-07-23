@@ -63,7 +63,7 @@ class UserLanguagesService extends GetxService {
           final secondaries = data['secondaryLanguages'] as List?;
           final known = data['knownLanguages'] as List?;
 
-          bool changed = false;
+          var changed = false;
           if (primary != null && primary != primaryLanguage.value) {
             primaryLanguage.value = primary;
             _box.write('${uid}_primary_lang', primary);
@@ -163,7 +163,7 @@ class UserLanguagesService extends GetxService {
 
   bool _areListsEqual(List<String> a, List<String> b) {
     if (a.length != b.length) return false;
-    for (int i = 0; i < a.length; i++) {
+    for (var i = 0; i < a.length; i++) {
       if (a[i] != b[i]) return false;
     }
     return true;

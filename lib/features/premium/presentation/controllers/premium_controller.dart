@@ -1,12 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:universal_html/html.dart' as html;
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/theme/app_theme.dart';
+import 'package:universal_html/html.dart' as html;
+import 'package:url_launcher/url_launcher.dart';
 
 class PremiumController extends GetxController {
   final RxString selectedPlanId = 'individual_monthly'.obs;
@@ -25,8 +25,8 @@ class PremiumController extends GetxController {
         'Sign In Required',
         'Please sign in to upgrade to Premium.',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.withValues(alpha: 0.9),
-        colorText: Colors.white,
+        backgroundColor: AppColors.error.withValues(alpha: 0.9),
+        colorText: AppColors.textPrimary,
       );
       return;
     }
@@ -41,7 +41,7 @@ class PremiumController extends GetxController {
       isLoading.value = true;
 
       // Get origin URL for redirection after payment
-      String clientOrigin = 'http://localhost:5000';
+      var clientOrigin = 'http://localhost:5000';
       if (kIsWeb) {
         clientOrigin = Uri.parse(html.window.location.href).origin;
       }
@@ -73,8 +73,8 @@ class PremiumController extends GetxController {
         'Upgrade Error',
         e.toString().replaceAll('Exception: ', ''),
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.withValues(alpha: 0.9),
-        colorText: Colors.white,
+        backgroundColor: AppColors.error.withValues(alpha: 0.9),
+        colorText: AppColors.textPrimary,
       );
     } finally {
       isLoading.value = false;
@@ -89,8 +89,8 @@ class PremiumController extends GetxController {
         'Sign In Required',
         'Please sign in to simulate premium upgrade.',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.withValues(alpha: 0.9),
-        colorText: Colors.white,
+        backgroundColor: AppColors.error.withValues(alpha: 0.9),
+        colorText: AppColors.textPrimary,
       );
       return;
     }
@@ -112,16 +112,16 @@ class PremiumController extends GetxController {
         'Subscription Activated',
         'Successfully started your 7-day free trial! All Premium features unlocked.',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.green.withValues(alpha: 0.9),
-        colorText: Colors.white,
+        backgroundColor: AppColors.success.withValues(alpha: 0.9),
+        colorText: AppColors.textPrimary,
       );
     } catch (e) {
       AppSnackbar.show(
         'Simulation Error',
         e.toString(),
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.withValues(alpha: 0.9),
-        colorText: Colors.white,
+        backgroundColor: AppColors.error.withValues(alpha: 0.9),
+        colorText: AppColors.textPrimary,
       );
     } finally {
       isSimulating.value = false;
@@ -140,16 +140,16 @@ class PremiumController extends GetxController {
         'Subscription Cancelled',
         'Your Premium subscription has been deactivated.',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.orange.withValues(alpha: 0.9),
-        colorText: Colors.white,
+        backgroundColor: AppColors.warning.withValues(alpha: 0.9),
+        colorText: AppColors.textPrimary,
       );
     } catch (e) {
       AppSnackbar.show(
         'Cancellation Error',
         e.toString(),
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red.withValues(alpha: 0.9),
-        colorText: Colors.white,
+        backgroundColor: AppColors.error.withValues(alpha: 0.9),
+        colorText: AppColors.textPrimary,
       );
     } finally {
       isSimulating.value = false;

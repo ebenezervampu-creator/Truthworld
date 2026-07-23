@@ -5,18 +5,16 @@ typedef LibraryLoader = Future<void> Function();
 typedef WidgetBuilder = Widget Function();
 
 class DeferredWidget extends StatelessWidget {
-  final LibraryLoader loader;
-  final WidgetBuilder builder;
-  final Widget? placeholder;
 
   DeferredWidget({
-    super.key,
-    required this.loader,
-    required this.builder,
+    required this.loader, required this.builder, super.key,
     this.placeholder,
   }) {
     _load();
   }
+  final LibraryLoader loader;
+  final WidgetBuilder builder;
+  final Widget? placeholder;
 
   final RxBool _loaded = false.obs;
 

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/creator_analytics_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class SubscribersPage extends StatelessWidget {
   const SubscribersPage({super.key});
@@ -31,13 +32,13 @@ class SubscribersPage extends StatelessWidget {
         backgroundColor: const Color(0xFF0A0A0F),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Get.back(),
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: Get.back,
         ),
         title: const Text(
           'Subscriber Analytics',
           style: TextStyle(
-            color: Colors.white,
+            color: AppColors.textPrimary,
             fontWeight: FontWeight.w700,
             fontSize: 20,
           ),
@@ -55,7 +56,7 @@ class SubscribersPage extends StatelessWidget {
 
         return RefreshIndicator(
           color: const Color(0xFF8B5CF6),
-          onRefresh: () => controller.refreshAnalytics(),
+          onRefresh: controller.refreshAnalytics,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
@@ -70,12 +71,12 @@ class SubscribersPage extends StatelessWidget {
                         controller.selectedVideoId.value = '';
                         controller.loadChannelAnalytics(controller.selectedChannelId.value);
                       },
-                      child: Row(
+                      child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.close, color: Color(0xFF8B5CF6), size: 16),
-                          const SizedBox(width: 4),
-                          const Text(
+                          Icon(Icons.close, color: Color(0xFF8B5CF6), size: 16),
+                          SizedBox(width: 4),
+                          Text(
                             'Back to Channel Analytics',
                             style: TextStyle(color: Color(0xFF8B5CF6), fontSize: 13, fontWeight: FontWeight.w600),
                           ),
@@ -85,11 +86,11 @@ class SubscribersPage extends StatelessWidget {
                   ),
                 _buildMainMetric(controller, args),
                 const SizedBox(height: 24),
-                _SectionHeader(title: 'Growth Trend'),
+                const _SectionHeader(title: 'Growth Trend'),
                 const SizedBox(height: 12),
                 _buildTrendChart(controller),
                 const SizedBox(height: 24),
-                _SectionHeader(title: 'Top Videos for Subscriptions'),
+                const _SectionHeader(title: 'Top Videos for Subscriptions'),
                 const SizedBox(height: 12),
                 _buildVideosList(controller),
               ],
@@ -118,7 +119,7 @@ class SubscribersPage extends StatelessWidget {
           Text(
             title,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.6),
+              color: AppColors.textPrimary.withValues(alpha: 0.6),
               fontSize: 14,
               fontWeight: FontWeight.w500,
             ),
@@ -127,7 +128,7 @@ class SubscribersPage extends StatelessWidget {
           Text(
             NumberFormat.compact().format(totalSubs),
             style: const TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 48,
               fontWeight: FontWeight.w800,
               letterSpacing: -1,
@@ -189,18 +190,18 @@ class SubscribersPage extends StatelessWidget {
         child: SfCartesianChart(
           plotAreaBorderWidth: 0,
           margin: EdgeInsets.zero,
-          primaryXAxis: DateTimeAxis(
-            majorGridLines: const MajorGridLines(width: 0),
-            labelStyle: const TextStyle(color: Colors.white54, fontSize: 10),
-            axisLine: const AxisLine(width: 0),
+          primaryXAxis: const DateTimeAxis(
+            majorGridLines: MajorGridLines(width: 0),
+            labelStyle: TextStyle(color: AppColors.textSecondary, fontSize: 10),
+            axisLine: AxisLine(width: 0),
           ),
           primaryYAxis: NumericAxis(
             majorGridLines: MajorGridLines(
               width: 1,
-              color: Colors.white.withValues(alpha: 0.05),
+              color: AppColors.textPrimary.withValues(alpha: 0.05),
               dashArray: const [5, 5],
             ),
-            labelStyle: const TextStyle(color: Colors.white54, fontSize: 10),
+            labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
             axisLine: const AxisLine(width: 0),
           ),
           tooltipBehavior: TooltipBehavior(enable: true),
@@ -224,7 +225,7 @@ class SubscribersPage extends StatelessWidget {
     return Obx(() {
       final videos = controller.channelVideos;
       if (videos.isEmpty) {
-        return const Center(child: Text('No videos found', style: TextStyle(color: Colors.white38)));
+        return const Center(child: Text('No videos found', style: TextStyle(color: AppColors.textTertiary)));
       }
 
       return ListView.separated(
@@ -244,11 +245,11 @@ class SubscribersPage extends StatelessWidget {
 }
 
 class _StatItem extends StatelessWidget {
+
+  const _StatItem({required this.label, required this.value, required this.color});
   final String label;
   final String value;
   final Color color;
-
-  const _StatItem({required this.label, required this.value, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -257,7 +258,7 @@ class _StatItem extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11),
+          style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.4), fontSize: 11),
         ),
         Text(
           value,
@@ -269,10 +270,10 @@ class _StatItem extends StatelessWidget {
 }
 
 class _VideoStatCard extends StatelessWidget {
-  final Video video;
-  final VoidCallback onTap;
 
   const _VideoStatCard({required this.video, required this.onTap});
+  final Video video;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -282,9 +283,9 @@ class _VideoStatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.03),
+          color: AppColors.textPrimary.withValues(alpha: 0.03),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+          border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.06)),
         ),
         child: Row(
           children: [
@@ -306,7 +307,7 @@ class _VideoStatCard extends StatelessWidget {
                     video.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 4),
                   Row(
@@ -315,14 +316,14 @@ class _VideoStatCard extends StatelessWidget {
                       const SizedBox(width: 4),
                       Text(
                         'Most conversions',
-                        style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 11),
+                        style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5), fontSize: 11),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: Colors.white24, size: 20),
+            const Icon(Icons.chevron_right, color: AppColors.textDisabled, size: 20),
           ],
         ),
       ),
@@ -331,15 +332,15 @@ class _VideoStatCard extends StatelessWidget {
 }
 
 class _SectionHeader extends StatelessWidget {
-  final String title;
   const _SectionHeader({required this.title});
+  final String title;
 
   @override
   Widget build(BuildContext context) {
     return Text(
       title,
       style: const TextStyle(
-        color: Colors.white,
+        color: AppColors.textPrimary,
         fontSize: 18,
         fontWeight: FontWeight.w700,
         letterSpacing: -0.3,
@@ -349,8 +350,8 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _GlassCard extends StatelessWidget {
-  final Widget child;
   const _GlassCard({required this.child});
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
@@ -358,9 +359,9 @@ class _GlassCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.04),
+        color: AppColors.textPrimary.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.08)),
       ),
       child: child,
     );

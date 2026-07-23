@@ -1,8 +1,9 @@
-import 'package:flutter/material.dart';
-import 'package:get/get.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../controllers/creator_analytics_controller.dart';
+import 'package:get/get.dart';
+import 'package:truthworld/features/analytics/presentation/controllers/creator_analytics_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class GeographicMapController extends GetxController {
   final selectedMarker = Rx<MapMarker?>(null);
@@ -17,9 +18,9 @@ class GeographicMapController extends GetxController {
 }
 
 class GeographicMapWidget extends StatelessWidget {
-  final CreatorAnalyticsController controller;
 
-  const GeographicMapWidget({super.key, required this.controller});
+  const GeographicMapWidget({required this.controller, super.key});
+  final CreatorAnalyticsController controller;
 
   // Enter Google Maps API key here if available
   static const String googleMapsApiKey = '';
@@ -30,7 +31,7 @@ class GeographicMapWidget extends StatelessWidget {
 
     return Obx(() {
       final isStates = controller.selectedGeoTab.value == 'states';
-      final List<MapMarker> markers = [];
+      final markers = <MapMarker>[];
 
       if (isStates) {
         for (final state in controller.topStates) {
@@ -68,9 +69,9 @@ class GeographicMapWidget extends StatelessWidget {
 
       return Container(
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.03),
+          color: AppColors.textPrimary.withValues(alpha: 0.03),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.08)),
         ),
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -82,7 +83,7 @@ class GeographicMapWidget extends StatelessWidget {
                 Text(
                   isStates ? 'State Traffic Map' : 'Global Traffic Map',
                   style: const TextStyle(
-                    color: Colors.white70,
+                    color: AppColors.textSecondary,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
@@ -94,14 +95,14 @@ class GeographicMapWidget extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: hasApiKey
-                        ? Colors.green.withValues(alpha: 0.15)
-                        : Colors.blue.withValues(alpha: 0.15),
+                        ? AppColors.success.withValues(alpha: 0.15)
+                        : AppColors.info.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     hasApiKey ? 'Google Maps' : 'Satellite View',
                     style: TextStyle(
-                      color: hasApiKey ? Colors.greenAccent : Colors.blueAccent,
+                      color: hasApiKey ? AppColors.success : AppColors.info,
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
                     ),
@@ -128,10 +129,10 @@ class GeographicMapWidget extends StatelessWidget {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
+                  color: AppColors.textPrimary.withValues(alpha: 0.05),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.1),
+                    color: AppColors.textPrimary.withValues(alpha: 0.1),
                   ),
                 ),
                 child: Row(
@@ -143,7 +144,7 @@ class GeographicMapWidget extends StatelessWidget {
                         Text(
                           mapController.selectedMarker.value!.name,
                           style: const TextStyle(
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
@@ -151,7 +152,7 @@ class GeographicMapWidget extends StatelessWidget {
                         Text(
                           '${mapController.selectedMarker.value!.views} Views',
                           style: const TextStyle(
-                            color: Colors.white70,
+                            color: AppColors.textSecondary,
                             fontSize: 11,
                           ),
                         ),
@@ -180,17 +181,17 @@ class GeographicMapWidget extends StatelessWidget {
       return const Center(
         child: Text(
           'No geographic points to plot',
-          style: TextStyle(color: Colors.white38, fontSize: 12),
+          style: TextStyle(color: AppColors.textTertiary, fontSize: 12),
         ),
       );
     }
 
-    final base = 'https://maps.googleapis.com/maps/api/staticmap';
-    final size = '600x200';
-    final maptype = 'roadmap';
+    const base = 'https://maps.googleapis.com/maps/api/staticmap';
+    const size = '600x200';
+    const maptype = 'roadmap';
 
     // Styled dark theme
-    final style =
+    const style =
         'style=feature:all|element:geometry|color:0x212121&'
         'style=feature:all|element:labels.text.stroke|color:0x212121&'
         'style=feature:all|element:labels.text.fill|color:0x747474&'
@@ -212,9 +213,9 @@ class GeographicMapWidget extends StatelessWidget {
     return CachedNetworkImage(
       imageUrl: url,
       fit: BoxFit.cover,
-      placeholder: (context, url) => Container(
+      placeholder: (context, url) => const ColoredBox(
         color: Colors.black26,
-        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
       ),
       errorWidget: (context, url, error) =>
           _buildVectorMapFallback(markers, Get.find<GeographicMapController>()),
@@ -240,12 +241,12 @@ class GeographicMapWidget extends StatelessWidget {
                   'assets/dark_world_map.png',
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
-                    return Container(
+                    return const ColoredBox(
                       color: Colors.black38,
-                      child: const Center(
+                      child: Center(
                         child: Icon(
                           Icons.map_outlined,
-                          color: Colors.white24,
+                          color: AppColors.textDisabled,
                           size: 48,
                         ),
                       ),
@@ -296,8 +297,8 @@ class GeographicMapWidget extends StatelessWidget {
                           )
                           .fade(
                             duration: const Duration(milliseconds: 1500),
-                            begin: 1.0,
-                            end: 0.0,
+                            begin: 1,
+                            end: 0,
                             curve: Curves.easeOut,
                           ),
 
@@ -308,12 +309,12 @@ class GeographicMapWidget extends StatelessWidget {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: isSelected
-                              ? Colors.white
+                              ? AppColors.textPrimary
                               : const Color(0xFFDC2626),
                           border: Border.all(
                             color: isSelected
                                 ? const Color(0xFFDC2626)
-                                : Colors.white,
+                                : AppColors.textPrimary,
                             width: 1.5,
                           ),
                           boxShadow: [
@@ -338,7 +339,7 @@ class GeographicMapWidget extends StatelessWidget {
                 child: Center(
                   child: Text(
                     'No traffic points to show',
-                    style: TextStyle(color: Colors.white24, fontSize: 11),
+                    style: TextStyle(color: AppColors.textDisabled, fontSize: 11),
                   ),
                 ),
               ),
@@ -350,24 +351,19 @@ class GeographicMapWidget extends StatelessWidget {
 
   Offset _getMapPosition(double lat, double lon, double width, double height) {
     // Map longitude (-180 to 180) to X (0 to width)
-    final double x = ((lon + 180) / 360) * width;
+    final x = ((lon + 180) / 360) * width;
 
     // Map latitude (-50 to 75) to Y (height to 0) to fit standard world maps
-    const double minLat = -50.0;
-    const double maxLat = 75.0;
-    final double latPercent = (lat - minLat) / (maxLat - minLat);
-    final double y = (1.0 - latPercent.clamp(0.0, 1.0)) * height;
+    const minLat = -50;
+    const maxLat = 75;
+    final latPercent = (lat - minLat) / (maxLat - minLat);
+    final y = (1.0 - latPercent.clamp(0.0, 1.0)) * height;
 
     return Offset(x, y);
   }
 }
 
 class MapMarker {
-  final String name;
-  final double lat;
-  final double lon;
-  final int views;
-  final double percentage;
 
   MapMarker({
     required this.name,
@@ -376,4 +372,9 @@ class MapMarker {
     required this.views,
     required this.percentage,
   });
+  final String name;
+  final double lat;
+  final double lon;
+  final int views;
+  final double percentage;
 }

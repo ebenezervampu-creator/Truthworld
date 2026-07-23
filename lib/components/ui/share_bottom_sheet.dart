@@ -1,12 +1,27 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class ShareBottomSheet extends StatefulWidget {
+
+  const ShareBottomSheet({
+    required this.title, required this.url, super.key,
+    this.thumbnailUrl,
+    this.subtitle,
+    this.avatarUrl,
+    this.durationMs,
+    this.videoCount,
+    this.subscriberCount,
+    this.followerCount,
+    this.handle,
+    this.currentPosition,
+    this.channelName,
+    this.type,
+  });
   final String title;
   final String url;
   final String? thumbnailUrl;
@@ -20,23 +35,6 @@ class ShareBottomSheet extends StatefulWidget {
   final Duration? currentPosition;
   final String? channelName;
   final String? type;
-
-  const ShareBottomSheet({
-    super.key,
-    required this.title,
-    required this.url,
-    this.thumbnailUrl,
-    this.subtitle,
-    this.avatarUrl,
-    this.durationMs,
-    this.videoCount,
-    this.subscriberCount,
-    this.followerCount,
-    this.handle,
-    this.currentPosition,
-    this.channelName,
-    this.type,
-  });
 
   static void show({
     required String title,
@@ -100,7 +98,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
     }
     if (widget.videoCount != null &&
         (widget.url.contains('/playlist') ||
-            widget.subtitle?.toLowerCase().contains('playlist') == true)) {
+            (widget.subtitle?.toLowerCase().contains('playlist') ?? false))) {
       return 'playlist';
     }
     if (widget.followerCount != null ||
@@ -137,8 +135,9 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
   }
 
   String _getShareUrl() {
-    if (!_startAtChecked.value || widget.currentPosition == null)
+    if (!_startAtChecked.value || widget.currentPosition == null) {
       return widget.url;
+    }
     final seconds = widget.currentPosition!.inSeconds;
     if (widget.url.contains('?')) {
       return '${widget.url}&t=$seconds';
@@ -186,7 +185,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.5),
+            color: AppColors.bgPage.withValues(alpha: 0.5),
             blurRadius: 20,
             offset: const Offset(0, -5),
           ),
@@ -230,9 +229,9 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
           child: Row(
             children: [
-              Text(
+              const Text(
                 'Share',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary,
@@ -241,7 +240,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.close, color: AppColors.textSecondary),
-                onPressed: () => Get.back(),
+                onPressed: Get.back,
               ),
             ],
           ),
@@ -267,7 +266,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                   child: Checkbox(
                     value: _startAtChecked.value,
                     activeColor: AppColors.brand,
-                    checkColor: Colors.white,
+                    checkColor: AppColors.textPrimary,
                     side: const BorderSide(
                       color: AppColors.textSecondary,
                       width: 1.5,
@@ -287,7 +286,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                   },
                   child: Text(
                     'Start at ${_formatDuration(widget.currentPosition!)}',
-                    style: GoogleFonts.roboto(
+                    style: const TextStyle(
                       fontSize: 14,
                       color: AppColors.textPrimary,
                       fontWeight: FontWeight.w500,
@@ -345,7 +344,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                 icon: Icons.more_horiz_rounded,
                 color: AppColors.textSecondary,
                 label: 'More',
-                onTap: () => _shareNative(),
+                onTap: _shareNative,
               ),
             ],
           ),
@@ -357,9 +356,9 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'Copy Link',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                   color: AppColors.textSecondary,
@@ -396,7 +395,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                       onPressed: _copyToClipboard,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.brand,
-                        foregroundColor: Colors.white,
+                        foregroundColor: AppColors.textPrimary,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 8,
@@ -450,9 +449,9 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                 onPressed: () => _showEmbedPanel.value = false,
               ),
               const SizedBox(width: 8),
-              Text(
+              const Text(
                 'Embed Video',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary,
@@ -461,7 +460,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.close, color: AppColors.textSecondary),
-                onPressed: () => Get.back(),
+                onPressed: Get.back,
               ),
             ],
           ),
@@ -475,9 +474,9 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'Iframe Embed Code',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                   color: AppColors.textSecondary,
@@ -521,7 +520,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                           'Embed code copied to clipboard',
                           snackPosition: SnackPosition.BOTTOM,
                           backgroundColor: AppColors.success,
-                          colorText: Colors.white,
+                          colorText: AppColors.textPrimary,
                           margin: const EdgeInsets.all(16),
                           borderRadius: 12,
                           duration: const Duration(seconds: 2),
@@ -529,7 +528,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.brand,
-                        foregroundColor: Colors.white,
+                        foregroundColor: AppColors.textPrimary,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 8,
@@ -547,9 +546,9 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
               const SizedBox(height: 20),
 
               // Embed Settings Checklist
-              Text(
+              const Text(
                 'Embed Options',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                   color: AppColors.textSecondary,
@@ -566,7 +565,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                     child: Checkbox(
                       value: _showControls.value,
                       activeColor: AppColors.brand,
-                      checkColor: Colors.white,
+                      checkColor: AppColors.textPrimary,
                       side: const BorderSide(
                         color: AppColors.textSecondary,
                         width: 1.5,
@@ -582,9 +581,9 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                   const SizedBox(width: 10),
                   GestureDetector(
                     onTap: () => _showControls.value = !_showControls.value,
-                    child: Text(
+                    child: const Text(
                       'Show player controls',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 14,
                         color: AppColors.textPrimary,
                       ),
@@ -603,7 +602,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                     child: Checkbox(
                       value: _privacyMode.value,
                       activeColor: AppColors.brand,
-                      checkColor: Colors.white,
+                      checkColor: AppColors.textPrimary,
                       side: const BorderSide(
                         color: AppColors.textSecondary,
                         width: 1.5,
@@ -619,9 +618,9 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                   const SizedBox(width: 10),
                   GestureDetector(
                     onTap: () => _privacyMode.value = !_privacyMode.value,
-                    child: Text(
+                    child: const Text(
                       'Enable privacy-enhanced mode',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 14,
                         color: AppColors.textPrimary,
                       ),
@@ -641,7 +640,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                       child: Checkbox(
                         value: _startAtChecked.value,
                         activeColor: AppColors.brand,
-                        checkColor: Colors.white,
+                        checkColor: AppColors.textPrimary,
                         side: const BorderSide(
                           color: AppColors.textSecondary,
                           width: 1.5,
@@ -660,7 +659,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                           _startAtChecked.value = !_startAtChecked.value,
                       child: Text(
                         'Start at ${_formatDuration(widget.currentPosition!)}',
-                        style: GoogleFonts.roboto(
+                        style: const TextStyle(
                           fontSize: 14,
                           color: AppColors.textPrimary,
                         ),
@@ -694,62 +693,77 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.bgSurfaceHover,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.bgDivider.withValues(alpha: 0.8)),
+        gradient: LinearGradient(
+          colors: [
+            AppColors.bgSurfaceHover,
+            AppColors.bgSurfaceHover.withValues(alpha: 0.7),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.brand.withValues(alpha: 0.25),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.bgPage.withValues(alpha: 0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Video Thumbnail + Duration Overlay
           Stack(
             children: [
               ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
                 child: Container(
-                  width: 120,
-                  height: 120 * 9 / 16,
+                  width: 124,
+                  height: 124 * 9 / 16,
                   color: AppColors.bgInput,
-                  child:
-                      widget.thumbnailUrl != null &&
-                          widget.thumbnailUrl!.isNotEmpty
+                  child: widget.thumbnailUrl != null && widget.thumbnailUrl!.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: widget.thumbnailUrl!,
                           fit: BoxFit.cover,
-                          placeholder: (context, url) =>
-                              Container(color: AppColors.bgInput),
-                          errorWidget: (context, url, err) => const Icon(
-                            Icons.play_circle_fill_rounded,
-                            color: AppColors.textTertiary,
-                            size: 36,
+                          placeholder: (context, url) => Container(color: AppColors.bgInput),
+                          errorWidget: (context, url, err) => Center(
+                            child: Icon(
+                              Icons.play_circle_fill_rounded,
+                              color: AppColors.brand.withValues(alpha: 0.8),
+                              size: 38,
+                            ),
                           ),
                         )
-                      : const Icon(
-                          Icons.play_circle_fill_rounded,
-                          color: AppColors.textTertiary,
-                          size: 36,
+                      : Center(
+                          child: Icon(
+                            Icons.play_circle_fill_rounded,
+                            color: AppColors.brand.withValues(alpha: 0.8),
+                            size: 38,
+                          ),
                         ),
                 ),
               ),
               if (widget.durationMs != null)
                 Positioned(
-                  bottom: 4,
-                  right: 4,
+                  bottom: 5,
+                  right: 5,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 2,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.75),
+                      color: AppColors.bgPage.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: AppColors.bgDivider, width: 0.5),
                     ),
                     child: Text(
                       _formatMsDuration(widget.durationMs!),
-                      style: GoogleFonts.roboto(
-                        color: Colors.white,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
+                        letterSpacing: 0.3,
                       ),
                     ),
                   ),
@@ -762,33 +776,59 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.brand.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: AppColors.brand.withValues(alpha: 0.3)),
+                      ),
+                      child: const Text(
+                        'VIDEO',
+                        style: TextStyle(
+                          color: AppColors.brand,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        widget.channelName ?? 'TruthWorld Creator',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
                 Text(
                   widget.title,
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     color: AppColors.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    height: 1.25,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  widget.channelName ?? 'TruthWorld Creator',
-                  style: GoogleFonts.roboto(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
                 if (widget.subtitle != null && widget.subtitle!.isNotEmpty) ...[
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
                   Text(
                     widget.subtitle!,
-                    style: GoogleFonts.roboto(
+                    style: const TextStyle(
                       color: AppColors.textTertiary,
                       fontSize: 11,
                     ),
@@ -808,41 +848,66 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.bgSurfaceHover,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.bgDivider.withValues(alpha: 0.8)),
+        gradient: LinearGradient(
+          colors: [
+            AppColors.bgSurfaceHover,
+            AppColors.bgSurfaceHover.withValues(alpha: 0.7),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.brand.withValues(alpha: 0.25),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.bgPage.withValues(alpha: 0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Channel Avatar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(32),
-            child: Container(
-              width: 56,
-              height: 56,
-              color: AppColors.bgInput,
-              child:
-                  widget.thumbnailUrl != null && widget.thumbnailUrl!.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: widget.thumbnailUrl!,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) =>
-                          Container(color: AppColors.bgInput),
-                      errorWidget: (context, url, err) => const Icon(
+          // Channel Avatar with Ring
+          Container(
+            padding: const EdgeInsets.all(2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.brand,
+                  AppColors.brand.withValues(alpha: 0.3),
+                ],
+              ),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(32),
+              child: Container(
+                width: 54,
+                height: 54,
+                color: AppColors.bgInput,
+                child: widget.thumbnailUrl != null && widget.thumbnailUrl!.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: widget.thumbnailUrl!,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(color: AppColors.bgInput),
+                        errorWidget: (context, url, err) => const Icon(
+                          Icons.person_rounded,
+                          color: AppColors.textTertiary,
+                          size: 32,
+                        ),
+                      )
+                    : const Icon(
                         Icons.person_rounded,
                         color: AppColors.textTertiary,
                         size: 32,
                       ),
-                    )
-                  : const Icon(
-                      Icons.person_rounded,
-                      color: AppColors.textTertiary,
-                      size: 32,
-                    ),
+              ),
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
 
           // Channel Info
           Expanded(
@@ -850,38 +915,48 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  widget.title,
-                  style: GoogleFonts.roboto(
-                    color: AppColors.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        widget.title,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.check_circle_rounded,
+                      color: AppColors.brand,
+                      size: 15,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
                   widget.handle != null && widget.handle!.isNotEmpty
-                      ? (widget.handle!.startsWith('@')
-                            ? widget.handle!
-                            : '@${widget.handle!}')
+                      ? (widget.handle!.startsWith('@') ? widget.handle! : '@${widget.handle!}')
                       : '@channel',
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     color: AppColors.brand,
                     fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
                   widget.subtitle ??
                       '${widget.subscriberCount != null ? '${_formatCount(widget.subscriberCount!)} subscribers' : 'Channel'} • ${widget.videoCount != null ? '${widget.videoCount} videos' : 'TruthWorld'}',
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     color: AppColors.textSecondary,
-                    fontSize: 12,
+                    fontSize: 11.5,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -898,54 +973,66 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.bgSurfaceHover,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.bgDivider.withValues(alpha: 0.8)),
+        gradient: LinearGradient(
+          colors: [
+            AppColors.bgSurfaceHover,
+            AppColors.bgSurfaceHover.withValues(alpha: 0.7),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.brand.withValues(alpha: 0.25),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.bgPage.withValues(alpha: 0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Playlist Thumbnail + Overlay Badge
           Stack(
             children: [
               ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
                 child: Container(
-                  width: 120,
-                  height: 120 * 9 / 16,
+                  width: 124,
+                  height: 124 * 9 / 16,
                   color: AppColors.bgInput,
-                  child:
-                      widget.thumbnailUrl != null &&
-                          widget.thumbnailUrl!.isNotEmpty
+                  child: widget.thumbnailUrl != null && widget.thumbnailUrl!.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: widget.thumbnailUrl!,
                           fit: BoxFit.cover,
-                          placeholder: (context, url) =>
-                              Container(color: AppColors.bgInput),
+                          placeholder: (context, url) => Container(color: AppColors.bgInput),
                           errorWidget: (context, url, err) => const Icon(
                             Icons.playlist_play_rounded,
                             color: AppColors.textTertiary,
-                            size: 36,
+                            size: 38,
                           ),
                         )
                       : const Icon(
                           Icons.playlist_play_rounded,
                           color: AppColors.textTertiary,
-                          size: 36,
+                          size: 38,
                         ),
                 ),
               ),
-              // Right overlay bar
+              // YouTube-style playlist right side overlay bar
               Positioned(
                 top: 0,
                 right: 0,
                 bottom: 0,
-                width: 40,
+                width: 38,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.65),
+                    color: AppColors.bgPage.withValues(alpha: 0.75),
                     borderRadius: const BorderRadius.horizontal(
-                      right: Radius.circular(8),
+                      right: Radius.circular(10),
                     ),
                   ),
                   child: Column(
@@ -953,8 +1040,8 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                     children: [
                       Text(
                         '${widget.videoCount ?? 0}',
-                        style: GoogleFonts.roboto(
-                          color: Colors.white,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
                         ),
@@ -962,8 +1049,8 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
                       const SizedBox(height: 2),
                       const Icon(
                         Icons.playlist_play_rounded,
-                        color: Colors.white,
-                        size: 16,
+                        color: AppColors.textPrimary,
+                        size: 18,
                       ),
                     ],
                   ),
@@ -977,33 +1064,58 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.brand.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: AppColors.brand.withValues(alpha: 0.3)),
+                      ),
+                      child: const Text(
+                        'PLAYLIST',
+                        style: TextStyle(
+                          color: AppColors.brand,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        widget.channelName ?? 'TruthWorld Playlist',
+                        style: const TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
                 Text(
                   widget.title,
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     color: AppColors.textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    height: 1.25,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  widget.channelName ?? 'TruthWorld Playlist',
-                  style: GoogleFonts.roboto(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  widget.subtitle ??
-                      'Playlist • ${widget.videoCount ?? 0} videos',
-                  style: GoogleFonts.roboto(
+                  widget.subtitle ?? 'Playlist • ${widget.videoCount ?? 0} videos',
+                  style: const TextStyle(
                     color: AppColors.textTertiary,
                     fontSize: 11,
                   ),
@@ -1022,65 +1134,100 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.bgSurfaceHover,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.bgDivider.withValues(alpha: 0.8)),
+        gradient: LinearGradient(
+          colors: [
+            AppColors.bgSurfaceHover,
+            AppColors.bgSurfaceHover.withValues(alpha: 0.7),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.brand.withValues(alpha: 0.35),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.bgPage.withValues(alpha: 0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Topic Thumbnail with purple border / topic badge overlay
+          // Topic Thumbnail with brand border ring + Hashtag badge overlay
           Stack(
             children: [
               Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                   border: Border.all(
-                    color: AppColors.brand.withValues(alpha: 0.5),
+                    color: AppColors.brand.withValues(alpha: 0.6),
                     width: 1.5,
                   ),
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(8),
                   child: Container(
-                    width: 120,
-                    height: 120 * 9 / 16,
+                    width: 124,
+                    height: 124 * 9 / 16,
                     color: AppColors.bgInput,
-                    child:
-                        widget.thumbnailUrl != null &&
-                            widget.thumbnailUrl!.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: widget.thumbnailUrl!,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) =>
-                                Container(color: AppColors.bgInput),
-                            errorWidget: (context, url, err) => const Icon(
+                    child: widget.thumbnailUrl != null && widget.thumbnailUrl!.isNotEmpty
+                        ? Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              CachedNetworkImage(
+                                imageUrl: widget.thumbnailUrl!,
+                                fit: BoxFit.cover,
+                                errorWidget: (context, url, err) => Container(color: AppColors.bgInput),
+                              ),
+                              Container(
+                                color: Colors.black.withValues(alpha: 0.65),
+                              ),
+                              CachedNetworkImage(
+                                imageUrl: widget.thumbnailUrl!,
+                                fit: BoxFit.contain,
+                                placeholder: (context, url) => Container(color: AppColors.bgInput),
+                                errorWidget: (context, url, err) => Center(
+                                  child: Icon(
+                                    Icons.tag_rounded,
+                                    color: AppColors.brand.withValues(alpha: 0.8),
+                                    size: 36,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : Center(
+                            child: Icon(
                               Icons.tag_rounded,
-                              color: AppColors.textTertiary,
+                              color: AppColors.brand.withValues(alpha: 0.8),
                               size: 36,
                             ),
-                          )
-                        : const Icon(
-                            Icons.tag_rounded,
-                            color: AppColors.textTertiary,
-                            size: 36,
                           ),
                   ),
                 ),
               ),
               Positioned(
-                top: 4,
-                left: 4,
+                top: 5,
+                left: 5,
                 child: Container(
                   padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppColors.brand,
-                    shape: BoxShape.circle,
+                    borderRadius: BorderRadius.circular(6),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.bgPage.withValues(alpha: 0.4),
+                        blurRadius: 4,
+                      ),
+                    ],
                   ),
                   child: const Icon(
                     Icons.explore_rounded,
-                    color: Colors.white,
-                    size: 12,
+                    color: AppColors.textPrimary,
+                    size: 13,
                   ),
                 ),
               ),
@@ -1092,38 +1239,65 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.brand.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: AppColors.brand.withValues(alpha: 0.4)),
+                      ),
+                      child: const Text(
+                        'TOPIC',
+                        style: TextStyle(
+                          color: AppColors.brand,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        widget.handle != null && widget.handle!.isNotEmpty
+                            ? (widget.handle!.startsWith('#') || widget.handle!.startsWith('T/') || widget.handle!.startsWith('t/')
+                                ? widget.handle!
+                                : '#${widget.handle!}')
+                            : '#topic',
+                        style: const TextStyle(
+                          color: AppColors.brand,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
                 Text(
                   widget.title,
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
+                    height: 1.25,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  widget.handle != null && widget.handle!.isNotEmpty
-                      ? '#${widget.handle!}'
-                      : '#topic',
-                  style: GoogleFonts.roboto(
-                    color: AppColors.brand,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
                   widget.subtitle ??
                       '${widget.followerCount != null ? '${_formatCount(widget.followerCount!)} followers' : 'Topic'} • ${widget.videoCount != null ? '${widget.videoCount} videos' : 'TruthWorld'}',
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     color: AppColors.textSecondary,
-                    fontSize: 12,
+                    fontSize: 11.5,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1161,7 +1335,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
             const SizedBox(height: 6),
             Text(
               label,
-              style: GoogleFonts.roboto(
+              style: const TextStyle(
                 fontSize: 11,
                 color: AppColors.textSecondary,
                 fontWeight: FontWeight.w500,
@@ -1173,12 +1347,12 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
     );
   }
 
-  void _shareToSocial(String platform) async {
+  Future<void> _shareToSocial(String platform) async {
     // Standard social share using SharePlus
     _shareNative();
   }
 
-  void _shareNative() async {
+  Future<void> _shareNative() async {
     await SharePlus.instance.share(
       ShareParams(
         text:
@@ -1196,7 +1370,7 @@ class _ShareBottomSheetState extends State<ShareBottomSheet> {
       'Link copied to clipboard',
       snackPosition: SnackPosition.BOTTOM,
       backgroundColor: AppColors.success,
-      colorText: Colors.white,
+      colorText: AppColors.textPrimary,
       margin: const EdgeInsets.all(16),
       borderRadius: 12,
       duration: const Duration(seconds: 2),

@@ -51,7 +51,7 @@ class DeepLinkService {
   /// Generates a shareable topic URL.
   /// Pattern: https://www.truthworld.in/T/{id_or_slug_or_handle}
   static String topicUrl(String slugOrHandle) {
-    String clean = slugOrHandle.trim();
+    var clean = slugOrHandle.trim();
     if (clean.startsWith('T/')) {
       clean = clean.substring(2);
     } else if (clean.startsWith('t/')) {
@@ -112,6 +112,22 @@ class DeepLinkService {
       );
     } catch (e) {
       debugPrint('Error sharing playlist: $e');
+    }
+  }
+
+  /// Share a topic with name and URL.
+  Future<void> shareTopic(String slugOrHandle, String topicTitle) async {
+    try {
+      final url = topicUrl(slugOrHandle);
+      // ignore: deprecated_member_use
+      await SharePlus.instance.share(
+        ShareParams(
+          text: 'Explore "$topicTitle" topic on TruthWorld:\n$url',
+          subject: topicTitle,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error sharing topic: $e');
     }
   }
 
@@ -205,7 +221,7 @@ class DeepLinkService {
   /// Executes [action] with retry logic and timeout.
   /// Returns null on all failures after retries.
   Future<T?> _withRetry<T>(Future<T?> Function() action) async {
-    for (int attempt = 0; attempt <= _maxRetries; attempt++) {
+    for (var attempt = 0; attempt <= _maxRetries; attempt++) {
       try {
         return await action();
       } on TimeoutException {

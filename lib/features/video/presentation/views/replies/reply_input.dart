@@ -1,17 +1,12 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/core/services/auth_service.dart';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/features/video/presentation/controllers/reply_input_controller.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/features/video/presentation/controllers/reply_input_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class ModernReplyInput extends StatefulWidget {
-  final String videoId;
-  final String commentId;
-  final String? initialText;
 
   const ModernReplyInput({
     required this.videoId,
@@ -19,6 +14,9 @@ class ModernReplyInput extends StatefulWidget {
     this.initialText,
     super.key,
   });
+  final String videoId;
+  final String commentId;
+  final String? initialText;
 
   @override
   State<ModernReplyInput> createState() => _ModernReplyInputState();
@@ -48,17 +46,17 @@ class _ModernReplyInputState extends State<ModernReplyInput>
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeOutBack),
     );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _animationController, curve: Curves.easeIn),
     );
     
     // Listen for completion to trigger animations
     _controller.isSending.listen((sending) {
       if (!sending && _controller.replyText.value.isEmpty) {
-        _animationController.forward(from: 0.0);
+        _animationController.forward(from: 0);
       }
     });
   }
@@ -74,7 +72,7 @@ class _ModernReplyInputState extends State<ModernReplyInput>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final bool isSignedIn = FirebaseAuth.instance.currentUser != null;
+    final isSignedIn = FirebaseAuth.instance.currentUser != null;
 
     return Container(
       padding: const EdgeInsets.only(top: 8, left: 16, right: 16, bottom: 16),
@@ -114,11 +112,9 @@ class _ModernReplyInputState extends State<ModernReplyInput>
                 children: [
                   Text(
                     'Replying',
-                    style: GoogleFonts.roboto(
-                      textStyle: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.onSurface,
-                      ),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurface,
                     ),
                   ),
                   IconButton(
@@ -126,7 +122,7 @@ class _ModernReplyInputState extends State<ModernReplyInput>
                       Icons.close_rounded,
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
-                    onPressed: () => Get.back(),
+                    onPressed: Get.back,
                     iconSize: 20,
                     tooltip: 'Close',
                   ),
@@ -140,7 +136,6 @@ class _ModernReplyInputState extends State<ModernReplyInput>
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   UserAvatar(
-                    radius: 20,
                     photoUrl: AuthService.to.activePhotoUrl,
                     displayName: AuthService.to.activeDisplayName,
                   ),
@@ -182,17 +177,13 @@ class _ModernReplyInputState extends State<ModernReplyInput>
                         minLines: 1,
                         keyboardType: TextInputType.multiline,
                         textCapitalization: TextCapitalization.sentences,
-                        style: GoogleFonts.roboto(
-                          textStyle: theme.textTheme.bodyLarge?.copyWith(
-                            color: theme.colorScheme.onSurface,
-                          ),
+                        style: theme.textTheme.bodyLarge?.copyWith(
+                          color: theme.colorScheme.onSurface,
                         ),
                         decoration: InputDecoration(
                           hintText: 'Add a reply...',
-                          hintStyle: GoogleFonts.roboto(
-                            textStyle: theme.textTheme.bodyLarge?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
+                          hintStyle: theme.textTheme.bodyLarge?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
                           ),
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(
@@ -225,7 +216,7 @@ class _ModernReplyInputState extends State<ModernReplyInput>
 
   Widget _buildSendButton(ThemeData theme) {
     return Obx(() {
-      final bool canSend = _controller.replyText.value.trim().isNotEmpty && 
+      final canSend = _controller.replyText.value.trim().isNotEmpty && 
                            !_controller.isSending.value;
       return ScaleTransition(
         scale: _scaleAnimation,
@@ -289,21 +280,17 @@ class _ModernReplyInputState extends State<ModernReplyInput>
           Text(
             'Sign in to reply to comments',
             textAlign: TextAlign.center,
-            style: GoogleFonts.roboto(
-              textStyle: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: theme.colorScheme.onSurface,
-              ),
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: theme.colorScheme.onSurface,
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'Join the conversation by signing in with your account.',
             textAlign: TextAlign.center,
-            style: GoogleFonts.roboto(
-              textStyle: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 16),
@@ -313,9 +300,9 @@ class _ModernReplyInputState extends State<ModernReplyInput>
               Get.toNamed('/login');
             },
             icon: const Icon(Icons.person_add_alt_1_rounded),
-            label: Text(
+            label: const Text(
               'Sign In',
-              style: GoogleFonts.roboto(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: theme.colorScheme.primary,

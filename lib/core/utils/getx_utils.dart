@@ -1,5 +1,5 @@
-import 'package:get/get.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// GetX Utility Extensions and Helpers
@@ -133,7 +133,7 @@ class GetXDialogs {
     String cancelText = 'Cancel',
   }) async {
     final controller = TextEditingController();
-    return await Get.dialog<String?>(
+    return Get.dialog<String?>(
       AlertDialog(
         title: Text(title),
         content: TextField(
@@ -141,7 +141,7 @@ class GetXDialogs {
           decoration: InputDecoration(hintText: hint),
         ),
         actions: [
-          TextButton(onPressed: () => Get.back(), child: Text(cancelText)),
+          TextButton(onPressed: Get.back, child: Text(cancelText)),
           TextButton(
             onPressed: () => Get.back(result: controller.text),
             child: Text(submitText),

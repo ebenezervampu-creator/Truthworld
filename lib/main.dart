@@ -1,28 +1,29 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
-import 'package:truthworld/core/utils/url_strategy/url_strategy.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_app_check/firebase_app_check.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_performance/firebase_performance.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/firebase_options.dart';
-import 'package:truthworld/routes/app_pages.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/core/bindings/initial_binding.dart';
-
 import 'package:get_storage/get_storage.dart';
+import 'package:truthworld/core/bindings/initial_binding.dart';
 import 'package:truthworld/core/services/app_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/push_notification_service.dart';
-import 'package:truthworld/features/miniplayer/presentation/widgets/miniplayer_overlay_manager.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
+import 'package:truthworld/core/utils/url_strategy/url_strategy.dart';
+import 'package:truthworld/features/miniplayer/presentation/widgets/miniplayer_overlay_manager.dart';
+import 'package:truthworld/firebase_options.dart';
+import 'package:truthworld/routes/app_pages.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Global error handler for production
 void _handleFlutterError(FlutterErrorDetails details) {
-  // Log to console in debug
   if (kDebugMode) {
     FlutterError.dumpErrorToConsole(details);
     logger.error(
@@ -32,13 +33,8 @@ void _handleFlutterError(FlutterErrorDetails details) {
       tag: 'FlutterFramework',
     );
   } else {
-    // In production, log to Firebase Crashlytics or your error tracking service
-    logger.wtf(
-      'Flutter Framework Error',
-      error: details.exception,
-      stackTrace: details.stack,
-      tag: 'FlutterFramework',
-    );
+    // Production: send to Crashlytics
+    FirebaseCrashlytics.instance.recordFlutterFatalError(details);
   }
 }
 
@@ -57,7 +53,6 @@ void main() {
 
       // Initialize logger first - before anything else
       logger.init(
-        enableCrashlytics: !kDebugMode,
         minLogLevel: kDebugMode ? 2 : 4, // Verbose in debug, Info in production
       );
 
@@ -71,10 +66,10 @@ void main() {
           );
           logger.info('Firebase initialized successfully', tag: 'Startup');
 
-          // Enable Firestore offline cache/persistence with unlimited size
+          // Enable Firestore offline cache/persistence bounded to 100 MB
           FirebaseFirestore.instance.settings = const Settings(
             persistenceEnabled: true,
-            cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+            cacheSizeBytes: 100 * 1024 * 1024,
           );
           // Initialize App Check with reCAPTCHA Enterprise and Web Debug Provider support
           try {
@@ -111,19 +106,50 @@ void main() {
           rethrow;
         }
 
-        // Run the app ASAP after Firebase is ready
+        // Initialize Crashlytics (disabled in debug to avoid noise)
+        if (!kIsWeb) {
+          await FirebaseCrashlytics.instance
+              .setCrashlyticsCollectionEnabled(!kDebugMode);
+          FirebaseCrashlytics.instance
+              .setCustomKey('platform', defaultTargetPlatform.name);
+        }
+
+        // Initialize Firebase Performance Monitoring
+        if (!kIsWeb) {
+          await FirebasePerformance.instance
+              .setPerformanceCollectionEnabled(!kDebugMode);
+        }
+
+        // Initialize critical services BEFORE running the app
+        await GetStorage.init().catchError((e) {
+          logger.warning('GetStorage error: $e');
+          return false;
+        });
+
+        final authService = Get.put(AuthService(), permanent: true);
+        Get.put(AppService(), permanent: true);
+        Get.put(ConnectivityService(), permanent: true);
+        Get.put(PushNotificationService(), permanent: true);
+
+        // Auth MUST complete before app renders auth-dependent UI
+        await authService.init();
+
+        // Set Crashlytics user identifier after auth (non-PII)
+        if (!kIsWeb) {
+          final uid = authService.user?.uid;
+          if (uid != null) {
+            FirebaseCrashlytics.instance.setUserIdentifier(uid);
+          }
+        }
+
+        // Run the app after critical services are ready
         runApp(const Truthworld());
 
-        // Initialize local storage and services in parallel in the background
+        // Non-critical service init in background
         Future.wait([
-          GetStorage.init().catchError((e) {
-            logger.warning('GetStorage error: $e');
-            return false;
-          }),
-          Get.put(AuthService(), permanent: true).init(),
-          Get.put(AppService(), permanent: true).init(),
-          Get.put(ConnectivityService(), permanent: true).init(),
-          Get.put(PushNotificationService(), permanent: true).init(),
+          Get.find<AppService>().init(),
+          Get.find<ConnectivityService>().init(),
+          Get.find<PushNotificationService>().init(),
         ]).then((_) {
           logger.info('All background services initialized', tag: 'Startup');
         });
@@ -147,7 +173,7 @@ void main() {
                     const Icon(
                       Icons.error_outline,
                       size: 64,
-                      color: Colors.red,
+                      color: AppColors.error,
                     ),
                     const SizedBox(height: 20),
                     const Text(
@@ -159,7 +185,7 @@ void main() {
                     ),
                     const SizedBox(height: 10),
                     Text(
-                      'Failed to initialize: ${error.toString()}',
+                      'Failed to initialize: $error',
                       textAlign: TextAlign.center,
                       style: const TextStyle(fontSize: 14),
                     ),
@@ -238,7 +264,7 @@ class Truthworld extends StatelessWidget {
       builder: (context, child) {
         final mediaQueryData = MediaQuery.of(context);
         final clampedTextScaler = mediaQueryData.textScaler.clamp(
-          minScaleFactor: 1.0,
+          minScaleFactor: 1,
           maxScaleFactor: 1.4,
         );
 

@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/pages/topic_page.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Related Topics Widget
 ///
@@ -12,16 +11,13 @@ import 'package:truthworld/features/topics/presentation/pages/topic_page.dart';
 /// - Cards for detailed view
 /// - Navigation to topic page on tap
 class RelatedTopicsWidget extends StatelessWidget {
+
+  const RelatedTopicsWidget({
+    required this.topics, required this.isDesktop, required this.isTablet, super.key,
+  });
   final List<Topic> topics;
   final bool isDesktop;
   final bool isTablet;
-
-  const RelatedTopicsWidget({
-    super.key,
-    required this.topics,
-    required this.isDesktop,
-    required this.isTablet,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +65,7 @@ class RelatedTopicsWidget extends StatelessWidget {
         const SizedBox(width: 12),
         Text(
           'Related Topics',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: isDesktop ? 24 : (isTablet ? 22 : 20),
             fontWeight: FontWeight.bold,
             color: AppColors.textPrimary,
@@ -103,7 +99,6 @@ class RelatedTopicsWidget extends StatelessWidget {
           ),
           border: Border.all(
             color: AppColors.bgSurfaceContainerHighest,
-            width: 1,
           ),
         ),
         child: ClipRRect(
@@ -143,7 +138,7 @@ class RelatedTopicsWidget extends StatelessWidget {
                       // Title
                       Text(
                         topic.title,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: isDesktop ? 16 : 14,
                           fontWeight: FontWeight.w500,
                           color: AppColors.textPrimary,
@@ -155,7 +150,7 @@ class RelatedTopicsWidget extends StatelessWidget {
                       // Video count
                       Text(
                         '${topic.videoCount} videos',
-                        style: GoogleFonts.roboto(
+                        style: const TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
                         ),
@@ -172,13 +167,35 @@ class RelatedTopicsWidget extends StatelessWidget {
   }
 
   Widget _buildBackground(Topic topic) {
-    if (topic.thumbnailUrl != null && topic.thumbnailUrl!.isNotEmpty) {
-      return Image.network(
-        topic.thumbnailUrl!,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) {
-          return _buildGradientBackground();
-        },
+    final bgUrl =
+        (topic.coverImage != null && topic.coverImage!.isNotEmpty)
+        ? topic.coverImage
+        : (topic.thumbnailUrl != null && topic.thumbnailUrl!.isNotEmpty)
+        ? topic.thumbnailUrl
+        : null;
+
+    if (bgUrl != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.network(
+            bgUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildGradientBackground();
+            },
+          ),
+          Container(
+            color: Colors.black.withValues(alpha: 0.65),
+          ),
+          Image.network(
+            bgUrl,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildGradientBackground();
+            },
+          ),
+        ],
       );
     }
     return _buildGradientBackground();
@@ -202,14 +219,12 @@ class RelatedTopicsWidget extends StatelessWidget {
 
 /// Compact chip-style related topics (alternative design)
 class RelatedTopicsChips extends StatelessWidget {
-  final List<Topic> topics;
-  final bool isDesktop;
 
   const RelatedTopicsChips({
-    super.key,
-    required this.topics,
-    required this.isDesktop,
+    required this.topics, required this.isDesktop, super.key,
   });
+  final List<Topic> topics;
+  final bool isDesktop;
 
   @override
   Widget build(BuildContext context) {
@@ -221,7 +236,7 @@ class RelatedTopicsChips extends StatelessWidget {
       child: Wrap(
         spacing: 12,
         runSpacing: 12,
-        children: topics.map((topic) => _buildChip(topic)).toList(),
+        children: topics.map(_buildChip).toList(),
       ),
     );
   }
@@ -236,17 +251,17 @@ class RelatedTopicsChips extends StatelessWidget {
       backgroundColor: AppColors.bgSurfaceContainerHighest.withValues(
         alpha: 0.5,
       ),
-      side: BorderSide(
+      side: const BorderSide(
         color: AppColors.bgSurfaceContainerHighest,
       ),
       label: Text(
         topic.title,
-        style: GoogleFonts.roboto(
+        style: const TextStyle(
           fontSize: 14,
           color: AppColors.textPrimary,
         ),
       ),
-      avatar: Icon(
+      avatar: const Icon(
         Icons.topic_rounded,
         size: 18,
         color: AppColors.brand,

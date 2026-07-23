@@ -1,18 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class PlaceholderScreen extends StatelessWidget {
+
+  const PlaceholderScreen({
+    required this.icon, required this.featureName, required this.isDarkMode, super.key,
+  });
   final IconData icon;
   final String featureName;
   final bool isDarkMode;
-
-  const PlaceholderScreen({
-    super.key,
-    required this.icon,
-    required this.featureName,
-    required this.isDarkMode,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -26,8 +22,8 @@ class PlaceholderScreen extends StatelessWidget {
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [
-                  (AppTheme.colors.textSecondary).withValues(alpha: 0.2),
-                  (AppTheme.colors.textSecondary).withValues(alpha: 0.1),
+                  AppTheme.colors.textSecondary.withValues(alpha: 0.2),
+                  AppTheme.colors.textSecondary.withValues(alpha: 0.1),
                 ],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
@@ -42,10 +38,10 @@ class PlaceholderScreen extends StatelessWidget {
                   : AppTheme.colors.textSecondary,
             ),
           ),
-          SizedBox(height: 32),
+          const SizedBox(height: 32),
           Text(
             '$featureName Coming Soon',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: isDarkMode
@@ -53,10 +49,10 @@ class PlaceholderScreen extends StatelessWidget {
                   : AppTheme.colors.background,
             ),
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Text(
             'This feature is currently under development.',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 16,
               color: isDarkMode
                   ? AppTheme.colors.textPrimary70

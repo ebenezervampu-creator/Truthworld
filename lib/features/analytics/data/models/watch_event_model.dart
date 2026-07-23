@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:truthworld/core/utils/watch_time_formatter.dart';
 
 // =============================================================================
 // TRAFFIC SOURCE TAXONOMY — Hierarchical categorization
@@ -63,15 +64,7 @@ enum TrafficSourceType { internal, external }
 
 /// Fraud / bot detection signals attached to each watch event.
 /// Cloud Function evaluates these server-side and flags suspicious events.
-class FraudSignals {
-  final int viewsFromSameIP24h;       // Total views from this IP in 24h
-  final int bounceLoopCount;          // Rapid start→exit cycles from same user
-  final double sessionVelocity;       // Events per minute (> 10 = suspicious)
-  final bool impossibleGeoJump;       // City changed faster than physically possible
-  final bool suspiciousCompletion;    // 100% completion in < 30% of duration
-  final bool fingerprintMismatch;     // Device fingerprint doesn't match prior session
-  final double fraudScore;            // 0.0-1.0, calculated server-side
-  final bool isFlagged;               // Is this event excluded from clean metrics?
+class FraudSignals {               // Is this event excluded from clean metrics?
 
   const FraudSignals({
     this.viewsFromSameIP24h = 0,
@@ -83,6 +76,25 @@ class FraudSignals {
     this.fraudScore = 0,
     this.isFlagged = false,
   });
+
+  factory FraudSignals.fromMap(Map<String, dynamic> map) => FraudSignals(
+    viewsFromSameIP24h: (map['viewsFromSameIP24h'] as num?)?.toInt() ?? 0,
+    bounceLoopCount: (map['bounceLoopCount'] as num?)?.toInt() ?? 0,
+    sessionVelocity: (map['sessionVelocity'] as num?)?.toDouble() ?? 0,
+    impossibleGeoJump: map['impossibleGeoJump'] as bool? ?? false,
+    suspiciousCompletion: map['suspiciousCompletion'] as bool? ?? false,
+    fingerprintMismatch: map['fingerprintMismatch'] as bool? ?? false,
+    fraudScore: (map['fraudScore'] as num?)?.toDouble() ?? 0,
+    isFlagged: map['isFlagged'] as bool? ?? false,
+  );
+  final int viewsFromSameIP24h;       // Total views from this IP in 24h
+  final int bounceLoopCount;          // Rapid start→exit cycles from same user
+  final double sessionVelocity;       // Events per minute (> 10 = suspicious)
+  final bool impossibleGeoJump;       // City changed faster than physically possible
+  final bool suspiciousCompletion;    // 100% completion in < 30% of duration
+  final bool fingerprintMismatch;     // Device fingerprint doesn't match prior session
+  final double fraudScore;            // 0.0-1.0, calculated server-side
+  final bool isFlagged;
 
   /// Is this event suspicious? (fraud score > 0.5 or explicit flag)
   bool get isSuspicious => fraudScore > 0.5 || isFlagged;
@@ -97,17 +109,6 @@ class FraudSignals {
     'fraudScore': fraudScore,
     'isFlagged': isFlagged,
   };
-
-  factory FraudSignals.fromMap(Map<String, dynamic> map) => FraudSignals(
-    viewsFromSameIP24h: (map['viewsFromSameIP24h'] as num?)?.toInt() ?? 0,
-    bounceLoopCount: (map['bounceLoopCount'] as num?)?.toInt() ?? 0,
-    sessionVelocity: (map['sessionVelocity'] as num?)?.toDouble() ?? 0,
-    impossibleGeoJump: map['impossibleGeoJump'] as bool? ?? false,
-    suspiciousCompletion: map['suspiciousCompletion'] as bool? ?? false,
-    fingerprintMismatch: map['fingerprintMismatch'] as bool? ?? false,
-    fraudScore: (map['fraudScore'] as num?)?.toDouble() ?? 0,
-    isFlagged: map['isFlagged'] as bool? ?? false,
-  );
 
   static const clean = FraudSignals();
 }
@@ -145,7 +146,63 @@ class ReturningViewerDefinition {
 /// Represents a single watch milestone event for a video.
 /// Events are: video_start, qualified_view (20s), milestone_25, milestone_50,
 /// milestone_75, milestone_100, video_exit
-class WatchEvent {
+class WatchEvent { // Captured from MediaQuery.devicePixelRatioOf(context)
+
+  WatchEvent({
+    required this.videoId,
+    required this.channelId,
+    required this.userId,
+    required this.watchedAt, required this.watchedDuration, required this.videoDuration, required this.watchPercentage, required this.deviceType, required this.videoQuality, this.sessionId,
+    this.ipAddress,
+    this.state,
+    this.city,
+    this.areaType,
+    this.country = 'IN',
+    this.completed = false,
+    this.likedVideo,
+    this.avgBitrate,
+    this.eventType = 'video_start',
+    this.trafficSource = 'direct',
+    this.isSubscriber = false,
+    this.isReturningViewer = false,
+    this.fraudSignals,
+    this.serverDedupKey,
+    this.textScaleFactor,
+    this.devicePixelRatio,
+  });
+
+  factory WatchEvent.fromMap(Map<String, dynamic> map) => WatchEvent(
+        videoId: map['videoId'] as String? ?? '',
+        channelId: map['channelId'] as String? ?? '',
+        userId: map['userId'] as String? ?? '',
+        sessionId: map['sessionId'] as String?,
+        watchedAt: map['watchedAt'] is Timestamp
+            ? (map['watchedAt'] as Timestamp).toDate()
+            : DateTime.now(),
+        watchedDuration: (map['watchedDuration'] as num?)?.toInt() ?? 0,
+        videoDuration: (map['videoDuration'] as num?)?.toInt() ?? 0,
+        watchPercentage: (map['watchPercentage'] as num?)?.toDouble() ?? 0,
+        deviceType: map['deviceType'] as String? ?? 'mobile',
+        videoQuality: map['videoQuality'] as String? ?? '720p',
+        ipAddress: map['ipAddress'] as String?,
+        state: map['state'] as String?,
+        city: map['city'] as String?,
+        areaType: map['areaType'] as String?,
+        country: map['country'] as String? ?? 'IN',
+        completed: map['completed'] as bool? ?? false,
+        likedVideo: map['likedVideo'] as bool?,
+        avgBitrate: (map['avgBitrate'] as num?)?.toInt(),
+        eventType: map['eventType'] as String? ?? 'video_start',
+        trafficSource: map['trafficSource'] as String? ?? 'direct',
+        isSubscriber: map['isSubscriber'] as bool? ?? false,
+        isReturningViewer: map['isReturningViewer'] as bool? ?? false,
+        fraudSignals: map['fraudSignals'] != null
+            ? FraudSignals.fromMap(map['fraudSignals'] as Map<String, dynamic>)
+            : null,
+        serverDedupKey: map['serverDedupKey'] as String?,
+        textScaleFactor: (map['textScaleFactor'] as num?)?.toDouble(),
+        devicePixelRatio: (map['devicePixelRatio'] as num?)?.toDouble(),
+      );
   final String videoId;
   final String channelId;
   final String userId;
@@ -171,36 +228,7 @@ class WatchEvent {
   final FraudSignals? fraudSignals; // Server-side fraud detection markers
   final String? serverDedupKey; // Server dedup: `{videoId}_{userHash}_{YYYYMMDD}`
   final double? textScaleFactor; // Captured from MediaQuery.textScalerOf(context)
-  final double? devicePixelRatio; // Captured from MediaQuery.devicePixelRatioOf(context)
-
-  WatchEvent({
-    required this.videoId,
-    required this.channelId,
-    required this.userId,
-    this.sessionId,
-    required this.watchedAt,
-    required this.watchedDuration,
-    required this.videoDuration,
-    required this.watchPercentage,
-    required this.deviceType,
-    required this.videoQuality,
-    this.ipAddress,
-    this.state,
-    this.city,
-    this.areaType,
-    this.country = 'IN',
-    this.completed = false,
-    this.likedVideo,
-    this.avgBitrate,
-    this.eventType = 'video_start',
-    this.trafficSource = 'direct',
-    this.isSubscriber = false,
-    this.isReturningViewer = false,
-    this.fraudSignals,
-    this.serverDedupKey,
-    this.textScaleFactor,
-    this.devicePixelRatio,
-  });
+  final double? devicePixelRatio;
 
   /// Calculate watchtime category
   WatchtimeCategory getCategory() {
@@ -239,39 +267,6 @@ class WatchEvent {
         'textScaleFactor': textScaleFactor,
         'devicePixelRatio': devicePixelRatio,
       };
-
-  factory WatchEvent.fromMap(Map<String, dynamic> map) => WatchEvent(
-        videoId: map['videoId'] as String? ?? '',
-        channelId: map['channelId'] as String? ?? '',
-        userId: map['userId'] as String? ?? '',
-        sessionId: map['sessionId'] as String?,
-        watchedAt: map['watchedAt'] is Timestamp
-            ? (map['watchedAt'] as Timestamp).toDate()
-            : DateTime.now(),
-        watchedDuration: (map['watchedDuration'] as num?)?.toInt() ?? 0,
-        videoDuration: (map['videoDuration'] as num?)?.toInt() ?? 0,
-        watchPercentage: (map['watchPercentage'] as num?)?.toDouble() ?? 0,
-        deviceType: map['deviceType'] as String? ?? 'mobile',
-        videoQuality: map['videoQuality'] as String? ?? '720p',
-        ipAddress: map['ipAddress'] as String?,
-        state: map['state'] as String?,
-        city: map['city'] as String?,
-        areaType: map['areaType'] as String?,
-        country: map['country'] as String? ?? 'IN',
-        completed: map['completed'] as bool? ?? false,
-        likedVideo: map['likedVideo'] as bool?,
-        avgBitrate: (map['avgBitrate'] as num?)?.toInt(),
-        eventType: map['eventType'] as String? ?? 'video_start',
-        trafficSource: map['trafficSource'] as String? ?? 'direct',
-        isSubscriber: map['isSubscriber'] as bool? ?? false,
-        isReturningViewer: map['isReturningViewer'] as bool? ?? false,
-        fraudSignals: map['fraudSignals'] != null
-            ? FraudSignals.fromMap(map['fraudSignals'] as Map<String, dynamic>)
-            : null,
-        serverDedupKey: map['serverDedupKey'] as String?,
-        textScaleFactor: (map['textScaleFactor'] as num?)?.toDouble(),
-        devicePixelRatio: (map['devicePixelRatio'] as num?)?.toDouble(),
-      );
 
   WatchEvent copyWith({
     String? videoId,
@@ -353,6 +348,67 @@ enum WatchtimeCategory {
 /// Document ID format: `{videoId}_{YYYY_MM_DD}`
 /// Collection: `video_stats_daily`
 class DailyVideoStats {
+
+  DailyVideoStats({
+    required this.videoId,
+    required this.channelId,
+    required this.dateKey,
+    required this.totalViews,
+    required this.uniqueViewers, required this.totalWatchTimeSeconds, required this.date, this.totalImpressions = 0,
+    this.subscriberViews = 0,
+    this.nonSubscriberViews = 0,
+    this.returningViewers = 0,
+    this.newViewers = 0,
+    this.bouncedUnder20s = 0,
+    this.watched25Percent = 0,
+    this.watched50Percent = 0,
+    this.watched75Percent = 0,
+    this.watched100Percent = 0,
+    this.stateTraffic = const {},
+    this.cityTraffic = const {},
+    this.countryTraffic = const {},
+    this.urbanViewers = 0,
+    this.ruralViewers = 0,
+    this.deviceBreakdown = const {},
+    this.qualityBreakdown = const {},
+    this.trafficSourceBreakdown = const {},
+    this.subscribersGained = 0,
+    this.subscribersLost = 0,
+  });
+
+  factory DailyVideoStats.fromMap(Map<String, dynamic> map) =>
+      DailyVideoStats(
+        videoId: map['videoId'] as String? ?? '',
+        channelId: map['channelId'] as String? ?? '',
+        dateKey: map['dateKey'] as String? ?? '',
+        totalViews: (map['totalViews'] as num?)?.toInt() ?? 0,
+        totalImpressions: (map['totalImpressions'] as num?)?.toInt() ?? 0,
+        uniqueViewers: (map['uniqueViewers'] as num?)?.toInt() ?? 0,
+        totalWatchTimeSeconds:
+            (map['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0,
+        subscriberViews: (map['subscriberViews'] as num?)?.toInt() ?? 0,
+        nonSubscriberViews: (map['nonSubscriberViews'] as num?)?.toInt() ?? 0,
+        returningViewers: (map['returningViewers'] as num?)?.toInt() ?? 0,
+        newViewers: (map['newViewers'] as num?)?.toInt() ?? 0,
+        bouncedUnder20s: (map['bouncedUnder20s'] as num?)?.toInt() ?? 0,
+        watched25Percent: (map['watched25Percent'] as num?)?.toInt() ?? 0,
+        watched50Percent: (map['watched50Percent'] as num?)?.toInt() ?? 0,
+        watched75Percent: (map['watched75Percent'] as num?)?.toInt() ?? 0,
+        watched100Percent: (map['watched100Percent'] as num?)?.toInt() ?? 0,
+        stateTraffic: _castIntMap(map['stateTraffic']),
+        cityTraffic: _castIntMap(map['cityTraffic']),
+        countryTraffic: _castIntMap(map['countryTraffic']),
+        urbanViewers: (map['urbanViewers'] as num?)?.toInt() ?? 0,
+        ruralViewers: (map['ruralViewers'] as num?)?.toInt() ?? 0,
+        deviceBreakdown: _castIntMap(map['deviceBreakdown']),
+        qualityBreakdown: _castIntMap(map['qualityBreakdown']),
+        trafficSourceBreakdown: _castIntMap(map['trafficSourceBreakdown']),
+        subscribersGained: (map['subscribersGained'] as num?)?.toInt() ?? 0,
+        subscribersLost: (map['subscribersLost'] as num?)?.toInt() ?? 0,
+        date: map['date'] is Timestamp
+            ? (map['date'] as Timestamp).toDate()
+            : DateTime.now(),
+      );
   final String videoId;
   final String channelId;
   final String dateKey; // YYYY_MM_DD
@@ -391,36 +447,6 @@ class DailyVideoStats {
   final int subscribersLost;
 
   final DateTime date;
-
-  DailyVideoStats({
-    required this.videoId,
-    required this.channelId,
-    required this.dateKey,
-    required this.totalViews,
-    this.totalImpressions = 0,
-    required this.uniqueViewers,
-    required this.totalWatchTimeSeconds,
-    this.subscriberViews = 0,
-    this.nonSubscriberViews = 0,
-    this.returningViewers = 0,
-    this.newViewers = 0,
-    this.bouncedUnder20s = 0,
-    this.watched25Percent = 0,
-    this.watched50Percent = 0,
-    this.watched75Percent = 0,
-    this.watched100Percent = 0,
-    this.stateTraffic = const {},
-    this.cityTraffic = const {},
-    this.countryTraffic = const {},
-    this.urbanViewers = 0,
-    this.ruralViewers = 0,
-    this.deviceBreakdown = const {},
-    this.qualityBreakdown = const {},
-    this.trafficSourceBreakdown = const {},
-    this.subscribersGained = 0,
-    this.subscribersLost = 0,
-    required this.date,
-  });
 
   /// CTR = (views / impressions) * 100
   double get ctr =>
@@ -463,40 +489,6 @@ class DailyVideoStats {
         'subscribersLost': subscribersLost,
         'date': Timestamp.fromDate(date),
       };
-
-  factory DailyVideoStats.fromMap(Map<String, dynamic> map) =>
-      DailyVideoStats(
-        videoId: map['videoId'] as String? ?? '',
-        channelId: map['channelId'] as String? ?? '',
-        dateKey: map['dateKey'] as String? ?? '',
-        totalViews: (map['totalViews'] as num?)?.toInt() ?? 0,
-        totalImpressions: (map['totalImpressions'] as num?)?.toInt() ?? 0,
-        uniqueViewers: (map['uniqueViewers'] as num?)?.toInt() ?? 0,
-        totalWatchTimeSeconds:
-            (map['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0,
-        subscriberViews: (map['subscriberViews'] as num?)?.toInt() ?? 0,
-        nonSubscriberViews: (map['nonSubscriberViews'] as num?)?.toInt() ?? 0,
-        returningViewers: (map['returningViewers'] as num?)?.toInt() ?? 0,
-        newViewers: (map['newViewers'] as num?)?.toInt() ?? 0,
-        bouncedUnder20s: (map['bouncedUnder20s'] as num?)?.toInt() ?? 0,
-        watched25Percent: (map['watched25Percent'] as num?)?.toInt() ?? 0,
-        watched50Percent: (map['watched50Percent'] as num?)?.toInt() ?? 0,
-        watched75Percent: (map['watched75Percent'] as num?)?.toInt() ?? 0,
-        watched100Percent: (map['watched100Percent'] as num?)?.toInt() ?? 0,
-        stateTraffic: _castIntMap(map['stateTraffic']),
-        cityTraffic: _castIntMap(map['cityTraffic']),
-        countryTraffic: _castIntMap(map['countryTraffic']),
-        urbanViewers: (map['urbanViewers'] as num?)?.toInt() ?? 0,
-        ruralViewers: (map['ruralViewers'] as num?)?.toInt() ?? 0,
-        deviceBreakdown: _castIntMap(map['deviceBreakdown']),
-        qualityBreakdown: _castIntMap(map['qualityBreakdown']),
-        trafficSourceBreakdown: _castIntMap(map['trafficSourceBreakdown']),
-        subscribersGained: (map['subscribersGained'] as num?)?.toInt() ?? 0,
-        subscribersLost: (map['subscribersLost'] as num?)?.toInt() ?? 0,
-        date: map['date'] is Timestamp
-            ? (map['date'] as Timestamp).toDate()
-            : DateTime.now(),
-      );
 
   /// Merge two daily stats (for aggregation across date ranges)
   DailyVideoStats merge(DailyVideoStats other) {
@@ -546,6 +538,45 @@ class DailyVideoStats {
 /// without waiting for daily rollup. Hourly docs are auto-TTL'd after 72h
 /// by a Cloud Function cleanup job.
 class HourlyVideoStats {
+
+  HourlyVideoStats({
+    required this.videoId,
+    required this.channelId,
+    required this.hourKey,
+    required this.totalViews,
+    required this.uniqueViewers,
+    required this.totalWatchTimeSeconds,
+    required this.hour, this.subscriberViews = 0,
+    this.nonSubscriberViews = 0,
+    this.bouncedUnder20s = 0,
+    this.watched25Percent = 0,
+    this.watched50Percent = 0,
+    this.watched75Percent = 0,
+    this.watched100Percent = 0,
+    this.trafficSourceBreakdown = const {},
+    this.flaggedFraudViews = 0,
+  });
+
+  factory HourlyVideoStats.fromMap(Map<String, dynamic> map) => HourlyVideoStats(
+    videoId: map['videoId'] as String? ?? '',
+    channelId: map['channelId'] as String? ?? '',
+    hourKey: map['hourKey'] as String? ?? '',
+    totalViews: (map['totalViews'] as num?)?.toInt() ?? 0,
+    uniqueViewers: (map['uniqueViewers'] as num?)?.toInt() ?? 0,
+    totalWatchTimeSeconds: (map['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0,
+    subscriberViews: (map['subscriberViews'] as num?)?.toInt() ?? 0,
+    nonSubscriberViews: (map['nonSubscriberViews'] as num?)?.toInt() ?? 0,
+    bouncedUnder20s: (map['bouncedUnder20s'] as num?)?.toInt() ?? 0,
+    watched25Percent: (map['watched25Percent'] as num?)?.toInt() ?? 0,
+    watched50Percent: (map['watched50Percent'] as num?)?.toInt() ?? 0,
+    watched75Percent: (map['watched75Percent'] as num?)?.toInt() ?? 0,
+    watched100Percent: (map['watched100Percent'] as num?)?.toInt() ?? 0,
+    trafficSourceBreakdown: _castIntMap(map['trafficSourceBreakdown']),
+    flaggedFraudViews: (map['flaggedFraudViews'] as num?)?.toInt() ?? 0,
+    hour: map['hour'] is Timestamp
+        ? (map['hour'] as Timestamp).toDate()
+        : DateTime.now(),
+  );
   final String videoId;
   final String channelId;
   final String hourKey; // YYYY_MM_DD_HH (24h format)
@@ -562,25 +593,6 @@ class HourlyVideoStats {
   final Map<String, int> trafficSourceBreakdown;
   final int flaggedFraudViews; // Views with fraudScore > 0.5
   final DateTime hour;
-
-  HourlyVideoStats({
-    required this.videoId,
-    required this.channelId,
-    required this.hourKey,
-    required this.totalViews,
-    required this.uniqueViewers,
-    required this.totalWatchTimeSeconds,
-    this.subscriberViews = 0,
-    this.nonSubscriberViews = 0,
-    this.bouncedUnder20s = 0,
-    this.watched25Percent = 0,
-    this.watched50Percent = 0,
-    this.watched75Percent = 0,
-    this.watched100Percent = 0,
-    this.trafficSourceBreakdown = const {},
-    this.flaggedFraudViews = 0,
-    required this.hour,
-  });
 
   double get avgWatchDuration =>
       uniqueViewers > 0 ? totalWatchTimeSeconds / uniqueViewers : 0;
@@ -609,27 +621,6 @@ class HourlyVideoStats {
     'flaggedFraudViews': flaggedFraudViews,
     'hour': Timestamp.fromDate(hour),
   };
-
-  factory HourlyVideoStats.fromMap(Map<String, dynamic> map) => HourlyVideoStats(
-    videoId: map['videoId'] as String? ?? '',
-    channelId: map['channelId'] as String? ?? '',
-    hourKey: map['hourKey'] as String? ?? '',
-    totalViews: (map['totalViews'] as num?)?.toInt() ?? 0,
-    uniqueViewers: (map['uniqueViewers'] as num?)?.toInt() ?? 0,
-    totalWatchTimeSeconds: (map['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0,
-    subscriberViews: (map['subscriberViews'] as num?)?.toInt() ?? 0,
-    nonSubscriberViews: (map['nonSubscriberViews'] as num?)?.toInt() ?? 0,
-    bouncedUnder20s: (map['bouncedUnder20s'] as num?)?.toInt() ?? 0,
-    watched25Percent: (map['watched25Percent'] as num?)?.toInt() ?? 0,
-    watched50Percent: (map['watched50Percent'] as num?)?.toInt() ?? 0,
-    watched75Percent: (map['watched75Percent'] as num?)?.toInt() ?? 0,
-    watched100Percent: (map['watched100Percent'] as num?)?.toInt() ?? 0,
-    trafficSourceBreakdown: _castIntMap(map['trafficSourceBreakdown']),
-    flaggedFraudViews: (map['flaggedFraudViews'] as num?)?.toInt() ?? 0,
-    hour: map['hour'] is Timestamp
-        ? (map['hour'] as Timestamp).toDate()
-        : DateTime.now(),
-  );
 }
 
 // =============================================================================
@@ -640,6 +631,53 @@ class HourlyVideoStats {
 /// Document ID format: `{channelId}_{YYYY_MM_DD}`
 /// Collection: `channel_stats_daily`
 class DailyChannelStats {
+
+  DailyChannelStats({
+    required this.channelId,
+    required this.dateKey,
+    required this.totalViews,
+    required this.uniqueViewers, required this.totalWatchTimeSeconds, required this.date, this.totalImpressions = 0,
+    this.subscriberViews = 0,
+    this.nonSubscriberViews = 0,
+    this.returningViewers = 0,
+    this.newViewers = 0,
+    this.subscribersGained = 0,
+    this.subscribersLost = 0,
+    this.videoCount = 0,
+    this.stateTraffic = const {},
+    this.cityTraffic = const {},
+    this.countryTraffic = const {},
+    this.urbanViewers = 0,
+    this.ruralViewers = 0,
+    this.trafficSourceBreakdown = const {},
+  });
+
+  factory DailyChannelStats.fromMap(Map<String, dynamic> map) =>
+      DailyChannelStats(
+        channelId: map['channelId'] as String? ?? '',
+        dateKey: map['dateKey'] as String? ?? '',
+        totalViews: (map['totalViews'] as num?)?.toInt() ?? 0,
+        totalImpressions: (map['totalImpressions'] as num?)?.toInt() ?? 0,
+        uniqueViewers: (map['uniqueViewers'] as num?)?.toInt() ?? 0,
+        totalWatchTimeSeconds:
+            (map['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0,
+        subscriberViews: (map['subscriberViews'] as num?)?.toInt() ?? 0,
+        nonSubscriberViews: (map['nonSubscriberViews'] as num?)?.toInt() ?? 0,
+        returningViewers: (map['returningViewers'] as num?)?.toInt() ?? 0,
+        newViewers: (map['newViewers'] as num?)?.toInt() ?? 0,
+        subscribersGained: (map['subscribersGained'] as num?)?.toInt() ?? 0,
+        subscribersLost: (map['subscribersLost'] as num?)?.toInt() ?? 0,
+        videoCount: (map['videoCount'] as num?)?.toInt() ?? 0,
+        stateTraffic: _castIntMap(map['stateTraffic']),
+        cityTraffic: _castIntMap(map['cityTraffic']),
+        countryTraffic: _castIntMap(map['countryTraffic']),
+        urbanViewers: (map['urbanViewers'] as num?)?.toInt() ?? 0,
+        ruralViewers: (map['ruralViewers'] as num?)?.toInt() ?? 0,
+        trafficSourceBreakdown: _castIntMap(map['trafficSourceBreakdown']),
+        date: map['date'] is Timestamp
+            ? (map['date'] as Timestamp).toDate()
+            : DateTime.now(),
+      );
   final String channelId;
   final String dateKey;
   final int totalViews;
@@ -660,29 +698,6 @@ class DailyChannelStats {
   final int ruralViewers;
   final Map<String, int> trafficSourceBreakdown;
   final DateTime date;
-
-  DailyChannelStats({
-    required this.channelId,
-    required this.dateKey,
-    required this.totalViews,
-    this.totalImpressions = 0,
-    required this.uniqueViewers,
-    required this.totalWatchTimeSeconds,
-    this.subscriberViews = 0,
-    this.nonSubscriberViews = 0,
-    this.returningViewers = 0,
-    this.newViewers = 0,
-    this.subscribersGained = 0,
-    this.subscribersLost = 0,
-    this.videoCount = 0,
-    this.stateTraffic = const {},
-    this.cityTraffic = const {},
-    this.countryTraffic = const {},
-    this.urbanViewers = 0,
-    this.ruralViewers = 0,
-    this.trafficSourceBreakdown = const {},
-    required this.date,
-  });
 
   double get ctr =>
       totalImpressions > 0 ? (totalViews / totalImpressions) * 100 : 0;
@@ -714,33 +729,6 @@ class DailyChannelStats {
         'trafficSourceBreakdown': trafficSourceBreakdown,
         'date': Timestamp.fromDate(date),
       };
-
-  factory DailyChannelStats.fromMap(Map<String, dynamic> map) =>
-      DailyChannelStats(
-        channelId: map['channelId'] as String? ?? '',
-        dateKey: map['dateKey'] as String? ?? '',
-        totalViews: (map['totalViews'] as num?)?.toInt() ?? 0,
-        totalImpressions: (map['totalImpressions'] as num?)?.toInt() ?? 0,
-        uniqueViewers: (map['uniqueViewers'] as num?)?.toInt() ?? 0,
-        totalWatchTimeSeconds:
-            (map['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0,
-        subscriberViews: (map['subscriberViews'] as num?)?.toInt() ?? 0,
-        nonSubscriberViews: (map['nonSubscriberViews'] as num?)?.toInt() ?? 0,
-        returningViewers: (map['returningViewers'] as num?)?.toInt() ?? 0,
-        newViewers: (map['newViewers'] as num?)?.toInt() ?? 0,
-        subscribersGained: (map['subscribersGained'] as num?)?.toInt() ?? 0,
-        subscribersLost: (map['subscribersLost'] as num?)?.toInt() ?? 0,
-        videoCount: (map['videoCount'] as num?)?.toInt() ?? 0,
-        stateTraffic: _castIntMap(map['stateTraffic']),
-        cityTraffic: _castIntMap(map['cityTraffic']),
-        countryTraffic: _castIntMap(map['countryTraffic']),
-        urbanViewers: (map['urbanViewers'] as num?)?.toInt() ?? 0,
-        ruralViewers: (map['ruralViewers'] as num?)?.toInt() ?? 0,
-        trafficSourceBreakdown: _castIntMap(map['trafficSourceBreakdown']),
-        date: map['date'] is Timestamp
-            ? (map['date'] as Timestamp).toDate()
-            : DateTime.now(),
-      );
 
   DailyChannelStats merge(DailyChannelStats other) {
     return DailyChannelStats(
@@ -775,66 +763,21 @@ class DailyChannelStats {
 // =============================================================================
 
 /// Video-level analytics snapshot (computed from daily aggregates)
-class VideoAnalyticsSnapshot {
-  final String videoId;
-  final String title;
-  final int totalViews;
-  final int totalUniqueViewers;
-  final int totalImpressions;
-  final double averageWatchDuration; // Seconds
-  final double averageWatchPercentage; // 0-100
-  final int totalWatchTimeSeconds; // Absolute total
-  final int usersCompletedVideo;
-  final Map<WatchtimeCategory, int> watchtimeCategoryCount;
-  final Map<String, int> stateTraffic;
-  final Map<String, double> stateTrafficPercentage;
-  final Map<String, int> cityTraffic;
-  final Map<String, double> cityTrafficPercentage;
-  final Map<String, int> countryTraffic;
-  final Map<String, double> countryTrafficPercentage;
-  final int urbanViewers;
-  final int ruralViewers;
-  final Map<String, int> deviceTypeBreakdown;
-  final Map<String, int> qualityBreakdown;
-  final Map<String, int> trafficSourceBreakdown;
-  final int subscriberViews;
-  final int nonSubscriberViews;
-  final int returningViewers;
-  final int subscribersGained;
-  final int subscribersLost;
-  final int liveViewerCount; // Current concurrent viewers
-  final DateTime generatedAt;
-  final DateTime? nextUpdateAt;
-  final int estimatedReadCount;
-  final Map<DateTime, int> dailyWatchTime; // Date -> Seconds watched
-  final Map<DateTime, int> dailyViews; // Date -> Views count
-  final Map<DateTime, int> dailySubscribers; // Date -> Net subscribers (Gained - Lost)
-
-  // Multi-tier fraud metric separation
-  final int suspectedFraudViews; // Views flagged with fraudScore > 0.5
-  final int confirmedFraudViews; // Views confirmed by manual review or rules
+class VideoAnalyticsSnapshot { // Views confirmed by manual review or rules
 
   VideoAnalyticsSnapshot({
     required this.videoId,
     required this.title,
     required this.totalViews,
     required this.totalUniqueViewers,
-    this.totalImpressions = 0,
-    required this.averageWatchDuration,
-    required this.averageWatchPercentage,
+    required this.averageWatchDuration, required this.averageWatchPercentage, required this.usersCompletedVideo, required this.watchtimeCategoryCount, required this.stateTraffic, required this.stateTrafficPercentage, required this.deviceTypeBreakdown, required this.qualityBreakdown, required this.generatedAt, required this.estimatedReadCount, this.totalImpressions = 0,
     this.totalWatchTimeSeconds = 0,
-    required this.usersCompletedVideo,
-    required this.watchtimeCategoryCount,
-    required this.stateTraffic,
-    required this.stateTrafficPercentage,
     this.cityTraffic = const {},
     this.cityTrafficPercentage = const {},
     this.countryTraffic = const {},
     this.countryTrafficPercentage = const {},
     this.urbanViewers = 0,
     this.ruralViewers = 0,
-    required this.deviceTypeBreakdown,
-    required this.qualityBreakdown,
     this.trafficSourceBreakdown = const {},
     this.subscriberViews = 0,
     this.nonSubscriberViews = 0,
@@ -842,130 +785,13 @@ class VideoAnalyticsSnapshot {
     this.subscribersGained = 0,
     this.subscribersLost = 0,
     this.liveViewerCount = 0,
-    required this.generatedAt,
     this.nextUpdateAt,
-    required this.estimatedReadCount,
     this.dailyWatchTime = const {},
     this.dailyViews = const {},
     this.dailySubscribers = const {},
     this.suspectedFraudViews = 0,
     this.confirmedFraudViews = 0,
   });
-
-  /// CTR = (views / impressions) * 100
-  double get ctr =>
-      totalImpressions > 0 ? (totalViews / totalImpressions) * 100 : 0;
-
-  /// Clean views = total - suspected - confirmed fraud
-  int get cleanViews =>
-      (totalViews - suspectedFraudViews - confirmedFraudViews)
-          .clamp(0, totalViews);
-
-  /// Fraud rate = (suspected + confirmed) / total * 100
-  double get fraudRate => totalViews > 0
-      ? ((suspectedFraudViews + confirmedFraudViews) / totalViews) * 100
-      : 0;
-
-  /// View quality score (0-100): percentage of views that are clean
-  double get viewQualityScore => totalViews > 0
-      ? (cleanViews / totalViews) * 100
-      : 100;
-
-  /// Get top N states by traffic
-  List<MapEntry<String, double>> getTopStates({int limit = 5}) {
-    final sorted = stateTrafficPercentage.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    return sorted.take(limit).toList();
-  }
-
-  /// Get top N cities by traffic
-  List<MapEntry<String, double>> getTopCities({int limit = 10}) {
-    final total = cityTraffic.values.fold<int>(0, (a, b) => a + b);
-    if (total == 0) return [];
-    final sorted = cityTraffic.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    return sorted.take(limit).map((e) {
-      return MapEntry(e.key, (e.value / total) * 100);
-    }).toList();
-  }
-
-  /// Urban percentage
-  double get urbanPercentage {
-    final total = urbanViewers + ruralViewers;
-    return total > 0 ? (urbanViewers / total) * 100 : 0;
-  }
-
-  /// Rural percentage
-  double get ruralPercentage {
-    final total = urbanViewers + ruralViewers;
-    return total > 0 ? (ruralViewers / total) * 100 : 0;
-  }
-
-  /// Formatted total watch time
-  String get totalWatchTimeFormatted {
-    if (totalWatchTimeSeconds < 60) return '${totalWatchTimeSeconds}s';
-    final hours = totalWatchTimeSeconds ~/ 3600;
-    final minutes = (totalWatchTimeSeconds % 3600) / 60;
-    if (hours > 0) return '${hours}h ${minutes.toInt()}m';
-    if (minutes < 10) return '${minutes.toStringAsFixed(1)}m';
-    return '${minutes.toInt()}m';
-  }
-
-  /// Get completion rate percentage
-  double getCompletionRate() => totalUniqueViewers > 0
-      ? (usersCompletedVideo / totalUniqueViewers) * 100
-      : 0;
-
-  /// Get engagement score (0-100)
-  double getEngagementScore() {
-    final completionRate = getCompletionRate();
-    final avgWatchRate = averageWatchPercentage;
-    return (completionRate * 0.6) + (avgWatchRate * 0.4);
-  }
-
-  /// Subscriber conversion rate
-  double get subscriberConversionRate =>
-      totalViews > 0 ? (subscribersGained / totalViews) * 100 : 0;
-
-  Map<String, dynamic> toMap() => {
-        'videoId': videoId,
-        'title': title,
-        'totalViews': totalViews,
-        'totalUniqueViewers': totalUniqueViewers,
-        'totalImpressions': totalImpressions,
-        'averageWatchDuration': averageWatchDuration,
-        'averageWatchPercentage': averageWatchPercentage,
-        'totalWatchTimeSeconds': totalWatchTimeSeconds,
-        'usersCompletedVideo': usersCompletedVideo,
-        'watchtimeCategoryCount':
-            watchtimeCategoryCount.map((k, v) => MapEntry(k.name, v)),
-        'stateTraffic': stateTraffic,
-        'stateTrafficPercentage': stateTrafficPercentage,
-        'cityTraffic': cityTraffic,
-        'cityTrafficPercentage': cityTrafficPercentage,
-        'countryTraffic': countryTraffic,
-        'countryTrafficPercentage': countryTrafficPercentage,
-        'urbanViewers': urbanViewers,
-        'ruralViewers': ruralViewers,
-        'deviceTypeBreakdown': deviceTypeBreakdown,
-        'qualityBreakdown': qualityBreakdown,
-        'trafficSourceBreakdown': trafficSourceBreakdown,
-        'subscriberViews': subscriberViews,
-        'nonSubscriberViews': nonSubscriberViews,
-        'returningViewers': returningViewers,
-        'subscribersGained': subscribersGained,
-        'subscribersLost': subscribersLost,
-        'liveViewerCount': liveViewerCount,
-        'generatedAt': Timestamp.fromDate(generatedAt),
-        'nextUpdateAt':
-            nextUpdateAt != null ? Timestamp.fromDate(nextUpdateAt!) : null,
-        'estimatedReadCount': estimatedReadCount,
-        'dailyWatchTime': dailyWatchTime.map((k, v) => MapEntry(k.toIso8601String(), v)),
-        'dailyViews': dailyViews.map((k, v) => MapEntry(k.toIso8601String(), v)),
-        'dailySubscribers': dailySubscribers.map((k, v) => MapEntry(k.toIso8601String(), v)),
-        'suspectedFraudViews': suspectedFraudViews,
-        'confirmedFraudViews': confirmedFraudViews,
-      };
 
   factory VideoAnalyticsSnapshot.fromMap(Map<String, dynamic> map) {
     final wtcCount = <WatchtimeCategory, int>{};
@@ -1024,6 +850,151 @@ class VideoAnalyticsSnapshot {
       confirmedFraudViews: (map['confirmedFraudViews'] as num?)?.toInt() ?? 0,
     );
   }
+  final String videoId;
+  final String title;
+  final int totalViews;
+  final int totalUniqueViewers;
+  final int totalImpressions;
+  final double averageWatchDuration; // Seconds
+  final double averageWatchPercentage; // 0-100
+  final int totalWatchTimeSeconds; // Absolute total
+  final int usersCompletedVideo;
+  final Map<WatchtimeCategory, int> watchtimeCategoryCount;
+  final Map<String, int> stateTraffic;
+  final Map<String, double> stateTrafficPercentage;
+  final Map<String, int> cityTraffic;
+  final Map<String, double> cityTrafficPercentage;
+  final Map<String, int> countryTraffic;
+  final Map<String, double> countryTrafficPercentage;
+  final int urbanViewers;
+  final int ruralViewers;
+  final Map<String, int> deviceTypeBreakdown;
+  final Map<String, int> qualityBreakdown;
+  final Map<String, int> trafficSourceBreakdown;
+  final int subscriberViews;
+  final int nonSubscriberViews;
+  final int returningViewers;
+  final int subscribersGained;
+  final int subscribersLost;
+  final int liveViewerCount; // Current concurrent viewers
+  final DateTime generatedAt;
+  final DateTime? nextUpdateAt;
+  final int estimatedReadCount;
+  final Map<DateTime, int> dailyWatchTime; // Date -> Seconds watched
+  final Map<DateTime, int> dailyViews; // Date -> Views count
+  final Map<DateTime, int> dailySubscribers; // Date -> Net subscribers (Gained - Lost)
+
+  // Multi-tier fraud metric separation
+  final int suspectedFraudViews; // Views flagged with fraudScore > 0.5
+  final int confirmedFraudViews;
+
+  /// CTR = (views / impressions) * 100
+  double get ctr =>
+      totalImpressions > 0 ? (totalViews / totalImpressions) * 100 : 0;
+
+  /// Clean views = total - suspected - confirmed fraud
+  int get cleanViews =>
+      (totalViews - suspectedFraudViews - confirmedFraudViews)
+          .clamp(0, totalViews);
+
+  /// Fraud rate = (suspected + confirmed) / total * 100
+  double get fraudRate => totalViews > 0
+      ? ((suspectedFraudViews + confirmedFraudViews) / totalViews) * 100
+      : 0;
+
+  /// View quality score (0-100): percentage of views that are clean
+  double get viewQualityScore => totalViews > 0
+      ? (cleanViews / totalViews) * 100
+      : 100;
+
+  /// Get top N states by traffic
+  List<MapEntry<String, double>> getTopStates({int limit = 5}) {
+    final sorted = stateTrafficPercentage.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.take(limit).toList();
+  }
+
+  /// Get top N cities by traffic
+  List<MapEntry<String, double>> getTopCities({int limit = 10}) {
+    final total = cityTraffic.values.fold<int>(0, (a, b) => a + b);
+    if (total == 0) return [];
+    final sorted = cityTraffic.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return sorted.take(limit).map((e) {
+      return MapEntry(e.key, (e.value / total) * 100);
+    }).toList();
+  }
+
+  /// Urban percentage
+  double get urbanPercentage {
+    final total = urbanViewers + ruralViewers;
+    return total > 0 ? (urbanViewers / total) * 100 : 0;
+  }
+
+  /// Rural percentage
+  double get ruralPercentage {
+    final total = urbanViewers + ruralViewers;
+    return total > 0 ? (ruralViewers / total) * 100 : 0;
+  }
+
+  /// Formatted total watch time
+  String get totalWatchTimeFormatted => WatchTimeFormatter.format(totalWatchTimeSeconds);
+
+  /// Get completion rate percentage
+  double getCompletionRate() => totalUniqueViewers > 0
+      ? (usersCompletedVideo / totalUniqueViewers) * 100
+      : 0;
+
+  /// Get engagement score (0-100)
+  double getEngagementScore() {
+    final completionRate = getCompletionRate();
+    final avgWatchRate = averageWatchPercentage;
+    return (completionRate * 0.6) + (avgWatchRate * 0.4);
+  }
+
+  /// Subscriber conversion rate
+  double get subscriberConversionRate =>
+      totalViews > 0 ? (subscribersGained / totalViews) * 100 : 0;
+
+  Map<String, dynamic> toMap() => {
+        'videoId': videoId,
+        'title': title,
+        'totalViews': totalViews,
+        'totalUniqueViewers': totalUniqueViewers,
+        'totalImpressions': totalImpressions,
+        'averageWatchDuration': averageWatchDuration,
+        'averageWatchPercentage': averageWatchPercentage,
+        'totalWatchTimeSeconds': totalWatchTimeSeconds,
+        'usersCompletedVideo': usersCompletedVideo,
+        'watchtimeCategoryCount':
+            watchtimeCategoryCount.map((k, v) => MapEntry(k.name, v)),
+        'stateTraffic': stateTraffic,
+        'stateTrafficPercentage': stateTrafficPercentage,
+        'cityTraffic': cityTraffic,
+        'cityTrafficPercentage': cityTrafficPercentage,
+        'countryTraffic': countryTraffic,
+        'countryTrafficPercentage': countryTrafficPercentage,
+        'urbanViewers': urbanViewers,
+        'ruralViewers': ruralViewers,
+        'deviceTypeBreakdown': deviceTypeBreakdown,
+        'qualityBreakdown': qualityBreakdown,
+        'trafficSourceBreakdown': trafficSourceBreakdown,
+        'subscriberViews': subscriberViews,
+        'nonSubscriberViews': nonSubscriberViews,
+        'returningViewers': returningViewers,
+        'subscribersGained': subscribersGained,
+        'subscribersLost': subscribersLost,
+        'liveViewerCount': liveViewerCount,
+        'generatedAt': Timestamp.fromDate(generatedAt),
+        'nextUpdateAt':
+            nextUpdateAt != null ? Timestamp.fromDate(nextUpdateAt!) : null,
+        'estimatedReadCount': estimatedReadCount,
+        'dailyWatchTime': dailyWatchTime.map((k, v) => MapEntry(k.toIso8601String(), v)),
+        'dailyViews': dailyViews.map((k, v) => MapEntry(k.toIso8601String(), v)),
+        'dailySubscribers': dailySubscribers.map((k, v) => MapEntry(k.toIso8601String(), v)),
+        'suspectedFraudViews': suspectedFraudViews,
+        'confirmedFraudViews': confirmedFraudViews,
+      };
 }
 
 // =============================================================================
@@ -1032,6 +1003,70 @@ class VideoAnalyticsSnapshot {
 
 /// Channel-level aggregated analytics
 class ChannelAnalyticsSnapshot {
+
+  ChannelAnalyticsSnapshot({
+    required this.channelId,
+    required this.channelName,
+    required this.totalVideoWatches,
+    required this.totalUniqueViewers,
+    required this.averageWatchDuration, required this.averageWatchPercentage, required this.stateTraffic, required this.stateTrafficPercentage, required this.generatedAt, required this.videoCount, required this.totalEngagementScore, this.totalImpressions = 0,
+    this.totalWatchTimeSeconds = 0,
+    this.cityTraffic = const {},
+    this.cityTrafficPercentage = const {},
+    this.countryTraffic = const {},
+    this.countryTrafficPercentage = const {},
+    this.urbanViewers = 0,
+    this.ruralViewers = 0,
+    this.trafficSourceBreakdown = const {},
+    this.dailyWatchTime = const {},
+    this.dailyViews = const {},
+    this.dailySubscribers = const {},
+    this.subscriberViews = 0,
+    this.nonSubscriberViews = 0,
+    this.returningViewers = 0,
+    this.subscribersGained = 0,
+    this.subscribersLost = 0,
+    this.liveViewerCount = 0,
+  });
+
+  factory ChannelAnalyticsSnapshot.fromMap(Map<String, dynamic> map) =>
+      ChannelAnalyticsSnapshot(
+        channelId: map['channelId'] as String? ?? '',
+        channelName: map['channelName'] as String? ?? '',
+        totalVideoWatches: (map['totalVideoWatches'] as num?)?.toInt() ?? 0,
+        totalUniqueViewers: (map['totalUniqueViewers'] as num?)?.toInt() ?? 0,
+        totalImpressions: (map['totalImpressions'] as num?)?.toInt() ?? 0,
+        averageWatchDuration:
+            (map['averageWatchDuration'] as num?)?.toDouble() ?? 0,
+        averageWatchPercentage:
+            (map['averageWatchPercentage'] as num?)?.toDouble() ?? 0,
+        totalWatchTimeSeconds:
+            (map['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0,
+        stateTraffic: _castIntMap(map['stateTraffic']),
+        stateTrafficPercentage: _castDoubleMap(map['stateTrafficPercentage']),
+        cityTraffic: _castIntMap(map['cityTraffic']),
+        cityTrafficPercentage: _castDoubleMap(map['cityTrafficPercentage']),
+        countryTraffic: _castIntMap(map['countryTraffic']),
+        countryTrafficPercentage: _castDoubleMap(map['countryTrafficPercentage']),
+        urbanViewers: (map['urbanViewers'] as num?)?.toInt() ?? 0,
+        ruralViewers: (map['ruralViewers'] as num?)?.toInt() ?? 0,
+        trafficSourceBreakdown: _castIntMap(map['trafficSourceBreakdown']),
+        dailyWatchTime: _castDateIntMap(map['dailyWatchTime']),
+        dailyViews: _castDateIntMap(map['dailyViews']),
+        dailySubscribers: _castDateIntMap(map['dailySubscribers']),
+        generatedAt: map['generatedAt'] is Timestamp
+            ? (map['generatedAt'] as Timestamp).toDate()
+            : DateTime.now(),
+        videoCount: (map['videoCount'] as num?)?.toInt() ?? 0,
+        totalEngagementScore:
+            (map['totalEngagementScore'] as num?)?.toDouble() ?? 0,
+        subscriberViews: (map['subscriberViews'] as num?)?.toInt() ?? 0,
+        nonSubscriberViews: (map['nonSubscriberViews'] as num?)?.toInt() ?? 0,
+        returningViewers: (map['returningViewers'] as num?)?.toInt() ?? 0,
+        subscribersGained: (map['subscribersGained'] as num?)?.toInt() ?? 0,
+        subscribersLost: (map['subscribersLost'] as num?)?.toInt() ?? 0,
+        liveViewerCount: (map['liveViewerCount'] as num?)?.toInt() ?? 0,
+      );
   final String channelId;
   final String channelName;
   final int totalVideoWatches;
@@ -1062,50 +1097,11 @@ class ChannelAnalyticsSnapshot {
   final int subscribersLost;
   final int liveViewerCount;
 
-  ChannelAnalyticsSnapshot({
-    required this.channelId,
-    required this.channelName,
-    required this.totalVideoWatches,
-    required this.totalUniqueViewers,
-    this.totalImpressions = 0,
-    required this.averageWatchDuration,
-    required this.averageWatchPercentage,
-    this.totalWatchTimeSeconds = 0,
-    required this.stateTraffic,
-    required this.stateTrafficPercentage,
-    this.cityTraffic = const {},
-    this.cityTrafficPercentage = const {},
-    this.countryTraffic = const {},
-    this.countryTrafficPercentage = const {},
-    this.urbanViewers = 0,
-    this.ruralViewers = 0,
-    this.trafficSourceBreakdown = const {},
-    this.dailyWatchTime = const {},
-    this.dailyViews = const {},
-    this.dailySubscribers = const {},
-    required this.generatedAt,
-    required this.videoCount,
-    required this.totalEngagementScore,
-    this.subscriberViews = 0,
-    this.nonSubscriberViews = 0,
-    this.returningViewers = 0,
-    this.subscribersGained = 0,
-    this.subscribersLost = 0,
-    this.liveViewerCount = 0,
-  });
-
   /// Total watch hours across channel
   double get totalWatchHours => totalWatchTimeSeconds / 3600;
 
   /// Formatted total watch time
-  String get totalWatchTimeFormatted {
-    if (totalWatchTimeSeconds < 60) return '${totalWatchTimeSeconds}s';
-    final hours = totalWatchTimeSeconds ~/ 3600;
-    final minutes = (totalWatchTimeSeconds % 3600) / 60;
-    if (hours > 0) return '${hours}h ${minutes.toInt()}m';
-    if (minutes < 10) return '${minutes.toStringAsFixed(1)}m';
-    return '${minutes.toInt()}m';
-  }
+  String get totalWatchTimeFormatted => WatchTimeFormatter.format(totalWatchTimeSeconds);
 
   /// CTR
   double get ctr =>
@@ -1164,45 +1160,6 @@ class ChannelAnalyticsSnapshot {
         'subscribersLost': subscribersLost,
         'liveViewerCount': liveViewerCount,
       };
-
-  factory ChannelAnalyticsSnapshot.fromMap(Map<String, dynamic> map) =>
-      ChannelAnalyticsSnapshot(
-        channelId: map['channelId'] as String? ?? '',
-        channelName: map['channelName'] as String? ?? '',
-        totalVideoWatches: (map['totalVideoWatches'] as num?)?.toInt() ?? 0,
-        totalUniqueViewers: (map['totalUniqueViewers'] as num?)?.toInt() ?? 0,
-        totalImpressions: (map['totalImpressions'] as num?)?.toInt() ?? 0,
-        averageWatchDuration:
-            (map['averageWatchDuration'] as num?)?.toDouble() ?? 0,
-        averageWatchPercentage:
-            (map['averageWatchPercentage'] as num?)?.toDouble() ?? 0,
-        totalWatchTimeSeconds:
-            (map['totalWatchTimeSeconds'] as num?)?.toInt() ?? 0,
-        stateTraffic: _castIntMap(map['stateTraffic']),
-        stateTrafficPercentage: _castDoubleMap(map['stateTrafficPercentage']),
-        cityTraffic: _castIntMap(map['cityTraffic']),
-        cityTrafficPercentage: _castDoubleMap(map['cityTrafficPercentage']),
-        countryTraffic: _castIntMap(map['countryTraffic']),
-        countryTrafficPercentage: _castDoubleMap(map['countryTrafficPercentage']),
-        urbanViewers: (map['urbanViewers'] as num?)?.toInt() ?? 0,
-        ruralViewers: (map['ruralViewers'] as num?)?.toInt() ?? 0,
-        trafficSourceBreakdown: _castIntMap(map['trafficSourceBreakdown']),
-        dailyWatchTime: _castDateIntMap(map['dailyWatchTime']),
-        dailyViews: _castDateIntMap(map['dailyViews']),
-        dailySubscribers: _castDateIntMap(map['dailySubscribers']),
-        generatedAt: map['generatedAt'] is Timestamp
-            ? (map['generatedAt'] as Timestamp).toDate()
-            : DateTime.now(),
-        videoCount: (map['videoCount'] as num?)?.toInt() ?? 0,
-        totalEngagementScore:
-            (map['totalEngagementScore'] as num?)?.toDouble() ?? 0,
-        subscriberViews: (map['subscriberViews'] as num?)?.toInt() ?? 0,
-        nonSubscriberViews: (map['nonSubscriberViews'] as num?)?.toInt() ?? 0,
-        returningViewers: (map['returningViewers'] as num?)?.toInt() ?? 0,
-        subscribersGained: (map['subscribersGained'] as num?)?.toInt() ?? 0,
-        subscribersLost: (map['subscribersLost'] as num?)?.toInt() ?? 0,
-        liveViewerCount: (map['liveViewerCount'] as num?)?.toInt() ?? 0,
-      );
 }
 
 // =============================================================================
@@ -1242,9 +1199,6 @@ Map<String, int> _mergeMaps(Map<String, int> a, Map<String, int> b) {
 }
 
 class GeoRegionModel {
-  final String regionKey;
-  final int count;
-  final bool isIndianState;
 
   const GeoRegionModel({
     required this.regionKey,
@@ -1252,30 +1206,23 @@ class GeoRegionModel {
     required this.isIndianState,
   });
 
-  Map<String, dynamic> toMap() => {
-        'regionKey': regionKey,
-        'count': count,
-        'isIndianState': isIndianState,
-      };
-
   factory GeoRegionModel.fromMap(Map<String, dynamic> map) => GeoRegionModel(
         regionKey: map['regionKey'] as String? ?? '',
         count: (map['count'] as num?)?.toInt() ?? 0,
         isIndianState: map['isIndianState'] as bool? ?? false,
       );
+  final String regionKey;
+  final int count;
+  final bool isIndianState;
+
+  Map<String, dynamic> toMap() => {
+        'regionKey': regionKey,
+        'count': count,
+        'isIndianState': isIndianState,
+      };
 }
 
 class RetentionFunnelModel {
-  final int impressions;
-  final int start;
-  final int dropOnStart;
-  final int d25;
-  final int d50;
-  final int d75;
-  final int d100;
-  final double startRate;
-  final double dropOnStartRate;
-  final double completionRate;
 
   const RetentionFunnelModel({
     required this.impressions,
@@ -1290,19 +1237,6 @@ class RetentionFunnelModel {
     required this.completionRate,
   });
 
-  Map<String, dynamic> toMap() => {
-        'impressions': impressions,
-        'start': start,
-        'dropOnStart': dropOnStart,
-        'd25': d25,
-        'd50': d50,
-        'd75': d75,
-        'd100': d100,
-        'startRate': startRate,
-        'dropOnStartRate': dropOnStartRate,
-        'completionRate': completionRate,
-      };
-
   factory RetentionFunnelModel.fromMap(Map<String, dynamic> map) =>
       RetentionFunnelModel(
         impressions: (map['impressions'] as num?)?.toInt() ?? 0,
@@ -1316,6 +1250,29 @@ class RetentionFunnelModel {
         dropOnStartRate: (map['dropOnStartRate'] as num?)?.toDouble() ?? 0.0,
         completionRate: (map['completionRate'] as num?)?.toDouble() ?? 0.0,
       );
+  final int impressions;
+  final int start;
+  final int dropOnStart;
+  final int d25;
+  final int d50;
+  final int d75;
+  final int d100;
+  final double startRate;
+  final double dropOnStartRate;
+  final double completionRate;
+
+  Map<String, dynamic> toMap() => {
+        'impressions': impressions,
+        'start': start,
+        'dropOnStart': dropOnStart,
+        'd25': d25,
+        'd50': d50,
+        'd75': d75,
+        'd100': d100,
+        'startRate': startRate,
+        'dropOnStartRate': dropOnStartRate,
+        'completionRate': completionRate,
+      };
 }
 
 

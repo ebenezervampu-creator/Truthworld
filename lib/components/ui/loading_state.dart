@@ -10,10 +10,6 @@ enum LoadingSize { small, medium, large }
 /// - Custom color support
 /// - Semantic accessibility labels
 class LoadingState extends StatelessWidget {
-  final LoadingSize size;
-  final Color? color;
-  final String? semanticLabel;
-  final double? customSize;
 
   const LoadingState({
     super.key,
@@ -22,6 +18,10 @@ class LoadingState extends StatelessWidget {
     this.semanticLabel,
     this.customSize,
   });
+  final LoadingSize size;
+  final Color? color;
+  final String? semanticLabel;
+  final double? customSize;
 
   double _getSize() {
     return customSize ??
@@ -56,16 +56,14 @@ class LoadingState extends StatelessWidget {
 
 /// SkeletonLoader: Animated placeholder for content loading
 class SkeletonLoader extends StatefulWidget {
+
+  const SkeletonLoader({
+    required this.width, required this.height, super.key,
+    this.borderRadius,
+  });
   final double width;
   final double height;
   final double? borderRadius;
-
-  const SkeletonLoader({
-    super.key,
-    required this.width,
-    required this.height,
-    this.borderRadius,
-  });
 
   @override
   State<SkeletonLoader> createState() => _SkeletonLoaderState();
@@ -103,8 +101,6 @@ class _SkeletonLoaderState extends State<SkeletonLoader>
               widget.borderRadius ?? AppTheme.radius.md,
             ),
             gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
               stops: [
                 _shimmerController.value - 0.1,
                 _shimmerController.value,

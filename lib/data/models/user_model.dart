@@ -63,18 +63,7 @@ enum AccountStatus {
 /// - `metadata` as extensible Map for future fields without schema migration
 /// - Server timestamps for consistency across clients
 /// - Immutable fields (`uid`, `email`, `provider`, `createdAt`) enforced by rules
-class UserModel {
-  final String uid;
-  final String email;
-  final String displayName;
-  final String photoURL;
-  final AuthProvider provider;
-  final AccountStatus status;
-  final DateTime? createdAt;
-  final DateTime? lastLoginAt;
-  final Map<String, String> fcmTokens; // deviceId → token
-  final Map<String, dynamic> metadata; // extensible key-value store
-  final String? channelId; // Primary channel ID
+class UserModel { // Primary channel ID
 
   const UserModel({
     required this.uid,
@@ -120,11 +109,21 @@ class UserModel {
       displayName: user.displayName ?? '',
       photoURL: user.photoURL ?? '',
       provider: AuthProvider.fromString(providerId),
-      status: AccountStatus.active,
       createdAt: DateTime.now(),
       lastLoginAt: DateTime.now(),
     );
   }
+  final String uid;
+  final String email;
+  final String displayName;
+  final String photoURL;
+  final AuthProvider provider;
+  final AccountStatus status;
+  final DateTime? createdAt;
+  final DateTime? lastLoginAt;
+  final Map<String, String> fcmTokens; // deviceId → token
+  final Map<String, dynamic> metadata; // extensible key-value store
+  final String? channelId;
 
   /// Serialize for Firestore document creation
   /// Uses `FieldValue.serverTimestamp()` for consistent timestamps

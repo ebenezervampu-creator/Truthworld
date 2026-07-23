@@ -1,20 +1,21 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/core/base/base_controller.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class ReplyInputController extends BaseController {
-  final String videoId;
-  final String commentId;
-  final String? initialText;
 
   ReplyInputController({
     required this.videoId,
     required this.commentId,
     this.initialText,
   });
+  final String videoId;
+  final String commentId;
+  final String? initialText;
 
   final TextEditingController textController = TextEditingController();
   final FocusNode focusNode = FocusNode();
@@ -59,8 +60,8 @@ class ReplyInputController extends BaseController {
         'Error',
         'Please sign in to reply.',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.redAccent,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
       isSending.value = false;
       return;
@@ -88,8 +89,8 @@ class ReplyInputController extends BaseController {
         'Error',
         'Failed to send reply: $e',
         snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.redAccent,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
     } finally {
       isSending.value = false;

@@ -19,13 +19,13 @@ class AppEmptyStateController extends GetxController
 
     fadeAnimation = CurvedAnimation(
       parent: animationController,
-      curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
+      curve: const Interval(0, 0.6, curve: Curves.easeOut),
     );
 
-    scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+    scaleAnimation = Tween<double>(begin: 0.8, end: 1).animate(
       CurvedAnimation(
         parent: animationController,
-        curve: const Interval(0.0, 0.5, curve: Curves.easeOutBack),
+        curve: const Interval(0, 0.5, curve: Curves.easeOutBack),
       ),
     );
 
@@ -57,22 +57,20 @@ class ActionButtonController extends GetxController {
 
 /// Premium empty state widget for all list/grid screens.
 class AppEmptyState extends StatelessWidget {
+
+  const AppEmptyState({
+    required this.icon, required this.title, super.key,
+    this.subtitle,
+    this.actionLabel,
+    this.onAction,
+    this.iconSize = 72,
+  });
   final IconData icon;
   final String title;
   final String? subtitle;
   final String? actionLabel;
   final VoidCallback? onAction;
   final double iconSize;
-
-  const AppEmptyState({
-    super.key,
-    required this.icon,
-    required this.title,
-    this.subtitle,
-    this.actionLabel,
-    this.onAction,
-    this.iconSize = 72,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -169,10 +167,10 @@ class AppEmptyState extends StatelessWidget {
 }
 
 class _ActionButton extends StatelessWidget {
-  final String label;
-  final VoidCallback onPressed;
 
   const _ActionButton({required this.label, required this.onPressed});
+  final String label;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -190,7 +188,7 @@ class _ActionButton extends StatelessWidget {
             transform: Matrix4.diagonal3Values(
               controller.isHovered ? 1.03 : 1.0,
               controller.isHovered ? 1.03 : 1.0,
-              1.0,
+              1,
             ),
             transformAlignment: Alignment.center,
             child: ElevatedButton(
@@ -199,7 +197,7 @@ class _ActionButton extends StatelessWidget {
                 backgroundColor: controller.isHovered
                     ? AppColors.brandHover
                     : AppColors.brand,
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.textPrimary,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 28,
                   vertical: 14,

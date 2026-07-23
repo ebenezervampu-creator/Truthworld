@@ -2,10 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/utils/timestamp_utils.dart';
 
 class Subscription {
-  final String userId;
-  final String channelId;
-  final Timestamp? timestamp;
-  final bool notificationsEnabled;
 
   Subscription({
     required this.userId,
@@ -24,6 +20,10 @@ class Subscription {
       notificationsEnabled: data['notificationsEnabled'] ?? true,
     );
   }
+  final String userId;
+  final String channelId;
+  final Timestamp? timestamp;
+  final bool notificationsEnabled;
 
   Map<String, dynamic> toMap() {
     return {

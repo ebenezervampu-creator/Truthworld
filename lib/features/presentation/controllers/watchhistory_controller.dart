@@ -117,13 +117,13 @@ class WatchHistoryController extends GetxController
           .get();
 
       final videoList = snapshot.docs
-          .map((doc) => Video.fromDocumentSnapshot(doc))
+          .map(Video.fromDocumentSnapshot)
           .toList();
       videos.assignAll(videoList);
       _applyFiltersAndSort();
     } catch (e) {
       hasError(true);
-      errorMessage('Failed to load history: ${e.toString()}');
+      errorMessage('Failed to load history: $e');
       printError(info: e.toString());
     } finally {
       isLoading(false);
@@ -145,11 +145,11 @@ class WatchHistoryController extends GetxController
   }
 
   void _applyFiltersAndSort() {
-    List<Video> tempVideos = List<Video>.from(videos);
+    var tempVideos = List<Video>.from(videos);
 
     // Filtering
     if (searchController.text.isNotEmpty) {
-      String query = searchController.text.toLowerCase();
+      final query = searchController.text.toLowerCase();
       tempVideos = tempVideos.where((video) {
         return video.title.toLowerCase().contains(query) ||
             video.description.toLowerCase().contains(query) ||
@@ -163,17 +163,13 @@ class WatchHistoryController extends GetxController
       switch (sortBy.value) {
         case 'views':
           comparison = a.views.compareTo(b.views);
-          break;
         case 'likes':
           comparison = a.likeCount.compareTo(b.likeCount);
-          break;
         case 'title':
           comparison = a.title.toLowerCase().compareTo(b.title.toLowerCase());
-          break;
         case 'recent':
         default:
           comparison = a.uploadedAt.compareTo(b.uploadedAt);
-          break;
       }
       return isAscending.value ? comparison : -comparison;
     });
@@ -196,7 +192,7 @@ class WatchHistoryController extends GetxController
   }
 
   void navigateToVideo(Video video) {
-    Get.toNamed('/watch?v=${video.id}', arguments: {"video": video});
+    Get.toNamed('/watch?v=${video.id}', arguments: {'video': video});
   }
 
   void navigateToHome() {

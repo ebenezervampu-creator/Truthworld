@@ -1,29 +1,21 @@
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/base/base_controller.dart';
+import 'package:truthworld/core/mixins/content_validation_mixin.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/data/models/video_media.dart';
+import 'package:truthworld/features/video/data/services/video_media_service.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
-
-import 'package:truthworld/core/mixins/content_validation_mixin.dart';
-
-import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart';
 
 /// Internal Audio Track layout representation for the studio preview editor
 class AudioTrackItem {
-  String id;
-  String languageCode;
-  String languageName;
-  String audioUrl;
-  bool isBaseTrack;
-  bool isResolved;
 
   AudioTrackItem({
     required this.id,
@@ -33,6 +25,12 @@ class AudioTrackItem {
     this.isBaseTrack = false,
     this.isResolved = false,
   });
+  String id;
+  String languageCode;
+  String languageName;
+  String audioUrl;
+  bool isBaseTrack;
+  bool isResolved;
 }
 
 /// Industry-Standard Multi-Language Audio Tracks & Dubs Management Controller
@@ -149,13 +147,13 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
         .listen(
           (snapshot) {
             final loadedList = snapshot.docs
-                .map((doc) => Video.fromDocumentSnapshot(doc))
+                .map(Video.fromDocumentSnapshot)
                 .toList();
 
             // Perform stable local chronological sorting by upload recency
             loadedList.sort((a, b) {
-              final tA = (a.uploadedAt).toDate();
-              final tB = (b.uploadedAt).toDate();
+              final tA = a.uploadedAt.toDate();
+              final tB = b.uploadedAt.toDate();
               return tB.compareTo(tA);
             });
 
@@ -203,7 +201,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
     }).toList();
   }
 
-  void selectVideo(Video? video) async {
+  Future<void> selectVideo(Video? video) async {
     selectedVideo.value = video;
     hasUnsavedChanges.value = false;
     _requestsSubscription?.cancel();
@@ -283,8 +281,8 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
     final tracksList = <AudioTrackItem>[];
 
     // Check if mapping exists
-    String rawUrl = entireAudioMap[langCode] ?? '';
-    bool resolvedState = false;
+    var rawUrl = entireAudioMap[langCode] ?? '';
+    var resolvedState = false;
 
     // Simulate premium out-of-the-box storage URL resolution to convert static gs:// assets directly
     if (rawUrl.startsWith('gs://')) {
@@ -438,7 +436,7 @@ class AudioTracksController extends BaseController with ContentValidationMixin {
     uploadStatus.value = 'Preparing upload...';
 
     try {
-      final Uint8List? fileBytes = file.bytes ?? (file.path != null ? await file.xFile.readAsBytes() : null);
+      final fileBytes = file.bytes ?? (file.path != null ? await file.xFile.readAsBytes() : null);
       if (fileBytes == null) {
         showError('Could not read file bytes.');
         return false;

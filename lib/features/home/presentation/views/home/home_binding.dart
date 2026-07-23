@@ -5,9 +5,9 @@ import 'package:truthworld/features/notifications/presentation/views/notificatio
 class HomeBinding extends Bindings {
   @override
   void dependencies() {
-    Get.lazyPut(() => HomeController());
+    Get.lazyPut(HomeController.new);
     if (!Get.isRegistered<VideoFeedNotificationController>()) {
-      Get.lazyPut(() => VideoFeedNotificationController());
+      Get.lazyPut(VideoFeedNotificationController);
     }
   }
 }

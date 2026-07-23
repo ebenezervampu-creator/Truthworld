@@ -1,7 +1,7 @@
-library;
 
 /// Industry-standard input validation utilities
 /// Prevents injection attacks, validates formats, and ensures data integrity
+library;
 
 import 'package:truthworld/core/utils/exception_handler.dart';
 

@@ -2,11 +2,6 @@ import 'package:flutter/material.dart';
 
 /// Centralized gradients for the application.
 class TWGradients extends ThemeExtension<TWGradients> {
-  final LinearGradient primary;
-  final LinearGradient brand;
-  final LinearGradient success;
-  final LinearGradient warning;
-  final LinearGradient error;
 
   const TWGradients({
     required this.primary,
@@ -45,6 +40,11 @@ class TWGradients extends ThemeExtension<TWGradients> {
       ),
     );
   }
+  final LinearGradient primary;
+  final LinearGradient brand;
+  final LinearGradient success;
+  final LinearGradient warning;
+  final LinearGradient error;
 
   @override
   ThemeExtension<TWGradients> copyWith({

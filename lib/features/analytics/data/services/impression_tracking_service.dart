@@ -168,11 +168,6 @@ class ImpressionTrackingService extends GetxService {
 // =============================================================================
 
 class _ImpressionEvent {
-  final String videoId;
-  final String channelId;
-  final String source;
-  final DateTime timestamp;
-  final String? userId;
 
   _ImpressionEvent({
     required this.videoId,
@@ -181,6 +176,11 @@ class _ImpressionEvent {
     required this.timestamp,
     this.userId,
   });
+  final String videoId;
+  final String channelId;
+  final String source;
+  final DateTime timestamp;
+  final String? userId;
 
   Map<String, dynamic> toMap() => {
     'videoId': videoId,
@@ -198,6 +198,12 @@ class _ImpressionEvent {
 /// Attach to a video card to track when the thumbnail becomes visible.
 /// Implements the "50% visible for 1 second" rule.
 class ImpressionTracker {
+
+  ImpressionTracker({
+    required this.videoId,
+    required this.channelId,
+    required this.service, required this.minVisibleDurationMs, required this.minVisibleFraction, this.source,
+  });
   final String videoId;
   final String channelId;
   final String? source;
@@ -207,15 +213,6 @@ class ImpressionTracker {
 
   Timer? _visibilityTimer;
   bool _hasRecorded = false;
-
-  ImpressionTracker({
-    required this.videoId,
-    required this.channelId,
-    this.source,
-    required this.service,
-    required this.minVisibleDurationMs,
-    required this.minVisibleFraction,
-  });
 
   /// Call when visibility fraction changes (from VisibilityDetector or similar).
   /// [visibleFraction] should be 0.0-1.0

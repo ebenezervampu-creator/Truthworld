@@ -1,6 +1,7 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/foundation.dart';
 import 'package:fullscreen_window/fullscreen_window.dart';
-import 'dart:io' show Platform;
 
 class FullScreenHelper {
   static final List<Function(bool)> _listeners = [];
@@ -68,7 +69,7 @@ class FullScreenHelper {
   }
 
   static void _notifyListeners(bool isFullScreen) {
-    for (var listener in _listeners) {
+    for (final listener in _listeners) {
       listener(isFullScreen);
     }
   }

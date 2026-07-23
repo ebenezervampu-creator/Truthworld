@@ -1,22 +1,21 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/audio_tracks_controller.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
+import 'package:truthworld/theme/app_colors.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class AudioTracksPage extends StatefulWidget {
-  final String channelId;
-  final bool isDarkMode;
 
   const AudioTracksPage({
-    super.key,
-    required this.channelId,
-    required this.isDarkMode,
+    required this.channelId, required this.isDarkMode, super.key,
   });
+  final String channelId;
+  final bool isDarkMode;
 
   @override
   State<AudioTracksPage> createState() => _AudioTracksPageState();
@@ -51,25 +50,25 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
     final isDesktopOrTablet = MediaQuery.of(context).size.width >= 800;
     final surfaceColor = widget.isDarkMode
         ? const Color(0xFF141414)
-        : Colors.white;
+        : AppColors.textPrimary;
     final bgColor = widget.isDarkMode
         ? AppColors.bgPage
         : AppColors.bgPage;
     final textColor = widget.isDarkMode
-        ? Colors.white
+        ? AppColors.textPrimary
         : AppColors.textPrimary;
     final textSecondaryColor = widget.isDarkMode
-        ? Colors.white60
+        ? AppColors.textSecondary
         : AppColors.textSecondary;
     final borderColor = widget.isDarkMode
         ? const Color(0xFF262626)
         : AppColors.bgDivider;
 
-    return Container(
+    return ColoredBox(
       color: bgColor,
       child: Obx(() {
         if (controller.isLoading) {
-          return Center(
+          return const Center(
             child: CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(
                 AppColors.brand,
@@ -110,7 +109,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
               color: AppColors.brand.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(
+            child: const Icon(
               Icons.library_music_rounded,
               size: 64,
               color: AppColors.brand,
@@ -119,7 +118,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
           const SizedBox(height: 24),
           Text(
             'No Audio Tracks Scope Available',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: textColor,
@@ -128,7 +127,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
           const SizedBox(height: 12),
           Text(
             'Upload base video files to assign local dub streams and alternate voiceovers.',
-            style: GoogleFonts.roboto(fontSize: 15, color: textSecondaryColor),
+            style: TextStyle(fontSize: 15, color: textSecondaryColor),
           ),
         ],
       ),
@@ -159,7 +158,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.video_library_rounded,
                       color: AppColors.brand,
                       size: 20,
@@ -167,7 +166,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                     const SizedBox(width: 8),
                     Text(
                       'Select Video',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                         color: textColor,
@@ -181,10 +180,10 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: TextField(
-                  style: GoogleFonts.roboto(fontSize: 14, color: textColor),
+                  style: TextStyle(fontSize: 14, color: textColor),
                   decoration: InputDecoration(
                     hintText: 'Search videos...',
-                    hintStyle: GoogleFonts.roboto(
+                    hintStyle: TextStyle(
                       color: textSecondaryColor,
                       fontSize: 14,
                     ),
@@ -201,7 +200,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                       borderRadius: BorderRadius.circular(8),
                       borderSide: BorderSide.none,
                     ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                    contentPadding: const EdgeInsets.symmetric(),
                   ),
                   onChanged: (value) => controller.setSearchQuery(value),
                 ),
@@ -217,7 +216,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                     return Center(
                       child: Text(
                         'No matching videos found.',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           color: textSecondaryColor,
                           fontSize: 13,
                         ),
@@ -277,7 +276,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                         placeholder: (context, url) =>
                                             Container(color: borderColor),
                                         errorWidget: (context, url, error) =>
-                                            Container(
+                                            ColoredBox(
                                               color: borderColor,
                                               child: const Icon(
                                                 Icons.broken_image,
@@ -294,7 +293,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                             vertical: 1,
                                           ),
                                           decoration: BoxDecoration(
-                                            color: Colors.black.withValues(
+                                            color: AppColors.bgPage.withValues(
                                               alpha: 0.75,
                                             ),
                                             borderRadius: BorderRadius.circular(
@@ -305,7 +304,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                             video.duration,
                                             style: GoogleFonts.robotoMono(
                                               fontSize: 9,
-                                              color: Colors.white,
+                                              color: AppColors.textPrimary,
                                               fontWeight: FontWeight.bold,
                                             ),
                                           ),
@@ -326,7 +325,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                         video.title,
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
-                                        style: GoogleFonts.roboto(
+                                        style: TextStyle(
                                           fontSize: 13,
                                           fontWeight: FontWeight.bold,
                                           color: isSelected
@@ -349,7 +348,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                                         .toDate(),
                                                   )
                                                 : '',
-                                            style: GoogleFonts.roboto(
+                                            style: TextStyle(
                                               fontSize: 11,
                                               color: textSecondaryColor,
                                             ),
@@ -377,10 +376,10 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                                 const SizedBox(width: 3),
                                                 Text(
                                                   '$trackCount',
-                                                  style: GoogleFonts.roboto(
+                                                  style: const TextStyle(
                                                     fontSize: 10,
                                                     fontWeight: FontWeight.bold,
-                                                    color: const Color(
+                                                    color: Color(
                                                       0xFF3B82F6,
                                                     ),
                                                   ),
@@ -453,7 +452,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                       Expanded(
                         child: Text(
                           'Back to Video Scope',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
                             color: textColor,
@@ -483,7 +482,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                   padding: const EdgeInsets.all(16),
                   child: Text(
                     'Select Channel Content',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: textColor,
@@ -507,7 +506,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                           title: Text(
                             video.title,
                             maxLines: 1,
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
                               color: textColor,
@@ -515,7 +514,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                           ),
                           subtitle: Text(
                             video.duration,
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 12,
                               color: textSecondaryColor,
                             ),
@@ -542,7 +541,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
+              color: AppColors.textPrimary.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: Icon(Icons.arrow_back, size: 48,
@@ -552,7 +551,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
           const SizedBox(height: 24),
           Text(
             'Select a Video to Load Multi-Language Audio Scope',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
               color: textColor,
@@ -561,7 +560,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
           const SizedBox(height: 8),
           Text(
             'Choose an uploaded file from the left sidebar to assign localized base and dub voiceovers.',
-            style: GoogleFonts.roboto(fontSize: 14, color: textSecondaryColor),
+            style: TextStyle(fontSize: 14, color: textSecondaryColor),
           ),
         ],
       ),
@@ -608,7 +607,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                             video.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: textColor,
@@ -637,12 +636,12 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                 ).withValues(alpha: 0.3),
                               ),
                             ),
-                            child: Text(
+                            child: const Text(
                               'Unsaved',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
-                                color: const Color(0xFFF59E0B),
+                                color: Color(0xFFF59E0B),
                               ),
                             ),
                           );
@@ -651,7 +650,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                     ),
                     Text(
                       'Multi-Language Dubbed Voiceover Track Workspace',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 12,
                         color: textSecondaryColor,
                       ),
@@ -667,7 +666,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                 label: const Text('Upload Track'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.brand,
-                  foregroundColor: Colors.white,
+                  foregroundColor: AppColors.textPrimary,
                 ),
               ),
               const SizedBox(width: 8),
@@ -719,7 +718,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
+                              AppColors.textPrimary,
                             ),
                           ),
                         )
@@ -729,7 +728,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brand,
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppColors.textPrimary,
                   ),
                 );
               }),
@@ -748,7 +747,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
             children: [
               Text(
                 'Assigned Targets:',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                   color: textSecondaryColor,
@@ -773,17 +772,16 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                             onSelected: (_) =>
                                 controller.switchLanguageTrack(langCode),
                             selectedColor: AppColors.brand,
-                            labelStyle: GoogleFonts.roboto(
+                            labelStyle: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: isChosen ? Colors.white : textColor,
+                              color: isChosen ? AppColors.textPrimary : textColor,
                             ),
                             backgroundColor: widget.isDarkMode
                                 ? const Color(0xFF262626)
                                 : const Color(0xFFF1F5F9),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
-                              side: BorderSide.none,
                             ),
                           ),
                         );
@@ -802,7 +800,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                     color: AppColors.brand.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.add,
                     size: 16,
                     color: AppColors.brand,
@@ -829,7 +827,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                           const SizedBox(width: 8),
                           Text(
                             lang.name,
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 13,
                               color: isAlreadyAssigned
                                   ? textSecondaryColor
@@ -865,7 +863,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                     return Center(
                       child: Text(
                         'No valid audio track stream parameters available for this region.',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           color: textSecondaryColor,
                           fontSize: 13,
                         ),
@@ -888,7 +886,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                           border: Border.all(color: borderColor),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.02),
+                              color: AppColors.bgPage.withValues(alpha: 0.02),
                               blurRadius: 8,
                               offset: const Offset(0, 4),
                             ),
@@ -931,7 +929,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                         children: [
                                           Text(
                                             track.languageName,
-                                            style: GoogleFonts.roboto(
+                                            style: TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.bold,
                                               color: textColor,
@@ -957,7 +955,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                               track.isBaseTrack
                                                   ? 'Primary Audio'
                                                   : 'Secondary Dub',
-                                              style: GoogleFonts.roboto(
+                                              style: TextStyle(
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.bold,
                                                 color: track.isBaseTrack
@@ -973,7 +971,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                         track.isResolved
                                             ? 'Public storage link successfully auto-resolved'
                                             : 'Static file mapping reference link',
-                                        style: GoogleFonts.roboto(
+                                        style: TextStyle(
                                           fontSize: 12,
                                           color: textSecondaryColor,
                                         ),
@@ -999,7 +997,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                             // Stream string URL field bound with strict ValueKey support
                             Text(
                               'Storage Stream URL Reference:',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                                 color: textSecondaryColor,
@@ -1018,7 +1016,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                               decoration: InputDecoration(
                                 hintText:
                                     'Provide direct HTTPS audio target file URI e.g. gs://...',
-                                hintStyle: GoogleFonts.roboto(
+                                hintStyle: TextStyle(
                                   color: textSecondaryColor,
                                   fontSize: 13,
                                 ),
@@ -1076,7 +1074,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.mark_chat_unread_rounded,
                   color: AppColors.brand,
                   size: 20,
@@ -1084,7 +1082,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                 const SizedBox(width: 8),
                 Text(
                   'Viewer Requests',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: textColor,
@@ -1102,7 +1100,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                     ),
                     child: Text(
                       '${reqs.length}',
-                      style: GoogleFonts.roboto(
+                      style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                         color: AppColors.brand,
@@ -1134,7 +1132,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                       const SizedBox(height: 12),
                       Text(
                         'No requests yet',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 14,
                           color: textSecondaryColor,
                         ),
@@ -1175,7 +1173,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                 children: [
                                   Text(
                                     matchingLanguage?.name ?? r.language,
-                                    style: GoogleFonts.roboto(
+                                    style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold,
                                       color: textColor,
@@ -1185,7 +1183,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                     const SizedBox(height: 2),
                                     Text(
                                       matchingLanguage.nativeName,
-                                      style: GoogleFonts.roboto(
+                                      style: TextStyle(
                                         fontSize: 12,
                                         color: textSecondaryColor,
                                       ),
@@ -1202,7 +1200,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                               ),
                               child: Row(
                                 children: [
-                                  Icon(
+                                  const Icon(
                                     Icons.people_alt_rounded,
                                     size: 12,
                                     color: AppColors.brand,
@@ -1227,11 +1225,11 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                           child: isAlreadyAdded
                               ? OutlinedButton.icon(
                                   onPressed: null,
-                                  icon: const Icon(Icons.check_circle_rounded, size: 14, color: Colors.green),
+                                  icon: const Icon(Icons.check_circle_rounded, size: 14, color: AppColors.success),
                                   label: const Text('Provisioned'),
                                   style: OutlinedButton.styleFrom(
-                                    disabledForegroundColor: Colors.green,
-                                    side: const BorderSide(color: Colors.green),
+                                    disabledForegroundColor: AppColors.success,
+                                    side: const BorderSide(color: AppColors.success),
                                   ),
                                 )
                               : ElevatedButton.icon(
@@ -1242,7 +1240,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                   label: const Text('Add Layer'),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.brand,
-                                    foregroundColor: Colors.white,
+                                    foregroundColor: AppColors.textPrimary,
                                     elevation: 0,
                                   ),
                                 ),
@@ -1267,9 +1265,9 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
 
   void _showUploadTrackDialog(BuildContext context) {
     final titleController = TextEditingController();
-    final RxString selectedLangCode = 'en'.obs;
-    final RxString selectedType = 'Audio'.obs;
-    final Rx<PlatformFile?> pickedFile = Rx<PlatformFile?>(null);
+    final selectedLangCode = 'en'.obs;
+    final selectedType = 'Audio'.obs;
+    final pickedFile = Rx<PlatformFile?>(null);
     
     showDialog(
       context: context,
@@ -1281,14 +1279,14 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
             width: 480,
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: widget.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+              color: widget.isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: widget.isDarkMode ? const Color(0xFF2E2E2E) : Colors.grey.shade300,
+                color: widget.isDarkMode ? const Color(0xFF2E2E2E) : AppColors.textSecondary,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
+                  color: AppColors.bgPage.withValues(alpha: 0.3),
                   blurRadius: 16,
                   offset: const Offset(0, 8),
                 ),
@@ -1311,17 +1309,17 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                       children: [
                         Text(
                           'Upload Alternate Track',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.bold,
-                            color: widget.isDarkMode ? Colors.white : Colors.black,
+                            color: widget.isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
                           ),
                         ),
                         if (!isUploading)
                           IconButton(
                             icon: const Icon(Icons.close),
                             onPressed: () => Navigator.of(context).pop(),
-                            color: widget.isDarkMode ? Colors.white70 : Colors.black54,
+                            color: widget.isDarkMode ? AppColors.textSecondary : AppColors.bgPage54,
                           ),
                       ],
                     ),
@@ -1330,22 +1328,22 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                     // Title/Language Name
                     Text(
                       'Track Title / Language Name',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: widget.isDarkMode ? Colors.white70 : Colors.black87,
+                        color: widget.isDarkMode ? AppColors.textSecondary : AppColors.bgPage,
                       ),
                     ),
                     const SizedBox(height: 8),
                     TextField(
                       controller: titleController,
-                      style: GoogleFonts.roboto(
-                        color: widget.isDarkMode ? Colors.white : Colors.black,
+                      style: TextStyle(
+                        color: widget.isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
                       ),
                       decoration: InputDecoration(
                         hintText: 'e.g., Spanish Dub, French Commentary',
                         hintStyle: TextStyle(
-                          color: widget.isDarkMode ? Colors.white38 : Colors.black38,
+                          color: widget.isDarkMode ? AppColors.textTertiary : Colors.black38,
                         ),
                         filled: true,
                         fillColor: widget.isDarkMode ? const Color(0xFF121212) : const Color(0xFFF5F5F5),
@@ -1367,10 +1365,10 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                             children: [
                               Text(
                                 'Language',
-                                style: GoogleFonts.roboto(
+                                style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
-                                  color: widget.isDarkMode ? Colors.white70 : Colors.black87,
+                                  color: widget.isDarkMode ? AppColors.textSecondary : AppColors.bgPage,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -1384,9 +1382,9 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                   child: DropdownButton<String>(
                                     value: selectedLangCode.value,
                                     isExpanded: true,
-                                    dropdownColor: widget.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+                                    dropdownColor: widget.isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
                                     style: TextStyle(
-                                      color: widget.isDarkMode ? Colors.white : Colors.black,
+                                      color: widget.isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
                                     ),
                                     items: controller.supportedLanguages.map((lang) {
                                       return DropdownMenuItem<String>(
@@ -1414,10 +1412,10 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                             children: [
                               Text(
                                 'Track Type',
-                                style: GoogleFonts.roboto(
+                                style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
-                                  color: widget.isDarkMode ? Colors.white70 : Colors.black87,
+                                  color: widget.isDarkMode ? AppColors.textSecondary : AppColors.bgPage,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -1431,9 +1429,9 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                   child: DropdownButton<String>(
                                     value: selectedType.value,
                                     isExpanded: true,
-                                    dropdownColor: widget.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+                                    dropdownColor: widget.isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
                                     style: TextStyle(
-                                      color: widget.isDarkMode ? Colors.white : Colors.black,
+                                      color: widget.isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
                                     ),
                                     items: const [
                                       DropdownMenuItem(value: 'Audio', child: Text('Audio (Voiceover)')),
@@ -1458,10 +1456,10 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                     // File Picker Row
                     Text(
                       'Select File',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: widget.isDarkMode ? Colors.white70 : Colors.black87,
+                        color: widget.isDarkMode ? AppColors.textSecondary : AppColors.bgPage,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -1485,7 +1483,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                           color: widget.isDarkMode ? const Color(0xFF121212) : const Color(0xFFF5F5F5),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: widget.isDarkMode ? const Color(0xFF2E2E2E) : Colors.grey.shade300,
+                            color: widget.isDarkMode ? const Color(0xFF2E2E2E) : AppColors.textSecondary,
                           ),
                         ),
                         child: Row(
@@ -1502,8 +1500,8 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   color: pickedFile.value != null
-                                      ? (widget.isDarkMode ? Colors.white : Colors.black)
-                                      : (widget.isDarkMode ? Colors.white38 : Colors.black38),
+                                      ? (widget.isDarkMode ? AppColors.textPrimary : AppColors.bgPage)
+                                      : (widget.isDarkMode ? AppColors.textTertiary : Colors.black38),
                                 ),
                               ),
                             ),
@@ -1512,7 +1510,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                 '${(pickedFile.value!.size / (1024 * 1024)).toStringAsFixed(2)} MB',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  color: widget.isDarkMode ? Colors.white54 : Colors.black54,
+                                  color: widget.isDarkMode ? AppColors.textSecondary : AppColors.bgPage54,
                                 ),
                               ),
                           ],
@@ -1531,7 +1529,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                               status,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.roboto(
+                              style: const TextStyle(
                                 fontSize: 12,
                                 color: AppColors.brand,
                               ),
@@ -1542,7 +1540,7 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                             style: GoogleFonts.robotoMono(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: widget.isDarkMode ? Colors.white : Colors.black,
+                              color: widget.isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
                             ),
                           ),
                         ],
@@ -1550,8 +1548,8 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                       const SizedBox(height: 8),
                       LinearProgressIndicator(
                         value: progress,
-                        backgroundColor: widget.isDarkMode ? Colors.white10 : Colors.black12,
-                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
+                        backgroundColor: widget.isDarkMode ? AppColors.bgDivider : Colors.black12,
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.brand),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       const SizedBox(height: 20),
@@ -1577,15 +1575,15 @@ class _AudioTracksPageState extends State<AudioTracksPage> {
                                       langCode: selectedLangCode.value,
                                       type: selectedType.value,
                                     );
-                                    if (success) {
-                                      Navigator.of(context).pop();
-                                    }
-                                  },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.brand,
-                              foregroundColor: Colors.white,
-                              disabledBackgroundColor: AppColors.brand.withOpacity(0.4),
-                              disabledForegroundColor: Colors.white70,
+                                     if (success && context.mounted) {
+                                       Navigator.of(context).pop();
+                                     }
+                                   },
+                             style: ElevatedButton.styleFrom(
+                               backgroundColor: AppColors.brand,
+                               foregroundColor: AppColors.textPrimary,
+                               disabledBackgroundColor: AppColors.brand.withValues(alpha: 0.4),
+                              disabledForegroundColor: AppColors.textSecondary,
                             ),
                             child: const Text('Upload'),
                           ),

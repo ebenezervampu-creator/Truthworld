@@ -1,9 +1,10 @@
 // ignore_for_file: avoid_web_libraries_in_flutter, uri_does_not_exist, undefined_function, undefined_class, argument_type_not_assignable
 
-import 'package:flutter/foundation.dart';
-import 'package:universal_html/html.dart' as html;
 import 'dart:js_util' as js_util;
-import 'audio_extractor_base.dart';
+
+import 'package:flutter/foundation.dart';
+import 'package:truthworld/core/utils/audio_extractor_base.dart';
+import 'package:universal_html/html.dart' as html;
 
 class AudioExtractorImpl implements AudioExtractorBase {
   static const String _tag = 'AudioExtractorWeb';
@@ -34,17 +35,17 @@ class AudioExtractorImpl implements AudioExtractorBase {
         promise,
       );
 
-      final int numChannels = audioBuffer.numberOfChannels as int? ?? 1;
-      final int sampleRate = (audioBuffer.sampleRate as num?)?.toInt() ?? 44100;
-      final int numSamples = audioBuffer.length as int? ?? 0;
+      final numChannels = audioBuffer.numberOfChannels as int? ?? 1;
+      final sampleRate = (audioBuffer.sampleRate as num?)?.toInt() ?? 44100;
+      final numSamples = audioBuffer.length as int? ?? 0;
 
       debugPrint(
         '[$_tag] Decoded video audio stream: $numChannels channels, $sampleRate Hz, $numSamples samples.',
       );
 
       final channels = <Float32List>[];
-      for (int c = 0; c < numChannels; c++) {
-        final Float32List channelData =
+      for (var c = 0; c < numChannels; c++) {
+        final channelData =
             audioBuffer.getChannelData(c) as Float32List;
         channels.add(channelData);
       }
@@ -122,11 +123,11 @@ class AudioExtractorImpl implements AudioExtractorBase {
     wavBytes.setRange(0, 44, header.buffer.asUint8List());
 
     final wavData = ByteData.view(wavBytes.buffer, 44);
-    int offset = 0;
+    var offset = 0;
 
-    for (int i = 0; i < numSamples; i++) {
-      for (int c = 0; c < numChannels; c++) {
-        double sample = channels[c][i];
+    for (var i = 0; i < numSamples; i++) {
+      for (var c = 0; c < numChannels; c++) {
+        var sample = channels[c][i];
         if (sample < -1.0) sample = -1.0;
         if (sample > 1.0) sample = 1.0;
 

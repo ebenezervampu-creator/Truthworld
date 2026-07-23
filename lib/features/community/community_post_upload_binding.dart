@@ -5,7 +5,7 @@ class CommunityPostUploadBinding extends Bindings {
   @override
   void dependencies() {
     Get.lazyPut<CommunityPostUploadController>(
-      () => CommunityPostUploadController(),
+      CommunityPostUploadController.new,
     );
   }
 }

@@ -13,17 +13,13 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
-import 'package:truthworld/features/video/data/models/video_chapter.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/data/models/video_chapter.dart';
 
 /// Localization data stored at: videos/{videoId}/media/localization
 /// Contains subtitle URLs, dubbed video URLs, and audio track URLs.
 /// Kept separate because this grows with every supported language (130+).
 class VideoMediaLocalization {
-  final Map<String, String> subtitles;    // { langCode: downloadUrl }
-  final Map<String, String> dubbedVideos; // { langCode: downloadUrl }
-  final Map<String, String> audioTracks;  // { langCode: downloadUrl }
-  final Timestamp? updatedAt;
 
   const VideoMediaLocalization({
     this.subtitles = const {},
@@ -40,6 +36,10 @@ class VideoMediaLocalization {
       updatedAt: data['updatedAt'] as Timestamp?,
     );
   }
+  final Map<String, String> subtitles;    // { langCode: downloadUrl }
+  final Map<String, String> dubbedVideos; // { langCode: downloadUrl }
+  final Map<String, String> audioTracks;  // { langCode: downloadUrl }
+  final Timestamp? updatedAt;
 
   Map<String, dynamic> toMap() => {
     'subtitles': subtitles,
@@ -66,37 +66,6 @@ class VideoMediaLocalization {
 /// Contains full epistemic scoring, claims, deductions, hardening metadata.
 /// This is the largest payload — can be 50-100KB for detailed reports.
 class VideoMediaCredibility {
-  // Core scores (also duplicated as summary on main doc for card display)
-  final double trustScore;
-  final double videoRating;
-  final String? trustLabel;
-
-  // v8.0 Epistemic Scoring
-  final ScoringFactors? scoringFactors;
-  final List<TrustDeduction> deductions;
-  final List<ContextualFlag> contextualFlags;
-  final HonestyBreakdown? honestyBreakdown;
-  final bool harmCapApplied;
-  final String? harmCapReason;
-  final Map<String, double>? categoryWeightProfile;
-  final List<String> confidenceNotes;
-  final List<String> diagnostics;
-  final FactCheckStats? factCheckStats;
-  final String? videoCategory;
-  final String? effectiveCategory;
-
-  // v8.1 Hardened Trust
-  final HardeningMetadata? hardeningMetadata;
-  final double? intentToMisleadScore;
-
-  // Full UI Report (biggest nested object)
-  final UIReport? uiReport;
-
-  // References to Cloud Storage for raw reports
-  final String factCheckUrl;
-  final String transcriptionUrl;
-
-  final Timestamp? updatedAt;
 
   const VideoMediaCredibility({
     this.trustScore = 0.0,
@@ -164,6 +133,37 @@ class VideoMediaCredibility {
       updatedAt: data['updatedAt'] as Timestamp?,
     );
   }
+  // Core scores (also duplicated as summary on main doc for card display)
+  final double trustScore;
+  final double videoRating;
+  final String? trustLabel;
+
+  // v8.0 Epistemic Scoring
+  final ScoringFactors? scoringFactors;
+  final List<TrustDeduction> deductions;
+  final List<ContextualFlag> contextualFlags;
+  final HonestyBreakdown? honestyBreakdown;
+  final bool harmCapApplied;
+  final String? harmCapReason;
+  final Map<String, double>? categoryWeightProfile;
+  final List<String> confidenceNotes;
+  final List<String> diagnostics;
+  final FactCheckStats? factCheckStats;
+  final String? videoCategory;
+  final String? effectiveCategory;
+
+  // v8.1 Hardened Trust
+  final HardeningMetadata? hardeningMetadata;
+  final double? intentToMisleadScore;
+
+  // Full UI Report (biggest nested object)
+  final UIReport? uiReport;
+
+  // References to Cloud Storage for raw reports
+  final String factCheckUrl;
+  final String transcriptionUrl;
+
+  final Timestamp? updatedAt;
 
   Map<String, dynamic> toMap() => {
     'trustScore': trustScore,
@@ -193,15 +193,6 @@ class VideoMediaCredibility {
 /// Streaming data stored at: videos/{videoId}/media/streaming
 /// Contains resolution URLs, preview assets, and full description.
 class VideoMediaStreaming {
-  final String originalUrl;
-  final String hlsUrl;
-  final String dashUrl;
-  final List<VideoResolutionV2> adaptiveResolutions;
-  final List<String> thumbnailVariants;
-  final String animatedPreviewUrl;
-  final String fullDescription; // Full description (main doc truncated to 500)
-  final List<VideoChapter> chapters;
-  final Timestamp? updatedAt;
 
   const VideoMediaStreaming({
     this.originalUrl = '',
@@ -232,6 +223,15 @@ class VideoMediaStreaming {
       updatedAt: data['updatedAt'] as Timestamp?,
     );
   }
+  final String originalUrl;
+  final String hlsUrl;
+  final String dashUrl;
+  final List<VideoResolutionV2> adaptiveResolutions;
+  final List<String> thumbnailVariants;
+  final String animatedPreviewUrl;
+  final String fullDescription; // Full description (main doc truncated to 500)
+  final List<VideoChapter> chapters;
+  final Timestamp? updatedAt;
 
   Map<String, dynamic> toMap() => {
     'originalUrl': originalUrl,

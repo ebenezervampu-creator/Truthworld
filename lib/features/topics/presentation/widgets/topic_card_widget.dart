@@ -1,34 +1,24 @@
-import 'package:flutter/material.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:truthworld/components/ui/animated_interaction_buttons.dart';
+import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/topic_management_screen.dart';
-import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/explore_topics_controller.dart';
-import 'package:truthworld/components/ui/share_bottom_sheet.dart';
-import 'package:truthworld/core/services/deep_link_service.dart';
-import 'package:truthworld/features/topics/presentation/controllers/topic_interaction_controller.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
-import 'package:truthworld/core/utils/format_utils.dart';
+import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
+import 'package:truthworld/features/topics/presentation/controllers/topic_interaction_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Unified Topic Card Widget matching the premium full-bleed hero card design.
 class TopicCardWidget extends StatefulWidget {
-  final Topic? topic;
-  final bool isHero;
-  final bool isDashboard;
-  final VoidCallback? onFollowToggle;
-  final VoidCallback? onExploreTap;
-  final bool showEditOption;
-  final VoidCallback? onPreviousTap;
-  final VoidCallback? onNextTap;
-  final int? currentIndex;
-  final int? totalItems;
-  final Color? accentColor;
 
   const TopicCardWidget({
     super.key,
@@ -43,7 +33,20 @@ class TopicCardWidget extends StatefulWidget {
     this.currentIndex,
     this.totalItems,
     this.accentColor,
+    this.trailing,
   });
+  final Topic? topic;
+  final bool isHero;
+  final bool isDashboard;
+  final VoidCallback? onFollowToggle;
+  final VoidCallback? onExploreTap;
+  final bool showEditOption;
+  final VoidCallback? onPreviousTap;
+  final VoidCallback? onNextTap;
+  final int? currentIndex;
+  final int? totalItems;
+  final Color? accentColor;
+  final Widget? trailing;
 
   @override
   State<TopicCardWidget> createState() => _TopicCardWidgetState();
@@ -72,7 +75,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
     }
 
     final ImageProvider provider = CachedNetworkImageProvider(url);
-    final ImageStream stream = provider.resolve(ImageConfiguration.empty);
+    final stream = provider.resolve(ImageConfiguration.empty);
     late ImageStreamListener listener;
     listener = ImageStreamListener(
       (ImageInfo info, bool synchronousCall) {
@@ -138,17 +141,21 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
     _streamedTopic = topicVal;
     final currentTopic = topic!;
 
-    final ExploreTopicsController? exploreController =
+    final exploreController =
         Get.isRegistered<ExploreTopicsController>()
         ? Get.find<ExploreTopicsController>()
         : null;
-    final FollowingTopicsController followingController = _followingTopicsController;
+    final followingController = _followingTopicsController;
 
-    final bool isOwner =
+    final isOwner =
         widget.showEditOption &&
-        currentTopic.channelId != null &&
         Get.isRegistered<AuthService>() &&
-        AuthService.to.userChannel?.id == currentTopic.channelId;
+        ((currentTopic.channelId != null &&
+            currentTopic.channelId!.isNotEmpty &&
+            AuthService.to.userChannel?.id == currentTopic.channelId) ||
+         (currentTopic.creatorId != null &&
+            currentTopic.creatorId!.isNotEmpty &&
+            AuthService.to.uid == currentTopic.creatorId));
 
     return _buildPremiumCard(
       context,
@@ -172,19 +179,19 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
     bool isTablet,
     bool isDesktop,
   ) {
-    final bool isHero = widget.isHero;
-    final double horizontalMargin = isHero
+    final isHero = widget.isHero;
+    final horizontalMargin = isHero
         ? (isDesktop ? 48.0 : (isTablet ? 32.0 : 16.0))
         : 0.0;
 
     return Obx(() {
       final isHovered = _isHovered.value;
-      final double defaultRatio = isHero
+      final defaultRatio = isHero
           ? (isDesktop ? 16 / 9 : (isTablet ? 1.5 : 1.4))
           : 16 / 9;
-      final double activeRatio = _resolvedAspectRatio.value ?? defaultRatio;
+      final activeRatio = _resolvedAspectRatio.value ?? defaultRatio;
 
-      Widget cardContent = AnimatedContainer(
+      final Widget cardContent = AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
           color: const Color(0xFF0F0F0F),
@@ -192,14 +199,14 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
           border: Border.all(
             color: isHovered
                 ? (widget.accentColor ?? AppColors.brand).withValues(alpha: 0.25)
-                : Colors.white.withValues(alpha: 0.05),
+                : AppColors.textPrimary.withValues(alpha: 0.05),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
               color: isHovered
                   ? (widget.accentColor ?? AppColors.brand).withValues(alpha: 0.15)
-                  : Colors.black.withValues(alpha: 0.3),
+                  : AppColors.bgPage.withValues(alpha: 0.3),
               blurRadius: isHovered ? 16 : 12,
               offset: Offset(0, isHovered ? 8 : 6),
             ),
@@ -230,8 +237,8 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                     end: Alignment.bottomCenter,
                     colors: [
                       Colors.transparent,
-                      Colors.black.withValues(alpha: 0.75),
-                      Colors.black.withValues(alpha: 0.95),
+                      AppColors.bgPage.withValues(alpha: 0.75),
+                      AppColors.bgPage.withValues(alpha: 0.95),
                     ],
                     stops: const [0.15, 0.65, 1.0],
                   ),
@@ -259,8 +266,8 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                       );
                     }
                   },
-                  splashColor: Colors.white.withValues(alpha: 0.05),
-                  highlightColor: Colors.white.withValues(alpha: 0.02),
+                  splashColor: AppColors.textPrimary.withValues(alpha: 0.05),
+                  highlightColor: AppColors.textPrimary.withValues(alpha: 0.02),
                 ),
               ),
             ),
@@ -312,14 +319,14 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                         Icon(
                                           Icons.label_important_rounded,
                                           size: isMobile ? 12 : 14,
-                                          color: Colors.white,
+                                          color: AppColors.textPrimary,
                                         ),
                                         const SizedBox(width: 4),
                                         Text(
                                           'TOPIC',
                                           style: AppTextStyles.labelMedium
                                               .copyWith(
-                                                color: Colors.white,
+                                                color: AppColors.textPrimary,
                                                 fontSize: isMobile ? 10 : 11,
                                                 fontWeight: FontWeight.bold,
                                                 letterSpacing: 0.5,
@@ -329,45 +336,53 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                     ),
                                   ),
 
-                                  // Followers count badge
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.black.withValues(
-                                        alpha: 0.4,
-                                      ),
-                                      borderRadius: BorderRadius.circular(20),
-                                      border: Border.all(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.12,
-                                        ),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.people_outline_rounded,
-                                          size: isMobile ? 12 : 14,
-                                          color: Colors.white70,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '${FormatUtils.formatCount(currentTopic.followerCount)} Followers',
-                                          style: AppTextStyles.labelMedium
-                                              .copyWith(
-                                                color: Colors.white70,
-                                                fontSize: isMobile ? 10 : 11,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
+                                   // Followers count badge and optional trailing widget
+                                   Row(
+                                     mainAxisSize: MainAxisSize.min,
+                                     children: [
+                                       Container(
+                                         padding: const EdgeInsets.symmetric(
+                                           horizontal: 10,
+                                           vertical: 4,
+                                         ),
+                                         decoration: BoxDecoration(
+                                           color: AppColors.bgPage.withValues(
+                                             alpha: 0.4,
+                                           ),
+                                           borderRadius: BorderRadius.circular(20),
+                                           border: Border.all(
+                                             color: AppColors.textPrimary.withValues(
+                                               alpha: 0.12,
+                                             ),
+                                           ),
+                                         ),
+                                         child: Row(
+                                           mainAxisSize: MainAxisSize.min,
+                                           children: [
+                                             Icon(
+                                               Icons.people_outline_rounded,
+                                               size: isMobile ? 12 : 14,
+                                               color: AppColors.textSecondary,
+                                             ),
+                                             const SizedBox(width: 4),
+                                             Text(
+                                               '${FormatUtils.formatCount(currentTopic.followerCount)} Followers',
+                                               style: AppTextStyles.labelMedium
+                                                   .copyWith(
+                                                     color: AppColors.textSecondary,
+                                                     fontSize: isMobile ? 10 : 11,
+                                                     fontWeight: FontWeight.bold,
+                                                   ),
+                                             ),
+                                           ],
+                                         ),
+                                       ),
+                                       if (widget.trailing != null) ...[
+                                         const SizedBox(width: 8),
+                                         widget.trailing!,
+                                       ],
+                                     ],
+                                   ),
                                 ],
                               ),
 
@@ -387,7 +402,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                                 : (isTablet ? 32 : 24))
                                           : (isMobile ? 18 : 22),
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.white,
+                                      color: AppColors.textPrimary,
                                       height: 1.15,
                                       letterSpacing: -0.5,
                                     ),
@@ -404,7 +419,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                         '${FormatUtils.formatCount(currentTopic.videoCount)} videos • ${timeago.format(currentTopic.createdAt)}',
                                         style: AppTextStyles.labelMedium
                                             .copyWith(
-                                              color: Colors.white70,
+                                              color: AppColors.textSecondary,
                                               fontSize: isMobile ? 11 : 12,
                                               fontWeight: FontWeight.w500,
                                             ),
@@ -416,7 +431,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                           vertical: 3,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: Colors.white.withValues(
+                                          color: AppColors.textPrimary.withValues(
                                             alpha: 0.12,
                                           ),
                                           borderRadius: BorderRadius.circular(
@@ -427,7 +442,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                           currentTopic.category,
                                           style: AppTextStyles.labelMedium
                                               .copyWith(
-                                                color: Colors.white,
+                                                color: AppColors.textPrimary,
                                                 fontSize: isMobile ? 9 : 10,
                                                 fontWeight: FontWeight.bold,
                                               ),
@@ -442,7 +457,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                   Text(
                                     currentTopic.description,
                                     style: AppTextStyles.labelMedium.copyWith(
-                                      color: Colors.white60,
+                                      color: AppColors.textSecondary,
                                       fontSize: isMobile ? 11 : 12.5,
                                       height: 1.4,
                                     ),
@@ -459,9 +474,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                     child: Row(
                                       children: [
                                         // Follow button (regular mode) or Edit button (Dashboard mode)
-                                        if (widget.isDashboard ||
-                                            (isOwner &&
-                                                widget.showEditOption)) ...[
+                                        if (isOwner && widget.showEditOption) ...[
                                           // Edit Button (Rose design)
                                           ElevatedButton.icon(
                                             onPressed: () {
@@ -498,7 +511,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                               backgroundColor: const Color(
                                                 0xFFE11D48,
                                               ), // rose-600
-                                              foregroundColor: Colors.white,
+                                              foregroundColor: AppColors.textPrimary,
                                               padding: EdgeInsets.symmetric(
                                                 horizontal: isMobile ? 14 : 20,
                                                 vertical: isMobile ? 8 : 12,
@@ -509,82 +522,39 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                             icon: Icon(
                                               Icons.edit_rounded,
                                               size: isMobile ? 15 : 18,
-                                              color: Colors.white,
+                                              color: AppColors.textPrimary,
                                             ),
                                             label: Text(
-                                              "Edit",
+                                              'Edit',
                                               style: AppTextStyles.labelMedium
                                                   .copyWith(
                                                     fontWeight: FontWeight.bold,
                                                     fontSize: isMobile
                                                         ? 12
                                                         : 13,
-                                                    color: Colors.white,
+                                                    color: AppColors.textPrimary,
                                                   ),
                                             ),
                                           ),
                                         ] else ...[
-                                          // Follow / Following Button (White pill design)
-                                          Obx(() {
-                                            final isFollowed = followingController
-                                                .isTopicFollowed(currentTopic.id);
-                                            return ElevatedButton.icon(
-                                              onPressed:
-                                                  widget.onFollowToggle ??
-                                                  () {
-                                                    followingController
-                                                        .toggleFollowTopic(
-                                                          currentTopic,
-                                                        );
-                                                  },
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: isFollowed
-                                                    ? Colors.white.withValues(
-                                                        alpha: 0.12,
-                                                      )
-                                                    : Colors.white,
-                                                foregroundColor: isFollowed
-                                                    ? Colors.white
-                                                    : Colors.black,
-                                                padding: EdgeInsets.symmetric(
-                                                  horizontal: isMobile
-                                                      ? 14
-                                                      : 20,
-                                                  vertical: isMobile ? 8 : 12,
-                                                ),
-                                                shape: const StadiumBorder(),
-                                                elevation: 0,
-                                              ),
-                                              icon: Icon(
-                                                isFollowed
-                                                    ? Icons
-                                                          .check_circle_outline_rounded
-                                                    : Icons
-                                                          .person_add_alt_1_rounded,
-                                                size: isMobile ? 15 : 18,
-                                                color: isFollowed
-                                                    ? (widget.accentColor ?? AppColors.brand)
-                                                    : Colors.black,
-                                              ),
-                                              label: Text(
-                                                isFollowed
-                                                    ? "Following"
-                                                    : "Follow",
-                                                style: AppTextStyles.labelMedium
-                                                    .copyWith(
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                      fontSize: isMobile
-                                                          ? 12
-                                                          : 13,
-                                                      color: isFollowed
-                                                          ? Colors.white
-                                                          : Colors.black,
-                                                    ),
-                                              ),
-                                            );
-                                          }),
-                                        ],
+                                           // Follow / Following Button
+                                           Obx(() {
+                                             final isFollowed = followingController
+                                                 .isTopicFollowed(currentTopic.id);
+                                             return AnimatedFollowTopicButton(
+                                               isFollowed: isFollowed,
+                                               compact: isMobile,
+                                               onPressed:
+                                                   widget.onFollowToggle ??
+                                                   () {
+                                                     followingController
+                                                         .toggleFollowTopic(
+                                                           currentTopic,
+                                                         );
+                                                   },
+                                             );
+                                           }),
+                                         ],
 
                                         const SizedBox(width: 8),
 
@@ -599,6 +569,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                               title: currentTopic.title,
                                               url: topicUrl,
                                               thumbnailUrl:
+                                                  currentTopic.coverImage ??
                                                   currentTopic.thumbnailUrl,
                                               followerCount:
                                                   currentTopic.followerCount,
@@ -609,9 +580,9 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                             );
                                           },
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: Colors.white
+                                            backgroundColor: AppColors.textPrimary
                                                 .withValues(alpha: 0.12),
-                                            foregroundColor: Colors.white,
+                                            foregroundColor: AppColors.textPrimary,
                                             padding: EdgeInsets.symmetric(
                                               horizontal: isMobile ? 14 : 20,
                                               vertical: isMobile ? 8 : 12,
@@ -622,15 +593,15 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                                           icon: Icon(
                                             Icons.share_rounded,
                                             size: isMobile ? 15 : 18,
-                                            color: Colors.white,
+                                            color: AppColors.textPrimary,
                                           ),
                                           label: Text(
-                                            "Share",
+                                            'Share',
                                             style: AppTextStyles.labelMedium
                                                 .copyWith(
                                                   fontWeight: FontWeight.bold,
                                                   fontSize: isMobile ? 12 : 13,
-                                                  color: Colors.white,
+                                                  color: AppColors.textPrimary,
                                                 ),
                                           ),
                                         ),
@@ -659,13 +630,13 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                   bottom: 0,
                   child: Center(
                     child: Material(
-                      color: Colors.black.withValues(alpha: 0.5),
+                      color: AppColors.bgPage.withValues(alpha: 0.5),
                       shape: const CircleBorder(),
                       clipBehavior: Clip.antiAlias,
                       child: IconButton(
                         icon: const Icon(
                           Icons.chevron_left_rounded,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                         ),
                         onPressed: widget.onPreviousTap,
                       ),
@@ -683,13 +654,13 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                   bottom: 0,
                   child: Center(
                     child: Material(
-                      color: Colors.black.withValues(alpha: 0.5),
+                      color: AppColors.bgPage.withValues(alpha: 0.5),
                       shape: const CircleBorder(),
                       clipBehavior: Clip.antiAlias,
                       child: IconButton(
                         icon: const Icon(
                           Icons.chevron_right_rounded,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                         ),
                         onPressed: widget.onNextTap,
                       ),
@@ -714,8 +685,8 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                         height: 6,
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? Colors.white
-                              : Colors.white.withValues(alpha: 0.3),
+                              ? AppColors.textPrimary
+                              : AppColors.textPrimary.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(4),
                         ),
                       );
@@ -768,12 +739,29 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
           _resolveImageSize(bgUrl);
         }
       });
-      return CachedNetworkImage(
-        imageUrl: bgUrl,
-        fit: BoxFit.cover,
-        errorWidget: (context, error, stackTrace) {
-          return _buildGradientBackground();
-        },
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          // Background ambient backdrop fill
+          CachedNetworkImage(
+            imageUrl: bgUrl,
+            fit: BoxFit.cover,
+            errorWidget: (context, error, stackTrace) {
+              return _buildGradientBackground();
+            },
+          ),
+          Container(
+            color: Colors.black.withValues(alpha: 0.65),
+          ),
+          // 100% preserved topic thumbnail without cropping any part
+          CachedNetworkImage(
+            imageUrl: bgUrl,
+            fit: BoxFit.contain,
+            errorWidget: (context, error, stackTrace) {
+              return _buildGradientBackground();
+            },
+          ),
+        ],
       );
     }
     return _buildGradientBackground();
@@ -789,7 +777,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
           colors: [
             accent.withValues(alpha: 0.3),
             accent.withValues(alpha: 0.15),
-            Colors.black,
+            AppColors.bgPage,
           ],
         ),
       ),
@@ -811,8 +799,8 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
 
   Widget _buildHeroSkeleton(bool isMobile, bool isTablet, bool isDesktop) {
     final horizontalMargin = isDesktop ? 48.0 : (isTablet ? 32.0 : 16.0);
-    final double defaultRatio = isDesktop ? 16 / 9 : (isTablet ? 1.5 : 1.4);
-    final double activeRatio = _resolvedAspectRatio.value ?? defaultRatio;
+    final defaultRatio = isDesktop ? 16 / 9 : (isTablet ? 1.5 : 1.4);
+    final activeRatio = _resolvedAspectRatio.value ?? defaultRatio;
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: horizontalMargin, vertical: 24),
@@ -822,7 +810,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
           decoration: BoxDecoration(
             color: const Color(0xFF0F0F0F),
             borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.05)),
           ),
           child: Shimmer.fromColors(
             baseColor: const Color(0xFF161618),
@@ -839,7 +827,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                     width: 120,
                     height: 24,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       borderRadius: BorderRadius.circular(6),
                     ),
                   ),
@@ -848,7 +836,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                     width: isDesktop ? 400.0 : 250.0,
                     height: isMobile ? 32 : 48,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
@@ -857,7 +845,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                     width: 180,
                     height: 16,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -866,7 +854,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                     width: double.infinity,
                     height: isMobile ? 36 : 48,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
@@ -877,7 +865,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                         width: isMobile ? 120 : 150,
                         height: isMobile ? 40 : 48,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           borderRadius: BorderRadius.circular(24),
                         ),
                       ),
@@ -886,7 +874,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                         width: isMobile ? 120 : 150,
                         height: isMobile ? 40 : 48,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           borderRadius: BorderRadius.circular(24),
                         ),
                       ),
@@ -902,14 +890,14 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
   }
 
   Widget _buildStandardSkeleton(bool isMobile) {
-    final double activeRatio = _resolvedAspectRatio.value ?? 16 / 9;
+    final activeRatio = _resolvedAspectRatio.value ?? 16 / 9;
     return AspectRatio(
       aspectRatio: activeRatio,
       child: Container(
         decoration: BoxDecoration(
           color: const Color(0xFF0F0F0F),
           borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.05)),
         ),
         child: Shimmer.fromColors(
           baseColor: const Color(0xFF161618),
@@ -923,7 +911,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                   width: 80,
                   height: 18,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     borderRadius: BorderRadius.circular(6),
                   ),
                 ),
@@ -932,7 +920,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                   width: 150,
                   height: 20,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     borderRadius: BorderRadius.circular(6),
                   ),
                 ),
@@ -941,7 +929,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                   width: 200,
                   height: 14,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -952,7 +940,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                       child: Container(
                         height: 32,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),
@@ -962,7 +950,7 @@ class _TopicCardWidgetState extends State<TopicCardWidget>
                       child: Container(
                         height: 32,
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),

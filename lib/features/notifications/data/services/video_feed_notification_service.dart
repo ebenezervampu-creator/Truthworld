@@ -23,7 +23,7 @@ class VideoFeedNotificationService {
         .limit(limit)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs.map((doc) => _mapInboxToVideo(doc)).toList();
+          return snapshot.docs.map(_mapInboxToVideo).toList();
         });
   }
 
@@ -45,7 +45,7 @@ class VideoFeedNotificationService {
           .limit(limit)
           .get();
 
-      return snapshot.docs.map((doc) => _mapInboxToVideo(doc)).toList();
+      return snapshot.docs.map(_mapInboxToVideo).toList();
     } catch (e) {
       debugPrint('Error fetching materialized notifications once: $e');
       return [];
@@ -105,14 +105,14 @@ class VideoFeedNotificationService {
     final category = data['category'] as String? ?? 'General';
     final isSeen = data['isSeen'] as bool? ?? false;
 
-    Timestamp createdAt = Timestamp.now();
+    var createdAt = Timestamp.now();
     if (data['uploadedAt'] is Timestamp) {
       createdAt = data['uploadedAt'] as Timestamp;
     } else if (data['createdAt'] is Timestamp) {
       createdAt = data['createdAt'] as Timestamp;
     }
 
-    int viewCount = 0;
+    var viewCount = 0;
     if (data['views'] is int) {
       viewCount = data['views'] as int;
     } else if (data['viewCount'] is int) {
@@ -121,7 +121,7 @@ class VideoFeedNotificationService {
       viewCount = int.tryParse(data['views']?.toString() ?? '0') ?? 0;
     }
 
-    Duration durationValue = Duration.zero;
+    var durationValue = Duration.zero;
     final durStr = data['duration']?.toString() ?? '';
     if (durStr.isNotEmpty && durStr.contains(':')) {
       final parts = durStr.split(':');

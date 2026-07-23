@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
@@ -15,10 +15,10 @@ import 'package:truthworld/features/video/data/models/video.dart';
 /// - Related topics
 /// - UI state (loading, error, empty)
 class TopicController extends GetxController {
-  final TopicRepository _repository;
 
   TopicController({TopicRepository? repository})
       : _repository = repository ?? TopicRepository();
+  final TopicRepository _repository;
 
   // ==========================================================================
   // OBSERVABLE STATE
@@ -46,7 +46,7 @@ class TopicController extends GetxController {
   /// Search & View state
   final RxString searchQuery = ''.obs;
   final RxBool isSearchVisible = false.obs;
-  final RxString selectedView = 'Grid'.obs; // 'Grid', 'List'
+  final RxString selectedView = 'List'.obs; // 'Grid', 'List' (List default)
 
   /// Active video filter tab
   final RxString selectedTab = 'Trending'.obs;
@@ -77,7 +77,7 @@ class TopicController extends GetxController {
   }
 
   List<Video> get filteredVideos {
-    List<Video> list = List<Video>.from(videos);
+    var list = List<Video>.from(videos);
 
     // 1. Filter by search query if any
     final query = searchQuery.value.trim().toLowerCase();
@@ -99,8 +99,8 @@ class TopicController extends GetxController {
   }
 
   List<Map<String, String>> get topicChannels {
-    final Map<String, Map<String, String>> channelMap = {};
-    for (var video in videos) {
+    final channelMap = <String, Map<String, String>>{};
+    for (final video in videos) {
       if (video.channelId.isNotEmpty) {
         final cached = cachedChannels[video.channelId];
         channelMap[video.channelId] = {
@@ -110,7 +110,7 @@ class TopicController extends GetxController {
         };
       }
     }
-    for (var video in featuredVideos) {
+    for (final video in featuredVideos) {
       if (video.channelId.isNotEmpty) {
         final cached = cachedChannels[video.channelId];
         channelMap[video.channelId] = {
@@ -129,7 +129,7 @@ class TopicController extends GetxController {
   }
 
   Future<void> _fetchChannelsForVideos(List<Video> videoList) async {
-    final List<String> channelIds = videoList
+    final channelIds = videoList
         .map((v) => v.channelId)
         .where((id) => id.isNotEmpty && !cachedChannels.containsKey(id))
         .toSet()
@@ -148,7 +148,7 @@ class TopicController extends GetxController {
             .where(FieldPath.documentId, whereIn: chunk)
             .get();
 
-        for (var doc in snapshot.docs) {
+        for (final doc in snapshot.docs) {
           try {
             final channel = Channel.fromDocumentSnapshot(doc);
             cachedChannels[channel.id] = channel;
@@ -232,7 +232,6 @@ class TopicController extends GetxController {
           relatedTopics.value = await _repository.getSimilarTopics(
             currentPreloaded.category,
             excludeSlug: currentPreloaded.slug,
-            limit: 8,
           );
           await _loadVideos(reset: true);
           isLoading.value = false;
@@ -262,7 +261,6 @@ class TopicController extends GetxController {
         relatedTopics.value = await _repository.getSimilarTopics(
           topicData.category,
           excludeSlug: topicData.slug,
-          limit: 8,
         );
       }
 
@@ -303,10 +301,8 @@ class TopicController extends GetxController {
     try {
       final newVideos = await _repository.getVideosByTopic(
         topicSlug,
-        limit: _videosPerPage,
         lastDoc: _lastVideoDoc,
         orderBy: sortBy.value,
-        descending: true,
       );
 
       if (newVideos.isEmpty) {
@@ -342,7 +338,7 @@ class TopicController extends GetxController {
 
   /// Load more videos (called by infinite scroll)
   Future<void> loadMoreVideos() async {
-    await _loadVideos(reset: false);
+    await _loadVideos();
   }
 
   // ==========================================================================

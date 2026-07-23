@@ -1,23 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 // A simple class to hold our parsed guidelines sections
 class GuidelineSection {
-  final String title;
-  final String content;
-  final GlobalKey key;
 
   GuidelineSection({
     required this.title,
     required this.content,
     required this.key,
   });
+  final String title;
+  final String content;
+  final GlobalKey key;
 }
 
 class CommunityGuidelinesPage extends StatefulWidget {
-  final bool isDashboard;
   const CommunityGuidelinesPage({super.key, this.isDashboard = false});
+  final bool isDashboard;
 
   @override
   State<CommunityGuidelinesPage> createState() =>
@@ -58,8 +59,8 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
     final introContent = _guidelinesText.substring(0, firstMatch.start).trim();
 
     // Loop through all matches to create sections
-    List<GuidelineSection> tempSections = [];
-    for (int i = 0; i < matches.length; i++) {
+    final tempSections = <GuidelineSection>[];
+    for (var i = 0; i < matches.length; i++) {
       final match = matches[i];
       final title = match.group(1)!.trim();
 
@@ -106,11 +107,10 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
               return ListTile(
                 title: Text(
                   section.title,
-                  style: TextStyle(fontFamily: 'Roboto', fontSize: 14),
+                  style: const TextStyle( fontSize: 14),
                 ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 0,
                 ),
                 dense: true,
                 onTap: () {
@@ -130,13 +130,13 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
   /// Builds the main content area that displays the guidelines text
   Widget _buildContentArea(BuildContext context) {
     final bodyTextStyle = TextStyle(
-      fontFamily: 'Roboto',
+      
       fontSize: 14,
       height: 1.6,
       color: Theme.of(context).textTheme.bodyMedium?.color,
     );
     final headingTextStyle = TextStyle(
-      fontFamily: 'Roboto',
+      
       fontSize: 20,
       fontWeight: FontWeight.bold,
       color: Theme.of(context).textTheme.titleLarge?.color,
@@ -148,7 +148,7 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
 
     return SingleChildScrollView(
       controller: _scrollController,
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.all(24),
       child: Obx(
         () => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -160,7 +160,7 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
             ..._sections.map((section) {
               return Padding(
                 key: section.key,
-                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -191,7 +191,7 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
                     Text(
                       'Guidelines Agreement Required',
                       style: TextStyle(
-                        fontFamily: 'Roboto',
+                        
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: Theme.of(context).colorScheme.primary,
@@ -212,7 +212,7 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
                         },
                         title: const Text(
                           'I have read and agree to comply with all the community guidelines listed above.',
-                          style: TextStyle(fontFamily: 'Roboto', fontSize: 14),
+                          style: TextStyle( fontSize: 14),
                         ),
                         controlAffinity: ListTileControlAffinity.leading,
                         contentPadding: EdgeInsets.zero,
@@ -247,7 +247,7 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
                           child: const Text(
                             'Accept & Customize Channel',
                             style: TextStyle(
-                              fontFamily: 'Roboto',
+                              
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -269,14 +269,14 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
     return LayoutBuilder(
       builder: (context, constraints) {
         // Use a breakpoint to decide which layout to show
-        const double breakpoint = 700.0;
-        final bool isDesktop = constraints.maxWidth >= breakpoint;
+        const breakpoint = 700;
+        final isDesktop = constraints.maxWidth >= breakpoint;
 
         return Scaffold(
           appBar: AppBar(
                   backgroundColor: Theme.of(context).colorScheme.surface,
                   elevation: 1,
-                  shadowColor: Colors.black.withValues(alpha: 0.1),
+                  shadowColor: AppColors.bgPage.withValues(alpha: 0.1),
                   leading: (widget.isDashboard || isDesktop)
                       ? IconButton(
                           icon: Icon(Icons.arrow_back, color: Theme.of(context).iconTheme.color),
@@ -292,7 +292,7 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
                   title: Text(
                     'Community Guidelines | Truthworld',
                     style: TextStyle(
-                      fontFamily: 'Roboto',
+                      
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).textTheme.titleLarge?.color,
                     ),
@@ -305,7 +305,7 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
                       child: Text(
                         'Terms of Service',
                         style: TextStyle(
-                          fontFamily: 'Roboto',
+                          
                           fontWeight: FontWeight.w500,
                           color: Theme.of(context).colorScheme.primary,
                         ),
@@ -318,7 +318,7 @@ class _CommunityGuidelinesPageState extends State<CommunityGuidelinesPage> {
                       child: Text(
                         'Privacy Policy',
                         style: TextStyle(
-                          fontFamily: 'Roboto',
+                          
                           fontWeight: FontWeight.w500,
                           color: Theme.of(context).colorScheme.primary,
                         ),

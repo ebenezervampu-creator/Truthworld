@@ -13,14 +13,14 @@ import 'package:truthworld/theme/app_theme.dart';
 // ─── Base Shimmer Wrapper ────────────────────────────────────────────────────
 
 class _ShimmerBase extends StatelessWidget {
-  final Widget child;
   const _ShimmerBase({required this.child});
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
       baseColor: AppColors.bgSurfaceHover,
-      highlightColor: Colors.white12,
+      highlightColor: AppColors.bgDivider,
       child: child,
     );
   }
@@ -31,7 +31,7 @@ Widget _bone({double? width, double height = 14, double radius = 4}) {
     width: width,
     height: height,
     decoration: BoxDecoration(
-      color: Colors.white,
+      color: AppColors.textPrimary,
       borderRadius: BorderRadius.circular(radius),
     ),
   );
@@ -62,7 +62,7 @@ class ShimmerVideoListCard extends StatelessWidget {
                 children: [
                   _bone(width: double.infinity, height: 16),
                   const SizedBox(height: 8),
-                  _bone(width: 200, height: 14),
+                  _bone(width: 200),
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -108,7 +108,7 @@ class ShimmerVideoGridCard extends StatelessWidget {
             aspectRatio: 16 / 9,
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
@@ -127,7 +127,7 @@ class ShimmerVideoGridCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _bone(width: double.infinity, height: 14),
+                    _bone(width: double.infinity),
                     const SizedBox(height: 6),
                     _bone(width: 120, height: 12),
                     const SizedBox(height: 6),
@@ -226,7 +226,7 @@ class ShimmerChannelCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _bone(width: 140, height: 14),
+                  _bone(width: 140),
                   const SizedBox(height: 6),
                   _bone(width: 90, height: 11),
                 ],
@@ -299,7 +299,7 @@ class ShimmerDiscoverChannelCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Banner (Height 72)
-            Container(height: 72, width: double.infinity, color: Colors.white),
+            Container(height: 72, width: double.infinity, color: AppColors.textPrimary),
             // Channel details
             Expanded(
               child: Padding(
@@ -316,7 +316,7 @@ class ShimmerDiscoverChannelCard extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _bone(width: 100, height: 14),
+                              _bone(width: 100),
                               const SizedBox(height: 4),
                               _bone(width: 60, height: 11),
                             ],
@@ -368,8 +368,8 @@ class ShimmerPlaylistDetail extends StatelessWidget {
       backgroundColor: AppColors.bgPage,
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final bool isDesktop = constraints.maxWidth >= 1000;
-          final bool isTablet =
+          final isDesktop = constraints.maxWidth >= 1000;
+          final isTablet =
               constraints.maxWidth >= 600 && constraints.maxWidth < 1000;
 
           if (isDesktop) {
@@ -403,7 +403,7 @@ class ShimmerPlaylistDetail extends StatelessWidget {
                           children: [
                             _bone(width: 32, height: 32, radius: 16),
                             const SizedBox(width: 10),
-                            _bone(width: 120, height: 14),
+                            _bone(width: 120),
                           ],
                         ),
                         const SizedBox(height: 16),
@@ -458,7 +458,7 @@ class ShimmerPlaylistDetail extends StatelessWidget {
                               children: [
                                 _bone(width: double.infinity, height: 18),
                                 const SizedBox(height: 8),
-                                _bone(width: 100, height: 14),
+                                _bone(width: 100),
                                 const SizedBox(height: 10),
                                 _bone(width: 120, height: 12),
                                 const SizedBox(height: 16),
@@ -535,7 +535,7 @@ class ShimmerDashboard extends StatelessWidget {
                     children: [
                       _bone(width: 250, height: 28),
                       const SizedBox(height: 8),
-                      _bone(width: 180, height: 14),
+                      _bone(width: 180),
                     ],
                   ),
                   _bone(width: 140, height: 40, radius: 20),
@@ -625,7 +625,7 @@ class ShimmerDashboard extends StatelessWidget {
                             Expanded(
                               child: Container(
                                 width: double.infinity,
-                                color: Colors.white10,
+                                color: AppColors.bgDivider,
                               ),
                             ),
                           ],
@@ -640,7 +640,7 @@ class ShimmerDashboard extends StatelessWidget {
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: 3,
                         itemBuilder: (context, index) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
                           child: Row(
                             children: [
                               _bone(width: 120, height: 68, radius: 8),
@@ -649,7 +649,7 @@ class ShimmerDashboard extends StatelessWidget {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _bone(width: double.infinity, height: 14),
+                                    _bone(width: double.infinity),
                                     const SizedBox(height: 6),
                                     _bone(width: 150, height: 11),
                                   ],
@@ -682,7 +682,7 @@ class ShimmerDashboard extends StatelessWidget {
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: 4,
                           itemBuilder: (context, index) => Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 10.0),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
                             child: Row(
                               children: [
                                 _bone(width: 20, height: 20, radius: 10),
@@ -712,7 +712,7 @@ class ShimmerDashboard extends StatelessWidget {
                     children: [
                       Expanded(flex: 3, child: mainArea),
                       const SizedBox(width: 24),
-                      Expanded(flex: 1, child: sidebarArea),
+                      Expanded(child: sidebarArea),
                     ],
                   );
                 },
@@ -737,17 +737,17 @@ class ShimmerVideoScreen extends StatelessWidget {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final bool isDesktop = constraints.maxWidth > 1050;
+            final isDesktop = constraints.maxWidth > 1050;
 
             final videoPlayerPlaceholder = _ShimmerBase(
               child: AspectRatio(
                 aspectRatio: 16 / 9,
                 child: Container(
-                  decoration: const BoxDecoration(color: Colors.black),
+                  decoration: const BoxDecoration(color: AppColors.bgPage),
                   child: const Center(
                     child: Icon(
                       Icons.play_circle_outline_rounded,
-                      color: Colors.white24,
+                      color: AppColors.textDisabled,
                       size: 64,
                     ),
                   ),
@@ -757,14 +757,14 @@ class ShimmerVideoScreen extends StatelessWidget {
 
             final mainContent = _ShimmerBase(
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Title
                     _bone(width: double.infinity, height: 20),
                     const SizedBox(height: 8),
-                    _bone(width: 200, height: 14),
+                    _bone(width: 200),
                     const SizedBox(height: 16),
                     // Channel Info & Subscribe Button
                     Row(
@@ -774,7 +774,7 @@ class ShimmerVideoScreen extends StatelessWidget {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _bone(width: 120, height: 14),
+                            _bone(width: 120),
                             const SizedBox(height: 4),
                             _bone(width: 80, height: 11),
                           ],
@@ -813,7 +813,7 @@ class ShimmerVideoScreen extends StatelessWidget {
                           videoPlayerPlaceholder,
                           mainContent,
                           const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 16.0),
+                            padding: EdgeInsets.symmetric(horizontal: 16),
                             child: Divider(
                               color: AppColors.bgDivider,
                               height: 1,
@@ -854,7 +854,7 @@ class ShimmerVideoScreen extends StatelessWidget {
                     const Divider(color: AppColors.bgDivider, height: 1),
                     // Mobile comments / recommendations preview
                     Padding(
-                      padding: const EdgeInsets.all(16.0),
+                      padding: const EdgeInsets.all(16),
                       child: _ShimmerBase(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -885,10 +885,6 @@ class ShimmerVideoScreen extends StatelessWidget {
 
 /// A shimmering text widget typically used inside a button when in a loading/submitting state.
 class ShimmerButtonText extends StatelessWidget {
-  final String text;
-  final TextStyle? style;
-  final Color? baseColor;
-  final Color? highlightColor;
 
   const ShimmerButtonText(
     this.text, {
@@ -897,12 +893,16 @@ class ShimmerButtonText extends StatelessWidget {
     this.baseColor,
     this.highlightColor,
   });
+  final String text;
+  final TextStyle? style;
+  final Color? baseColor;
+  final Color? highlightColor;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final defaultStyle = style ?? theme.textTheme.labelLarge;
-    final textColor = defaultStyle?.color ?? Colors.white;
+    final textColor = defaultStyle?.color ?? AppColors.textPrimary;
 
     return Shimmer.fromColors(
       baseColor: baseColor ?? textColor.withValues(alpha: 0.6),
@@ -913,9 +913,6 @@ class ShimmerButtonText extends StatelessWidget {
 }
 
 class ShimmerVideoGrid extends StatelessWidget {
-  final int itemCount;
-  final bool isDesktop;
-  final bool isTablet;
 
   const ShimmerVideoGrid({
     super.key,
@@ -923,11 +920,14 @@ class ShimmerVideoGrid extends StatelessWidget {
     this.isDesktop = false,
     this.isTablet = false,
   });
+  final int itemCount;
+  final bool isDesktop;
+  final bool isTablet;
 
   @override
   Widget build(BuildContext context) {
-    final bool isMobile = !isDesktop && !isTablet;
-    int crossAxisCount = isMobile ? 1 : (isTablet ? 2 : 3);
+    final isMobile = !isDesktop && !isTablet;
+    final crossAxisCount = isMobile ? 1 : (isTablet ? 2 : 3);
     final theme = Theme.of(context);
 
     return GridView.builder(

@@ -1,10 +1,12 @@
 import 'dart:async';
-import 'package:truthworld/core/ux/app_snackbar.dart';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class AdvertiserPortalController extends GetxController {
   final selectedIndex = 0.obs;
@@ -107,16 +109,16 @@ class AdvertiserPortalController extends GetxController {
       AppSnackbar.show(
         'Welcome',
         'Signed in successfully as ${AuthService.to.currentUser.value?.displayName ?? "Advertiser"}',
-        backgroundColor: Colors.green.shade900,
-        colorText: Colors.white,
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
       );
     } catch (e) {
       debugPrint('Error signing in for Ads: $e');
       AppSnackbar.show(
         'Sign In Failed',
         'Unable to complete Google Sign In: $e',
-        backgroundColor: Colors.red.shade900,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
     } finally {
       isSigningIn.value = false;
@@ -151,10 +153,10 @@ class AdvertiserPortalController extends GetxController {
     }
 
     final lines = content.split('\n');
-    final List<Map<String, String>> cues = [];
-    String pendingStart = '';
-    String pendingEnd = '';
-    StringBuffer pendingText = StringBuffer();
+    final cues = <Map<String, String>>[];
+    var pendingStart = '';
+    var pendingEnd = '';
+    final pendingText = StringBuffer();
 
     for (final line in lines) {
       if (line.contains('-->')) {
@@ -217,16 +219,16 @@ class AdvertiserPortalController extends GetxController {
       AppSnackbar.show(
         'Success',
         'Subtitles for ${getLanguageName(selectedLanguageForSubtitles.value)} saved successfully.',
-        backgroundColor: Colors.green.shade900,
-        colorText: Colors.white,
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
       );
     } catch (e) {
       debugPrint('Error saving subtitles: $e');
       AppSnackbar.show(
         'Error',
         'Failed to save subtitles: $e',
-        backgroundColor: Colors.red.shade900,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
     } finally {
       isSavingSubtitles.value = false;
@@ -247,9 +249,9 @@ class AdvertiserPortalController extends GetxController {
           selectedAdForSubtitles.value!.subtitles ?? {},
         );
 
-        String welcome = 'Welcome!';
-        String desc = selectedAdForSubtitles.value!.description;
-        String cta = 'Learn More';
+        var welcome = 'Welcome!';
+        var desc = selectedAdForSubtitles.value!.description;
+        var cta = 'Learn More';
 
         if (targetLang == 'hi') {
           welcome = 'स्वागत है!';
@@ -288,8 +290,8 @@ class AdvertiserPortalController extends GetxController {
               AppSnackbar.show(
                 'Translation Ready',
                 'AI translation for ${getLanguageName(targetLang)} completed successfully!',
-                backgroundColor: Colors.green.shade900,
-                colorText: Colors.white,
+                backgroundColor: AppColors.success,
+                colorText: AppColors.textPrimary,
               );
             });
       } else {
@@ -331,8 +333,8 @@ class AdvertiserPortalController extends GetxController {
               AppSnackbar.show(
                 'Dubbing Completed',
                 'AI audio dub in ${getLanguageName(targetLang)} is now live!',
-                backgroundColor: Colors.green.shade900,
-                colorText: Colors.white,
+                backgroundColor: AppColors.success,
+                colorText: AppColors.textPrimary,
               );
             });
       } else {

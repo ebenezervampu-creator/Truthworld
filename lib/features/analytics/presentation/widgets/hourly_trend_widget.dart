@@ -1,5 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Hourly view trend line chart widget.
 ///
@@ -13,9 +14,9 @@ import 'package:fl_chart/fl_chart.dart';
 /// - Touch tooltip showing exact view count
 /// - Empty state with icon
 class HourlyTrendWidget extends StatelessWidget {
-  final List<Map<String, dynamic>> hourlyData;
 
-  const HourlyTrendWidget({super.key, required this.hourlyData});
+  const HourlyTrendWidget({required this.hourlyData, super.key});
+  final List<Map<String, dynamic>> hourlyData;
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +43,7 @@ class HourlyTrendWidget extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.08)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -50,7 +51,7 @@ class HourlyTrendWidget extends StatelessWidget {
           const Text(
             'Views — Last 24 Hours',
             style: TextStyle(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
@@ -61,12 +62,11 @@ class HourlyTrendWidget extends StatelessWidget {
             child: LineChart(
               LineChartData(
                 gridData: FlGridData(
-                  show: true,
                   drawVerticalLine: false,
                   horizontalInterval: maxY > 0 ? maxY / 4 : 1,
                   getDrawingHorizontalLine: (value) {
                     return FlLine(
-                      color: Colors.white.withValues(alpha: 0.06),
+                      color: AppColors.textPrimary.withValues(alpha: 0.06),
                       strokeWidth: 1,
                     );
                   },
@@ -80,7 +80,7 @@ class HourlyTrendWidget extends StatelessWidget {
                         return Text(
                           value.toInt().toString(),
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.5),
+                            color: AppColors.textPrimary.withValues(alpha: 0.5),
                             fontSize: 11,
                           ),
                         );
@@ -108,7 +108,7 @@ class HourlyTrendWidget extends StatelessWidget {
                           child: Text(
                             label,
                             style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.5),
+                              color: AppColors.textPrimary.withValues(alpha: 0.5),
                               fontSize: 11,
                             ),
                           ),
@@ -117,10 +117,10 @@ class HourlyTrendWidget extends StatelessWidget {
                     ),
                   ),
                   topTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
+                    
                   ),
                   rightTitles: const AxisTitles(
-                    sideTitles: SideTitles(showTitles: false),
+                    
                   ),
                 ),
                 borderData: FlBorderData(show: false),
@@ -142,7 +142,7 @@ class HourlyTrendWidget extends StatelessWidget {
                       gradient: LinearGradient(
                         colors: [
                           const Color(0xFF00D2FF).withValues(alpha: 0.3),
-                          const Color(0xFF00D2FF).withValues(alpha: 0.0),
+                          const Color(0xFF00D2FF).withValues(alpha: 0),
                         ],
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
@@ -154,14 +154,14 @@ class HourlyTrendWidget extends StatelessWidget {
                   touchTooltipData: LineTouchTooltipData(
                     getTooltipColor: (spot) => const Color(0xFF1A1A2E),
                     tooltipBorder: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.1),
+                      color: AppColors.textPrimary.withValues(alpha: 0.1),
                     ),
                     getTooltipItems: (spots) {
                       return spots.map((spot) {
                         return LineTooltipItem(
                           '${spot.y.toInt()} views',
                           const TextStyle(
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
                           ),
@@ -191,14 +191,14 @@ class HourlyTrendWidget extends StatelessWidget {
           children: [
             Icon(
               Icons.timeline,
-              color: Colors.white.withValues(alpha: 0.3),
+              color: AppColors.textPrimary.withValues(alpha: 0.3),
               size: 40,
             ),
             const SizedBox(height: 12),
             Text(
               'No hourly data available yet',
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
+                color: AppColors.textPrimary.withValues(alpha: 0.5),
                 fontSize: 14,
               ),
             ),

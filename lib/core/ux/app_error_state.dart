@@ -18,7 +18,7 @@ class AppErrorStateController extends GetxController
 
     fadeAnimation = CurvedAnimation(
       parent: animationController,
-      curve: const Interval(0.0, 0.5, curve: Curves.easeOut),
+      curve: const Interval(0, 0.5, curve: Curves.easeOut),
     );
 
     shakeAnimation =
@@ -31,7 +31,7 @@ class AppErrorStateController extends GetxController
         ]).animate(
           CurvedAnimation(
             parent: animationController,
-            curve: const Interval(0.3, 1.0, curve: Curves.easeOutCubic),
+            curve: const Interval(0.3, 1, curve: Curves.easeOutCubic),
           ),
         );
 
@@ -55,11 +55,6 @@ class RetryButtonController extends GetxController {
 
 /// Premium error state widget with retry support.
 class AppErrorState extends StatelessWidget {
-  final String? title;
-  final String? subtitle;
-  final VoidCallback? onRetry;
-  final String retryLabel;
-  final IconData icon;
 
   const AppErrorState({
     super.key,
@@ -69,6 +64,11 @@ class AppErrorState extends StatelessWidget {
     this.retryLabel = 'Try again',
     this.icon = Icons.cloud_off_rounded,
   });
+  final String? title;
+  final String? subtitle;
+  final VoidCallback? onRetry;
+  final String retryLabel;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
@@ -129,7 +129,7 @@ class AppErrorState extends StatelessWidget {
                     title ?? 'Something went wrong',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontFamily: 'Roboto',
+                      
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
                       color: twColors.textPrimary,
@@ -146,7 +146,7 @@ class AppErrorState extends StatelessWidget {
                         subtitle!,
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          fontFamily: 'Roboto',
+                          
                           fontSize: 14,
                           color: twColors.textSecondary,
                           height: 1.5,
@@ -171,10 +171,10 @@ class AppErrorState extends StatelessWidget {
 }
 
 class _RetryButton extends StatelessWidget {
-  final String label;
-  final VoidCallback onPressed;
 
   const _RetryButton({required this.label, required this.onPressed});
+  final String label;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -194,7 +194,7 @@ class _RetryButton extends StatelessWidget {
             transform: Matrix4.diagonal3Values(
               controller.isHovered ? 1.03 : 1.0,
               controller.isHovered ? 1.03 : 1.0,
-              1.0,
+              1,
             ),
             transformAlignment: Alignment.center,
             child: OutlinedButton.icon(
@@ -203,17 +203,17 @@ class _RetryButton extends StatelessWidget {
                 Icons.refresh_rounded,
                 size: 18,
                 color: controller.isHovered
-                    ? Colors.white
+                    ? AppColors.textPrimary
                     : twColors.textPrimary,
               ),
               label: Text(
                 label,
                 style: TextStyle(
-                  fontFamily: 'Roboto',
+                  
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: controller.isHovered
-                      ? Colors.white
+                      ? AppColors.textPrimary
                       : twColors.textPrimary,
                 ),
               ),

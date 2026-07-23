@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Real-time concurrent viewer counter with pulse animation.
 ///
@@ -9,10 +10,10 @@ import 'package:flutter/material.dart';
 /// - Smooth count transition via TweenAnimationBuilder
 /// - Dark gradient card matching the app's aesthetic
 class LiveViewerWidget extends StatefulWidget {
-  /// Pass a videoId for per-video count, or null for global count.
-  final String? videoId;
 
   const LiveViewerWidget({super.key, this.videoId});
+  /// Pass a videoId for per-video count, or null for global count.
+  final String? videoId;
 
   @override
   State<LiveViewerWidget> createState() => _LiveViewerWidgetState();
@@ -30,7 +31,7 @@ class _LiveViewerWidgetState extends State<LiveViewerWidget>
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+    _pulseAnimation = Tween<double>(begin: 0.8, end: 1).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
   }
@@ -57,7 +58,7 @@ class _LiveViewerWidgetState extends State<LiveViewerWidget>
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.08)),
             boxShadow: [
               BoxShadow(
                 color: const Color(0xFFE94560).withValues(alpha: 0.1),
@@ -115,7 +116,7 @@ class _LiveViewerWidgetState extends State<LiveViewerWidget>
                       return Text(
                         '$value watching',
                         style: const TextStyle(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontSize: 22,
                           fontWeight: FontWeight.w600,
                         ),

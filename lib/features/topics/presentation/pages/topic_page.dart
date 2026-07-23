@@ -2,16 +2,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
 import 'package:truthworld/features/topics/presentation/widgets/related_topics_widget.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_comments_section.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_hero_widget.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_video_grid.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 /// Topic Page - /topic/:slug
@@ -27,9 +26,9 @@ import 'package:truthworld/theme/app_theme.dart';
 ///
 /// Responsive: desktop, tablet, mobile
 class TopicPage extends StatefulWidget {
-  final String? slug;
 
   const TopicPage({super.key, this.slug});
+  final String? slug;
 
   @override
   State<TopicPage> createState() => _TopicPageState();
@@ -62,7 +61,7 @@ class _TopicPageState extends State<TopicPage> {
     });
   }
 
-  void _navigateToChannel(String? channelId) async {
+  Future<void> _navigateToChannel(String? channelId) async {
     if (channelId == null || channelId.isEmpty) return;
     try {
       Get.dialog(
@@ -94,9 +93,9 @@ class _TopicPageState extends State<TopicPage> {
 
   @override
   Widget build(BuildContext context) {
-    final Size size = MediaQuery.of(context).size;
-    final bool isDesktop = size.width >= 1024;
-    final bool isTablet = size.width >= 768 && size.width < 1024;
+    final size = MediaQuery.of(context).size;
+    final isDesktop = size.width >= 1024;
+    final isTablet = size.width >= 768 && size.width < 1024;
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
@@ -122,6 +121,15 @@ class _TopicPageState extends State<TopicPage> {
                 topic: controller.topic.value,
                 isDesktop: isDesktop,
                 isTablet: isTablet,
+                onCommunityTap: () {
+                  if (_scrollController.hasClients) {
+                    _scrollController.animateTo(
+                      _scrollController.position.maxScrollExtent,
+                      duration: const Duration(milliseconds: 600),
+                      curve: Curves.easeOutCubic,
+                    );
+                  }
+                },
               ),
             ),
 
@@ -174,8 +182,8 @@ class _TopicPageState extends State<TopicPage> {
                     _buildTopicFilterTabs(),
                     const SizedBox(height: 16),
                     Obx(() {
-                      String emptyTitle = 'No videos yet';
-                      String emptySubtitle = 'Videos related to this topic will appear here';
+                      var emptyTitle = 'No videos yet';
+                      var emptySubtitle = 'Videos related to this topic will appear here';
                       if (controller.selectedTab.value == 'From Subscribed channels') {
                         emptyTitle = 'No subscribed videos';
                         emptySubtitle = 'Videos from channels you subscribe to will appear here';
@@ -190,7 +198,7 @@ class _TopicPageState extends State<TopicPage> {
                         hasMore: controller.hasMoreVideos.value,
                         isDesktop: isDesktop,
                         isTablet: isTablet,
-                        isGrid: controller.selectedView.value == 'Grid',
+                        isGrid: false,
                         heroPrefix: 'topic_${controller.topicSlug}',
                         onLoadMore: controller.loadMoreVideos,
                         emptyTitle: emptyTitle,
@@ -224,7 +232,6 @@ class _TopicPageState extends State<TopicPage> {
 
   Widget _buildSliverAppBar(bool isDesktop, bool isTablet) {
     return SliverAppBar(
-      floating: false,
       pinned: true,
       backgroundColor: AppColors.bgPage.withValues(alpha: 0.95),
       elevation: 0,
@@ -236,33 +243,11 @@ class _TopicPageState extends State<TopicPage> {
         ),
         child: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-          onPressed: () => Get.back(),
+          onPressed: Get.back,
         ),
       ),
-      title: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(
-            Icons.topic_rounded,
-            size: 20,
-            color: AppColors.textPrimary,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Obx(() => Text(
-              controller.topicTitle,
-              style: GoogleFonts.roboto(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.bold,
-                fontSize: isDesktop ? 22 : 18,
-              ),
-              overflow: TextOverflow.ellipsis,
-            )),
-          ),
-        ],
-      ),
       actions: [
-        // Search toggle
+        // Search icon at the last position replacing refresh icon
         Obx(() => IconButton(
           onPressed: () {
             controller.isSearchVisible.value = !controller.isSearchVisible.value;
@@ -277,26 +262,6 @@ class _TopicPageState extends State<TopicPage> {
           ),
           tooltip: 'Search Videos',
         )),
-        // View toggle
-        Obx(() => IconButton(
-          onPressed: () {
-            controller.selectedView.value =
-                controller.selectedView.value == 'Grid' ? 'List' : 'Grid';
-            HapticFeedback.lightImpact();
-          },
-          icon: Icon(
-            controller.selectedView.value == 'Grid' ? Icons.view_list_rounded : Icons.grid_view_rounded,
-            color: AppColors.textPrimary,
-          ),
-          tooltip: 'Toggle View',
-        )),
-        // Refresh button
-        IconButton(
-          onPressed: controller.refreshTopic,
-          icon: const Icon(Icons.refresh_rounded),
-          color: AppColors.textPrimary,
-          tooltip: 'Refresh',
-        ),
         SizedBox(width: isDesktop ? 24 : 8),
       ],
     );
@@ -426,7 +391,7 @@ class _TopicPageState extends State<TopicPage> {
                         const SizedBox(height: 8),
                         Text(
                           channel['name'] ?? '',
-                          style: GoogleFonts.roboto(
+                          style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                             color: AppColors.textSecondary,
@@ -458,9 +423,7 @@ class _TopicPageState extends State<TopicPage> {
         ),
         IconButton(
           icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
-          onPressed: () {
-            controller.refreshTopic();
-          },
+          onPressed: controller.refreshTopic,
         ),
       ],
     );
@@ -468,7 +431,7 @@ class _TopicPageState extends State<TopicPage> {
 
   Widget _buildTopicFilterTabs() {
     return Obx(() {
-      final List<String> tabs = [
+      final tabs = <String>[
         'Trending',
         'From Subscribed channels',
         'New',
@@ -479,7 +442,7 @@ class _TopicPageState extends State<TopicPage> {
       }
 
       return SizedBox(
-        height: 38.0,
+        height: 38,
         child: ListView.builder(
           scrollDirection: Axis.horizontal,
           itemCount: tabs.length,
@@ -487,7 +450,7 @@ class _TopicPageState extends State<TopicPage> {
             final tab = tabs[index];
             final isSelected = controller.selectedTab.value == tab;
             return Padding(
-              padding: const EdgeInsets.only(right: 8.0),
+              padding: const EdgeInsets.only(right: 8),
               child: GestureDetector(
                 onTap: () {
                   controller.selectTab(tab);
@@ -497,16 +460,16 @@ class _TopicPageState extends State<TopicPage> {
                   duration: const Duration(milliseconds: 150),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isSelected ? Colors.white : const Color(0xFF272727),
+                    color: isSelected ? AppColors.textPrimary : const Color(0xFF272727),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   alignment: Alignment.center,
                   child: Text(
                     tab,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                      color: isSelected ? Colors.black : Colors.white,
+                      color: isSelected ? AppColors.bgPage : AppColors.textPrimary,
                     ),
                   ),
                 ),
@@ -554,7 +517,7 @@ class _TopicPageState extends State<TopicPage> {
                 Image.network(
                   video.thumbnailUrl ?? '',
                   fit: BoxFit.cover,
-                  errorBuilder: (_, _, _) => Container(
+                  errorBuilder: (_, _, _) => const ColoredBox(
                     color: AppColors.bgSurfaceContainerHighest,
                     child: Icon(
                       Icons.videocam_off_rounded,
@@ -590,7 +553,7 @@ class _TopicPageState extends State<TopicPage> {
                       // Video title
                       Text(
                         video.title,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: isDesktop ? 24 : (isTablet ? 20 : 18),
                           fontWeight: FontWeight.bold,
                           color: AppColors.textPrimary,
@@ -602,7 +565,7 @@ class _TopicPageState extends State<TopicPage> {
                       // Channel & meta
                       Text(
                         '${video.channelName} • ${video.views} views',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: isDesktop ? 16 : 14,
                           color: AppColors.textSecondary,
                         ),
@@ -619,7 +582,7 @@ class _TopicPageState extends State<TopicPage> {
                       color: AppColors.brand.withValues(alpha: 0.9),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(
+                    child: const Icon(
                       Icons.play_arrow_rounded,
                       color: AppColors.textPrimary,
                       size: 32,
@@ -649,7 +612,7 @@ class _TopicPageState extends State<TopicPage> {
         Expanded(
           child: Text(
             title,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: isDesktop ? 24 : (isTablet ? 22 : 20),
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
@@ -668,11 +631,10 @@ class _TopicPageState extends State<TopicPage> {
       slivers: [
         SliverAppBar(
           floating: true,
-          pinned: false,
           backgroundColor: AppColors.bgPage,
           title: Text(
             'Loading...',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: isDesktop ? 18 : 16,
               fontWeight: FontWeight.w500,
             ),
@@ -680,7 +642,6 @@ class _TopicPageState extends State<TopicPage> {
         ),
         SliverToBoxAdapter(
           child: TopicHeroWidget(
-            topic: null,
             isDesktop: isDesktop,
             isTablet: isTablet,
           ),
@@ -714,7 +675,7 @@ class _TopicPageState extends State<TopicPage> {
           const SizedBox(height: 16),
           Text(
             controller.errorMessage.value,
-            style: GoogleFonts.roboto(
+            style: const TextStyle(
               fontSize: 18,
               color: AppColors.textSecondary,
             ),

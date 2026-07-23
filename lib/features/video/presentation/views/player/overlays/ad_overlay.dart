@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:video_player/video_player.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
+import 'package:truthworld/features/video/presentation/views/player/panels/player_settings_panels.dart';
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
-
-import '../../../controllers/tower_player_controller.dart';
-import '../panels/player_settings_panels.dart';
+import 'package:video_player/video_player.dart';
 
 class AdOverlay extends StatelessWidget {
+  const AdOverlay({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const AdOverlay({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
@@ -35,8 +35,8 @@ class AdOverlay extends StatelessWidget {
                     : 0.0;
                 return LinearProgressIndicator(
                   value: progress,
-                  backgroundColor: Colors.white24,
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.amber),
+                  backgroundColor: AppColors.textDisabled,
+                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.warning),
                 );
               },
             ),
@@ -50,9 +50,9 @@ class AdOverlay extends StatelessWidget {
               width: 320,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.75),
+                color: AppColors.bgPage.withValues(alpha: 0.75),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white12),
+                border: Border.all(color: AppColors.bgDivider),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -66,14 +66,14 @@ class AdOverlay extends StatelessWidget {
                           vertical: 2,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.amber,
+                          color: AppColors.warning,
                           borderRadius: BorderRadius.circular(4),
                         ),
-                        child: Text(
+                        child: const Text(
                           'Ad',
                           style: TextStyle(
-                            fontFamily: 'Roboto',
-                            color: Colors.black,
+                            
+                            color: AppColors.bgPage,
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
                           ),
@@ -83,9 +83,9 @@ class AdOverlay extends StatelessWidget {
                       Expanded(
                         child: Text(
                           ad.title,
-                          style: TextStyle(
-                            fontFamily: 'Roboto',
-                            color: Colors.white,
+                          style: const TextStyle(
+                            
+                            color: AppColors.textPrimary,
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
                           ),
@@ -98,9 +98,9 @@ class AdOverlay extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     ad.description,
-                    style: TextStyle(
-                      fontFamily: 'Roboto',
-                      color: Colors.white70,
+                    style: const TextStyle(
+                      
+                      color: AppColors.textSecondary,
                       fontSize: 12,
                     ),
                     maxLines: 2,
@@ -125,25 +125,25 @@ class AdOverlay extends StatelessWidget {
                         horizontal: 12,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Row(
+                      child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             'Learn More',
                             style: TextStyle(
-                              fontFamily: 'Roboto',
-                              color: Colors.black,
+                              
+                              color: AppColors.bgPage,
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          const Icon(
+                          SizedBox(width: 4),
+                          Icon(
                             Icons.open_in_new_rounded,
-                            color: Colors.black,
+                            color: AppColors.bgPage,
                             size: 14,
                           ),
                         ],
@@ -168,9 +168,9 @@ class AdOverlay extends StatelessWidget {
                 return ElevatedButton(
                   onPressed: ctrl.skipAd,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.black.withValues(alpha: 0.75),
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white24),
+                    backgroundColor: AppColors.bgPage.withValues(alpha: 0.75),
+                    foregroundColor: AppColors.textPrimary,
+                    side: const BorderSide(color: AppColors.textDisabled),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,
                       vertical: 12,
@@ -179,19 +179,19 @@ class AdOverlay extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  child: Row(
+                  child: const Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         'Skip Ad',
                         style: TextStyle(
-                          fontFamily: 'Roboto',
+                          
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      const Icon(Icons.skip_next_rounded, size: 18),
+                      SizedBox(width: 6),
+                      Icon(Icons.skip_next_rounded, size: 18),
                     ],
                   ),
                 );
@@ -202,17 +202,17 @@ class AdOverlay extends StatelessWidget {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.75),
+                    color: AppColors.bgPage.withValues(alpha: 0.75),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white12),
+                    border: Border.all(color: AppColors.bgDivider),
                   ),
                   child: Text(
                     ad.skippable
                         ? 'Skip in ${countdown}s'
                         : 'Ad will end in ${remaining}s',
-                    style: TextStyle(
-                      fontFamily: 'Roboto',
-                      color: Colors.white,
+                    style: const TextStyle(
+                      
+                      color: AppColors.textPrimary,
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                     ),
@@ -236,31 +236,31 @@ class AdOverlay extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Colors.amber, Colors.orangeAccent],
+                    colors: [AppColors.warning, AppColors.warning],
                   ),
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.3),
+                      color: AppColors.bgPage.withValues(alpha: 0.3),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
                   ],
                 ),
-                child: Row(
+                child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.workspace_premium_rounded,
-                      color: Colors.black87,
+                      color: AppColors.bgPage,
                       size: 16,
                     ),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                     Text(
                       'Try Show Premium',
                       style: TextStyle(
-                        fontFamily: 'Roboto',
-                        color: Colors.black87,
+                        
+                        color: AppColors.bgPage,
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),

@@ -1,15 +1,16 @@
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart' hide GoogleSignInException;
-import 'package:get/get.dart';
 import 'package:flutter/foundation.dart';
+import 'package:get/get.dart';
+import 'package:google_sign_in/google_sign_in.dart' hide GoogleSignInException;
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/google_signin_exception_handler.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/push_notification_service.dart';
-import 'package:truthworld/data/models/user_model.dart';
 import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/data/models/user_model.dart';
 
 
 class AuthService extends GetxService {
@@ -60,7 +61,7 @@ class AuthService extends GetxService {
       return handle.startsWith('@') ? handle : '@$handle';
     }
     final email = user?.email ?? '';
-    return email.isNotEmpty ? "@${email.split('@')[0]}" : "@user";
+    return email.isNotEmpty ? "@${email.split('@')[0]}" : '@user';
   }
 
 
@@ -118,7 +119,7 @@ class AuthService extends GetxService {
         .listen(
           (snapshot) {
             final activeChannels = snapshot.docs
-                .map((doc) => Channel.fromDocumentSnapshot(doc))
+                .map(Channel.fromDocumentSnapshot)
                 .where((c) => c.status != ChannelStatus.deleted)
                 .toList();
 
@@ -204,12 +205,12 @@ class AuthService extends GetxService {
   }
 
   Future<UserCredential> _signInWithGoogleWeb() async {
-    final GoogleAuthProvider provider = GoogleAuthProvider();
+    final provider = GoogleAuthProvider();
     provider.addScope('https://www.googleapis.com/auth/userinfo.email');
     provider.addScope('https://www.googleapis.com/auth/userinfo.profile');
     provider.setCustomParameters({'prompt': 'select_account'});
     
-    return await _auth.signInWithPopup(provider);
+    return _auth.signInWithPopup(provider);
   }
 
   Future<UserCredential> _signInWithGoogleMobile() async {
@@ -223,11 +224,11 @@ class AuthService extends GetxService {
       idToken: googleAuth.idToken,
     );
 
-    return await _auth.signInWithCredential(credential);
+    return _auth.signInWithCredential(credential);
   }
 
   Future<UserCredential> retryGoogleSignIn({int maxRetries = 2}) async {
-    int attempts = 0;
+    var attempts = 0;
     Object? lastError;
 
     while (attempts < maxRetries) {
@@ -248,7 +249,6 @@ class AuthService extends GetxService {
     throw const GoogleSignInException(
       message: 'Sign-in failed after retries',
       code: 'max-retries-exceeded',
-      isRetryable: false,
     );
   }
 
@@ -296,7 +296,7 @@ class AuthService extends GetxService {
     
     try {
       // Capture critical security and lifecycle metadata
-      final Map<String, dynamic> metadata = {
+      final metadata = <String, dynamic>{
         'creationTime': user.metadata.creationTime?.toIso8601String(),
         'lastSignInTime': user.metadata.lastSignInTime?.toIso8601String(),
         'emailVerified': user.emailVerified,

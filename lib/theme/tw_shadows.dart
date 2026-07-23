@@ -2,10 +2,6 @@ import 'package:flutter/material.dart';
 
 /// Semantic shadows and elevation offsets.
 class TWShadows extends ThemeExtension<TWShadows> {
-  final List<BoxShadow> card;
-  final List<BoxShadow> dialog;
-  final List<BoxShadow> overlay;
-  final List<BoxShadow> fab;
 
   const TWShadows({
     required this.card,
@@ -46,6 +42,10 @@ class TWShadows extends ThemeExtension<TWShadows> {
       ],
     );
   }
+  final List<BoxShadow> card;
+  final List<BoxShadow> dialog;
+  final List<BoxShadow> overlay;
+  final List<BoxShadow> fab;
 
   @override
   ThemeExtension<TWShadows> copyWith({

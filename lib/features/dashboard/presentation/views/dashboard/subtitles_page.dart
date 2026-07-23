@@ -4,20 +4,18 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/subtitles_controller.dart';
 import 'package:truthworld/features/video/data/models/ai_features.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class SubtitlesPage extends StatefulWidget {
-  final String channelId;
-  final bool isDarkMode;
 
   const SubtitlesPage({
-    super.key,
-    required this.channelId,
-    required this.isDarkMode,
+    required this.channelId, required this.isDarkMode, super.key,
   });
+  final String channelId;
+  final bool isDarkMode;
 
   @override
   State<SubtitlesPage> createState() => _SubtitlesPageState();
@@ -55,7 +53,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
         : AppColors.bgPage;
     final surfaceColor = widget.isDarkMode
         ? AppColors.bgSurface
-        : Colors.white;
+        : AppColors.textPrimary;
     final textColor = widget.isDarkMode
         ? AppColors.textPrimary
         : AppColors.textPrimary;
@@ -70,7 +68,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
       backgroundColor: bgColor,
       body: Obx(() {
         if (controller.isLoading) {
-          return Center(
+          return const Center(
             child: CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(
                 AppColors.brand,
@@ -84,7 +82,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
+                const Icon(
                   Icons.error_outline_rounded,
                   size: 64,
                   color: AppColors.error,
@@ -94,7 +92,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                   controller.errorMessage.isNotEmpty
                       ? controller.errorMessage
                       : 'An error occurred loading subtitles',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 18,
                     color: textColor,
                     fontWeight: FontWeight.w500,
@@ -126,7 +124,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                 const SizedBox(height: 20),
                 Text(
                   'No Videos Found',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: textColor,
@@ -135,7 +133,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                 const SizedBox(height: 8),
                 Text(
                   'Upload videos to your channel to manage subtitles.',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 15,
                     color: textSecondaryColor,
                   ),
@@ -214,7 +212,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
 
         // Right Column: Active Video Subtitle Editor
         Expanded(
-          child: Container(
+          child: ColoredBox(
             color: widget.isDarkMode
                 ? AppColors.bgPage
                 : const Color(0xFFF1F5F9),
@@ -278,7 +276,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: Icon(Icons.arrow_back, color: AppColors.brand,
+                      icon: const Icon(Icons.arrow_back, color: AppColors.brand,
                       ),
                       onPressed: () => controller.selectVideo(null),
                     ),
@@ -288,7 +286,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                         controller.selectedVideo.value?.title ?? '',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                           color: textColor,
@@ -331,7 +329,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
         children: [
           Row(
             children: [
-              Icon(
+              const Icon(
                 Icons.subtitles_rounded,
                 color: AppColors.brand,
                 size: 22,
@@ -339,7 +337,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
               const SizedBox(width: 8),
               Text(
                 'Select Video',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
                   color: textColor,
@@ -358,20 +356,20 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
               border: Border.all(color: borderColor),
             ),
             child: TextField(
-              style: GoogleFonts.roboto(fontSize: 14, color: textColor),
+              style: TextStyle(fontSize: 14, color: textColor),
               decoration: InputDecoration(
                 hintText: 'Search videos...',
-                hintStyle: GoogleFonts.roboto(
+                hintStyle: TextStyle(
                   fontSize: 14,
                   color: widget.isDarkMode
-                      ? Colors.white54
+                      ? AppColors.textSecondary
                       : const Color(0xFF94A3B8),
                 ),
                 prefixIcon: Icon(
                   Icons.search_rounded,
                   size: 18,
                   color: widget.isDarkMode
-                      ? Colors.white54
+                      ? AppColors.textSecondary
                       : const Color(0xFF94A3B8),
                 ),
                 border: InputBorder.none,
@@ -436,14 +434,14 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                               : AppColors.bgDivider,
                         ),
                     errorWidget:
-                        (context, url, error) => Container(
+                        (context, url, error) => ColoredBox(
                           color: widget.isDarkMode
                               ? const Color(0xFF2A2A2A)
                               : AppColors.bgDivider,
                           child: const Icon(
                             Icons.video_file_rounded,
                             size: 20,
-                            color: Colors.grey,
+                            color: AppColors.textSecondary,
                           ),
                         ),
                   ),
@@ -457,13 +455,13 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.8),
+                      color: AppColors.bgPage.withValues(alpha: 0.8),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       video.duration,
                       style: const TextStyle(
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
@@ -483,7 +481,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                     video.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight:
                           isSelected ? FontWeight.bold : FontWeight.w500,
@@ -497,7 +495,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                         DateFormat(
                           'MMM d, yyyy',
                         ).format(video.uploadedAt.toDate()),
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 11,
                           color: textSecondaryColor,
                         ),
@@ -528,7 +526,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                             const SizedBox(width: 3),
                             Text(
                               '$trackCount',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                                 color: trackCount > 0
@@ -561,7 +559,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
               color: AppColors.brand.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(
+            child: const Icon(
               Icons.touch_app_rounded,
               size: 64,
               color: AppColors.brand,
@@ -570,7 +568,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
           const SizedBox(height: 24),
           Text(
             'Select a video to edit subtitles',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
               color: textColor,
@@ -582,7 +580,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
             child: Text(
               'Choose a video from the sidebar menu to view existing translation tracks, add new localized cue timings, and sync directly to your video streams.',
               textAlign: TextAlign.center,
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 14,
                 color: textSecondaryColor,
                 height: 1.4,
@@ -634,7 +632,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                             video.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: textColor,
@@ -651,12 +649,12 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                               borderRadius: BorderRadius.circular(4),
                               border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
                             ),
-                            child: Text(
+                            child: const Text(
                               'Unsaved',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
-                                color: const Color(0xFFF59E0B),
+                                color: Color(0xFFF59E0B),
                               ),
                             ),
                           );
@@ -665,7 +663,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                     ),
                     Text(
                       'Subtitles & Multi-Language Audio Tracks',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 12,
                         color: textSecondaryColor,
                       ),
@@ -733,7 +731,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
+                                AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
                           ),
                         )
                       : const Icon(Icons.save_rounded, size: 18),
@@ -742,7 +740,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.brand,
-                    foregroundColor: Colors.white,
+                    foregroundColor: AppColors.textPrimary,
                   ),
                 );
               }),
@@ -764,7 +762,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
             children: [
               Text(
                 'Tracks:',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                   color: textSecondaryColor,
@@ -792,8 +790,8 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                           },
                           selectedColor: AppColors.brand,
                           backgroundColor: surfaceColor,
-                          labelStyle: GoogleFonts.roboto(
-                            color: isSelected ? Colors.white : textColor,
+                          labelStyle: TextStyle(
+                            color: isSelected ? AppColors.textPrimary : textColor,
                             fontSize: 13,
                             fontWeight: FontWeight.w500,
                           ),
@@ -818,7 +816,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                 icon: const Icon(Icons.add_circle_outline_rounded),
                 color: AppColors.brand,
                 tooltip: 'Add Language Track',
-                onPressed: () => _showAddLanguageDialog(),
+                onPressed: _showAddLanguageDialog,
               ),
             ],
           ),
@@ -844,7 +842,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                           const SizedBox(height: 12),
                           Text(
                             'No Subtitle Cues Defined',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 16,
                               color: textSecondaryColor,
                             ),
@@ -878,7 +876,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                               width: 180,
                               child: Text(
                                 'Timing Interval',
-                                style: GoogleFonts.roboto(
+                                style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                   color: textSecondaryColor,
@@ -889,7 +887,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                             Expanded(
                               child: Text(
                                 'Subtitle Text Cue',
-                                style: GoogleFonts.roboto(
+                                style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                   color: textSecondaryColor,
@@ -920,7 +918,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                 border: Border.all(color: borderColor),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.03),
+                                    color: AppColors.bgPage.withValues(alpha: 0.03),
                                     blurRadius: 4,
                                     offset: const Offset(0, 2),
                                   ),
@@ -948,12 +946,12 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                           children: [
                                             InkWell(
-                                              onTap: () => controller.shiftCueTiming(index, isStart: true, shiftMilliseconds: -500),
+                                              onTap: () => controller.shiftCueTiming(index, shiftMilliseconds: -500),
                                               child: Icon(Icons.remove_circle_outline, size: 14, color: textSecondaryColor),
                                             ),
                                             Row(
                                               children: [
-                                                Icon(
+                                                const Icon(
                                                   Icons.timer_outlined,
                                                   size: 12,
                                                   color: AppColors.brand,
@@ -970,7 +968,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                               ],
                                             ),
                                             InkWell(
-                                              onTap: () => controller.shiftCueTiming(index, isStart: true, shiftMilliseconds: 500),
+                                              onTap: () => controller.shiftCueTiming(index),
                                               child: Icon(Icons.add_circle_outline, size: 14, color: textSecondaryColor),
                                             ),
                                           ],
@@ -998,7 +996,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                               ),
                                             ),
                                             InkWell(
-                                              onTap: () => controller.shiftCueTiming(index, isStart: false, shiftMilliseconds: 500),
+                                              onTap: () => controller.shiftCueTiming(index, isStart: false),
                                               child: Icon(Icons.add_circle_outline, size: 14, color: textSecondaryColor),
                                             ),
                                           ],
@@ -1014,7 +1012,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                       key: ValueKey('${controller.selectedLanguage.value}_${cue.id}_$index'),
                                       initialValue: cue.text,
                                       maxLines: null,
-                                      style: GoogleFonts.roboto(
+                                      style: TextStyle(
                                         fontSize: 14,
                                         color: textColor,
                                         height: 1.3,
@@ -1070,7 +1068,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                               label: const Text('Add Subtitle Segment'),
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: AppColors.brand,
-                                side: BorderSide(color: AppColors.brand),
+                                side: const BorderSide(color: AppColors.brand),
                               ),
                             ),
                           ],
@@ -1111,7 +1109,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                Icon(
+                const Icon(
                   Icons.mark_chat_unread_rounded,
                   color: AppColors.brand,
                   size: 20,
@@ -1119,7 +1117,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                 const SizedBox(width: 8),
                 Text(
                   'Viewer Requests',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: textColor,
@@ -1137,7 +1135,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                     ),
                     child: Text(
                       '${reqs.length}',
-                      style: GoogleFonts.roboto(
+                      style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                         color: AppColors.brand,
@@ -1169,7 +1167,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                       const SizedBox(height: 12),
                       Text(
                         'No requests yet',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 14,
                           color: textSecondaryColor,
                         ),
@@ -1210,7 +1208,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                 children: [
                                   Text(
                                     matchingLanguage?.name ?? r.language,
-                                    style: GoogleFonts.roboto(
+                                    style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.bold,
                                       color: textColor,
@@ -1220,7 +1218,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                     const SizedBox(height: 2),
                                     Text(
                                       matchingLanguage.nativeName,
-                                      style: GoogleFonts.roboto(
+                                      style: TextStyle(
                                         fontSize: 12,
                                         color: textSecondaryColor,
                                       ),
@@ -1237,7 +1235,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                               ),
                               child: Row(
                                 children: [
-                                  Icon(
+                                  const Icon(
                                     Icons.people_alt_rounded,
                                     size: 12,
                                     color: AppColors.brand,
@@ -1262,11 +1260,11 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                           child: isAlreadyAdded
                               ? OutlinedButton.icon(
                                   onPressed: null,
-                                  icon: const Icon(Icons.check_circle_rounded, size: 14, color: Colors.green),
+                                  icon: const Icon(Icons.check_circle_rounded, size: 14, color: AppColors.success),
                                   label: const Text('Provisioned'),
                                   style: OutlinedButton.styleFrom(
-                                    disabledForegroundColor: Colors.green,
-                                    side: const BorderSide(color: Colors.green),
+                                    disabledForegroundColor: AppColors.success,
+                                    side: const BorderSide(color: AppColors.success),
                                   ),
                                 )
                               : ElevatedButton.icon(
@@ -1277,7 +1275,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                   label: const Text('Add Track'),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.brand,
-                                    foregroundColor: Colors.white,
+                                    foregroundColor: AppColors.textPrimary,
                                     elevation: 0,
                                   ),
                                 ),
@@ -1295,11 +1293,11 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
   }
 
   void _showAddLanguageDialog() {
-    final RxInt dialogActiveTab = 0.obs;
-    final Rxn<TranslationLanguage> dialogSelectedLang = Rxn<TranslationLanguage>();
+    final dialogActiveTab = 0.obs;
+    final dialogSelectedLang = Rxn<TranslationLanguage>();
     final dialogTitleController = TextEditingController();
-    final RxnString dialogTitleError = RxnString();
-    final Rxn<PlatformFile> dialogPickedFile = Rxn<PlatformFile>();
+    final dialogTitleError = RxnString();
+    final dialogPickedFile = Rxn<PlatformFile>();
 
     final availableToAdd =
         supportedLanguages
@@ -1320,9 +1318,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'Add Subtitle Track',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
@@ -1348,13 +1346,13 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             decoration: BoxDecoration(
                               color: dialogActiveTab.value == 0
-                                  ? (widget.isDarkMode ? Colors.black45 : Colors.white)
+                                  ? (widget.isDarkMode ? Colors.black45 : AppColors.textPrimary)
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(6),
                               boxShadow: dialogActiveTab.value == 0
                                   ? [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.05),
+                                        color: AppColors.bgPage.withValues(alpha: 0.05),
                                         blurRadius: 4,
                                         offset: const Offset(0, 2),
                                       )
@@ -1364,12 +1362,12 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                             alignment: Alignment.center,
                             child: Text(
                               'Create Manually',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontWeight: dialogActiveTab.value == 0 ? FontWeight.bold : FontWeight.normal,
                                 fontSize: 13,
                                 color: dialogActiveTab.value == 0
                                     ? AppColors.brand
-                                    : (widget.isDarkMode ? Colors.white70 : Colors.black87),
+                                    : (widget.isDarkMode ? AppColors.textSecondary : AppColors.bgPage),
                               ),
                             ),
                           ),
@@ -1383,13 +1381,13 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                             padding: const EdgeInsets.symmetric(vertical: 8),
                             decoration: BoxDecoration(
                               color: dialogActiveTab.value == 1
-                                  ? (widget.isDarkMode ? Colors.black45 : Colors.white)
+                                  ? (widget.isDarkMode ? Colors.black45 : AppColors.textPrimary)
                                   : Colors.transparent,
                               borderRadius: BorderRadius.circular(6),
                               boxShadow: dialogActiveTab.value == 1
                                   ? [
                                       BoxShadow(
-                                        color: Colors.black.withValues(alpha: 0.05),
+                                        color: AppColors.bgPage.withValues(alpha: 0.05),
                                         blurRadius: 4,
                                         offset: const Offset(0, 2),
                                       )
@@ -1399,12 +1397,12 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                             alignment: Alignment.center,
                             child: Text(
                               'Upload File',
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontWeight: dialogActiveTab.value == 1 ? FontWeight.bold : FontWeight.normal,
                                 fontSize: 13,
                                 color: dialogActiveTab.value == 1
                                     ? AppColors.brand
-                                    : (widget.isDarkMode ? Colors.white70 : Colors.black87),
+                                    : (widget.isDarkMode ? AppColors.textSecondary : AppColors.bgPage),
                               ),
                             ),
                           ),
@@ -1416,9 +1414,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                 const SizedBox(height: 20),
 
                 if (dialogActiveTab.value == 0) ...[
-                  Text(
+                  const Text(
                     'Select a target language to prepare empty localized cue timings.',
-                    style: GoogleFonts.roboto(fontSize: 13, color: Colors.grey),
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 12),
                   Flexible(
@@ -1426,7 +1424,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                       constraints: const BoxConstraints(maxHeight: 250),
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: widget.isDarkMode ? Colors.white12 : Colors.black12,
+                          color: widget.isDarkMode ? AppColors.bgDivider : Colors.black12,
                         ),
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -1439,11 +1437,11 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                           return ListTile(
                             title: Text(
                               lang.name,
-                              style: GoogleFonts.roboto(fontSize: 14),
+                              style: const TextStyle(fontSize: 14),
                             ),
                             subtitle: Text(
                               lang.nativeName,
-                              style: GoogleFonts.roboto(fontSize: 12, color: Colors.grey),
+                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                             ),
                             trailing: const Icon(Icons.add_circle_outline_rounded, size: 20),
                             onTap: () {
@@ -1459,25 +1457,25 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () => Get.back(),
+                      onPressed: Get.back,
                       child: const Text('Cancel'),
                     ),
                   ),
                 ] else ...[
                   // Language Selection
                   DropdownButtonFormField<TranslationLanguage>(
-                    value: dialogSelectedLang.value,
-                    hint: Text(
+                    initialValue: dialogSelectedLang.value,
+                    hint: const Text(
                       'Select target language',
-                      style: GoogleFonts.roboto(fontSize: 13),
+                      style: TextStyle(fontSize: 13),
                     ),
-                    dropdownColor: widget.isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+                    dropdownColor: widget.isDarkMode ? const Color(0xFF1E1E1E) : AppColors.textPrimary,
                     items: supportedLanguages.map((lang) {
                       return DropdownMenuItem<TranslationLanguage>(
                         value: lang,
                         child: Text(
                           '${lang.name} (${lang.nativeName})',
-                          style: GoogleFonts.roboto(fontSize: 13),
+                          style: const TextStyle(fontSize: 13),
                         ),
                       );
                     }).toList(),
@@ -1487,11 +1485,11 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                         dialogTitleController.text = val.name;
                       }
                     },
-                    decoration: InputDecoration(
+                    decoration: const InputDecoration(
                       labelText: 'Language',
-                      labelStyle: GoogleFonts.roboto(fontSize: 13),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      border: const OutlineInputBorder(),
+                      labelStyle: TextStyle(fontSize: 13),
+                      contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      border: OutlineInputBorder(),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -1499,12 +1497,12 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                   // Custom Title
                   TextFormField(
                     controller: dialogTitleController,
-                    style: GoogleFonts.roboto(fontSize: 13),
+                    style: const TextStyle(fontSize: 13),
                     decoration: InputDecoration(
                       labelText: 'Subtitle Track Title',
                       hintText: 'e.g., Spanish (Latin America)',
                       errorText: dialogTitleError.value,
-                      labelStyle: GoogleFonts.roboto(fontSize: 13),
+                      labelStyle: const TextStyle(fontSize: 13),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                       border: const OutlineInputBorder(),
                     ),
@@ -1527,7 +1525,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: widget.isDarkMode ? Colors.white24 : Colors.grey.shade300,
+                        color: widget.isDarkMode ? AppColors.textDisabled : AppColors.textSecondary,
                       ),
                       borderRadius: BorderRadius.circular(8),
                     ),
@@ -1538,10 +1536,10 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                             dialogPickedFile.value != null
                                 ? '${dialogPickedFile.value!.name} (${(dialogPickedFile.value!.size / 1024).toStringAsFixed(1)} KB)'
                                 : 'No subtitle file selected (.vtt, .srt)',
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               color: dialogPickedFile.value != null
-                                  ? (widget.isDarkMode ? Colors.white : Colors.black87)
-                                  : Colors.grey,
+                                  ? (widget.isDarkMode ? AppColors.textPrimary : AppColors.bgPage)
+                                  : AppColors.textSecondary,
                               fontSize: 13,
                             ),
                             overflow: TextOverflow.ellipsis,
@@ -1567,9 +1565,9 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                           label: const Text('Choose'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.brand,
-                            foregroundColor: Colors.white,
+                            foregroundColor: AppColors.textPrimary,
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            textStyle: GoogleFonts.roboto(fontSize: 12),
+                            textStyle: const TextStyle(fontSize: 12),
                           ),
                         ),
                       ],
@@ -1582,7 +1580,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       TextButton(
-                        onPressed: () => Get.back(),
+                        onPressed: Get.back,
                         child: const Text('Cancel'),
                       ),
                       const SizedBox(width: 12),
@@ -1624,7 +1622,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                               },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.brand,
-                          foregroundColor: Colors.white,
+                          foregroundColor: AppColors.textPrimary,
                         ),
                         child: controller.isUploadingFile.value
                             ? const SizedBox(
@@ -1632,7 +1630,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                                 height: 16,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
                                 ),
                               )
                             : const Text('Upload & Save'),
@@ -1648,7 +1646,6 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
     );
   }
 }
-
 
 
 

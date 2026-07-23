@@ -6,18 +6,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class LikedVideosController extends GetxController {
-  var searchQuery = ''.obs;
-  var isSearching = false.obs;
-  var isSearchExpanded = false.obs;
-  var sortBy = 'recent'.obs;
-  var isAscending = false.obs;
-  var videos = <Video>[].obs;
-  var isLoading = true.obs;
-  var errorMessage = ''.obs;
-  var selectedCategory = 'All'.obs;
-  var isListView = true.obs;
+  RxString searchQuery = ''.obs;
+  RxBool isSearching = false.obs;
+  RxBool isSearchExpanded = false.obs;
+  RxString sortBy = 'recent'.obs;
+  RxBool isAscending = false.obs;
+  RxList<Video> videos = <Video>[].obs;
+  RxBool isLoading = true.obs;
+  RxString errorMessage = ''.obs;
+  RxString selectedCategory = 'All'.obs;
+  RxBool isListView = true.obs;
 
   StreamSubscription<QuerySnapshot>? _subscription;
 
@@ -64,9 +65,9 @@ class LikedVideosController extends GetxController {
         
         // Re-order to match the liked timestamp order from snapshot
         // Use a map for faster lookup
-        final videoMap = {for (var v in videoDocs) v.id: v};
+        final videoMap = {for (final v in videoDocs) v.id: v};
         final orderedVideos = videoIds
-            .where((id) => videoMap.containsKey(id))
+            .where(videoMap.containsKey)
             .map((id) => videoMap[id]!)
             .toList();
 
@@ -83,9 +84,9 @@ class LikedVideosController extends GetxController {
 
   Future<List<Video>> _fetchVideosInBatches(List<String> videoIds) async {
     const batchSize = 10;
-    final List<Video> allVideos = [];
+    final allVideos = <Video>[];
 
-    for (int i = 0; i < videoIds.length; i += batchSize) {
+    for (var i = 0; i < videoIds.length; i += batchSize) {
       final batch = videoIds.sublist(
         i,
         i + batchSize > videoIds.length ? videoIds.length : i + batchSize,
@@ -97,7 +98,7 @@ class LikedVideosController extends GetxController {
           .get();
 
       allVideos.addAll(
-        batchDocs.docs.map((doc) => Video.fromDocumentSnapshot(doc)),
+        batchDocs.docs.map(Video.fromDocumentSnapshot),
       );
     }
 
@@ -161,10 +162,10 @@ class LikedVideosController extends GetxController {
         'Video removed from Liked Videos.',
         snackPosition: SnackPosition.TOP,
         backgroundColor: const Color(0xFF6366F1),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         margin: const EdgeInsets.all(16),
         borderRadius: 12,
-        icon: const Icon(Icons.favorite_border, color: Colors.white),
+        icon: const Icon(Icons.favorite_border, color: AppColors.textPrimary),
       );
     } catch (e) {
       Get.snackbar(
@@ -172,10 +173,10 @@ class LikedVideosController extends GetxController {
         'Failed to remove from likes: $e',
         snackPosition: SnackPosition.TOP,
         backgroundColor: const Color(0xFFEF4444),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         margin: const EdgeInsets.all(16),
         borderRadius: 12,
-        icon: const Icon(Icons.error_outline, color: Colors.white),
+        icon: const Icon(Icons.error_outline, color: AppColors.textPrimary),
       );
     }
   }
@@ -225,12 +226,12 @@ class LikedVideosController extends GetxController {
   }
 
   Map<String, List<Video>> groupVideosByDate(List<Video> videos) {
-    final Map<String, List<Video>> groups = {};
+    final groups = <String, List<Video>>{};
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
 
-    for (var video in videos) {
+    for (final video in videos) {
       final date = video.uploadedAt.toDate();
       final dateOnly = DateTime(date.year, date.month, date.day);
       String key;

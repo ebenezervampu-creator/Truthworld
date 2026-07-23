@@ -1,13 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/features/video/data/models/comment.dart';
+import 'package:truthworld/components/ui/animated_interaction_buttons.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/features/video/data/models/comment.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Professional Comment Card Widget (Industry Standard)
 /// Displays a single comment with like/dislike/reply functionality
 class CommentCardWidget extends StatefulWidget {
+
+  const CommentCardWidget({
+    required this.comment, required this.onLike, required this.onDislike, required this.onReply, required this.isLiked, required this.isDisliked, required this.isCreatorComment, super.key,
+    this.onShowReplies,
+    this.replyCount = 0,
+  });
   final Comment comment;
   final VoidCallback onLike;
   final VoidCallback onDislike;
@@ -17,19 +23,6 @@ class CommentCardWidget extends StatefulWidget {
   final bool isCreatorComment;
   final VoidCallback? onShowReplies;
   final int replyCount;
-
-  const CommentCardWidget({
-    super.key,
-    required this.comment,
-    required this.onLike,
-    required this.onDislike,
-    required this.onReply,
-    required this.isLiked,
-    required this.isDisliked,
-    required this.isCreatorComment,
-    this.onShowReplies,
-    this.replyCount = 0,
-  });
 
   @override
   State<CommentCardWidget> createState() => _CommentCardWidgetState();
@@ -46,7 +39,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
             ? AppColors.brand.withValues(alpha: 0.05)
             : Colors.transparent,
         border: widget.isCreatorComment
-            ? Border(
+            ? const Border(
                 left: BorderSide(
                   color: AppColors.brand,
                   width: 3,
@@ -96,7 +89,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                 children: [
                   Text(
                     widget.comment.displayName,
-                    style: GoogleFonts.roboto(
+                    style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                       color: AppColors.textPrimary,
@@ -115,12 +108,12 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                           color: AppColors.brand,
                           borderRadius: BorderRadius.circular(3),
                         ),
-                        child: Text(
+                        child: const Text(
                           'Channel',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w500,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                       ),
@@ -130,7 +123,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
               const SizedBox(height: 2),
               Text(
                 _formatTimeAgo(widget.comment.createdAt.toDate()),
-                style: GoogleFonts.roboto(
+                style: const TextStyle(
                   fontSize: 11,
                   color: AppColors.textSecondary,
                 ),
@@ -140,17 +133,17 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
         ),
         // More options menu
         PopupMenuButton(
-          child: Icon(
+          child: const Icon(
             Icons.more_vert,
             size: 18,
             color: AppColors.textSecondary,
           ),
           itemBuilder: (context) => [
             if (widget.isCreatorComment)
-              PopupMenuItem(
+              const PopupMenuItem(
                 child: Text('Mark as Helpful'),
               ),
-            PopupMenuItem(
+            const PopupMenuItem(
               child: Text('Report'),
             ),
           ],
@@ -168,7 +161,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
       data: widget.comment.text,
       selectable: true,
       styleSheet: MarkdownStyleSheet(
-        p: GoogleFonts.roboto(
+        p: const TextStyle(
           fontSize: 13,
           color: AppColors.textPrimary,
           height: 1.5,
@@ -185,23 +178,63 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
     return Row(
       children: [
         // Like button
-        _buildInteractionButton(
-          icon: widget.isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
-          label: widget.comment.likeCount > 0
-              ? widget.comment.likeCount.toString()
-              : 'Like',
-          isActive: widget.isLiked,
+        AnimatedLikeButton(
+          isLiked: widget.isLiked,
+          size: 16,
+          activeColor: AppColors.brand,
+          inactiveColor: AppColors.textSecondary,
           onTap: widget.onLike,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                widget.isLiked ? Icons.thumb_up_rounded : Icons.thumb_up_outlined,
+                size: 16,
+                color: widget.isLiked ? AppColors.brand : AppColors.textSecondary,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                widget.comment.likeCount > 0
+                    ? widget.comment.likeCount.toString()
+                    : 'Like',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: widget.isLiked ? AppColors.brand : AppColors.textSecondary,
+                  fontWeight: widget.isLiked ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(width: 12),
         // Dislike button
-        _buildInteractionButton(
-          icon: widget.isDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
-          label: widget.comment.dislikeCount > 0
-              ? widget.comment.dislikeCount.toString()
-              : 'Dislike',
-          isActive: widget.isDisliked,
+        AnimatedDislikeButton(
+          isDisliked: widget.isDisliked,
+          size: 16,
+          activeColor: AppColors.brand,
+          inactiveColor: AppColors.textSecondary,
           onTap: widget.onDislike,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                widget.isDisliked ? Icons.thumb_down_rounded : Icons.thumb_down_outlined,
+                size: 16,
+                color: widget.isDisliked ? AppColors.brand : AppColors.textSecondary,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                widget.comment.dislikeCount > 0
+                    ? widget.comment.dislikeCount.toString()
+                    : 'Dislike',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: widget.isDisliked ? AppColors.brand : AppColors.textSecondary,
+                  fontWeight: widget.isDisliked ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(width: 12),
         // Reply button
@@ -219,7 +252,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
               children: [
                 Stack(
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.favorite,
                       size: 20,
                       color: Colors.pink,
@@ -228,11 +261,11 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                       right: 0,
                       bottom: 0,
                       child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
+                        decoration: const BoxDecoration(
+                          color: AppColors.textPrimary,
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(
+                        child: const Icon(
                           Icons.person,
                           size: 10,
                           color: AppColors.brand,
@@ -244,7 +277,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                 const SizedBox(width: 4),
                 Text(
                   'Hearted by ${widget.comment.creatorHeartName ?? 'Creator'}',
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                     color: AppColors.textPrimary,
@@ -262,7 +295,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
               onTap: widget.onShowReplies,
               child: Text(
                 '${widget.replyCount} ${widget.replyCount == 1 ? 'reply' : 'replies'}',
-                style: GoogleFonts.roboto(
+                style: const TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
                   color: AppColors.brand,
@@ -295,7 +328,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
             const SizedBox(width: 4),
             Text(
               label,
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 12,
                 color: isActive ? AppColors.brand : AppColors.textSecondary,
                 fontWeight: isActive ? FontWeight.w500 : FontWeight.w500,

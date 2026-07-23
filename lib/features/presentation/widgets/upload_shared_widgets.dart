@@ -2,10 +2,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 // =============================================================================
 // REUSABLE UPLOAD WIDGETS
@@ -13,16 +12,13 @@ import 'package:truthworld/components/ui/user_avatar.dart';
 
 /// Channel selector dropdown used by both upload flows.
 class UploadChannelSelector extends StatelessWidget {
+
+  const UploadChannelSelector({
+    required this.channels, required this.selectedChannel, required this.onChanged, super.key,
+  });
   final RxList<Channel> channels;
   final Rx<Channel?> selectedChannel;
   final void Function(Channel) onChanged;
-
-  const UploadChannelSelector({
-    super.key,
-    required this.channels,
-    required this.selectedChannel,
-    required this.onChanged,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -59,7 +55,7 @@ class UploadChannelSelector extends StatelessWidget {
                   children: [
                     Text(
                       channel.channelName,
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                         color: isDark ? AppColors.textPrimary : AppColors.bgPage,
@@ -68,7 +64,7 @@ class UploadChannelSelector extends StatelessWidget {
                     ),
                     Text(
                       'Active Channel',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 11,
                         color: isDark
                             ? AppColors.textPrimary38
@@ -96,14 +92,14 @@ class UploadChannelSelector extends StatelessWidget {
           value: selectedChannel.value,
           decoration: InputDecoration(
             hintText: 'Select Channel',
-            hintStyle: GoogleFonts.roboto(
+            hintStyle: TextStyle(
               fontSize: 14,
               color: isDark
                   ? AppColors.textPrimary38
                   : AppColors.textSecondary,
             ),
             prefixIcon: Padding(
-              padding: EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               child: Icon(
                 Icons.smart_display_rounded,
                 size: 20,
@@ -116,10 +112,10 @@ class UploadChannelSelector extends StatelessWidget {
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
             focusedBorder: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
           dropdownColor: isDark ? AppColors.bgPage : AppColors.textPrimary,
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
             color: isDark ? AppColors.textPrimary : AppColors.bgPage,
@@ -176,7 +172,7 @@ class UploadChannelSelector extends StatelessWidget {
 
   Widget _buildNoChannels(bool isDark) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: isDark
             ? AppColors.bgPage
@@ -190,12 +186,12 @@ class UploadChannelSelector extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.info_outline, color: AppColors.textPrimary),
+          const Icon(Icons.info_outline, color: AppColors.textPrimary),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               'No channels found. Create one first.',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 13,
                 color: isDark
                     ? AppColors.textPrimary60
@@ -205,9 +201,9 @@ class UploadChannelSelector extends StatelessWidget {
           ),
           TextButton(
             onPressed: () => Get.toNamed('/channelscreen'),
-            child: Text(
+            child: const Text(
               'Create',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
                 color: AppColors.textSecondary,
@@ -222,14 +218,13 @@ class UploadChannelSelector extends StatelessWidget {
 
 /// Visibility selector (Public / Unlisted / Private).
 class UploadVisibilitySelector extends StatelessWidget {
-  final RxString selectedVisibility;
-  final VoidCallback? onChanged;
 
   const UploadVisibilitySelector({
-    super.key,
-    required this.selectedVisibility,
+    required this.selectedVisibility, super.key,
     this.onChanged,
   });
+  final RxString selectedVisibility;
+  final VoidCallback? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -240,7 +235,7 @@ class UploadVisibilitySelector extends StatelessWidget {
           final isSelected = selectedVisibility.value == visibility;
           return Expanded(
             child: Padding(
-              padding: EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(right: 8),
               child: InkWell(
                 onTap: () {
                   selectedVisibility.value = visibility;
@@ -249,7 +244,7 @@ class UploadVisibilitySelector extends StatelessWidget {
                 },
                 borderRadius: BorderRadius.circular(10),
                 child: Container(
-                  padding: EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
                     color: isSelected
                         ? _color(visibility).withValues(alpha: 0.1)
@@ -280,7 +275,7 @@ class UploadVisibilitySelector extends StatelessWidget {
                       const SizedBox(height: 6),
                       Text(
                         visibility,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 12,
                           fontWeight: isSelected
                               ? FontWeight.w500
@@ -332,6 +327,16 @@ class UploadVisibilitySelector extends StatelessWidget {
 
 /// Styled text field for upload forms.
 class UploadInputField extends StatelessWidget {
+
+  const UploadInputField({
+    required this.controller, required this.hint, super.key,
+    this.label,
+    this.icon,
+    this.maxLines = 1,
+    this.maxLength,
+    this.validator,
+    this.onChanged,
+  });
   final TextEditingController controller;
   final String hint;
   final String? label;
@@ -340,18 +345,6 @@ class UploadInputField extends StatelessWidget {
   final int? maxLength;
   final String? Function(String?)? validator;
   final ValueChanged<String>? onChanged;
-
-  const UploadInputField({
-    super.key,
-    required this.controller,
-    required this.hint,
-    this.label,
-    this.icon,
-    this.maxLines = 1,
-    this.maxLength,
-    this.validator,
-    this.onChanged,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -368,7 +361,7 @@ class UploadInputField extends StatelessWidget {
               ],
               Text(
                 label!,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: isDark
@@ -386,7 +379,7 @@ class UploadInputField extends StatelessWidget {
           maxLength: maxLength,
           validator: validator,
           onChanged: onChanged,
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w500,
             color: isDark
@@ -396,7 +389,7 @@ class UploadInputField extends StatelessWidget {
           ),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: GoogleFonts.roboto(
+            hintStyle: TextStyle(
               color: isDark
                   ? AppColors.textPrimary.withValues(alpha: 0.3)
                   : AppColors.textSecondary,
@@ -426,7 +419,7 @@ class UploadInputField extends StatelessWidget {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(14),
-              borderSide: BorderSide(
+              borderSide: const BorderSide(
                 color: AppColors.textSecondary,
                 width: 2,
               ),
@@ -435,7 +428,7 @@ class UploadInputField extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               borderSide: BorderSide(color: AppTokens.colors.error, width: 1.5),
             ),
-            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
         ),
       ],
@@ -445,22 +438,21 @@ class UploadInputField extends StatelessWidget {
 
 /// Animated publish / schedule button.
 class UploadPublishButton extends StatelessWidget {
-  final bool canPublish;
-  final bool isUploading;
-  final bool isScheduled;
-  final double uploadProgress;
-  final VoidCallback? onPublish;
-  final Color accentColor;
 
   const UploadPublishButton({
-    super.key,
-    required this.canPublish,
+    required this.canPublish, super.key,
     this.isUploading = false,
     this.isScheduled = false,
     this.uploadProgress = 0.0,
     this.onPublish,
     this.accentColor = AppColors.brand,
   });
+  final bool canPublish;
+  final bool isUploading;
+  final bool isScheduled;
+  final double uploadProgress;
+  final VoidCallback? onPublish;
+  final Color accentColor;
 
   @override
   Widget build(BuildContext context) {
@@ -523,7 +515,7 @@ class UploadPublishButton extends StatelessWidget {
               const SizedBox(width: 12),
               Text(
                 isScheduled ? 'Schedule Upload' : 'Publish Now',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
                   color: canPublish
@@ -545,7 +537,7 @@ class UploadPublishButton extends StatelessWidget {
     final progressText = '${(uploadProgress * 100).toInt()}%';
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: isDark
             ? AppColors.bgPage
@@ -561,7 +553,7 @@ class UploadPublishButton extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: EdgeInsets.all(10),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [accentColor, accentColor.withValues(alpha: 0.8)],
@@ -587,7 +579,7 @@ class UploadPublishButton extends StatelessWidget {
                   children: [
                     Text(
                       'Uploading...',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w500,
                         color: isDark
@@ -598,7 +590,7 @@ class UploadPublishButton extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       'Processing your content',
-                      style: GoogleFonts.roboto(
+                      style: TextStyle(
                         fontSize: 13,
                         color: isDark
                             ? AppColors.textPrimary60
@@ -610,7 +602,7 @@ class UploadPublishButton extends StatelessWidget {
               ),
               Text(
                 progressText,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
                   color: accentColor,
@@ -638,18 +630,14 @@ class UploadPublishButton extends StatelessWidget {
 
 /// Preview checklist item.
 class UploadPreviewItem extends StatelessWidget {
+
+  const UploadPreviewItem({
+    required this.icon, required this.label, required this.value, required this.isComplete, super.key,
+  });
   final IconData icon;
   final String label;
   final String value;
   final bool isComplete;
-
-  const UploadPreviewItem({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.isComplete,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -672,7 +660,7 @@ class UploadPreviewItem extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 11,
                   color: isDark
                       ? AppColors.textPrimary60
@@ -683,7 +671,7 @@ class UploadPreviewItem extends StatelessWidget {
                 value,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                   color: isComplete

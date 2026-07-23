@@ -1,17 +1,15 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-
-import 'package:truthworld/features/discover/presentation/controllers/discover_channels_controller.dart';
-import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/discover/presentation/controllers/discover_channels_controller.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class DiscoverChannelsPage extends StatelessWidget {
-  final bool isDashboard;
   DiscoverChannelsPage({super.key, this.isDashboard = false});
+  final bool isDashboard;
 
   final DiscoverChannelsController controller = Get.put(DiscoverChannelsController());
 
@@ -19,14 +17,14 @@ class DiscoverChannelsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return ResponsiveBuilder(
       builder: (context, deviceType) {
-        final backgroundColor = AppColors.bgPage;
-        final textColor = AppColors.textPrimary;
+        const backgroundColor = AppColors.bgPage;
+        const textColor = AppColors.textPrimary;
 
         return Scaffold(
           backgroundColor: backgroundColor,
           appBar: (context.isMobile && !isDashboard)
               ? AppBar(
-                  title: Text('Discover Channels', style: GoogleFonts.roboto(color: textColor, fontWeight: FontWeight.bold)),
+                  title: const Text('Discover Channels', style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
                   backgroundColor: Colors.transparent,
                   elevation: 0,
                 )
@@ -37,12 +35,12 @@ class DiscoverChannelsPage extends StatelessWidget {
               child: CustomScrollView(
                 slivers: [
                   if (!context.isMobile || isDashboard)
-                    SliverToBoxAdapter(
+                    const SliverToBoxAdapter(
                       child: Padding(
-                        padding: const EdgeInsets.only(bottom: 24),
+                        padding: EdgeInsets.only(bottom: 24),
                         child: Text(
                           'Discover Channels',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 32,
                             fontWeight: FontWeight.bold,
                             color: textColor,
@@ -95,7 +93,7 @@ class DiscoverChannelsPage extends StatelessWidget {
                     }
 
                     if (controller.channels.isEmpty) {
-                      return SliverFillRemaining(
+                      return const SliverFillRemaining(
                         child: Center(
                           child: Text(
                             'No channels found in this category',
@@ -159,7 +157,7 @@ class DiscoverChannelsPage extends StatelessWidget {
             image: NetworkImage(_getCategoryImage(category['name'])),
             fit: BoxFit.cover,
             colorFilter: ColorFilter.mode(
-              Colors.black.withValues(alpha: 0.4),
+              AppColors.bgPage.withValues(alpha: 0.4),
               BlendMode.darken,
             ),
           ),
@@ -168,8 +166,8 @@ class DiscoverChannelsPage extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Text(
           category['name'],
-          style: GoogleFonts.roboto(
-            color: Colors.white,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.bold,
           ),
@@ -208,7 +206,7 @@ class DiscoverChannelsPage extends StatelessWidget {
           ),
           Text(
             controller.selectedCategory.value,
-            style: GoogleFonts.roboto(
+            style: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: AppColors.textPrimary,
@@ -237,7 +235,7 @@ class DiscoverChannelsPage extends StatelessWidget {
                 backgroundColor: AppColors.bgSurface,
                 selectedColor: AppColors.brand,
                 labelStyle: TextStyle(
-                  color: isSelected ? Colors.white : AppColors.textSecondary,
+                  color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                 ),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -311,7 +309,7 @@ class DiscoverChannelsPage extends StatelessWidget {
                           photoUrl: channel.avatarUrl,
                           displayName: channel.name,
                           backgroundColor: AppTheme.secondaryBackground,
-                          textColor: Colors.white,
+                          textColor: AppColors.textPrimary,
                           fontSize: 18,
                         ),
                       ),
@@ -332,7 +330,7 @@ class DiscoverChannelsPage extends StatelessWidget {
                           Flexible(
                             child: Text(
                               channel.name,
-                              style: GoogleFonts.roboto(
+                              style: const TextStyle(
                                 color: AppColors.textPrimary,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 15,
@@ -354,14 +352,14 @@ class DiscoverChannelsPage extends StatelessWidget {
                         channel.handle.isNotEmpty 
                             ? channel.handle 
                             : '@${channel.name.toLowerCase().replaceAll(RegExp(r'\s+'), '')}',
-                        style: GoogleFonts.roboto(color: AppColors.textSecondary, fontSize: 12),
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 6),
                       Text(
                         '${_formatCount(channel.subscriberCount)} subscribers',
-                        style: GoogleFonts.roboto(
+                        style: const TextStyle(
                           color: AppColors.textSecondary,
                           fontSize: 12,
                           fontWeight: FontWeight.w500,
@@ -377,14 +375,14 @@ class DiscoverChannelsPage extends StatelessWidget {
                           onPressed: () {},
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.brand,
-                            foregroundColor: Colors.white,
+                            foregroundColor: AppColors.textPrimary,
                             elevation: 0,
                             padding: EdgeInsets.zero,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
                           ),
-                          child: Text(
+                          child: const Text(
                             'Subscribe',
-                            style: GoogleFonts.roboto(fontSize: 13, fontWeight: FontWeight.w600),
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                           ),
                         ),
                       ),

@@ -1,13 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
-
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class TopicInteractionController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -153,8 +153,8 @@ class TopicInteractionController extends GetxController {
       AppSnackbar.show(
         'Authentication Required',
         'Please sign in to like.',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
       return;
     }
@@ -271,8 +271,8 @@ class TopicInteractionController extends GetxController {
       AppSnackbar.show(
         'Authentication Required',
         'Please sign in to comment.',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
       return;
     }
@@ -311,9 +311,6 @@ class TopicInteractionController extends GetxController {
         dislikeCount: 0,
         reportCount: 0,
         createdAt: Timestamp.now(),
-        hasCreatorReply: false,
-        isHeartedByCreator: false,
-        creatorHeartName: null,
       );
 
       await commentRef.set(commentObj.toMap());
@@ -331,8 +328,8 @@ class TopicInteractionController extends GetxController {
       AppSnackbar.show(
         'Error',
         'Failed to add comment: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
     }
   }
@@ -362,8 +359,8 @@ class TopicInteractionController extends GetxController {
       AppSnackbar.show(
         'Authentication Required',
         'Please sign in to reply.',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
       return;
     }
@@ -425,8 +422,8 @@ class TopicInteractionController extends GetxController {
       AppSnackbar.show(
         'Error',
         'Failed to add reply: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
     }
   }
@@ -440,8 +437,8 @@ class TopicInteractionController extends GetxController {
       AppSnackbar.show(
         'Authentication Required',
         'Please sign in to interact.',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
       return;
     }
@@ -453,7 +450,7 @@ class TopicInteractionController extends GetxController {
     final wasDisliked = currentInteraction['isDisliked'] ?? false;
 
     final newLiked = !wasLiked;
-    final newDisliked = newLiked ? false : wasDisliked;
+    final newDisliked = !newLiked && wasDisliked;
 
     // Optimistic UI update
     userCommentInteractions[commentId] = {
@@ -466,8 +463,8 @@ class TopicInteractionController extends GetxController {
     Comment? oldComment;
     if (index != -1) {
       oldComment = comments[index];
-      int newLikeCount = oldComment.likeCount;
-      int newDislikeCount = oldComment.dislikeCount;
+      var newLikeCount = oldComment.likeCount;
+      var newDislikeCount = oldComment.dislikeCount;
       if (newLiked) {
         newLikeCount++;
         if (wasDisliked) {
@@ -553,8 +550,8 @@ class TopicInteractionController extends GetxController {
       AppSnackbar.show(
         'Authentication Required',
         'Please sign in to interact.',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
       return;
     }
@@ -566,7 +563,7 @@ class TopicInteractionController extends GetxController {
     final wasDisliked = currentInteraction['isDisliked'] ?? false;
 
     final newDisliked = !wasDisliked;
-    final newLiked = newDisliked ? false : wasLiked;
+    final newLiked = !newDisliked && wasLiked;
 
     // Optimistic UI update
     userCommentInteractions[commentId] = {
@@ -579,8 +576,8 @@ class TopicInteractionController extends GetxController {
     Comment? oldComment;
     if (index != -1) {
       oldComment = comments[index];
-      int newLikeCount = oldComment.likeCount;
-      int newDislikeCount = oldComment.dislikeCount;
+      var newLikeCount = oldComment.likeCount;
+      var newDislikeCount = oldComment.dislikeCount;
       if (newDisliked) {
         newDislikeCount++;
         if (wasLiked) {
@@ -670,8 +667,8 @@ class TopicInteractionController extends GetxController {
       AppSnackbar.show(
         'Authentication Required',
         'Please sign in to interact.',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
       return;
     }
@@ -683,7 +680,7 @@ class TopicInteractionController extends GetxController {
     final wasDisliked = currentInteraction['isDisliked'] ?? false;
 
     final newLiked = !wasLiked;
-    final newDisliked = newLiked ? false : wasDisliked;
+    final newDisliked = !newLiked && wasDisliked;
 
     userReplyInteractions[replyId] = {
       'isLiked': newLiked,
@@ -696,8 +693,8 @@ class TopicInteractionController extends GetxController {
     Reply? oldReply;
     if (index != -1) {
       oldReply = replies[index];
-      int newLikeCount = oldReply.likeCount;
-      int newDislikeCount = oldReply.dislikeCount;
+      var newLikeCount = oldReply.likeCount;
+      var newDislikeCount = oldReply.dislikeCount;
       if (newLiked) {
         newLikeCount++;
         if (wasDisliked) {
@@ -789,8 +786,8 @@ class TopicInteractionController extends GetxController {
       AppSnackbar.show(
         'Authentication Required',
         'Please sign in to interact.',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
       return;
     }
@@ -802,7 +799,7 @@ class TopicInteractionController extends GetxController {
     final wasDisliked = currentInteraction['isDisliked'] ?? false;
 
     final newDisliked = !wasDisliked;
-    final newLiked = newDisliked ? false : wasLiked;
+    final newLiked = !newDisliked && wasLiked;
 
     userReplyInteractions[replyId] = {
       'isLiked': newLiked,
@@ -815,8 +812,8 @@ class TopicInteractionController extends GetxController {
     Reply? oldReply;
     if (index != -1) {
       oldReply = replies[index];
-      int newLikeCount = oldReply.likeCount;
-      int newDislikeCount = oldReply.dislikeCount;
+      var newLikeCount = oldReply.likeCount;
+      var newDislikeCount = oldReply.dislikeCount;
       if (newDisliked) {
         newDislikeCount++;
         if (wasLiked) newLikeCount = (newLikeCount - 1).clamp(0, 999999);
@@ -915,16 +912,16 @@ class TopicInteractionController extends GetxController {
       AppSnackbar.show(
         'Success',
         'Comment deleted successfully.',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
       );
     } catch (e) {
       debugPrint('Error deleting comment: $e');
       AppSnackbar.show(
         'Error',
         'Failed to delete comment: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
     }
   }
@@ -952,16 +949,16 @@ class TopicInteractionController extends GetxController {
       AppSnackbar.show(
         'Success',
         'Reply deleted successfully.',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
       );
     } catch (e) {
       debugPrint('Error deleting reply: $e');
       AppSnackbar.show(
         'Error',
         'Failed to delete reply: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
     }
   }
@@ -978,8 +975,8 @@ class TopicInteractionController extends GetxController {
       AppSnackbar.show(
         'Authentication Required',
         'Please sign in to report.',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
       return;
     }
@@ -996,15 +993,15 @@ class TopicInteractionController extends GetxController {
       AppSnackbar.show(
         'Report Submitted',
         'Thank you for reporting. Our moderators will review it shortly.',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
       );
     } catch (e) {
       AppSnackbar.show(
         'Error',
         'Failed to submit report: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
     }
   }

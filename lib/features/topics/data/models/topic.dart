@@ -15,32 +15,6 @@ enum TopicVisibilityType {
 ///
 /// Stored in Firestore at: topics/{topicId}
 class Topic {
-  final String id;
-  final String title;
-  final String slug;
-  final String handle;
-  final String handleLowercase;
-  final String description;
-  final String category;
-  final String? thumbnailUrl;
-  final String? coverImage;
-  final int videoCount;
-  final List<String> featuredVideoIds;
-  final List<String> relatedTopics;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-  final int likeCount;
-  final int commentCount;
-  final int views;
-  final double trendingScore;
-  final String? channelId;
-  final String? creatorId;
-  final TopicVisibilityType visibilityType;
-  final String? accessCode;
-  final int followerCount;
-  final String status;
-  final bool? geminiApproved;
-  final String? moderationReason;
 
   const Topic({
     required this.id,
@@ -50,13 +24,11 @@ class Topic {
     required this.handleLowercase,
     required this.description,
     required this.category,
-    this.thumbnailUrl,
+    required this.createdAt, required this.updatedAt, this.thumbnailUrl,
     this.coverImage,
     this.videoCount = 0,
     this.featuredVideoIds = const [],
     this.relatedTopics = const [],
-    required this.createdAt,
-    required this.updatedAt,
     this.likeCount = 0,
     this.commentCount = 0,
     this.views = 0,
@@ -73,7 +45,7 @@ class Topic {
 
   /// Create from Firestore document
   factory Topic.fromDocumentSnapshot(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = doc.data()! as Map<String, dynamic>;
     final slugVal = data['slug'] ?? '';
     return Topic(
       id: doc.id,
@@ -103,6 +75,97 @@ class Topic {
       geminiApproved: data['geminiApproved'] as bool?,
       moderationReason: data['moderationReason'] as String?,
     );
+  }
+
+  /// Create from Map (e.g. from local storage cache)
+  factory Topic.fromMap(Map<String, dynamic> map, {String? docId}) {
+    final slugVal = map['slug'] ?? '';
+    return Topic(
+      id: docId ?? map['id'] ?? '',
+      title: map['title'] ?? '',
+      slug: slugVal,
+      handle: map['handle'] ?? 'T/$slugVal',
+      handleLowercase: map['handleLowercase'] ?? 't/${slugVal.toLowerCase()}',
+      description: map['description'] ?? '',
+      category: map['category'] ?? '',
+      thumbnailUrl: map['thumbnailUrl'],
+      coverImage: map['coverImage'],
+      videoCount: map['videoCount'] ?? 0,
+      featuredVideoIds: List<String>.from(map['featuredVideoIds'] ?? []),
+      relatedTopics: List<String>.from(map['relatedTopics'] ?? []),
+      createdAt: TimestampUtils.parseToDateTime(map['createdAt']) ?? DateTime.now(),
+      updatedAt: TimestampUtils.parseToDateTime(map['updatedAt']) ?? DateTime.now(),
+      likeCount: map['likeCount'] ?? 0,
+      commentCount: map['commentCount'] ?? 0,
+      views: map['views'] ?? 0,
+      trendingScore: (map['trendingScore'] as num?)?.toDouble() ?? 0.0,
+      channelId: map['channelId'],
+      creatorId: map['creatorId'],
+      visibilityType: TopicVisibilityType.fromJson(map['visibilityType'] ?? 'public'),
+      accessCode: map['accessCode'],
+      followerCount: map['followerCount'] ?? 0,
+      status: map['status'] ?? 'active',
+      geminiApproved: map['geminiApproved'] as bool?,
+      moderationReason: map['moderationReason'] as String?,
+    );
+  }
+  final String id;
+  final String title;
+  final String slug;
+  final String handle;
+  final String handleLowercase;
+  final String description;
+  final String category;
+  final String? thumbnailUrl;
+  final String? coverImage;
+  final int videoCount;
+  final List<String> featuredVideoIds;
+  final List<String> relatedTopics;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  final int likeCount;
+  final int commentCount;
+  final int views;
+  final double trendingScore;
+  final String? channelId;
+  final String? creatorId;
+  final TopicVisibilityType visibilityType;
+  final String? accessCode;
+  final int followerCount;
+  final String status;
+  final bool? geminiApproved;
+  final String? moderationReason;
+
+  /// Convert to a map suitable for JSON serialization / caching
+  Map<String, dynamic> toCacheMap() {
+    return {
+      'id': id,
+      'title': title,
+      'slug': slug,
+      'handle': handle,
+      'handleLowercase': handleLowercase,
+      'description': description,
+      'category': category,
+      'thumbnailUrl': thumbnailUrl,
+      'coverImage': coverImage,
+      'videoCount': videoCount,
+      'featuredVideoIds': featuredVideoIds,
+      'relatedTopics': relatedTopics,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+      'likeCount': likeCount,
+      'commentCount': commentCount,
+      'views': views,
+      'trendingScore': trendingScore,
+      'channelId': channelId,
+      'creatorId': creatorId,
+      'visibilityType': visibilityType.toJson(),
+      'accessCode': accessCode,
+      'followerCount': followerCount,
+      'status': status,
+      'geminiApproved': geminiApproved,
+      'moderationReason': moderationReason,
+    };
   }
 
   /// Convert to Firestore map
@@ -198,7 +261,7 @@ class Topic {
   /// Returns the routing parameter (the handle without "T/" prefix, or slug as fallback)
   String get routePathParameter {
     if (handle.isNotEmpty) {
-      String clean = handle.trim();
+      final clean = handle.trim();
       if (clean.startsWith('T/')) {
         return clean.substring(2);
       }
@@ -215,11 +278,6 @@ class Topic {
 
 /// Lightweight topic reference for related topics list
 class TopicRef {
-  final String id;
-  final String title;
-  final String slug;
-  final String? thumbnailUrl;
-  final int videoCount;
 
   const TopicRef({
     required this.id,
@@ -238,6 +296,11 @@ class TopicRef {
       videoCount: map['videoCount'] ?? 0,
     );
   }
+  final String id;
+  final String title;
+  final String slug;
+  final String? thumbnailUrl;
+  final int videoCount;
 
   Map<String, dynamic> toMap() {
     return {

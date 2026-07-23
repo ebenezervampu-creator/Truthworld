@@ -3,20 +3,19 @@ import 'package:truthworld/theme/app_theme.dart';
 
 
 class LayoutContainer extends StatelessWidget {
-  final Widget child;
-  final double? maxWidth;
-  final EdgeInsetsGeometry? padding;
-  final Alignment alignment;
-  final double? height;
 
   const LayoutContainer({
-    super.key,
-    required this.child,
+    required this.child, super.key,
     this.maxWidth = 1400,
     this.padding,
     this.alignment = Alignment.center,
     this.height,
   });
+  final Widget child;
+  final double? maxWidth;
+  final EdgeInsetsGeometry? padding;
+  final Alignment alignment;
+  final double? height;
 
   @override
   Widget build(BuildContext context) {
@@ -48,22 +47,21 @@ class LayoutContainer extends StatelessWidget {
 /// - Consistent vertical spacing between sections
 /// - Semantic structure
 class ContentSection extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry? padding;
-  final Color? backgroundColor;
-  final double? borderRadius;
-  final bool withBorder;
-  final String? semanticLabel;
 
   const ContentSection({
-    super.key,
-    required this.child,
+    required this.child, super.key,
     this.padding,
     this.backgroundColor,
     this.borderRadius,
     this.withBorder = false,
     this.semanticLabel,
   });
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+  final Color? backgroundColor;
+  final double? borderRadius;
+  final bool withBorder;
+  final String? semanticLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -80,7 +78,6 @@ class ContentSection extends StatelessWidget {
           border: withBorder
               ? Border.all(
                   color: AppTheme.colors.border.withValues(alpha: 0.3),
-                  width: 1.0,
                 )
               : null,
         ),

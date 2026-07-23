@@ -5,12 +5,6 @@ import 'package:truthworld/core/services/logger_service.dart';
 
 /// Resolved geolocation data
 class GeoLocation {
-  final String state;
-  final String city;
-  final String areaType; // 'urban' or 'rural'
-  final String country;
-  final double? lat;
-  final double? lon;
 
   const GeoLocation({
     required this.state,
@@ -20,6 +14,21 @@ class GeoLocation {
     this.lat,
     this.lon,
   });
+
+  factory GeoLocation.fromMap(Map<String, dynamic> map) => GeoLocation(
+        state: map['state'] as String? ?? 'Unknown',
+        city: map['city'] as String? ?? 'Unknown',
+        areaType: map['areaType'] as String? ?? 'unknown',
+        country: map['country'] as String? ?? 'IN',
+        lat: (map['lat'] as num?)?.toDouble(),
+        lon: (map['lon'] as num?)?.toDouble(),
+      );
+  final String state;
+  final String city;
+  final String areaType; // 'urban' or 'rural'
+  final String country;
+  final double? lat;
+  final double? lon;
 
   static const unknown = GeoLocation(
     state: 'Unknown',
@@ -35,15 +44,6 @@ class GeoLocation {
         'lat': lat,
         'lon': lon,
       };
-
-  factory GeoLocation.fromMap(Map<String, dynamic> map) => GeoLocation(
-        state: map['state'] as String? ?? 'Unknown',
-        city: map['city'] as String? ?? 'Unknown',
-        areaType: map['areaType'] as String? ?? 'unknown',
-        country: map['country'] as String? ?? 'IN',
-        lat: (map['lat'] as num?)?.toDouble(),
-        lon: (map['lon'] as num?)?.toDouble(),
-      );
 }
 
 /// Service for IP to Geolocation mapping (State/City/Area).
@@ -178,7 +178,7 @@ class GeolocationService extends GetxService {
 
   /// Get state code from state name
   String? getStateCode(String stateName) {
-    for (var entry in _indianStates.entries) {
+    for (final entry in _indianStates.entries) {
       if (entry.value == stateName) return entry.key;
     }
     return null;
@@ -217,7 +217,6 @@ class GeolocationService extends GetxService {
       state: state,
       city: 'Unknown',
       areaType: 'unknown',
-      country: 'IN',
     );
     _cache[ipAddress] = geo;
     return geo;

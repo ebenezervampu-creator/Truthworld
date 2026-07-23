@@ -1,5 +1,5 @@
-import 'package:universal_html/js.dart' as js;
 import 'package:flutter/foundation.dart';
+import 'package:universal_html/js.dart' as js;
 
 /// Service to handle zero-latency data injection from prerendered HTML pages.
 ///
@@ -33,7 +33,7 @@ class HydrationService {
 
       // Convert JavaScript object to Dart Map recursively or simply cast
       // The js package handles simple JS interop map casting well enough.
-      final Map<String, dynamic> dartMap = {};
+      final dartMap = <String, dynamic>{};
       final keys =
           (jsContext['Object'] as dynamic).callMethod('keys', [jsData]) as List;
       for (final k in keys) {

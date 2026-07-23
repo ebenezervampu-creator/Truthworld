@@ -6,9 +6,6 @@ enum ChannelStatus { active, suspended, underReview, deleted, verificationPendin
 enum MonetizationTier { none, eligible, basic, premium, pro }
 
 class ChannelMetricsV2 {
-  final int totalViews;
-  final int totalWatchTimeMinutes;
-  final double averageRetention;
 
   ChannelMetricsV2({
     this.totalViews = 0,
@@ -16,21 +13,99 @@ class ChannelMetricsV2 {
     this.averageRetention = 0.0,
   });
 
-  Map<String, dynamic> toMap() => {
-    'totalViews': totalViews,
-    'totalWatchTimeMinutes': totalWatchTimeMinutes,
-    'averageRetention': averageRetention,
-  };
-
   factory ChannelMetricsV2.fromMap(Map<String, dynamic> map) =>
       ChannelMetricsV2(
         totalViews: (map['totalViews'] as num?)?.toInt() ?? 0,
         totalWatchTimeMinutes: (map['totalWatchTimeMinutes'] as num?)?.toInt() ?? 0,
         averageRetention: (map['averageRetention'] as num?)?.toDouble() ?? 0.0,
       );
+  final int totalViews;
+  final int totalWatchTimeMinutes;
+  final double averageRetention;
+
+  Map<String, dynamic> toMap() => {
+    'totalViews': totalViews,
+    'totalWatchTimeMinutes': totalWatchTimeMinutes,
+    'averageRetention': averageRetention,
+  };
 }
 
 class Channel {
+
+  Channel({
+    required this.id,
+    required this.name,
+    required this.nameLowercase,
+    required this.handle,
+    required this.handleLowercase,
+    required this.description,
+    required this.avatarUrl,
+    required this.bannerUrl,
+    required this.ownerId, required this.createdAt, required this.updatedAt, this.avatarVariants = const [],
+    this.avatarFileId,
+    this.bannerFileId,
+    this.avatarStatus,
+    this.bannerStatus,
+    this.subscriberCount = 0,
+    this.videoCount = 0,
+    ChannelMetricsV2? metrics,
+    this.status = ChannelStatus.active,
+    this.isVerified = false,
+    this.category = 'other',
+    this.language = 'en',
+    this.monetizationTier = MonetizationTier.none,
+    this.monetizationSettings,
+    this.brandingSettings,
+    this.socialLinks,
+    this.featuredVideoIds = const [],
+    this.moderationReason = '',
+  }) : metrics = metrics ?? ChannelMetricsV2();
+
+  factory Channel.fromMap(Map<String, dynamic> data, String docId) {
+    return Channel(
+      id: docId,
+      name: data['name'] ?? '',
+      nameLowercase: data['nameLowercase'] ?? '',
+      handle: data['handle'] ?? '',
+      handleLowercase: data['handleLowercase'] ?? '',
+      description: data['description'] ?? '',
+      avatarUrl: data['avatarUrl'] ?? '',
+      bannerUrl: data['bannerUrl'] ?? '',
+      avatarVariants: List<String>.from(data['avatarVariants'] ?? []),
+      avatarFileId: data['avatarFileId'] as String?,
+      bannerFileId: data['bannerFileId'] as String?,
+      avatarStatus: data['avatarStatus'] as String?,
+      bannerStatus: data['bannerStatus'] as String?,
+      ownerId: data['ownerId'] ?? '',
+      createdAt: TimestampUtils.parse(data['createdAt']),
+      updatedAt: TimestampUtils.parse(data['updatedAt']),
+      subscriberCount: (data['subscriberCount'] as num?)?.toInt() ?? 0,
+      videoCount: (data['videoCount'] as num?)?.toInt() ?? 0,
+      metrics: data['metrics'] != null
+          ? ChannelMetricsV2.fromMap(Map<String, dynamic>.from(data['metrics']))
+          : ChannelMetricsV2(),
+      status: ChannelStatus.values.firstWhere(
+        (e) => e.name == (data['status'] ?? 'active'),
+        orElse: () => ChannelStatus.active,
+      ),
+      isVerified: data['isVerified'] ?? false,
+      category: data['category'] ?? 'other',
+      language: data['language'] ?? 'en',
+      monetizationTier: MonetizationTier.values.firstWhere(
+        (e) => e.name == (data['monetizationTier'] ?? 'none'),
+        orElse: () => MonetizationTier.none,
+      ),
+      monetizationSettings: data['monetizationSettings'],
+      brandingSettings: data['brandingSettings'],
+      socialLinks: data['socialLinks'],
+      featuredVideoIds: List<String>.from(data['featuredVideoIds'] ?? []),
+      moderationReason: data['moderationReason'] as String?,
+    );
+  }
+
+  factory Channel.fromDocumentSnapshot(DocumentSnapshot doc) {
+    return Channel.fromMap(doc.data()! as Map<String, dynamic>, doc.id);
+  }
   final String id;
   final String name;
   final String nameLowercase; // For search/name check efficiency
@@ -93,38 +168,6 @@ class Channel {
     return '/channel/$id';
   }
 
-  Channel({
-    required this.id,
-    required this.name,
-    required this.nameLowercase,
-    required this.handle,
-    required this.handleLowercase,
-    required this.description,
-    required this.avatarUrl,
-    required this.bannerUrl,
-    this.avatarVariants = const [],
-    this.avatarFileId,
-    this.bannerFileId,
-    this.avatarStatus,
-    this.bannerStatus,
-    required this.ownerId,
-    required this.createdAt,
-    required this.updatedAt,
-    this.subscriberCount = 0,
-    this.videoCount = 0,
-    ChannelMetricsV2? metrics,
-    this.status = ChannelStatus.active,
-    this.isVerified = false,
-    this.category = 'other',
-    this.language = 'en',
-    this.monetizationTier = MonetizationTier.none,
-    this.monetizationSettings,
-    this.brandingSettings,
-    this.socialLinks,
-    this.featuredVideoIds = const [],
-    this.moderationReason = '',
-  }) : metrics = metrics ?? ChannelMetricsV2();
-
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -157,52 +200,6 @@ class Channel {
       'featuredVideoIds': featuredVideoIds,
       'moderationReason': moderationReason,
     };
-  }
-
-  factory Channel.fromMap(Map<String, dynamic> data, String docId) {
-    return Channel(
-      id: docId,
-      name: data['name'] ?? '',
-      nameLowercase: data['nameLowercase'] ?? '',
-      handle: data['handle'] ?? '',
-      handleLowercase: data['handleLowercase'] ?? '',
-      description: data['description'] ?? '',
-      avatarUrl: data['avatarUrl'] ?? '',
-      bannerUrl: data['bannerUrl'] ?? '',
-      avatarVariants: List<String>.from(data['avatarVariants'] ?? []),
-      avatarFileId: data['avatarFileId'] as String?,
-      bannerFileId: data['bannerFileId'] as String?,
-      avatarStatus: data['avatarStatus'] as String?,
-      bannerStatus: data['bannerStatus'] as String?,
-      ownerId: data['ownerId'] ?? '',
-      createdAt: TimestampUtils.parse(data['createdAt']),
-      updatedAt: TimestampUtils.parse(data['updatedAt']),
-      subscriberCount: (data['subscriberCount'] as num?)?.toInt() ?? 0,
-      videoCount: (data['videoCount'] as num?)?.toInt() ?? 0,
-      metrics: data['metrics'] != null
-          ? ChannelMetricsV2.fromMap(Map<String, dynamic>.from(data['metrics']))
-          : ChannelMetricsV2(),
-      status: ChannelStatus.values.firstWhere(
-        (e) => e.name == (data['status'] ?? 'active'),
-        orElse: () => ChannelStatus.active,
-      ),
-      isVerified: data['isVerified'] ?? false,
-      category: data['category'] ?? 'other',
-      language: data['language'] ?? 'en',
-      monetizationTier: MonetizationTier.values.firstWhere(
-        (e) => e.name == (data['monetizationTier'] ?? 'none'),
-        orElse: () => MonetizationTier.none,
-      ),
-      monetizationSettings: data['monetizationSettings'],
-      brandingSettings: data['brandingSettings'],
-      socialLinks: data['socialLinks'],
-      featuredVideoIds: List<String>.from(data['featuredVideoIds'] ?? []),
-      moderationReason: data['moderationReason'] as String?,
-    );
-  }
-
-  factory Channel.fromDocumentSnapshot(DocumentSnapshot doc) {
-    return Channel.fromMap(doc.data() as Map<String, dynamic>, doc.id);
   }
 }
 

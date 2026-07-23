@@ -132,7 +132,7 @@ class TopicRedirectMiddleware extends GetMiddleware {
       if (pathSegments.length >= 2 && (pathSegments[0] == 'topic' || pathSegments[0] == 'T')) {
         final slug = pathSegments[1];
         // Clean handle prefix if present
-        String clean = slug.trim();
+        var clean = slug.trim();
         if (clean.startsWith('T/')) {
           clean = clean.substring(2);
         } else if (clean.startsWith('t/')) {
@@ -185,7 +185,7 @@ class RouteStackObserver extends NavigatorObserver {
   }
 
   static bool hasRoute(String namePattern) {
-    return routeStack.any((route) => route.settings.name?.contains(namePattern) == true);
+    return routeStack.any((route) => route.settings.name?.contains(namePattern) ?? false);
   }
 }
 

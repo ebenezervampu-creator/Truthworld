@@ -1,16 +1,16 @@
-import 'package:truthworld/theme/app_theme.dart';
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class CredibilityLabelWidget extends StatelessWidget {
-  final Video video;
 
-  const CredibilityLabelWidget({super.key, required this.video});
+  const CredibilityLabelWidget({required this.video, super.key});
+  final Video video;
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +19,7 @@ class CredibilityLabelWidget extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.bgPage.withValues(alpha: 0.95),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.1)),
       ),
       child: ClipRRect(
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
@@ -37,9 +37,9 @@ class CredibilityLabelWidget extends StatelessWidget {
                     const SizedBox(height: 16),
                     _buildPath1Metrics(),
                     _buildHardeningSection(),
-                    const Divider(color: Colors.white12, height: 40),
+                    const Divider(color: AppColors.bgDivider, height: 40),
                     _buildDimensionsGrid(),
-                    const Divider(color: Colors.white12, height: 40),
+                    const Divider(color: AppColors.bgDivider, height: 40),
                     if (video.honestyBreakdown != null) _buildHonestySection(),
                     if (video.contextualFlags.isNotEmpty) _buildContextualFlagsSection(),
                     _buildStatsSection(),
@@ -61,7 +61,7 @@ class CredibilityLabelWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.05))),
+        border: Border(bottom: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.05))),
       ),
       child: Column(
         children: [
@@ -69,7 +69,7 @@ class CredibilityLabelWidget extends StatelessWidget {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.white24,
+              color: AppColors.textDisabled,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -80,19 +80,19 @@ class CredibilityLabelWidget extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Credibility Nutrition Label',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                   Text(
                     'Category: ${video.videoCategory?.toUpperCase() ?? video.category.toUpperCase()}',
-                    style: GoogleFonts.roboto(
+                    style: const TextStyle(
                       fontSize: 12,
-                      color: Colors.white54,
+                      color: AppColors.textSecondary,
                       letterSpacing: 1.2,
                     ),
                   ),
@@ -100,7 +100,7 @@ class CredibilityLabelWidget extends StatelessWidget {
               ),
               IconButton(
                 onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.close, color: Colors.white70),
+                icon: const Icon(Icons.close, color: AppColors.textSecondary),
               ),
             ],
           ),
@@ -114,31 +114,31 @@ class CredibilityLabelWidget extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 24),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.red.withValues(alpha: 0.15),
+        color: AppColors.error.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.warning_amber_rounded, color: Colors.redAccent),
+          const Icon(Icons.warning_amber_rounded, color: AppColors.error),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'SAFETY VETO APPLIED',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    color: Colors.redAccent,
+                    color: AppColors.error,
                     fontSize: 14,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   video.harmCapReason ?? 'Dangerous misinformation detected. Score capped to protect viewers.',
-                  style: GoogleFonts.roboto(color: Colors.white, fontSize: 13),
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
                 ),
               ],
             ),
@@ -153,7 +153,7 @@ class CredibilityLabelWidget extends StatelessWidget {
     if (metadata == null) return const SizedBox.shrink();
 
     final hasHardening = metadata.truthFloorApplied || 
-                        metadata.domainOverride?.triggered == true || 
+                        (metadata.domainOverride?.triggered ?? false) || 
                         metadata.consensusGateTriggered;
 
     if (!hasHardening) return const SizedBox.shrink();
@@ -162,23 +162,23 @@ class CredibilityLabelWidget extends StatelessWidget {
       margin: const EdgeInsets.only(top: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.amber.withValues(alpha: 0.1),
+        color: AppColors.warning.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.amber.withValues(alpha: 0.2)),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             children: [
-              const Icon(Icons.security, color: Colors.amber, size: 18),
-              const SizedBox(width: 8),
+              Icon(Icons.security, color: AppColors.warning, size: 18),
+              SizedBox(width: 8),
               Text(
                 'TRUST SAFEGUARDS APPLIED',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: Colors.amber,
+                  color: AppColors.warning,
                   letterSpacing: 1.1,
                 ),
               ),
@@ -191,7 +191,7 @@ class CredibilityLabelWidget extends StatelessWidget {
               'Factual Accuracy Floor',
               metadata.truthFloorReason ?? 'Factual errors detected.',
             ),
-          if (metadata.domainOverride?.triggered == true)
+          if (metadata.domainOverride?.triggered ?? false)
             _buildHardeningItem(
               Icons.category,
               'Domain Risk Adjustment',
@@ -215,7 +215,7 @@ class CredibilityLabelWidget extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: Colors.white70, size: 16),
+          Icon(icon, color: AppColors.textSecondary, size: 16),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -225,10 +225,10 @@ class CredibilityLabelWidget extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: GoogleFonts.roboto(
+                      style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     if (penalty != null) ...[
@@ -236,15 +236,15 @@ class CredibilityLabelWidget extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.red.withValues(alpha: 0.3),
+                          color: AppColors.error.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
                           penalty,
-                          style: GoogleFonts.roboto(
+                          style: const TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
-                            color: Colors.redAccent,
+                            color: AppColors.error,
                           ),
                         ),
                       ),
@@ -253,9 +253,9 @@ class CredibilityLabelWidget extends StatelessWidget {
                 ),
                 Text(
                   description,
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     fontSize: 12,
-                    color: Colors.white54,
+                    color: AppColors.textSecondary,
                   ),
                 ),
               ],
@@ -278,7 +278,7 @@ class CredibilityLabelWidget extends StatelessWidget {
             children: [
               Text(
                 video.trustLabel ?? 'Processing',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w700,
                   color: color,
@@ -286,9 +286,9 @@ class CredibilityLabelWidget extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
+              const Text(
                 'Composite Credibility Index',
-                style: GoogleFonts.roboto(color: Colors.white54, fontSize: 12),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
             ],
           ),
@@ -302,17 +302,17 @@ class CredibilityLabelWidget extends StatelessWidget {
               child: CircularProgressIndicator(
                 value: score / 100,
                 strokeWidth: 6,
-                backgroundColor: Colors.white10,
+                backgroundColor: AppColors.bgDivider,
                 color: color,
                 strokeCap: StrokeCap.round,
               ),
             ),
             Text(
               score.toInt().toString(),
-              style: GoogleFonts.roboto(
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: AppColors.textPrimary,
               ),
             ),
           ],
@@ -328,26 +328,26 @@ class CredibilityLabelWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
+        color: AppColors.textPrimary.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'EPISTEMIC DIMENSIONS (v8.5)',
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w700,
-              color: Colors.white38,
+              color: AppColors.textTertiary,
               letterSpacing: 1.5,
             ),
           ),
           const SizedBox(height: 20),
-          _buildPath1Row('TRUTH', report.truthScore, Colors.greenAccent),
-          _buildPath1Row('HONESTY', report.honestyScore, Colors.blueAccent),
-          _buildPath1Row('RATIONALITY', report.rationalityScore, Colors.purpleAccent),
+          _buildPath1Row('TRUTH', report.truthScore, AppColors.success),
+          _buildPath1Row('HONESTY', report.honestyScore, AppColors.info),
+          _buildPath1Row('RATIONALITY', report.rationalityScore, AppColors.brandHover),
         ],
       ),
     );
@@ -363,14 +363,14 @@ class CredibilityLabelWidget extends StatelessWidget {
             width: 80,
             child: Text(
               label,
-              style: GoogleFonts.roboto(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white70),
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
             ),
           ),
           Expanded(
             child: LinearPercentIndicator(
               lineHeight: 6,
               percent: s / 100,
-              backgroundColor: Colors.white10,
+              backgroundColor: AppColors.bgDivider,
               progressColor: color,
               barRadius: const Radius.circular(3),
               padding: EdgeInsets.zero,
@@ -379,7 +379,7 @@ class CredibilityLabelWidget extends StatelessWidget {
           const SizedBox(width: 12),
           Text(
             score?.toStringAsFixed(1) ?? 'N/A',
-            style: GoogleFonts.roboto(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
           ),
         ],
       ),
@@ -393,12 +393,12 @@ class CredibilityLabelWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           '9-DIMENSIONAL TRUST ANALYSIS',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: Colors.white38,
+            color: AppColors.textTertiary,
             letterSpacing: 1.5,
           ),
         ),
@@ -423,23 +423,23 @@ class CredibilityLabelWidget extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 16, color: isSpecial ? Colors.blueAccent : Colors.white54),
+              Icon(icon, size: 16, color: isSpecial ? AppColors.info : AppColors.textSecondary),
               const SizedBox(width: 8),
               Text(
                 label,
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: isSpecial ? FontWeight.bold : FontWeight.normal,
-                  color: isSpecial ? Colors.blueAccent : Colors.white70,
+                  color: isSpecial ? AppColors.info : AppColors.textSecondary,
                 ),
               ),
               const Spacer(),
               Text(
                 score.toInt().toString(),
-                style: GoogleFonts.roboto(
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
             ],
@@ -448,8 +448,8 @@ class CredibilityLabelWidget extends StatelessWidget {
           LinearPercentIndicator(
             lineHeight: 4,
             percent: score / 100,
-            backgroundColor: Colors.white10,
-            progressColor: isSpecial ? Colors.blueAccent : _getScoreColor(score).withValues(alpha: 0.8),
+            backgroundColor: AppColors.bgDivider,
+            progressColor: isSpecial ? AppColors.info : _getScoreColor(score).withValues(alpha: 0.8),
             barRadius: const Radius.circular(2),
             padding: EdgeInsets.zero,
             animation: true,
@@ -467,10 +467,10 @@ class CredibilityLabelWidget extends StatelessWidget {
       children: [
         Text(
           'EPISTEMIC HONESTY BREAKDOWN',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: Colors.blueAccent.withValues(alpha: 0.7),
+            color: AppColors.info.withValues(alpha: 0.7),
             letterSpacing: 1.5,
           ),
         ),
@@ -478,9 +478,9 @@ class CredibilityLabelWidget extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.blueAccent.withValues(alpha: 0.05),
+            color: AppColors.info.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.1)),
+            border: Border.all(color: AppColors.info.withValues(alpha: 0.1)),
           ),
           child: Column(
             children: [
@@ -492,9 +492,9 @@ class CredibilityLabelWidget extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Text(
+        const Text(
           'How it works: We reward creators who use "I believe" or "In my opinion" for non-empirical claims, and penalize those who present subjective views as authoritative facts.',
-          style: GoogleFonts.roboto(fontSize: 11, color: Colors.white38, fontStyle: FontStyle.italic),
+          style: TextStyle(fontSize: 11, color: AppColors.textTertiary, fontStyle: FontStyle.italic),
         ),
       ],
     );
@@ -505,19 +505,19 @@ class CredibilityLabelWidget extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Icon(icon, size: 14, color: isNegative ? Colors.orangeAccent : Colors.greenAccent),
+          Icon(icon, size: 14, color: isNegative ? AppColors.warning : AppColors.success),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               label,
-              style: GoogleFonts.roboto(fontSize: 12, color: Colors.white70),
+              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
           ),
           Text(
             count.toString(),
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: isNegative && count > 0 ? Colors.orangeAccent : Colors.white,
+              color: isNegative && count > 0 ? AppColors.warning : AppColors.textPrimary,
             ),
           ),
         ],
@@ -529,18 +529,18 @@ class CredibilityLabelWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Divider(color: Colors.white12, height: 40),
+        const Divider(color: AppColors.bgDivider, height: 40),
         Text(
           'CONTEXTUAL FLAGS (DEBATED TOPICS)',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: Colors.purpleAccent.withValues(alpha: 0.7),
+            color: AppColors.brandHover.withValues(alpha: 0.7),
             letterSpacing: 1.5,
           ),
         ),
         const SizedBox(height: 16),
-        ...video.contextualFlags.map((flag) => _buildFlagItem(flag)),
+        ...video.contextualFlags.map(_buildFlagItem),
       ],
     );
   }
@@ -550,20 +550,20 @@ class CredibilityLabelWidget extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.purpleAccent.withValues(alpha: 0.05),
+        color: AppColors.brandHover.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.purpleAccent.withValues(alpha: 0.1)),
+        border: Border.all(color: AppColors.brandHover.withValues(alpha: 0.1)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(Icons.auto_awesome, size: 14, color: Colors.purpleAccent),
+              const Icon(Icons.auto_awesome, size: 14, color: AppColors.brandHover),
               const SizedBox(width: 8),
               Text(
                 flag.topic,
-                style: GoogleFonts.roboto(fontWeight: FontWeight.bold, color: Colors.white),
+                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
               ),
             ],
           ),
@@ -576,19 +576,19 @@ class CredibilityLabelWidget extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.white10,
+                    color: AppColors.bgDivider,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
                     p.label,
-                    style: GoogleFonts.roboto(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white54),
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textSecondary),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     p.explanation,
-                    style: GoogleFonts.roboto(fontSize: 11, color: Colors.white70),
+                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                   ),
                 ),
               ],
@@ -606,13 +606,13 @@ class CredibilityLabelWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Divider(color: Colors.white12, height: 40),
-        Text(
+        const Divider(color: AppColors.bgDivider, height: 40),
+        const Text(
           'VERIFICATION DIAGNOSTICS',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: Colors.white38,
+            color: AppColors.textTertiary,
             letterSpacing: 1.5,
           ),
         ),
@@ -621,25 +621,25 @@ class CredibilityLabelWidget extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _buildStatBox('Claims', stats.totalClaims.toString()),
-            _buildStatBox('Correct', stats.correct.toString(), color: Colors.greenAccent),
-            _buildStatBox('Incorrect', stats.incorrect.toString(), color: Colors.redAccent),
-            _buildStatBox('Unverified', stats.unverifiable.toString(), color: Colors.orangeAccent),
+            _buildStatBox('Correct', stats.correct.toString(), color: AppColors.success),
+            _buildStatBox('Incorrect', stats.incorrect.toString(), color: AppColors.error),
+            _buildStatBox('Unverified', stats.unverifiable.toString(), color: AppColors.warning),
           ],
         ),
       ],
     );
   }
 
-  Widget _buildStatBox(String label, String value, {Color color = Colors.white}) {
+  Widget _buildStatBox(String label, String value, {Color color = AppColors.textPrimary}) {
     return Column(
       children: [
         Text(
           value,
-          style: GoogleFonts.roboto(fontSize: 20, fontWeight: FontWeight.bold, color: color),
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color),
         ),
         Text(
           label,
-          style: GoogleFonts.roboto(fontSize: 10, color: Colors.white38),
+          style: const TextStyle(fontSize: 10, color: AppColors.textTertiary),
         ),
       ],
     );
@@ -649,13 +649,13 @@ class CredibilityLabelWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Divider(color: Colors.white12, height: 40),
+        const Divider(color: AppColors.bgDivider, height: 40),
         Text(
           'TRANSPARENCY LEDGER (DEDUCTIONS)',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: Colors.orangeAccent.withValues(alpha: 0.7),
+            color: AppColors.warning.withValues(alpha: 0.7),
             letterSpacing: 1.5,
           ),
         ),
@@ -667,7 +667,7 @@ class CredibilityLabelWidget extends StatelessWidget {
             children: [
               Text(
                 '-${d.points}',
-                style: GoogleFonts.roboto(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+                style: const TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -676,11 +676,11 @@ class CredibilityLabelWidget extends StatelessWidget {
                   children: [
                     Text(
                       d.factor.toUpperCase(),
-                      style: GoogleFonts.roboto(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white38),
+                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textTertiary),
                     ),
                     Text(
                       d.reason,
-                      style: GoogleFonts.roboto(fontSize: 12, color: Colors.white70),
+                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
@@ -696,19 +696,19 @@ class CredibilityLabelWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
+        color: AppColors.textPrimary.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Column(
+      child: const Column(
         children: [
           Row(
             children: [
-              const Icon(Icons.info_outline, size: 14, color: Colors.white38),
-              const SizedBox(width: 8),
+              Icon(Icons.info_outline, size: 14, color: AppColors.textTertiary),
+              SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'This automated report is based on cross-referencing transcripts against institutional databases. TruthWorld maintains doctrinal neutrality in all faith-based scoring.',
-                  style: GoogleFonts.roboto(fontSize: 10, color: Colors.white38),
+                  style: TextStyle(fontSize: 10, color: AppColors.textTertiary),
                 ),
               ),
             ],
@@ -719,11 +719,11 @@ class CredibilityLabelWidget extends StatelessWidget {
   }
 
   Color _getScoreColor(double score) {
-    if (score >= 90) return Colors.greenAccent;
+    if (score >= 90) return AppColors.success;
     if (score >= 75) return const Color(0xFFA3E635);
     if (score >= 60) return Colors.yellowAccent;
-    if (score >= 45) return Colors.orangeAccent;
-    if (score >= 30) return Colors.redAccent;
+    if (score >= 45) return AppColors.warning;
+    if (score >= 30) return AppColors.error;
     return const Color(0xFF991B1B);
   }
 }

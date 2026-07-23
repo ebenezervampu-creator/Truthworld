@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class NotificationToggleButton extends StatelessWidget {
+  const NotificationToggleButton({required this.videoId, super.key});
   final String videoId;
-  const NotificationToggleButton({super.key, required this.videoId});
 
   // Shared RxBool cache to keep identical cards in sync without custom event systems
   static final Map<String, RxBool> _notifiedCache = {};
@@ -18,8 +19,8 @@ class NotificationToggleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final RxBool isNotified = _getNotifiedRx();
-    final RxBool isHovered = false.obs;
+    final isNotified = _getNotifiedRx();
+    final isHovered = false.obs;
 
     void toggleNotification() {
       isNotified.value = !isNotified.value;
@@ -27,13 +28,13 @@ class NotificationToggleButton extends StatelessWidget {
       // Provide a premium feedback toast similar to YouTube
       ScaffoldMessenger.of(context).clearSnackBars();
       AppSnackbar.show(
-        isNotified.value ? "Notification on" : "Notification off",
+        isNotified.value ? 'Notification on' : 'Notification off',
         isNotified.value
             ? "We'll notify you when this premiere starts."
             : "You won't be notified about this premiere.",
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: const Color(0xDD212121),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         duration: const Duration(seconds: 2),
         margin: const EdgeInsets.all(12),
         borderRadius: 8,
@@ -71,9 +72,8 @@ class NotificationToggleButton extends StatelessWidget {
               borderRadius: BorderRadius.circular(18),
               border: Border.all(
                 color: isNotifiedVal
-                    ? Colors.white.withValues(alpha: 0.08)
-                    : Colors.white.withValues(alpha: 0.15),
-                width: 1,
+                    ? AppColors.textPrimary.withValues(alpha: 0.08)
+                    : AppColors.textPrimary.withValues(alpha: 0.15),
               ),
             ),
             alignment: Alignment.center,
@@ -84,11 +84,11 @@ class NotificationToggleButton extends StatelessWidget {
                 child: ScaleTransition(scale: anim, child: child),
               ),
               child: Text(
-                isNotifiedVal ? "Notification on" : "Notify me",
+                isNotifiedVal ? 'Notification on' : 'Notify me',
                 key: ValueKey<bool>(isNotifiedVal),
-                style: TextStyle(
-                  fontFamily: 'Roboto',
-                  color: Colors.white,
+                style: const TextStyle(
+                  
+                  color: AppColors.textPrimary,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.1,

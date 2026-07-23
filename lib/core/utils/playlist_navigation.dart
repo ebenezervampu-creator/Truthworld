@@ -5,7 +5,7 @@ class PlaylistNavigation {
   /// Unifies navigation to the playlist detail view.
   /// Navigates to `/[playlistNameSlug]` with the playlist arguments.
   /// When returning, it automatically restores the original tab selection.
-  static void openPlaylistDetail(dynamic playlist) async {
+  static Future<void> openPlaylistDetail(dynamic playlist) async {
     if (playlist == null) return;
 
     // Generate a URL-safe slug from the playlist name
@@ -18,14 +18,14 @@ class PlaylistNavigation {
       slug = playlist.id;
     }
 
-    final String targetRoute = '/$slug';
+    final targetRoute = '/$slug';
 
     if (Get.isRegistered<HomeController>()) {
       final homeController = Get.find<HomeController>();
-      final String currentRoute = Get.currentRoute;
+      final currentRoute = Get.currentRoute;
 
       // Keep track of the original index to restore when popped
-      final int originalIndex = homeController.sideNavSelectedIndex.value;
+      final originalIndex = homeController.sideNavSelectedIndex.value;
 
       if (currentRoute == '/' || currentRoute == '/home') {
         // Navigate and wait for return

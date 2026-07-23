@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/components/ui/video_card.dart';
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/components/ui/video_card.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Topic Video Grid Widget
 ///
@@ -13,6 +13,13 @@ import 'package:shimmer/shimmer.dart';
 /// - Empty state
 /// - Skeleton loading
 class TopicVideoGrid extends StatelessWidget {
+
+  const TopicVideoGrid({
+    required this.videos, required this.isLoadingMore, required this.hasMore, required this.isDesktop, required this.isTablet, required this.heroPrefix, required this.onLoadMore, super.key,
+    this.isGrid = true,
+    this.emptyTitle,
+    this.emptySubtitle,
+  });
   final List<Video> videos;
   final bool isLoadingMore;
   final bool hasMore;
@@ -25,20 +32,6 @@ class TopicVideoGrid extends StatelessWidget {
   final String? emptyTitle;
   final String? emptySubtitle;
 
-  const TopicVideoGrid({
-    super.key,
-    required this.videos,
-    required this.isLoadingMore,
-    required this.hasMore,
-    required this.isDesktop,
-    required this.isTablet,
-    required this.heroPrefix,
-    required this.onLoadMore,
-    this.isGrid = true,
-    this.emptyTitle,
-    this.emptySubtitle,
-  });
-
   @override
   Widget build(BuildContext context) {
     if (videos.isEmpty && !isLoadingMore) {
@@ -48,7 +41,7 @@ class TopicVideoGrid extends StatelessWidget {
     return Column(
       children: [
         // Video Grid or List
-        isGrid ? _buildGrid() : _buildList(),
+        if (isGrid) _buildGrid() else _buildList(),
 
         // Loading more indicator
         if (isLoadingMore) _buildLoadingMore(),
@@ -70,7 +63,6 @@ class TopicVideoGrid extends StatelessWidget {
         return RepaintBoundary(
           child: VideoCard(
             video: video,
-            isGrid: false,
             heroPrefix: heroPrefix,
           ),
         );
@@ -125,7 +117,7 @@ class TopicVideoGrid extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 64),
       child: Column(
         children: [
-          Icon(
+          const Icon(
             Icons.videocam_off_rounded,
             color: AppColors.textTertiary,
             size: 64,
@@ -133,7 +125,7 @@ class TopicVideoGrid extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             emptyTitle ?? 'No videos yet',
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 18,
               color: AppColors.textSecondary,
             ),
@@ -141,7 +133,7 @@ class TopicVideoGrid extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             emptySubtitle ?? 'Videos related to this topic will appear here',
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 14,
               color: AppColors.textTertiary,
             ),
@@ -154,7 +146,7 @@ class TopicVideoGrid extends StatelessWidget {
   Widget _buildLoadingMore() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 24),
-      child: Center(
+      child: const Center(
         child: SizedBox(
           width: 24,
           height: 24,
@@ -170,7 +162,7 @@ class TopicVideoGrid extends StatelessWidget {
   Widget _buildEndOfList() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 24),
-      child: Center(
+      child: const Center(
         child: Text(
           'No more videos',
           style: TextStyle(
@@ -185,14 +177,12 @@ class TopicVideoGrid extends StatelessWidget {
 
 /// Skeleton loading state for video grid
 class TopicVideoGridSkeleton extends StatelessWidget {
-  final bool isDesktop;
-  final bool isTablet;
 
   const TopicVideoGridSkeleton({
-    super.key,
-    required this.isDesktop,
-    required this.isTablet,
+    required this.isDesktop, required this.isTablet, super.key,
   });
+  final bool isDesktop;
+  final bool isTablet;
 
   @override
   Widget build(BuildContext context) {
@@ -212,7 +202,7 @@ class TopicVideoGridSkeleton extends StatelessWidget {
 
     return Shimmer.fromColors(
       baseColor: AppColors.bgSurfaceHover,
-      highlightColor: Colors.white12,
+      highlightColor: AppColors.bgDivider,
       child: GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -236,9 +226,9 @@ class TopicVideoGridSkeleton extends StatelessWidget {
               Expanded(
                 flex: 3,
                 child: Container(
-                  decoration: BoxDecoration(
+                  decoration: const BoxDecoration(
                     color: AppColors.bgSurface,
-                    borderRadius: const BorderRadius.vertical(
+                    borderRadius: BorderRadius.vertical(
                       top: Radius.circular(12),
                     ),
                   ),

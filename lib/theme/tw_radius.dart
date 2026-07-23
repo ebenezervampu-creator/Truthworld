@@ -7,10 +7,6 @@ import 'package:flutter/material.dart';
 /// `borderRadius:` parameters. Use `smValue`, `mdValue`, `lgValue`, `xlValue`
 /// for the raw [double] values when needed (e.g. `BorderRadius.only(...)`).
 class TWRadius extends ThemeExtension<TWRadius> {
-  final double smValue;
-  final double mdValue;
-  final double lgValue;
-  final double xlValue;
 
   const TWRadius({
     required this.smValue,
@@ -21,12 +17,16 @@ class TWRadius extends ThemeExtension<TWRadius> {
 
   factory TWRadius.defaults() {
     return const TWRadius(
-      smValue: 4.0,
-      mdValue: 8.0,
-      lgValue: 12.0,
-      xlValue: 24.0,
+      smValue: 4,
+      mdValue: 8,
+      lgValue: 12,
+      xlValue: 24,
     );
   }
+  final double smValue;
+  final double mdValue;
+  final double lgValue;
+  final double xlValue;
 
   // Convenience getters returning BorderRadius for direct widget use
   BorderRadius get sm => BorderRadius.circular(smValue);
@@ -68,4 +68,5 @@ class TWRadius extends ThemeExtension<TWRadius> {
 
 extension TWRadiusExtension on BuildContext {
   TWRadius get radius => Theme.of(this).extension<TWRadius>()!;
+  TWRadius get twRadius => Theme.of(this).extension<TWRadius>()!;
 }

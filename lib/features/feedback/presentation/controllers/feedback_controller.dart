@@ -116,7 +116,6 @@ class FeedbackController extends BaseController {
         appVersion: appVersion,
         deviceInfo: deviceInfo,
       ),
-      showLoading: true,
       loadingMessage: 'Submitting feedback...',
     );
   }
@@ -146,9 +145,8 @@ class FeedbackController extends BaseController {
           .add(feedbackData)
           .timeout(
             const Duration(seconds: 10),
-            onTimeout: () => throw TimeoutException(
+            onTimeout: () => throw const TimeoutException(
               message: 'Feedback submission timed out',
-              originalException: null,
             ),
           );
 

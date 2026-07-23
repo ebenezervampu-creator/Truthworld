@@ -1,30 +1,28 @@
-import 'package:truthworld/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:flutter/material.dart';
 import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class WatchtimeDetailsPage extends StatelessWidget {
+
+  const WatchtimeDetailsPage({
+    required this.channelId, required this.isDarkMode, super.key,
+    this.video,
+  });
   final String channelId;
   final bool isDarkMode;
   final Video? video;
-
-  const WatchtimeDetailsPage({
-    super.key,
-    required this.channelId,
-    required this.isDarkMode,
-    this.video,
-  });
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: isDarkMode ? AppColors.bgPage : AppColors.bgPage,
       appBar: AppBar(
-        title: Text('Watchtime Details'),
-        backgroundColor: isDarkMode ? AppColors.textPrimary : Colors.white,
+        title: const Text('Watchtime Details'),
+        backgroundColor: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
         iconTheme: IconThemeData(
-          color: isDarkMode ? Colors.white : Colors.black,
+          color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
         ),
       ),
       body: FutureBuilder<QuerySnapshot>(
@@ -34,14 +32,14 @@ class WatchtimeDetailsPage extends StatelessWidget {
             .get(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return buildShimmerVideoList(count: 6);
+            return buildShimmerVideoList();
           }
           if (snapshot.hasError) {
             return Center(child: Text('Error: \\${snapshot.error}'));
           }
           final videos = snapshot.data?.docs ?? [];
           if (videos.isEmpty) {
-            return Center(child: Text('No videos found.'));
+            return const Center(child: Text('No videos found.'));
           }
           return ListView.builder(
             itemCount: videos.length,
@@ -54,15 +52,15 @@ class WatchtimeDetailsPage extends StatelessWidget {
                     .get(),
                 builder: (context, statsSnapshot) {
                   if (!statsSnapshot.hasData) {
-                    return ListTile(title: Text(video['title'] ?? 'Untitled'));
+                    return ListTile(title: Text((video['title'] as String?) ?? 'Untitled'));
                   }
                   final stats = statsSnapshot.data?.data() as Map<String, dynamic>?;
                   return Card(
-                    margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     child: ListTile(
-                      title: Text(video['title'] ?? 'Untitled'),
+                      title: Text((video['title'] as String?) ?? 'Untitled'),
                       subtitle: stats == null
-                          ? Text('No stats available')
+                          ? const Text('No stats available')
                           : Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [

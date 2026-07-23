@@ -1,20 +1,21 @@
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-
 import 'package:truthworld/core/services/auth_service.dart';
-import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
-import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
-import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
-import 'language_requests.dart';
-import 'package:truthworld/features/video/presentation/views/player/controls/player_controls.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
+import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/features/video/presentation/views/player/controls/player_controls.dart';
+import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/features/video/presentation/views/player/panels/language_requests.dart';
 import 'package:truthworld/features/video/presentation/widgets/language_preferences_dialog.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class SettingsPanel extends StatelessWidget {
+  const SettingsPanel({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const SettingsPanel({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
@@ -23,8 +24,8 @@ class SettingsPanel extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          color: Colors.black.withValues(alpha: 0.5),
+        child: ColoredBox(
+          color: AppColors.bgPage.withValues(alpha: 0.5),
           child: Center(
             child: GestureDetector(
               onTap: () {}, // absorb inner taps
@@ -39,7 +40,7 @@ class SettingsPanel extends StatelessWidget {
                     border: Border.all(color: PT.border, width: 1.5),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.7),
+                        color: AppColors.bgPage.withValues(alpha: 0.7),
                         blurRadius: 32,
                         spreadRadius: 8,
                       ),
@@ -83,8 +84,8 @@ class SettingsPanel extends StatelessWidget {
 
 // ── Main menu ─────────────────────────────────────────────────────────────────
 class MainSettingsMenu extends StatelessWidget {
+  const MainSettingsMenu({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const MainSettingsMenu({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
@@ -192,8 +193,8 @@ class MainSettingsMenu extends StatelessWidget {
 
 // ── Chapters panel ─────────────────────────────────────────────────────────────
 class ChaptersPanel extends StatelessWidget {
+  const ChaptersPanel({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const ChaptersPanel({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
@@ -234,8 +235,8 @@ class ChaptersPanel extends StatelessWidget {
 
 // ── Speed panel ────────────────────────────────────────────────────────────────
 class SpeedPanel extends StatelessWidget {
+  const SpeedPanel({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const SpeedPanel({super.key, required this.ctrl});
   static const _speeds = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 
   @override
@@ -265,8 +266,8 @@ class SpeedPanel extends StatelessWidget {
 
 // ── Quality panel ──────────────────────────────────────────────────────────────
 class QualityPanel extends StatelessWidget {
+  const QualityPanel({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const QualityPanel({super.key, required this.ctrl});
 
   String _bwLabel(double k) => k > 1000
       ? '${(k / 1000).toStringAsFixed(1)} Mbps'
@@ -276,7 +277,7 @@ class QualityPanel extends StatelessWidget {
     switch (q) {
       case NetworkQuality.excellent:
       case NetworkQuality.good:
-        return Colors.greenAccent;
+        return AppColors.success;
       case NetworkQuality.fair:
         return Colors.yellowAccent;
       default:
@@ -300,8 +301,8 @@ class QualityPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
-      List<VideoResolutionV2> avail = [];
-      bool none = false;
+      var avail = <VideoResolutionV2>[];
+      var none = false;
       try {
         if (Get.isRegistered<VideoController>(tag: ctrl.tag)) {
           avail = Get.find<VideoController>(tag: ctrl.tag).availableResolutions;
@@ -318,14 +319,14 @@ class QualityPanel extends StatelessWidget {
               onBack: () => ctrl.activePanel.value = '',
               onClose: null,
             ),
-            Padding(
-              padding: const EdgeInsets.all(24),
+            const Padding(
+              padding: EdgeInsets.all(24),
               child: Column(
                 children: [
                   Icon(Icons.videocam_off_rounded, size: 48, color: PT.primary),
-                  const SizedBox(height: 16),
+                  SizedBox(height: 16),
                   Text('Video Not Available', style: TS.title),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   Text(
                     'No playable resolutions found',
                     textAlign: TextAlign.center,
@@ -353,9 +354,9 @@ class QualityPanel extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
             child: Row(
               children: [
-                Icon(Icons.speed_rounded, color: Colors.white38, size: 14),
+                const Icon(Icons.speed_rounded, color: AppColors.textTertiary, size: 14),
                 const SizedBox(width: 8),
-                Text('Network: ', style: TS.bodySm),
+                const Text('Network: ', style: TS.bodySm),
                 Text(
                   _bwLabel(ctrl.abr.measuredBandwidthKbps.value),
                   style: TS.bodySm.copyWith(
@@ -364,13 +365,13 @@ class QualityPanel extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                Text('Buffer: ', style: TS.bodySm),
+                const Text('Buffer: ', style: TS.bodySm),
                 Text(
                   '${ctrl.abr.bufferHealthSeconds.value.toStringAsFixed(1)}s',
                   style: TS.bodySm.copyWith(
                     color: ctrl.abr.bufferHealthSeconds.value < 3
                         ? PT.primary
-                        : Colors.greenAccent,
+                        : AppColors.success,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -402,7 +403,7 @@ class QualityPanel extends StatelessWidget {
                   trailing: isPremiumRes && !isPremium
                       ? const Icon(
                           Icons.lock_rounded,
-                          color: Colors.amber,
+                          color: AppColors.warning,
                           size: 16,
                         )
                       : null,
@@ -428,13 +429,12 @@ void showPremiumDialog(BuildContext context) {
 
 // ── Subtitles panel ────────────────────────────────────────────────────────────
 class SubtitlesPanel extends StatelessWidget {
+  const SubtitlesPanel({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const SubtitlesPanel({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      mainAxisSize: MainAxisSize.max,
       children: [
         PanelHeader(
           title: 'Subtitles / CC',
@@ -465,8 +465,8 @@ class SubtitlesPanel extends StatelessWidget {
                   onChanged: (v) => ctrl.setSubtitles(enabled: v),
                   activeThumbColor: PT.primary,
                   activeTrackColor: PT.primary.withValues(alpha: 0.4),
-                  inactiveThumbColor: Colors.white38,
-                  inactiveTrackColor: Colors.white12,
+                  inactiveThumbColor: AppColors.textTertiary,
+                  inactiveTrackColor: AppColors.bgDivider,
                   materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
               ],
@@ -487,7 +487,6 @@ class SubtitlesPanel extends StatelessWidget {
         ),
         const PlayerDivider(),
         Expanded(
-          flex: 1,
           child: LanguageRequestsList(type: 'subtitle', tag: ctrl.tag),
         ),
         const PlayerDivider(),
@@ -496,8 +495,8 @@ class SubtitlesPanel extends StatelessWidget {
           child: SingleChildScrollView(
             child: Obx(() {
               if (ctrl.subtitleTracks.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.all(24),
+                return const Padding(
+                  padding: EdgeInsets.all(24),
                   child: Center(
                     child: Text('No subtitles available', style: TS.bodySm),
                   ),
@@ -531,13 +530,12 @@ class SubtitlesPanel extends StatelessWidget {
 
 // ── Language panel ────────────────────────────────────────────────────────────
 class LanguagePanel extends StatelessWidget {
+  const LanguagePanel({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const LanguagePanel({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      mainAxisSize: MainAxisSize.max,
       children: [
         PanelHeader(
           title: 'Audio Language',
@@ -564,8 +562,8 @@ class LanguagePanel extends StatelessWidget {
           child: SingleChildScrollView(
             child: Obx(() {
               if (ctrl.audioTracks.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.all(24),
+                return const Padding(
+                  padding: EdgeInsets.all(24),
                   child: Center(
                     child: Text('Original audio only', style: TS.bodySm),
                   ),
@@ -595,8 +593,8 @@ class LanguagePanel extends StatelessWidget {
 
 // ── Rating / content details panel ────────────────────────────────────────────
 class RatingPanel extends StatelessWidget {
+  const RatingPanel({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const RatingPanel({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
@@ -652,10 +650,10 @@ class RatingPanel extends StatelessWidget {
                                   vertical: 4,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.06),
+                                  color: AppColors.textPrimary.withValues(alpha: 0.06),
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.12),
+                                    color: AppColors.textPrimary.withValues(alpha: 0.12),
                                   ),
                                 ),
                                 child: Text(
@@ -689,10 +687,10 @@ class RatingPanel extends StatelessWidget {
                             child: Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.05),
+                                color: AppColors.textPrimary.withValues(alpha: 0.05),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.1),
+                                  color: AppColors.textPrimary.withValues(alpha: 0.1),
                                 ),
                               ),
                               child: Row(
@@ -777,14 +775,12 @@ class RatingPanel extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class PanelHeader extends StatelessWidget {
-  final String title;
-  final VoidCallback? onBack, onClose;
   const PanelHeader({
-    super.key,
-    required this.title,
-    required this.onBack,
-    required this.onClose,
+    required this.title, required this.onBack, required this.onClose, super.key,
   });
+  final String title;
+  final VoidCallback? onBack;
+  final VoidCallback? onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -793,12 +789,12 @@ class PanelHeader extends StatelessWidget {
       child: Row(
         children: [
           if (onBack != null)
-            IconBtn(icon: Icons.arrow_back_ios_new, onTap: onBack!, size: 18)
+            IconBtn(icon: Icons.arrow_back_ios_new, onTap: onBack, size: 18)
           else
             const SizedBox(width: 8),
           Expanded(child: Text(title, style: TS.title)),
           if (onClose != null)
-            IconBtn(icon: Icons.close_rounded, onTap: onClose!, size: 20),
+            IconBtn(icon: Icons.close_rounded, onTap: onClose, size: 20),
         ],
       ),
     );
@@ -806,18 +802,15 @@ class PanelHeader extends StatelessWidget {
 }
 
 class SettingsTile extends StatelessWidget {
-  final IconData icon;
-  final String title, value;
-  final String? badge;
-  final VoidCallback onTap;
   const SettingsTile({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.value,
-    required this.onTap,
+    required this.icon, required this.title, required this.value, required this.onTap, super.key,
     this.badge,
   });
+  final IconData icon;
+  final String title;
+  final String value;
+  final String? badge;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -852,7 +845,7 @@ class SettingsTile extends StatelessWidget {
               ],
               Text(value, style: TS.bodySm),
               const SizedBox(width: 6),
-              const Icon(Icons.chevron_right, color: Colors.white24, size: 18),
+              const Icon(Icons.chevron_right, color: AppColors.textDisabled, size: 18),
             ],
           ),
         ),
@@ -862,17 +855,13 @@ class SettingsTile extends StatelessWidget {
 }
 
 class ToggleTile extends StatelessWidget {
+  const ToggleTile({
+    required this.icon, required this.title, required this.value, required this.onChanged, super.key,
+  });
   final IconData icon;
   final String title;
   final bool value;
   final ValueChanged<bool> onChanged;
-  const ToggleTile({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.value,
-    required this.onChanged,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -889,8 +878,8 @@ class ToggleTile extends StatelessWidget {
             onChanged: onChanged,
             activeThumbColor: PT.primary,
             activeTrackColor: PT.primary.withValues(alpha: 0.4),
-            inactiveThumbColor: Colors.white38,
-            inactiveTrackColor: Colors.white12,
+            inactiveThumbColor: AppColors.textTertiary,
+            inactiveTrackColor: AppColors.bgDivider,
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ],
@@ -900,21 +889,21 @@ class ToggleTile extends StatelessWidget {
 }
 
 class SelectTile extends StatelessWidget {
-  final String label;
-  final String? sublabel, badge;
-  final bool selected, dimmed;
-  final VoidCallback? onTap;
-  final Widget? trailing;
   const SelectTile({
-    super.key,
-    required this.label,
-    required this.selected,
+    required this.label, required this.selected, super.key,
     this.sublabel,
     this.badge,
     this.dimmed = false,
     this.onTap,
     this.trailing,
   });
+  final String label;
+  final String? sublabel;
+  final String? badge;
+  final bool selected;
+  final bool dimmed;
+  final VoidCallback? onTap;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -933,19 +922,19 @@ class SelectTile extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: selected
                         ? PT.primary.withValues(alpha: 0.15)
-                        : Colors.white.withValues(alpha: 0.05),
+                        : AppColors.textPrimary.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(5),
                     border: Border.all(
                       color: selected
                           ? PT.primary.withValues(alpha: 0.5)
-                          : Colors.white.withValues(alpha: 0.1),
+                          : AppColors.textPrimary.withValues(alpha: 0.1),
                     ),
                   ),
                   child: Center(
                     child: Text(
                       badge!,
                       style: TS.badge.copyWith(
-                        color: selected ? PT.primary : Colors.white38,
+                        color: selected ? PT.primary : AppColors.textTertiary,
                         fontSize: 11,
                       ),
                     ),
@@ -961,10 +950,10 @@ class SelectTile extends StatelessWidget {
                       label,
                       style: TS.body.copyWith(
                         color: dimmed
-                            ? Colors.white24
+                            ? AppColors.textDisabled
                             : selected
                             ? PT.primary
-                            : Colors.white,
+                            : AppColors.textPrimary,
                         fontWeight: selected
                             ? FontWeight.w500
                             : FontWeight.w400,
@@ -974,7 +963,7 @@ class SelectTile extends StatelessWidget {
                       Text(
                         sublabel!,
                         style: TS.bodySm.copyWith(
-                          color: dimmed ? Colors.white12 : Colors.white38,
+                          color: dimmed ? AppColors.bgDivider : AppColors.textTertiary,
                           fontSize: 11,
                         ),
                       ),
@@ -997,7 +986,7 @@ class PlayerDivider extends StatelessWidget {
   const PlayerDivider({super.key});
   @override
   Widget build(BuildContext context) => Divider(
-    color: Colors.white.withValues(alpha: 0.08),
+    color: AppColors.textPrimary.withValues(alpha: 0.08),
     height: 12,
     indent: 20,
     endIndent: 20,
@@ -1005,8 +994,8 @@ class PlayerDivider extends StatelessWidget {
 }
 
 class ConfigureLanguagesButton extends StatelessWidget {
+  const ConfigureLanguagesButton({required this.onTap, super.key});
   final VoidCallback onTap;
-  const ConfigureLanguagesButton({super.key, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1039,7 +1028,7 @@ class ConfigureLanguagesButton extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right, color: Colors.white24, size: 18),
+              const Icon(Icons.chevron_right, color: AppColors.textDisabled, size: 18),
             ],
           ),
         ),
@@ -1049,8 +1038,8 @@ class ConfigureLanguagesButton extends StatelessWidget {
 }
 
 class MobileSettingsBottomSheet extends StatelessWidget {
+  const MobileSettingsBottomSheet({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const MobileSettingsBottomSheet({super.key, required this.ctrl});
 
   static void show(BuildContext context, TowerPlayerController ctrl) {
     Get.bottomSheet(
@@ -1069,7 +1058,7 @@ class MobileSettingsBottomSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(16),
         child: Material(
           color: const Color(0xFF1E1E1E), // Premium dark theme matching screenshot
           borderRadius: BorderRadius.circular(16),
@@ -1083,31 +1072,24 @@ class MobileSettingsBottomSheet extends StatelessWidget {
               switch (ctrl.activePanel.value) {
                 case 'speed':
                   content = SpeedPanel(ctrl: ctrl);
-                  break;
                 case 'quality':
                   content = QualityPanel(ctrl: ctrl);
-                  break;
                 case 'subtitles':
                   content = SizedBox(
                     height: 450,
                     child: SubtitlesPanel(ctrl: ctrl),
                   );
-                  break;
                 case 'language':
                   content = SizedBox(
                     height: 450,
                     child: LanguagePanel(ctrl: ctrl),
                   );
-                  break;
                 case 'more':
                   content = MorePanel(ctrl: ctrl);
-                  break;
                 case 'sleep_timer':
                   content = SleepTimerPanel(ctrl: ctrl);
-                  break;
                 default:
                   content = MobileMainSettingsMenu(ctrl: ctrl);
-                  break;
               }
 
               return AnimatedSize(
@@ -1124,8 +1106,8 @@ class MobileSettingsBottomSheet extends StatelessWidget {
 }
 
 class MobileMainSettingsMenu extends StatelessWidget {
+  const MobileMainSettingsMenu({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const MobileMainSettingsMenu({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
@@ -1140,7 +1122,7 @@ class MobileMainSettingsMenu extends StatelessWidget {
               height: 4,
               margin: const EdgeInsets.symmetric(vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
+                color: AppColors.textPrimary.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1197,16 +1179,13 @@ class MobileMainSettingsMenu extends StatelessWidget {
 }
 
 class MobileSettingsTile extends StatelessWidget {
-  final IconData icon;
-  final String title, value;
-  final VoidCallback onTap;
   const MobileSettingsTile({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.value,
-    required this.onTap,
+    required this.icon, required this.title, required this.value, required this.onTap, super.key,
   });
+  final IconData icon;
+  final String title;
+  final String value;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1218,14 +1197,14 @@ class MobileSettingsTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
           child: Row(
             children: [
-              Icon(icon, color: Colors.white, size: 22),
+              Icon(icon, color: AppColors.textPrimary, size: 22),
               const SizedBox(width: 18),
               Text(
                 title,
                 style: TS.body.copyWith(
                   fontWeight: FontWeight.w500,
                   fontSize: 16,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
               const Spacer(),
@@ -1233,14 +1212,14 @@ class MobileSettingsTile extends StatelessWidget {
                 Text(
                   value,
                   style: TS.bodySm.copyWith(
-                    color: Colors.white.withValues(alpha: 0.6),
+                    color: AppColors.textPrimary.withValues(alpha: 0.6),
                     fontSize: 14,
                   ),
                 ),
               const SizedBox(width: 8),
               Icon(
                 Icons.chevron_right_rounded,
-                color: Colors.white.withValues(alpha: 0.6),
+                color: AppColors.textPrimary.withValues(alpha: 0.6),
                 size: 20,
               ),
             ],
@@ -1252,17 +1231,13 @@ class MobileSettingsTile extends StatelessWidget {
 }
 
 class MobileToggleTile extends StatelessWidget {
+  const MobileToggleTile({
+    required this.icon, required this.title, required this.value, required this.onChanged, super.key,
+  });
   final IconData icon;
   final String title;
   final bool value;
   final ValueChanged<bool> onChanged;
-  const MobileToggleTile({
-    super.key,
-    required this.icon,
-    required this.title,
-    required this.value,
-    required this.onChanged,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -1274,24 +1249,24 @@ class MobileToggleTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
           child: Row(
             children: [
-              Icon(icon, color: Colors.white, size: 22),
+              Icon(icon, color: AppColors.textPrimary, size: 22),
               const SizedBox(width: 18),
               Text(
                 title,
                 style: TS.body.copyWith(
                   fontWeight: FontWeight.w500,
                   fontSize: 16,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
               const Spacer(),
               Switch(
                 value: value,
                 onChanged: onChanged,
-                activeThumbColor: Colors.white,
+                activeThumbColor: AppColors.textPrimary,
                 activeTrackColor: PT.primary,
-                inactiveThumbColor: Colors.white38,
-                inactiveTrackColor: Colors.white12,
+                inactiveThumbColor: AppColors.textTertiary,
+                inactiveTrackColor: AppColors.bgDivider,
                 materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ],
@@ -1303,8 +1278,8 @@ class MobileToggleTile extends StatelessWidget {
 }
 
 class MorePanel extends StatelessWidget {
+  const MorePanel({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const MorePanel({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
@@ -1349,16 +1324,29 @@ class MorePanel extends StatelessWidget {
             onChanged: (v) => ctrl.showStatsForNerds.toggle(),
           ),
         ),
+        Obx(
+          () => MobileSettingsTile(
+            icon: Icons.lock_outline_rounded,
+            title: 'Lock screen',
+            value: ctrl.lockController.isLocked.value ? 'Locked' : 'Off',
+            onTap: () {
+              ctrl.closeSettings();
+              ctrl.lockController.lock();
+            },
+          ),
+        ),
         Obx(() {
           final isActive = ctrl.isSleepTimerActive.value;
           final isAtEnd = ctrl.isSleepTimerAtEndOfVideo.value;
           final rem = ctrl.sleepTimerRemainingSeconds.value;
-          String valueText = 'Off';
+          var valueText = 'Off';
           if (isActive) {
             if (isAtEnd) {
               valueText = 'End of video';
             } else {
-              valueText = '${(rem / 60).ceil()} min';
+              final mins = rem ~/ 60;
+              final secs = rem % 60;
+              valueText = '$mins:${secs.toString().padLeft(2, '0')} left';
             }
           }
           return MobileSettingsTile(
@@ -1375,16 +1363,17 @@ class MorePanel extends StatelessWidget {
 }
 
 class SleepTimerPanel extends StatelessWidget {
+  const SleepTimerPanel({required this.ctrl, super.key});
   final TowerPlayerController ctrl;
-  const SleepTimerPanel({super.key, required this.ctrl});
 
   @override
   Widget build(BuildContext context) {
     final options = [
-      ('Off', const Duration(seconds: 0)),
-      ('End of video', Duration(seconds: (ctrl.vv.duration - ctrl.vv.position).inSeconds)),
+      ('Off', const Duration()),
+      ('End of video', Duration(seconds: (ctrl.activePlayback.duration - ctrl.activePlayback.position).inSeconds)),
       ('10 minutes', const Duration(minutes: 10)),
       ('15 minutes', const Duration(minutes: 15)),
+      ('20 minutes', const Duration(minutes: 20)),
       ('30 minutes', const Duration(minutes: 30)),
       ('45 minutes', const Duration(minutes: 45)),
       ('60 minutes', const Duration(minutes: 60)),
@@ -1402,38 +1391,64 @@ class SleepTimerPanel extends StatelessWidget {
         Obx(() {
           final isActive = ctrl.isSleepTimerActive.value;
           final isAtEnd = ctrl.isSleepTimerAtEndOfVideo.value;
+          final rem = ctrl.sleepTimerRemainingSeconds.value;
+
           return Column(
             mainAxisSize: MainAxisSize.min,
-            children: options.map((opt) {
-              final label = opt.$1;
-              final duration = opt.$2;
-              
-              bool isSelected = false;
-              if (label == 'Off') {
-                isSelected = !isActive;
-              } else if (isActive) {
-                if (label == 'End of video') {
-                  isSelected = isAtEnd;
-                } else if (!isAtEnd) {
-                  // Check if duration matches approximately (within 10 seconds)
-                  final diff = (ctrl.sleepTimerRemainingSeconds.value - duration.inSeconds).abs();
-                  isSelected = diff < 10;
-                }
-              }
+            children: [
+              if (isActive && !isAtEnd)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Time remaining: ${rem ~/ 60}:${(rem % 60).toString().padLeft(2, '0')}',
+                        style: TS.bodySm.copyWith(color: AppColors.brand),
+                      ),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.brand,
+                          side: const BorderSide(color: AppColors.brand),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        ),
+                        onPressed: () => ctrl.extendSleepTimer(const Duration(minutes: 5)),
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('+5 min', style: TextStyle(fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                ),
+              ...options.map((opt) {
+                final label = opt.$1;
+                final duration = opt.$2;
 
-              return SelectTile(
-                label: label,
-                selected: isSelected,
-                onTap: () {
-                  if (label == 'Off') {
-                    ctrl.cancelSleepTimer();
-                  } else {
-                    ctrl.setSleepTimer(duration, isEndOfVideo: label == 'End of video');
+                var isSelected = false;
+                if (label == 'Off') {
+                  isSelected = !isActive;
+                } else if (isActive) {
+                  if (label == 'End of video') {
+                    isSelected = isAtEnd;
+                  } else if (!isAtEnd) {
+                    final diff = (ctrl.sleepTimerRemainingSeconds.value - duration.inSeconds).abs();
+                    isSelected = diff < 15;
                   }
-                  ctrl.activePanel.value = 'more';
-                },
-              );
-            }).toList(),
+                }
+
+                return SelectTile(
+                  label: label,
+                  selected: isSelected,
+                  onTap: () {
+                    if (label == 'Off') {
+                      ctrl.cancelSleepTimer();
+                    } else {
+                      ctrl.setSleepTimer(duration, isEndOfVideo: label == 'End of video');
+                    }
+                    ctrl.activePanel.value = 'more';
+                  },
+                );
+              }),
+            ],
           );
         }),
         const SizedBox(height: 8),

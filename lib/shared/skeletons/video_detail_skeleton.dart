@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'skeleton_base.dart';
+import 'package:truthworld/shared/skeletons/skeleton_base.dart';
 
 /// Skeleton loading state for the video detail / watch page.
 class VideoDetailSkeleton extends StatelessWidget {
@@ -27,7 +27,7 @@ class VideoDetailSkeleton extends StatelessWidget {
                       Expanded(flex: 3, child: _buildMainColumn()),
                       const SizedBox(width: 24),
                       // Sidebar: recommended videos
-                      Expanded(flex: 1, child: _buildSidebar()),
+                      Expanded(child: _buildSidebar()),
                     ],
                   ),
                 );
@@ -66,8 +66,8 @@ class VideoDetailSkeleton extends StatelessWidget {
         const SizedBox(height: 20),
 
         // Channel info row
-        Row(
-          children: const [
+        const Row(
+          children: [
             SkeletonCircle(size: 44),
             SizedBox(width: 12),
             Expanded(
@@ -111,17 +111,17 @@ class VideoDetailSkeleton extends StatelessWidget {
 
   List<Widget> _commentSkeletons() {
     return List.generate(3, (_) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 20),
+      return const Padding(
+        padding: EdgeInsets.only(bottom: 20),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SkeletonCircle(size: 36),
-            const SizedBox(width: 12),
+            SkeletonCircle(size: 36),
+            SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
+                children: [
                   SkeletonBox(height: 12, width: 140),
                   SizedBox(height: 8),
                   SkeletonBox(height: 12, width: double.infinity),
@@ -141,23 +141,23 @@ class VideoDetailSkeleton extends StatelessWidget {
   Widget _buildSidebar() {
     return Column(
       children: List.generate(4, (_) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 16),
+        return const Padding(
+          padding: EdgeInsets.only(bottom: 16),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(
+              SizedBox(
                 width: 168,
                 child: AspectRatio(
                   aspectRatio: 16 / 9,
-                  child: SkeletonBox(borderRadius: 8),
+                  child: SkeletonBox(),
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
+                  children: [
                     SkeletonBox(height: 12, width: double.infinity),
                     SizedBox(height: 6),
                     SkeletonBox(height: 10, width: 100),

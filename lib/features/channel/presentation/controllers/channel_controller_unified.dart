@@ -23,15 +23,15 @@ import 'package:uuid/uuid.dart';
 // ContentValidationResult is now provided by content_validation_mixin.dart
 
 class TransactionResult {
-  final bool success;
-  final String? errorMessage;
-  final bool alreadySubscribed;
 
   TransactionResult({
     this.success = false,
     this.errorMessage,
     this.alreadySubscribed = false,
   });
+  final bool success;
+  final String? errorMessage;
+  final bool alreadySubscribed;
 }
 
 enum AvailabilityStatus { unknown, checking, available, taken, invalid, error }
@@ -42,7 +42,7 @@ extension AvailabilityStatusExtension on AvailabilityStatus {
       case AvailabilityStatus.unknown:
         return AppColors.textSecondary;
       case AvailabilityStatus.checking:
-        return Color(0xFFF59E0B);
+        return const Color(0xFFF59E0B);
       case AvailabilityStatus.available:
         return AppColors.success;
       case AvailabilityStatus.taken:
@@ -87,10 +87,6 @@ extension AvailabilityStatusExtension on AvailabilityStatus {
 }
 
 class ImageData {
-  final Uint8List bytes;
-  final String name;
-  final int size;
-  final double aspectRatio;
 
   ImageData({
     required this.bytes,
@@ -98,6 +94,10 @@ class ImageData {
     required this.size,
     required this.aspectRatio,
   });
+  final Uint8List bytes;
+  final String name;
+  final int size;
+  final double aspectRatio;
 }
 
 // ==========================================================================
@@ -146,7 +146,7 @@ class ChannelController extends GetxController
   static const int maxBannerSize = 5 * 1024 * 1024; // 5MB
   static const int maxAvatarSize = 2 * 1024 * 1024; // 2MB
   static const double recommendedBannerRatio = 16 / 9;
-  static const double recommendedAvatarRatio = 1.0;
+  static const double recommendedAvatarRatio = 1;
 
   // Animation Controllers
   late AnimationController formFadeAnimationController;
@@ -181,15 +181,15 @@ class ChannelController extends GetxController
   RxList<Channel> channels = RxList<Channel>();
   Rx<Channel?> selectedChannel = Rx<Channel?>(null);
   RxBool isSubscribed = false.obs;
-  var isSubscriptionLoading = true.obs;
+  RxBool isSubscriptionLoading = true.obs;
   final RxBool notificationsEnabled = true.obs;
   final RxMap<String, RxBool> _subscribedMap = <String, RxBool>{}.obs;
-  var subscriberCount = 0.obs;
-  var isLoading = false.obs;
+  RxInt subscriberCount = 0.obs;
+  RxBool isLoading = false.obs;
   // Track channels subscribed to during this app session for "new subscriber" analytics
   final Set<String> _sessionSubscribedChannels = {};
-  var errorMessage = ''.obs;
-  var uploadProgress = 0.0.obs;
+  RxString errorMessage = ''.obs;
+  RxDouble uploadProgress = 0.0.obs;
   final RxString channelNameMessage = ''.obs;
 
   // State for Channel Details Page
@@ -224,20 +224,20 @@ class ChannelController extends GetxController
   final isUploadingAvatar = false.obs;
 
   // Moderation statuses
-  final bannerStatus = "PENDING".obs;
-  final avatarStatus = "PENDING".obs;
-  final bannerStatusReason = "".obs;
-  final avatarStatusReason = "".obs;
+  final bannerStatus = 'PENDING'.obs;
+  final avatarStatus = 'PENDING'.obs;
+  final bannerStatusReason = ''.obs;
+  final avatarStatusReason = ''.obs;
 
   // Verification File IDs
   final avatarFileId = ''.obs;
   final bannerFileId = ''.obs;
 
   // Details screen real-time verification statuses
-  final detailsAvatarStatus = "".obs;
-  final detailsBannerStatus = "".obs;
-  final detailsAvatarReason = "".obs;
-  final detailsBannerReason = "".obs;
+  final detailsAvatarStatus = ''.obs;
+  final detailsBannerStatus = ''.obs;
+  final detailsAvatarReason = ''.obs;
+  final detailsBannerReason = ''.obs;
 
   StreamSubscription? _detailsAvatarSub;
   StreamSubscription? _detailsBannerSub;
@@ -277,10 +277,10 @@ class ChannelController extends GetxController
 
   // Availability Checking
   final handleSuggestions = <String>[].obs;
-  var channelNameAvailability = Rx<AvailabilityStatus>(
+  Rx<AvailabilityStatus> channelNameAvailability = Rx<AvailabilityStatus>(
     AvailabilityStatus.unknown,
   );
-  var customUrlAvailability = Rx<AvailabilityStatus>(
+  Rx<AvailabilityStatus> customUrlAvailability = Rx<AvailabilityStatus>(
     AvailabilityStatus.unknown,
   );
   Timer? _channelNameDebounceTimer;
@@ -391,7 +391,7 @@ class ChannelController extends GetxController
           .listen(
             (snapshot) {
               final results = snapshot.docs
-                  .map((doc) => Channel.fromDocumentSnapshot(doc))
+                  .map(Channel.fromDocumentSnapshot)
                   .where((channel) => channel.isArchived != true)
                   .toList();
               channels.assignAll(results);
@@ -418,7 +418,7 @@ class ChannelController extends GetxController
           .get();
 
       final results = snapshot.docs
-          .map((doc) => Channel.fromDocumentSnapshot(doc))
+          .map(Channel.fromDocumentSnapshot)
           .where((channel) => channel.isArchived != true)
           .toList();
 
@@ -435,19 +435,19 @@ class ChannelController extends GetxController
   void _initializeAnimations() {
     // Existing animations
     formFadeAnimationController = AnimationController(
-      duration: Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 800),
       vsync: this,
     );
     formSlideAnimationController = AnimationController(
-      duration: Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 600),
       vsync: this,
     );
     formScaleAnimationController = AnimationController(
-      duration: Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 400),
       vsync: this,
     );
     heroAnimationController = AnimationController(
-      duration: Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 1000),
       vsync: this,
     );
 
@@ -465,35 +465,35 @@ class ChannelController extends GetxController
       vsync: this,
     );
 
-    fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
         parent: formFadeAnimationController,
         curve: Curves.easeIn,
       ),
     );
-    slideAnimation = Tween<Offset>(begin: Offset(0, 0.2), end: Offset.zero)
+    slideAnimation = Tween<Offset>(begin: const Offset(0, 0.2), end: Offset.zero)
         .animate(
           CurvedAnimation(
             parent: formSlideAnimationController,
             curve: Curves.easeOutCubic,
           ),
         );
-    scaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(
+    scaleAnimation = Tween<double>(begin: 0.9, end: 1).animate(
       CurvedAnimation(
         parent: formScaleAnimationController,
         curve: Curves.elasticOut,
       ),
     );
-    heroAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    heroAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: heroAnimationController, curve: Curves.easeInOut),
     );
-    buttonScaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
+    buttonScaleAnimation = Tween<double>(begin: 1, end: 0.95).animate(
       CurvedAnimation(
         parent: buttonAnimationController,
         curve: Curves.easeInOut,
       ),
     );
-    successScaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    successScaleAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
         parent: successAnimationController,
         curve: Curves.elasticOut,
@@ -514,20 +514,20 @@ class ChannelController extends GetxController
       vsync: this,
     );
 
-    pageFadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    pageFadeAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
         parent: pageFadeAnimationController,
         curve: Curves.easeOutCubic,
       ),
     );
     pageSlideAnimation =
-        Tween<Offset>(begin: const Offset(0.0, 0.1), end: Offset.zero).animate(
+        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
           CurvedAnimation(
             parent: pageSlideAnimationController,
             curve: Curves.easeOutCubic,
           ),
         );
-    pageScaleAnimation = Tween<double>(begin: 0.95, end: 1.0).animate(
+    pageScaleAnimation = Tween<double>(begin: 0.95, end: 1).animate(
       CurvedAnimation(
         parent: pageScaleAnimationController,
         curve: Curves.easeOutBack,
@@ -539,7 +539,7 @@ class ChannelController extends GetxController
       duration: const Duration(milliseconds: 500),
       vsync: this,
     );
-    subscriptionScaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
+    subscriptionScaleAnimation = Tween<double>(begin: 1, end: 0.95).animate(
       CurvedAnimation(
         parent: subscriptionAnimationController,
         curve: Curves.elasticOut,
@@ -566,10 +566,10 @@ class ChannelController extends GetxController
       checkChannelNameAvailability(channelName.text);
       // Auto-fill custom URL if it's empty or was previously auto-filled
       final slug = channelName.text.toLowerCase().trim()
-          .replaceAll(RegExp(r'[^a-z0-9_-]'), '-')
-          .replaceAll(RegExp(r'-+'), '-')
-          .replaceAll(RegExp(r'_+'), '_');
-      String cleanSlug = slug;
+          .replaceAll(RegExp('[^a-z0-9_-]'), '-')
+          .replaceAll(RegExp('-+'), '-')
+          .replaceAll(RegExp('_+'), '_');
+      var cleanSlug = slug;
       if (cleanSlug.startsWith('-') || cleanSlug.startsWith('_')) {
         cleanSlug = cleanSlug.substring(1);
       }
@@ -660,7 +660,7 @@ class ChannelController extends GetxController
     _customUrlDebounceTimer?.cancel();
 
     // Cancel moderation listeners
-    for (var sub in _moderationListeners.values) {
+    for (final sub in _moderationListeners.values) {
       sub.cancel();
     }
     _moderationListeners.clear();
@@ -700,7 +700,7 @@ class ChannelController extends GetxController
     channelNameAvailability.value = AvailabilityStatus.checking;
 
     _channelNameDebounceTimer = Timer(
-      Duration(milliseconds: debounceDurationMs),
+      const Duration(milliseconds: debounceDurationMs),
       () => _performChannelNameAvailabilityCheck(channelName),
     );
   }
@@ -746,7 +746,7 @@ class ChannelController extends GetxController
     customUrlAvailability.value = AvailabilityStatus.checking;
 
     _customUrlDebounceTimer = Timer(
-      Duration(milliseconds: debounceDurationMs),
+      const Duration(milliseconds: debounceDurationMs),
       () => _performCustomUrlAvailabilityCheck(customUrl),
     );
   }
@@ -830,13 +830,13 @@ class ChannelController extends GetxController
 
       final file = result.files.first;
       if (file.bytes == null) {
-        return _showErrorSnackbar("Unable to read image file.");
+        return _showErrorSnackbar('Unable to read image file.');
       }
 
       final maxSize = isBanner ? maxBannerSize : maxAvatarSize;
       if (file.size > maxSize) {
         return _showErrorSnackbar(
-          "Image exceeds ${(maxSize / (1024 * 1024)).toStringAsFixed(1)}MB.",
+          'Image exceeds ${(maxSize / (1024 * 1024)).toStringAsFixed(1)}MB.',
         );
       }
 
@@ -844,7 +844,7 @@ class ChannelController extends GetxController
       if (extension == null ||
           !['jpg', 'jpeg', 'png', 'webp', 'gif'].contains(extension)) {
         return _showErrorSnackbar(
-          "Unsupported format. Use JPG, PNG, WebP, GIF.",
+          'Unsupported format. Use JPG, PNG, WebP, GIF.',
         );
       }
 
@@ -852,9 +852,9 @@ class ChannelController extends GetxController
       try {
         image = await decodeImageFromList(file.bytes!);
       } catch (e) {
-        return _showErrorSnackbar("Invalid image: $e");
+        return _showErrorSnackbar('Invalid image: $e');
       }
-      if (image == null) return _showErrorSnackbar("Unable to decode image.");
+      if (image == null) return _showErrorSnackbar('Unable to decode image.');
 
       final imageData = ImageData(
         bytes: file.bytes!,
@@ -874,7 +874,7 @@ class ChannelController extends GetxController
       }
 
       // Delete previous image
-      String? oldUrl = isBanner ? bannerUrl.value : avatarUrl.value;
+      final oldUrl = isBanner ? bannerUrl.value : avatarUrl.value;
       if (oldUrl.isNotEmpty) {
         try {
           await _storage.refFromURL(oldUrl).delete();
@@ -882,7 +882,7 @@ class ChannelController extends GetxController
       }
 
       final user = _auth.currentUser;
-      if (user == null) return _showErrorSnackbar("Login required.");
+      if (user == null) return _showErrorSnackbar('Login required.');
 
       final uploadData = await uploadImage(
         file,
@@ -900,12 +900,12 @@ class ChannelController extends GetxController
       if (uploadData == null) {
         if (isBanner) {
           isUploadingBanner.value = false;
-          bannerStatus.value = "ERROR";
+          bannerStatus.value = 'ERROR';
         } else {
           isUploadingAvatar.value = false;
-          avatarStatus.value = "ERROR";
+          avatarStatus.value = 'ERROR';
         }
-        return _showErrorSnackbar("Upload failed. Please try again.");
+        return _showErrorSnackbar('Upload failed. Please try again.');
       }
 
       final uploadedUrl = uploadData['url']!;
@@ -924,7 +924,7 @@ class ChannelController extends GetxController
       }
     } catch (e) {
       debugPrint('Error in pickImage: $e');
-      _showErrorSnackbar("Failed to process local image.");
+      _showErrorSnackbar('Failed to process local image.');
     } finally {
       if (isBanner) {
         isUploadingBanner.value = false;
@@ -944,9 +944,9 @@ class ChannelController extends GetxController
     _moderationListeners[key]?.cancel();
 
     if (isBanner) {
-      bannerStatus.value = "PENDING";
+      bannerStatus.value = 'PENDING';
     } else {
-      avatarStatus.value = "PENDING";
+      avatarStatus.value = 'PENDING';
     }
 
     _moderationListeners[key] = _imageVerificationService
@@ -963,17 +963,17 @@ class ChannelController extends GetxController
 
             if (result.status == VerificationStatus.rejected) {
               Get.snackbar(
-                "Banner Rejected",
+                'Banner Rejected',
                 result.reason,
                 backgroundColor: AppColors.brand,
-                colorText: Colors.white,
+                colorText: AppColors.textPrimary,
               );
             } else if (result.status == VerificationStatus.approved) {
               Get.snackbar(
-                "Banner Approved",
-                "Your banner has passed verification.",
+                'Banner Approved',
+                'Your banner has passed verification.',
                 backgroundColor: AppColors.success,
-                colorText: Colors.white,
+                colorText: AppColors.textPrimary,
               );
             }
           } else {
@@ -982,17 +982,17 @@ class ChannelController extends GetxController
 
             if (result.status == VerificationStatus.rejected) {
               Get.snackbar(
-                "Avatar Rejected",
+                'Avatar Rejected',
                 result.reason,
                 backgroundColor: AppColors.brand,
-                colorText: Colors.white,
+                colorText: AppColors.textPrimary,
               );
             } else if (result.status == VerificationStatus.approved) {
               Get.snackbar(
-                "Avatar Approved",
-                "Your avatar has passed verification.",
+                'Avatar Approved',
+                'Your avatar has passed verification.',
                 backgroundColor: AppColors.success,
-                colorText: Colors.white,
+                colorText: AppColors.textPrimary,
               );
             }
           }
@@ -1016,14 +1016,14 @@ class ChannelController extends GetxController
       // 0. Limit Check
       if (channels.length >= maxChannelsPerUser) {
         _showErrorSnackbar(
-          "You can only create one channel per Google account.",
+          'You can only create one channel per Google account.',
         );
         return;
       }
 
       // 1. Validation
       if (!formKey.currentState!.validate()) {
-        _showErrorSnackbar("Please fill in all required fields correctly.");
+        _showErrorSnackbar('Please fill in all required fields correctly.');
         return;
       }
 
@@ -1041,28 +1041,28 @@ class ChannelController extends GetxController
 
       // 2. Moderation checks (Background verification does not block creation if status is PENDING)
       if (avatarUrl.value.isNotEmpty) {
-        if (avatarStatus.value == "REJECTED" ||
-            avatarStatus.value == "FLAGGED") {
+        if (avatarStatus.value == 'REJECTED' ||
+            avatarStatus.value == 'FLAGGED') {
           _showErrorSnackbar(
-            "Your avatar was rejected or flagged: ${avatarStatusReason.value}",
+            'Your avatar was rejected or flagged: ${avatarStatusReason.value}',
           );
           return;
         }
       }
 
       if (bannerUrl.value.isNotEmpty) {
-        if (bannerStatus.value == "REJECTED" ||
-            bannerStatus.value == "FLAGGED") {
+        if (bannerStatus.value == 'REJECTED' ||
+            bannerStatus.value == 'FLAGGED') {
           _showErrorSnackbar(
-            "Your banner was rejected or flagged: ${bannerStatusReason.value}",
+            'Your banner was rejected or flagged: ${bannerStatusReason.value}',
           );
           return;
         }
       }
 
-      if (avatarStatus.value == "ERROR" || bannerStatus.value == "ERROR") {
+      if (avatarStatus.value == 'ERROR' || bannerStatus.value == 'ERROR') {
         _showErrorSnackbar(
-          "Moderation service error. Please try uploading your branding images again.",
+          'Moderation service error. Please try uploading your branding images again.',
         );
         return;
       }
@@ -1090,84 +1090,84 @@ class ChannelController extends GetxController
       final channelNameText = channelName.text.trim();
       final customUrlText = customUrl.text.trim();
 
-      const String defaultBanner =
-          "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=2670&auto=format&fit=crop";
-      const String defaultAvatar =
-          "https://ui-avatars.com/api/?background=6B46C1&color=fff&size=512&name=";
+      const defaultBanner =
+          'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?q=80&w=2670&auto=format&fit=crop';
+      const defaultAvatar =
+          'https://ui-avatars.com/api/?background=6B46C1&color=fff&size=512&name=';
 
       final channelData = {
         // Core fields matching Channel model (V2)
-        "name": channelNameText,
-        "nameLowercase": channelNameText.toLowerCase(),
-        "channelName": channelNameText,
-        "channelNameLowercase": channelNameText.toLowerCase(),
-        "description": description.text.trim(),
-        "bannerUrl": bannerUrl.value.isEmpty ? defaultBanner : bannerUrl.value,
-        "avatarUrl": avatarUrl.value.isEmpty
-            ? "$defaultAvatar$channelNameText"
+        'name': channelNameText,
+        'nameLowercase': channelNameText.toLowerCase(),
+        'channelName': channelNameText,
+        'channelNameLowercase': channelNameText.toLowerCase(),
+        'description': description.text.trim(),
+        'bannerUrl': bannerUrl.value.isEmpty ? defaultBanner : bannerUrl.value,
+        'avatarUrl': avatarUrl.value.isEmpty
+            ? '$defaultAvatar$channelNameText'
             : avatarUrl.value,
-        "avatarFileId": avatarFileId.value.isEmpty ? null : avatarFileId.value,
-        "bannerFileId": bannerFileId.value.isEmpty ? null : bannerFileId.value,
-        "avatarStatus": avatarStatus.value,
-        "bannerStatus": bannerStatus.value,
-        "ownerId": uid,
-        "createdAt": FieldValue.serverTimestamp(),
-        "updatedAt": FieldValue.serverTimestamp(),
+        'avatarFileId': avatarFileId.value.isEmpty ? null : avatarFileId.value,
+        'bannerFileId': bannerFileId.value.isEmpty ? null : bannerFileId.value,
+        'avatarStatus': avatarStatus.value,
+        'bannerStatus': bannerStatus.value,
+        'ownerId': uid,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
 
         // Public settings
-        "isPublic": isPublic.value,
-        "isVerified": false,
-        "subscriberCount": 0,
-        "language": language.value,
-        "tags": tagsList,
+        'isPublic': isPublic.value,
+        'isVerified': false,
+        'subscriberCount': 0,
+        'language': language.value,
+        'tags': tagsList,
 
         // Custom URL mapped to handle
-        "handle": customUrlText,
-        "handleLowercase": customUrlText.toLowerCase(),
-        "customUrl": customUrlText,
-        "customUrlLowercase": customUrlText.toLowerCase(),
+        'handle': customUrlText,
+        'handleLowercase': customUrlText.toLowerCase(),
+        'customUrl': customUrlText,
+        'customUrlLowercase': customUrlText.toLowerCase(),
 
         // Moderation lists
-        "moderatorIds": [],
-        "blockedUserIds": [],
+        'moderatorIds': [],
+        'blockedUserIds': [],
 
         // Optional fields
-        "category": selectedCategories.isEmpty
+        'category': selectedCategories.isEmpty
             ? (selectedCategory.value ?? 'other')
             : selectedCategories.join(', '),
-        "contactEmail": contactEmail.text.trim().isEmpty
+        'contactEmail': contactEmail.text.trim().isEmpty
             ? null
             : contactEmail.text.trim(),
-        "websiteUrl": websiteUrl.text.trim().isEmpty
+        'websiteUrl': websiteUrl.text.trim().isEmpty
             ? null
             : websiteUrl.text.trim(),
-        "socialLinks": Map<String, dynamic>.from(socialLinks),
+        'socialLinks': Map<String, dynamic>.from(socialLinks),
 
         // Advanced settings from form
-        "allowComments": advancedSettings['allowComments'] ?? true,
-        "allowSubscriptions": advancedSettings['allowSubscriptions'] ?? true,
-        "showSubscriberCount": advancedSettings['showSubscriberCount'] ?? true,
+        'allowComments': advancedSettings['allowComments'] ?? true,
+        'allowSubscriptions': advancedSettings['allowSubscriptions'] ?? true,
+        'showSubscriberCount': advancedSettings['showSubscriberCount'] ?? true,
 
         // Branding
-        "brandingSettings": {
-          "primaryColor": "#6B46C1",
-          "secondaryColor": "#9333EA",
-          "bannerStyle": "gradient",
+        'brandingSettings': {
+          'primaryColor': '#6B46C1',
+          'secondaryColor': '#9333EA',
+          'bannerStyle': 'gradient',
         },
 
         // Status & Metrics
-        "status": "underReview",
-        "videoCount": 0,
-        "isLive": false,
-        "metrics": {
-          "totalViews": 0,
-          "totalWatchTimeMinutes": 0,
-          "averageRetention": 0.0,
+        'status': 'underReview',
+        'videoCount': 0,
+        'isLive': false,
+        'metrics': {
+          'totalViews': 0,
+          'totalWatchTimeMinutes': 0,
+          'averageRetention': 0.0,
         },
       };
 
       // Firestore transaction
-      final String? newChannelId = await _firestore.runTransaction<String?>((
+      final newChannelId = await _firestore.runTransaction<String?>((
         transaction,
       ) async {
         final channelRef = _firestore.collection(_channelsCol).doc();
@@ -1200,7 +1200,7 @@ class ChannelController extends GetxController
 
       // Navigate directly to Creator Studio with a smooth transition
       Get.offAllNamed(
-        "/studio",
+        '/studio',
         arguments: {
           'channel': {
             'id': newChannelId,
@@ -1210,7 +1210,7 @@ class ChannelController extends GetxController
       );
     } catch (e) {
       debugPrint('âŒ Error creating channel: $e');
-      _showErrorSnackbar("Failed to create channel: $e");
+      _showErrorSnackbar('Failed to create channel: $e');
     } finally {
       isSubmitting.value = false;
     }
@@ -1301,7 +1301,7 @@ class ChannelController extends GetxController
         isSubscribed.value = true;
         return false;
       }
-      _showErrorSnackbar('Failed to subscribe: ${e.toString()}');
+      _showErrorSnackbar('Failed to subscribe: $e');
       return false;
     }
   }
@@ -1412,9 +1412,9 @@ class ChannelController extends GetxController
     final subRef = _firestore.collection(_subsCol).doc(subDocId);
 
     try {
-      await subRef.update({
+      await subRef.set({
         'notificationsEnabled': enabled,
-      });
+      }, SetOptions(merge: true));
       notificationsEnabled.value = enabled;
       _showSuccessSnackbar(enabled ? 'All notifications turned on' : 'Notifications muted');
     } catch (e) {
@@ -1745,7 +1745,7 @@ class ChannelController extends GetxController
       lastDraftSaveTime.value = null;
     } catch (e) {
       debugPrint('Error deleting draft: $e');
-      _showErrorSnackbar("Failed to delete draft: $e");
+      _showErrorSnackbar('Failed to delete draft: $e');
     }
   }
 
@@ -1780,27 +1780,27 @@ class ChannelController extends GetxController
 
   void _showErrorSnackbar(String message) {
     Get.snackbar(
-      "Error",
+      'Error',
       message,
       snackPosition: SnackPosition.BOTTOM,
       backgroundColor: AppColors.brand,
       colorText: AppColors.textPrimary,
       margin: const EdgeInsets.all(16),
       borderRadius: 12,
-      icon: Icon(Icons.star, color: AppColors.textPrimary),
+      icon: const Icon(Icons.star, color: AppColors.textPrimary),
     );
   }
 
   void _showSuccessSnackbar(String message) {
     Get.snackbar(
-      "Success",
+      'Success',
       message,
       snackPosition: SnackPosition.BOTTOM,
       backgroundColor: AppColors.success,
       colorText: AppColors.textPrimary,
       margin: const EdgeInsets.all(16),
       borderRadius: 12,
-      icon: Icon(Icons.star, color: AppColors.textPrimary),
+      icon: const Icon(Icons.star, color: AppColors.textPrimary),
     );
   }
 
@@ -1847,10 +1847,10 @@ class ChannelController extends GetxController
     selectedChannel.value = channel;
 
     // Set initial values from the channel document
-    detailsAvatarStatus.value = channel.avatarStatus ?? "";
-    detailsBannerStatus.value = channel.bannerStatus ?? "";
-    detailsAvatarReason.value = "";
-    detailsBannerReason.value = "";
+    detailsAvatarStatus.value = channel.avatarStatus ?? '';
+    detailsBannerStatus.value = channel.bannerStatus ?? '';
+    detailsAvatarReason.value = '';
+    detailsBannerReason.value = '';
 
     _detailsAvatarSub?.cancel();
     _detailsBannerSub?.cancel();
@@ -1859,8 +1859,8 @@ class ChannelController extends GetxController
     if (currentUser != null && channel.ownerId == currentUser.uid) {
       if (channel.avatarFileId != null &&
           channel.avatarFileId!.isNotEmpty &&
-          channel.avatarStatus != "APPROVED") {
-        detailsAvatarStatus.value = channel.avatarStatus ?? "PENDING";
+          channel.avatarStatus != 'APPROVED') {
+        detailsAvatarStatus.value = channel.avatarStatus ?? 'PENDING';
         _detailsAvatarSub = _imageVerificationService
             .streamVerificationStatus(channel.avatarFileId!)
             .listen((result) {
@@ -1878,8 +1878,8 @@ class ChannelController extends GetxController
 
       if (channel.bannerFileId != null &&
           channel.bannerFileId!.isNotEmpty &&
-          channel.bannerStatus != "APPROVED") {
-        detailsBannerStatus.value = channel.bannerStatus ?? "PENDING";
+          channel.bannerStatus != 'APPROVED') {
+        detailsBannerStatus.value = channel.bannerStatus ?? 'PENDING';
         _detailsBannerSub = _imageVerificationService
             .streamVerificationStatus(channel.bannerFileId!)
             .listen((result) {
@@ -1916,8 +1916,8 @@ class ChannelController extends GetxController
   void onScroll(ScrollController scrollController) {
     if (!scrollController.hasClients) return;
 
-    final double offset = scrollController.offset;
-    final bool isExpanded = offset > 200;
+    final offset = scrollController.offset;
+    final isExpanded = offset > 200;
 
     if (isExpanded != isAppBarExpanded.value) {
       isAppBarExpanded.value = isExpanded;
@@ -1932,7 +1932,7 @@ class ChannelController extends GetxController
     if (selectedChannel.value == null) return;
     isLoadingVideos.value = true;
     try {
-      Query<Map<String, dynamic>> query = _firestore
+      var query = _firestore
           .collection('videos')
           .where('channelId', isEqualTo: selectedChannel.value!.channelId);
 
@@ -1959,7 +1959,7 @@ class ChannelController extends GetxController
 
       if (snapshot.docs.isNotEmpty) {
         videos.value = snapshot.docs
-            .map((doc) => Video.fromDocumentSnapshot(doc))
+            .map(Video.fromDocumentSnapshot)
             .toList();
         lastVideoDocument.value = snapshot.docs.last;
         hasVideos.value = true;
@@ -1989,7 +1989,7 @@ class ChannelController extends GetxController
     }
     isLoadingMore.value = true;
     try {
-      Query<Map<String, dynamic>> query = _firestore
+      var query = _firestore
           .collection('videos')
           .where('channelId', isEqualTo: selectedChannel.value!.channelId);
 
@@ -2017,7 +2017,7 @@ class ChannelController extends GetxController
           .get();
       if (snapshot.docs.isNotEmpty) {
         videos.addAll(
-          snapshot.docs.map((doc) => Video.fromDocumentSnapshot(doc)).toList(),
+          snapshot.docs.map(Video.fromDocumentSnapshot).toList(),
         );
         lastVideoDocument.value = snapshot.docs.last;
       }
@@ -2043,10 +2043,10 @@ class ChannelController extends GetxController
     _subscriptionListener?.cancel();
     _detailsAvatarSub?.cancel();
     _detailsBannerSub?.cancel();
-    detailsAvatarStatus.value = "";
-    detailsBannerStatus.value = "";
-    detailsAvatarReason.value = "";
-    detailsBannerReason.value = "";
+    detailsAvatarStatus.value = '';
+    detailsBannerStatus.value = '';
+    detailsAvatarReason.value = '';
+    detailsBannerReason.value = '';
     hasVideos.value = false;
     hasPlaylists.value = false;
     hasPosts.value = false;
@@ -2071,11 +2071,20 @@ class ChannelController extends GetxController
       hasPlaylists.value = playlistSnap.docs.isNotEmpty;
 
       // Check if channel has posts (Community)
-      final postSnap = await _firestore
+      final currentUser = _auth.currentUser;
+      final isOwner = currentUser != null && selectedChannel.value?.ownerId == currentUser.uid;
+      
+      var postQuery = _firestore
           .collection('Community')
-          .where('channelId', isEqualTo: channelId)
-          .limit(1)
-          .get();
+          .where('channelId', isEqualTo: channelId);
+          
+      if (isOwner) {
+        postQuery = postQuery.where('ownerId', isEqualTo: currentUser.uid);
+      } else {
+        postQuery = postQuery.where('visibility', isEqualTo: 'Public');
+      }
+
+      final postSnap = await postQuery.limit(1).get();
       hasPosts.value = postSnap.docs.isNotEmpty;
     } catch (e) {
       debugPrint('Error checking channel content: $e');

@@ -1,9 +1,9 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/features/video/data/models/content_verification.dart';
 import 'package:truthworld/features/video/data/models/pipeline_config.dart';
 import 'package:truthworld/features/video/data/models/pipeline_status.dart';
-import 'package:truthworld/features/video/data/models/content_verification.dart';
 import 'package:truthworld/features/video/data/services/pipeline_service.dart';
 
 /// Pipeline Controller - Manages pipeline orchestration state
@@ -129,7 +129,6 @@ class PipelineController extends GetxController {
       subtitleLanguages: selectedSubtitleLanguages,
       voiceType: voiceType.value,
       ttsSpeed: ttsSpeed.value,
-      enableTranscription: true,
       enableDiarization: enablePath1.value,
       enableFactCheck: enableFactCheck.value,
       factCheckScoringMethod: factCheckScoring.value,
@@ -174,7 +173,6 @@ class PipelineController extends GetxController {
           videoDuration: videoDuration,
           videoCategory: videoCategory,
         );
-        break;
       case 'content_creator':
         config = PipelineTemplates.contentCreatorTemplate(
           userId: user.uid,
@@ -185,7 +183,6 @@ class PipelineController extends GetxController {
           videoCategory: videoCategory,
           languages: ['es', 'fr', 'de'],
         );
-        break;
       case 'fact_checker':
         config = PipelineTemplates.factCheckerTemplate(
           userId: user.uid,
@@ -195,7 +192,6 @@ class PipelineController extends GetxController {
           videoDuration: videoDuration,
           videoCategory: videoCategory,
         );
-        break;
       case 'full_featured':
         config = PipelineTemplates.fullFeaturedTemplate(
           userId: user.uid,
@@ -206,7 +202,6 @@ class PipelineController extends GetxController {
           videoCategory: videoCategory,
           languages: ['es', 'fr', 'de', 'pt', 'hi', 'ja', 'zh'],
         );
-        break;
       default:
         return;
     }
@@ -254,7 +249,7 @@ class PipelineController extends GetxController {
 
       // Validate configuration
       final validation = _pipelineService.validateConfig(config);
-      if (!validation['isValid']) {
+      if (validation['isValid'] != true) {
         errorMessage.value = (validation['errors'] as List).join('\n');
         isSubmitting.value = false;
         return null;
@@ -398,7 +393,7 @@ class PipelineController extends GetxController {
       final videoDurationSeconds =
           int.tryParse(currentConfig.value?.videoDuration ?? '0') ?? 0;
       return PipelineConfig.calculateCost(
-        tier: userTier.value['tier'] ?? 'free',
+        tier: (userTier.value['tier'] as String?) ?? 'free',
         enablePath1: enablePath1.value,
         enablePath2: enablePath2.value,
         dubbingLanguageCount: selectedDubbingLanguages.length,
@@ -407,7 +402,7 @@ class PipelineController extends GetxController {
         videoDuration: videoDurationSeconds.toString(),
       );
     } catch (e) {
-      return 0.0;
+      return 0;
     }
   }
 

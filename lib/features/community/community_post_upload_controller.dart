@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:truthworld/core/ux/app_snackbar.dart';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,11 +7,13 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
-import 'package:truthworld/core/services/image_verification_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/image_verification_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/community/data/models/community_draft.dart';
 import 'package:truthworld/features/community/data/models/poll_model.dart';
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:uuid/uuid.dart';
 
 /// Dedicated GetX controller for the **Community Post Upload** flow.
@@ -97,7 +99,7 @@ class CommunityPostUploadController extends GetxController
   @override
   void onClose() {
     // _channelsSubscription removed
-    for (var sub in _moderationListeners.values) {
+    for (final sub in _moderationListeners.values) {
       sub.cancel();
     }
     super.onClose();
@@ -117,14 +119,14 @@ class CommunityPostUploadController extends GetxController
       channelsError.value = '';
 
       _firestore
-          .collection("channels")
+          .collection('channels')
           .where('ownerId', isEqualTo: user.uid)
           .where('isArchived', isEqualTo: false)
           .withConverter<Channel>(
             fromFirestore: (doc, _) => Channel.fromDocumentSnapshot(doc),
             toFirestore: (channel, _) => {},
           )
-          .get(const GetOptions(source: Source.serverAndCache))
+          .get(const GetOptions())
           .then((snapshot) {
         channels.value = snapshot.docs.map((doc) => doc.data()).toList();
         isChannelsLoading.value = false;
@@ -145,10 +147,10 @@ class CommunityPostUploadController extends GetxController
           'Failed to load channels',
           snackPosition: SnackPosition.BOTTOM,
           backgroundColor: const Color(0xFFEF4444),
-          colorText: Colors.white,
+          colorText: AppColors.textPrimary,
           mainButton: TextButton(
-            onPressed: () => _fetchChannelsForCommunity(),
-            child: const Text('Retry', style: TextStyle(color: Colors.white)),
+            onPressed: _fetchChannelsForCommunity,
+            child: const Text('Retry', style: TextStyle(color: AppColors.textPrimary)),
           ),
         );
       });
@@ -247,7 +249,7 @@ class CommunityPostUploadController extends GetxController
         pickedImages.clear();
         imageUrls.clear();
         imageUploadProgress.clear();
-        for (var sub in _moderationListeners.values) {
+        for (final sub in _moderationListeners.values) {
           sub.cancel();
         }
         _moderationListeners.clear();
@@ -289,7 +291,7 @@ class CommunityPostUploadController extends GetxController
         pickedImages.addAll(result.files);
 
         // Parallel uploads to storage
-        for (int i = 0; i < result.files.length; i++) {
+        for (var i = 0; i < result.files.length; i++) {
           final globalIndex = startIndex + i;
           _uploadSingleImage(globalIndex, result.files[i]);
         }
@@ -310,8 +312,8 @@ class CommunityPostUploadController extends GetxController
       moderationStatuses[index] = 'PENDING';
 
       final fileExt = file.extension ?? 'jpg';
-      final fileName = "${_uuid.v4()}.$fileExt";
-      final ref = _storage.ref("community_images/$fileName");
+      final fileName = '${_uuid.v4()}.$fileExt';
+      final ref = _storage.ref('community_images/$fileName');
 
       final metadata = SettableMetadata(contentType: 'image/$fileExt');
       final uploadTask = ref.putData(await file.xFile.readAsBytes(), metadata);
@@ -335,10 +337,10 @@ class CommunityPostUploadController extends GetxController
 
       if (lastPublishedPostId.value != null) {
         await _firestore
-            .collection("Community")
+            .collection('Community')
             .doc(lastPublishedPostId.value)
             .update({
-              "images": FieldValue.arrayUnion([downloadUrl]),
+              'images': FieldValue.arrayUnion([downloadUrl]),
             })
             .catchError((e) => debugPrint('Error updating post images: $e'));
       }
@@ -365,11 +367,11 @@ class CommunityPostUploadController extends GetxController
           moderationStatuses[index] = status;
           moderationReasons[index] = reason;
 
-          if (status == "REJECTED") {
+          if (status == 'REJECTED') {
             AppSnackbar.show(
-              "Image Rejected",
-              "One of your images was rejected: $reason",
-              backgroundColor: Colors.red.withValues(alpha: 0.1),
+              'Image Rejected',
+              'One of your images was rejected: $reason',
+              backgroundColor: AppColors.error.withValues(alpha: 0.1),
               snackPosition: SnackPosition.BOTTOM,
             );
           }
@@ -409,7 +411,7 @@ class CommunityPostUploadController extends GetxController
     }
 
     if (selectedChannel.value!.status != ChannelStatus.active) {
-      String message = 'Your channel is not active.';
+      var message = 'Your channel is not active.';
       if (selectedChannel.value!.status == ChannelStatus.underReview) {
         message = 'Your channel details are currently under review by Gemini AI. You can publish posts once approved.';
       } else if (selectedChannel.value!.status == ChannelStatus.verificationRejected) {
@@ -454,49 +456,49 @@ class CommunityPostUploadController extends GetxController
 
     isUploading.value = true;
     try {
-      final docRef = _firestore.collection("Community").doc();
+      final docRef = _firestore.collection('Community').doc();
       lastPublishedPostId.value = docRef.id;
-      final List<String> tags = tagsRaw
+      final tags = tagsRaw
           .split(',')
           .map((t) => t.trim())
           .where((t) => t.isNotEmpty)
           .toList();
 
-      final Map<String, dynamic> data = {
-        "id": docRef.id,
-        "title": title,
-        "description": description,
-        "images": List<String>.from(
+      final data = <String, dynamic>{
+        'id': docRef.id,
+        'title': title,
+        'description': description,
+        'images': List<String>.from(
           imageUrls,
         ), // Store as a list for multi-image support
-        "tags": tags,
-        "timestamp": FieldValue.serverTimestamp(),
-        "ownerId": _auth.currentUser?.uid,
-        "channelId": selectedChannel.value!.channelId,
-        "channelName": selectedChannel.value!.channelName,
-        "channelImage": selectedChannel.value!.avatarUrl,
-        "category": selectedCategory.value,
-        "visibility": isScheduled.value
-            ? "Scheduled"
+        'tags': tags,
+        'timestamp': FieldValue.serverTimestamp(),
+        'ownerId': _auth.currentUser?.uid,
+        'channelId': selectedChannel.value!.channelId,
+        'channelName': selectedChannel.value!.channelName,
+        'channelImage': selectedChannel.value!.avatarUrl,
+        'category': selectedCategory.value,
+        'visibility': isScheduled.value
+            ? 'Scheduled'
             : selectedVisibility.value,
-        "isKidFriendly": isKidFriendly.value,
+        'isKidFriendly': isKidFriendly.value,
       };
 
       if (isScheduled.value) {
-        data["scheduledTime"] = Timestamp.fromDate(scheduledDate.value);
+        data['scheduledTime'] = Timestamp.fromDate(scheduledDate.value);
       }
 
       if (hasPoll.value) {
-        data["poll"] = {
-          "question": pollQuestion.value,
-          "type": pollType.value.name,
-          "options": pollType.value == PollType.multiChoice
-              ? pollOptions.map((o) => {"text": o, "votes": 0}).toList()
+        data['poll'] = {
+          'question': pollQuestion.value,
+          'type': pollType.value.name,
+          'options': pollType.value == PollType.multiChoice
+              ? pollOptions.map((o) => {'text': o, 'votes': 0}).toList()
               : [
-                  {"text": "Yes", "votes": 0},
-                  {"text": "No", "votes": 0},
+                  {'text': 'Yes', 'votes': 0},
+                  {'text': 'No', 'votes': 0},
                 ],
-          "expiresAt": pollDurationDays.value != null
+          'expiresAt': pollDurationDays.value != null
               ? Timestamp.fromDate(
                   DateTime.now().add(Duration(days: pollDurationDays.value!)),
                 )

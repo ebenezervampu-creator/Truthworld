@@ -3,8 +3,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:uuid/uuid.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:uuid/uuid.dart';
 
 class PushNotificationService extends GetxService {
   static PushNotificationService get to => Get.find<PushNotificationService>();
@@ -30,9 +30,7 @@ class PushNotificationService extends GetxService {
       }
 
       // 2. Deep-linking when app is resumed from background state
-      FirebaseMessaging.onMessageOpenedApp.listen((message) {
-        _handleNotificationClick(message);
-      });
+      FirebaseMessaging.onMessageOpenedApp.listen(_handleNotificationClick);
 
       logger.info('PushNotificationService initialized successfully', tag: 'PUSH_NOTIFICATIONS');
     } catch (e) {
@@ -51,13 +49,7 @@ class PushNotificationService extends GetxService {
 
       // Prompt user for notification authorization
       final settings = await messaging.requestPermission(
-        alert: true,
-        announcement: false,
-        badge: true,
-        carPlay: false,
-        criticalAlert: false,
-        provisional: false,
-        sound: true,
+        
       );
 
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
@@ -106,9 +98,15 @@ class PushNotificationService extends GetxService {
         box.write('device_id', deviceId);
       }
 
-      await FirebaseFirestore.instance.collection('users').doc(userId).update({
-        'fcmTokens.$deviceId': token,
-      });
+      await FirebaseFirestore.instance.collection('users').doc(userId).set({
+        'fcmTokens': {
+          deviceId: {
+            'token': token,
+            'platform': GetPlatform.isWeb ? 'web' : (GetPlatform.isAndroid ? 'android' : 'ios'),
+            'updatedAt': FieldValue.serverTimestamp(),
+          },
+        },
+      }, SetOptions(merge: true));
       logger.info('FCM token successfully registered to Firestore for device $deviceId', tag: 'PUSH_NOTIFICATIONS');
     } catch (e) {
       logger.error('Failed to sync FCM token to Firestore: $e', tag: 'PUSH_NOTIFICATIONS');

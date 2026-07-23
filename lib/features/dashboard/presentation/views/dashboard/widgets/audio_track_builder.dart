@@ -83,7 +83,6 @@ class AudioTrackBuilder {
           code: entry.key,
           label: labelFor(entry.key),
           audioUrl: url,
-          isEmbedded: false,
         ),
       );
     }

@@ -1,13 +1,13 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/advertiser/presentation/controllers/advertiser_portal_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class ChartData {
   ChartData(this.x, this.y);
@@ -23,7 +23,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
     final controller = Get.put(AdvertiserPortalController());
 
     return Obx(() {
-      final bool isLoggedIn = AuthService.to.isAuthenticated.value;
+      final isLoggedIn = AuthService.to.isAuthenticated.value;
       if (!isLoggedIn) {
         return _buildLoginLandingPage(context, controller);
       }
@@ -39,18 +39,18 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 elevation: 0,
                 leading: Builder(
                   builder: (context) => IconButton(
-                    icon: const Icon(Icons.menu, color: Colors.white),
+                    icon: const Icon(Icons.menu, color: AppColors.textPrimary),
                     onPressed: () => Scaffold.of(context).openDrawer(),
                   ),
                 ),
                 title: Text(
                   controller.tabTitles[controller.selectedIndex.value],
-                  style: AppTextStyles.pageTitle.copyWith(color: Colors.white),
+                  style: AppTextStyles.pageTitle.copyWith(color: AppColors.textPrimary),
                 ),
                 actions: [
                   Padding(
-                    padding: const EdgeInsets.only(right: 16.0),
-                    child: _buildUserAvatar(context, radius: 16),
+                    padding: const EdgeInsets.only(right: 16),
+                    child: _buildUserAvatar(context),
                   ),
                 ],
               ),
@@ -77,7 +77,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
       child: Column(
         children: [
           _buildSidebarHeader(context),
-          const Divider(color: Colors.white10),
+          const Divider(color: AppColors.bgDivider),
           Expanded(
             child: _buildSidebarItems(context, controller, isDrawer: true),
           ),
@@ -97,7 +97,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
       child: Column(
         children: [
           _buildSidebarHeader(context),
-          const Divider(color: Colors.white10),
+          const Divider(color: AppColors.bgDivider),
           Expanded(
             child: _buildSidebarItems(context, controller, isDrawer: false),
           ),
@@ -108,22 +108,22 @@ class AdvertiserPortalScreen extends StatelessWidget {
 
   Widget _buildSidebarHeader(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.all(24),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: Colors.amber.withValues(alpha: 0.1),
+              color: AppColors.warning.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: const Icon(
               Icons.campaign_rounded,
-              color: Colors.amber,
+              color: AppColors.warning,
               size: 24,
             ),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -131,13 +131,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 'Truthworld',
                 style: context.typography.logo.copyWith(
                   fontSize: 16,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
               Text(
                 'Advertiser Studio',
                 style: AppTextStyles.badge.copyWith(
-                  color: Colors.amber,
+                  color: AppColors.warning,
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                 ),
@@ -154,7 +154,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
     AdvertiserPortalController controller, {
     required bool isDrawer,
   }) {
-    final List<IconData> icons = [
+    final icons = <IconData>[
       Icons.dashboard_rounded,
       Icons.campaign_rounded,
       Icons.analytics_rounded,
@@ -169,15 +169,15 @@ class AdvertiserPortalScreen extends StatelessWidget {
         for (int i = 0; i < controller.tabTitles.length; i++)
           ListTile(
             selected: controller.selectedIndex.value == i,
-            selectedTileColor: Colors.amber.withValues(alpha: 0.1),
+            selectedTileColor: AppColors.warning.withValues(alpha: 0.1),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
             ),
             leading: Icon(
               icons[i],
               color: controller.selectedIndex.value == i
-                  ? Colors.amber
-                  : Colors.white60,
+                  ? AppColors.warning
+                  : AppColors.textSecondary,
               size: 20,
             ),
             title: Text(
@@ -185,8 +185,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
               style: AppTextStyles.labelLarge.copyWith(
                 fontWeight: FontWeight.bold,
                 color: controller.selectedIndex.value == i
-                    ? Colors.amber
-                    : Colors.white70,
+                    ? AppColors.warning
+                    : AppColors.textSecondary,
               ),
             ),
             onTap: () {
@@ -234,20 +234,20 @@ class AdvertiserPortalScreen extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildHeroPanel(context, colorScheme),
-          SizedBox(height: 24),
+          const SizedBox(height: 24),
           Text(
             'Performance Overview',
             style: AppTextStyles.sectionHeader.copyWith(
               fontSize: 18,
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           _buildOverviewGrid(context, controller),
-          SizedBox(height: 24),
+          const SizedBox(height: 24),
           _buildAnalyticsChartSection(context, controller),
-          SizedBox(height: 24),
+          const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -255,7 +255,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 'Recent Campaigns',
                 style: AppTextStyles.sectionHeader.copyWith(
                   fontSize: 18,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -265,14 +265,14 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 },
                 icon: const Icon(
                   Icons.arrow_forward,
-                  color: Colors.amber,
+                  color: AppColors.warning,
                   size: 16,
                 ),
-                label: Text(
+                label: const Text(
                   'View All',
                   style: TextStyle(
-                    fontFamily: 'Roboto',
-                    color: Colors.amber,
+                    
+                    color: AppColors.warning,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -318,25 +318,25 @@ class AdvertiserPortalScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF161616),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white12),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Column(
         children: [
-          const Icon(Icons.campaign_outlined, color: Colors.white24, size: 48),
-          SizedBox(height: 12),
+          const Icon(Icons.campaign_outlined, color: AppColors.textDisabled, size: 48),
+          const SizedBox(height: 12),
           Text(
             'No Campaigns Launched Yet',
             style: AppTextStyles.sectionHeader.copyWith(
               fontSize: 16,
-              color: Colors.white60,
+              color: AppColors.textSecondary,
               fontWeight: FontWeight.bold,
             ),
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Text(
             'Create and pay for a campaign to display it on Truthworld.',
             style: AppTextStyles.labelLarge.copyWith(
-              color: Colors.white38,
+              color: AppColors.textTertiary,
               fontSize: 13,
             ),
           ),
@@ -361,24 +361,24 @@ class AdvertiserPortalScreen extends StatelessWidget {
               Text(
                 'My Ad Campaigns',
                 style: AppTextStyles.pageTitle.copyWith(
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               ElevatedButton.icon(
                 onPressed: () => _showCreateCampaignWizard(context, controller),
-                icon: const Icon(Icons.add, color: Colors.black, size: 18),
-                label: Text(
+                icon: const Icon(Icons.add, color: AppColors.bgPage, size: 18),
+                label: const Text(
                   'Create Campaign',
                   style: TextStyle(
-                    fontFamily: 'Roboto',
+                    
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.amber,
-                  foregroundColor: Colors.black,
+                  backgroundColor: AppColors.warning,
+                  foregroundColor: AppColors.bgPage,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -406,19 +406,19 @@ class AdvertiserPortalScreen extends StatelessWidget {
           Text(
             'Detailed Performance Reports',
             style: AppTextStyles.pageTitle.copyWith(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 22,
               fontWeight: FontWeight.bold,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             'Analyze click-through rates, format performance, and download detailed metrics.',
-            style: AppTextStyles.labelLarge.copyWith(color: Colors.white60),
+            style: AppTextStyles.labelLarge.copyWith(color: AppColors.textSecondary),
           ),
-          SizedBox(height: 24),
+          const SizedBox(height: 24),
           _buildAnalyticsChartSection(context, controller),
-          SizedBox(height: 24),
+          const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -426,27 +426,27 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 'Performance Breakdown by Format',
                 style: AppTextStyles.sectionHeader.copyWith(
                   fontSize: 18,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               OutlinedButton.icon(
-                onPressed: () => _simulateExportReport(),
+                onPressed: _simulateExportReport,
                 icon: const Icon(
                   Icons.download_rounded,
                   size: 16,
-                  color: Colors.amber,
+                  color: AppColors.warning,
                 ),
-                label: Text(
+                label: const Text(
                   'Export CSV',
                   style: TextStyle(
-                    fontFamily: 'Roboto',
-                    color: Colors.amber,
+                    
+                    color: AppColors.warning,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.amber),
+                  side: const BorderSide(color: AppColors.warning),
                 ),
               ),
             ],
@@ -469,22 +469,22 @@ class AdvertiserPortalScreen extends StatelessWidget {
     );
 
     for (final ad in myCampaigns) {
-      final String rawType = ad.adType;
-      String typeLabel = 'Homepage Ad';
+      final rawType = ad.adType;
+      var typeLabel = 'Homepage Ad';
       if (rawType == 'skippable') typeLabel = 'Skippable Video';
       if (rawType == 'scroll') typeLabel = 'Scroll Feed';
       if (rawType == 'search') typeLabel = 'Search Result';
       if (rawType == 'comment') typeLabel = 'Comment Box';
       if (rawType == 'video_sponsor') typeLabel = 'Video Sponsor';
 
-      final double budget = ad.budgetAmount ?? 2000.0;
-      final int imps = ad.impressions;
-      final int clicks = ad.clicks;
-      final double calculatedSpend = (imps * 0.15) + (clicks * 2.0);
-      final double actualSpend = calculatedSpend > budget
+      final budget = ad.budgetAmount ?? 2000.0;
+      final imps = ad.impressions;
+      final clicks = ad.clicks;
+      final calculatedSpend = (imps * 0.15) + (clicks * 2.0);
+      final actualSpend = calculatedSpend > budget
           ? budget
           : calculatedSpend;
-      final double ctr = imps > 0 ? (clicks / imps) * 100 : 0.0;
+      final ctr = imps > 0 ? (clicks / imps) * 100 : 0.0;
 
       buffer.writeln(
         '"${ad.title.replaceAll('"', '""')}",'
@@ -502,8 +502,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
     AppSnackbar.show(
       'Export Successful',
       'Real-time CSV Report copied to clipboard successfully.',
-      backgroundColor: Colors.green.shade900,
-      colorText: Colors.white,
+      backgroundColor: AppColors.success,
+      colorText: AppColors.textPrimary,
     );
   }
 
@@ -518,19 +518,19 @@ class AdvertiserPortalScreen extends StatelessWidget {
       final clickMap = <String, int>{};
 
       for (final ad in myCampaigns) {
-        final String rawType = ad.adType;
-        String typeLabel = 'Homepage Ad';
+        final rawType = ad.adType;
+        var typeLabel = 'Homepage Ad';
         if (rawType == 'skippable') typeLabel = 'Skippable Video';
         if (rawType == 'scroll') typeLabel = 'Scroll Feed';
         if (rawType == 'search') typeLabel = 'Search Result';
         if (rawType == 'comment') typeLabel = 'Comment Box';
         if (rawType == 'video_sponsor') typeLabel = 'Video Sponsor';
 
-        final int imps = ad.impressions;
-        final int clicks = ad.clicks;
-        final double calculatedSpend = (imps * 0.15) + (clicks * 2.0);
-        final double budget = ad.budgetAmount ?? 2000.0;
-        final double actualSpend = calculatedSpend > budget
+        final imps = ad.impressions;
+        final clicks = ad.clicks;
+        final calculatedSpend = (imps * 0.15) + (clicks * 2.0);
+        final budget = ad.budgetAmount ?? 2000.0;
+        final actualSpend = calculatedSpend > budget
             ? budget
             : calculatedSpend;
 
@@ -555,10 +555,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
         if (isPercentage) {
           return '${val.toStringAsFixed(2)}%';
         }
-        final int intVal = val.toInt();
-        final String str = intVal.toString();
-        final RegExp reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
-        final String formatted = str.replaceAllMapped(
+        final intVal = val.toInt();
+        final str = intVal.toString();
+        final reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
+        final formatted = str.replaceAllMapped(
           reg,
           (Match m) => '${m[1]},',
         );
@@ -570,11 +570,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFF161616),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white10),
+          border: Border.all(color: AppColors.bgDivider),
         ),
         child: Table(
           columnWidths: const {
-            0: FlexColumnWidth(2.0),
+            0: FlexColumnWidth(2),
             1: FlexColumnWidth(1.2),
             2: FlexColumnWidth(1.5),
             3: FlexColumnWidth(1.2),
@@ -584,7 +584,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
           children: [
             TableRow(
               decoration: const BoxDecoration(
-                color: Colors.white10,
+                color: AppColors.bgDivider,
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(12),
                   topRight: Radius.circular(12),
@@ -601,15 +601,15 @@ class AdvertiserPortalScreen extends StatelessWidget {
             ),
             for (final fmt in formatsList)
               () {
-                final double spent = spentMap[fmt] ?? 0.0;
-                final int imps = impMap[fmt] ?? 0;
-                final int clicks = clickMap[fmt] ?? 0;
-                final double ctr = imps > 0 ? (clicks / imps) * 100 : 0.0;
-                final int conv = (clicks * 0.03).round();
+                final spent = spentMap[fmt] ?? 0.0;
+                final imps = impMap[fmt] ?? 0;
+                final clicks = clickMap[fmt] ?? 0;
+                final ctr = imps > 0 ? (clicks / imps) * 100 : 0.0;
+                final conv = (clicks * 0.03).round();
 
                 return TableRow(
                   decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: Colors.white10)),
+                    border: Border(bottom: BorderSide(color: AppColors.bgDivider)),
                   ),
                   children: [
                     _buildTableCell(fmt, isBold: true),
@@ -634,7 +634,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
         text,
         style: AppTextStyles.labelLarge.copyWith(
           fontWeight: FontWeight.bold,
-          color: Colors.amber,
+          color: AppColors.warning,
           fontSize: 13,
         ),
       ),
@@ -648,7 +648,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
         text,
         style: AppTextStyles.labelLarge.copyWith(
           fontWeight: FontWeight.bold,
-          color: isBold ? Colors.white : Colors.white70,
+          color: isBold ? AppColors.textPrimary : AppColors.textSecondary,
           fontSize: 13,
         ),
       ),
@@ -678,7 +678,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(width: 300, child: listWidget),
-                const VerticalDivider(color: Colors.white10, width: 1),
+                const VerticalDivider(color: AppColors.bgDivider, width: 1),
                 Expanded(child: editorWidget),
               ],
             );
@@ -693,17 +693,17 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         child: Row(
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.arrow_back, color: Colors.white,
+                              icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary,
                               ),
                               onPressed: () {
                                 controller.selectedAdForSubtitles.value = null;
                               },
                             ),
-                            Text(
+                            const Text(
                               'Back to Ads List',
                               style: TextStyle(
-                                fontFamily: 'Roboto',
-                                color: Colors.white,
+                                
+                                color: AppColors.textPrimary,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -723,7 +723,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
     AdvertiserPortalController controller,
     List<AdItem> campaigns,
   ) {
-    return Container(
+    return ColoredBox(
       color: const Color(0xFF0F0F0F),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -734,22 +734,22 @@ class AdvertiserPortalScreen extends StatelessWidget {
               'Select Video Ad to Translate',
               style: AppTextStyles.sectionHeader.copyWith(
                 fontSize: 16,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ),
-          const Divider(color: Colors.white10, height: 1),
+          const Divider(color: AppColors.bgDivider, height: 1),
           Expanded(
             child: campaigns.isEmpty
                 ? Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(24.0),
+                      padding: const EdgeInsets.all(24),
                       child: Text(
                         'No video campaigns available. Subtitles can only be added to Skippable Video ads.',
                         textAlign: TextAlign.center,
                         style: AppTextStyles.labelLarge.copyWith(
-                          color: Colors.white38,
+                          color: AppColors.textTertiary,
                           fontSize: 13,
                         ),
                       ),
@@ -766,11 +766,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       return Container(
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? Colors.amber.withValues(alpha: 0.08)
+                              ? AppColors.warning.withValues(alpha: 0.08)
                               : Colors.transparent,
                           border: Border(
                             bottom: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.05),
+                              color: AppColors.textPrimary.withValues(alpha: 0.05),
                             ),
                           ),
                         ),
@@ -793,7 +793,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             child: const Center(
                               child: Icon(
                                 Icons.play_circle_filled_rounded,
-                                color: Colors.white,
+                                color: AppColors.textPrimary,
                                 size: 16,
                               ),
                             ),
@@ -804,13 +804,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: AppTextStyles.labelLarge.copyWith(
                               fontWeight: FontWeight.bold,
-                              color: isSelected ? Colors.amber : Colors.white,
+                              color: isSelected ? AppColors.warning : AppColors.textPrimary,
                             ),
                           ),
                           subtitle: Text(
                             '$langCount Language track${langCount == 1 ? "" : "s"}',
                             style: AppTextStyles.labelMedium.copyWith(
-                              color: Colors.white38,
+                              color: AppColors.textTertiary,
                             ),
                           ),
                         ),
@@ -832,13 +832,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
             const Icon(
               Icons.subtitles_outlined,
               size: 64,
-              color: Colors.white24,
+              color: AppColors.textDisabled,
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
               'Select a video campaign from the list to begin editing subtitles.',
               textAlign: TextAlign.center,
-              style: AppTextStyles.labelLarge.copyWith(color: Colors.white38),
+              style: AppTextStyles.labelLarge.copyWith(color: AppColors.textTertiary),
             ),
           ],
         ),
@@ -865,17 +865,17 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       ad.title,
                       style: AppTextStyles.sectionHeader.copyWith(
                         fontSize: 18,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         fontWeight: FontWeight.bold,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text(
                       'Manage language subtitles track and cue timings',
                       style: AppTextStyles.labelMedium.copyWith(
-                        color: Colors.white38,
+                        color: AppColors.textTertiary,
                       ),
                     ),
                   ],
@@ -886,12 +886,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     ? null
                     : () => controller.saveSubtitlesForAd(),
                 icon: controller.isSavingSubtitles.value
-                    ? SizedBox(
+                    ? const SizedBox(
                         width: 14,
                         height: 14,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation(Colors.black),
+                          valueColor: AlwaysStoppedAnimation(AppColors.bgPage),
                         ),
                       )
                     : const Icon(Icons.save_rounded, size: 16),
@@ -901,20 +901,20 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       : 'Save Track',
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.amber,
-                  foregroundColor: Colors.black,
+                  backgroundColor: AppColors.warning,
+                  foregroundColor: AppColors.bgPage,
                 ),
               ),
             ],
           ),
-          SizedBox(height: 20),
+          const SizedBox(height: 20),
           Row(
             children: [
               Text(
                 'Tracks:',
                 style: AppTextStyles.labelLarge.copyWith(
                   fontWeight: FontWeight.bold,
-                  color: Colors.white70,
+                  color: AppColors.textSecondary,
                   fontSize: 13,
                 ),
               ),
@@ -941,15 +941,15 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                     lang['code']!;
                                 controller.loadCuesForAd(ad, lang['code']!);
                               },
-                              selectedColor: Colors.amber,
+                              selectedColor: AppColors.warning,
                               labelStyle: AppTextStyles.badge.copyWith(
                                 color:
                                     controller
                                             .selectedLanguageForSubtitles
                                             .value ==
                                         lang['code']
-                                    ? Colors.black
-                                    : Colors.white,
+                                    ? AppColors.bgPage
+                                    : AppColors.textPrimary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 12,
                               ),
@@ -964,14 +964,14 @@ class AdvertiserPortalScreen extends StatelessWidget {
               IconButton(
                 icon: const Icon(
                   Icons.add_circle_outline_rounded,
-                  color: Colors.amber,
+                  color: AppColors.warning,
                 ),
                 tooltip: 'Add translated subtitles track',
                 onPressed: () => _showAddSubtitlesTrackDialog(controller),
               ),
             ],
           ),
-          const Divider(color: Colors.white10, height: 32),
+          const Divider(color: AppColors.bgDivider, height: 32),
           if (controller.isTranslatingSubtitles.value)
             _buildPipelineProgressCard(
               controller.subtitleStatusText.value,
@@ -986,15 +986,15 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         children: [
                           const Icon(
                             Icons.notes_rounded,
-                            color: Colors.white24,
+                            color: AppColors.textDisabled,
                             size: 48,
                           ),
                           const SizedBox(height: 12),
-                          Text(
+                          const Text(
                             'No subtitle cues defined.',
                             style: TextStyle(
-                              fontFamily: 'Roboto',
-                              color: Colors.white38,
+                              
+                              color: AppColors.textTertiary,
                             ),
                           ),
                           const SizedBox(height: 16),
@@ -1008,12 +1008,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                 'text': 'Enter subtitle text...',
                               });
                             },
-                            icon: const Icon(Icons.add, color: Colors.amber),
-                            label: Text(
+                            icon: const Icon(Icons.add, color: AppColors.warning),
+                            label: const Text(
                               'Add Cue',
                               style: TextStyle(
-                                fontFamily: 'Roboto',
-                                color: Colors.amber,
+                                
+                                color: AppColors.warning,
                               ),
                             ),
                           ),
@@ -1034,7 +1034,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
               children: [
                 OutlinedButton.icon(
                   onPressed: () {
-                    final String lastEnd =
+                    final lastEnd =
                         controller.currentSubtitleCues.isNotEmpty
                         ? controller.currentSubtitleCues.last['endTime']!
                         : '00:00:00.000';
@@ -1048,8 +1048,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   icon: const Icon(Icons.add, size: 16),
                   label: const Text('Add Cue Segment'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white70,
-                    side: const BorderSide(color: Colors.white24),
+                    foregroundColor: AppColors.textSecondary,
+                    side: const BorderSide(color: AppColors.textDisabled),
                   ),
                 ),
                 OutlinedButton.icon(
@@ -1059,15 +1059,15 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     AppSnackbar.show(
                       'Exported',
                       'WebVTT subtitle track copied to clipboard successfully!',
-                      backgroundColor: Colors.green.shade900,
-                      colorText: Colors.white,
+                      backgroundColor: AppColors.success,
+                      colorText: AppColors.textPrimary,
                     );
                   },
                   icon: const Icon(Icons.copy_rounded, size: 16),
                   label: const Text('Copy WebVTT'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white70,
-                    side: const BorderSide(color: Colors.white24),
+                    foregroundColor: AppColors.textSecondary,
+                    side: const BorderSide(color: AppColors.textDisabled),
                   ),
                 ),
               ],
@@ -1091,7 +1091,6 @@ class AdvertiserPortalScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           SizedBox(
             width: 180,
@@ -1112,7 +1111,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
           const SizedBox(width: 16),
           Expanded(
             child: TextField(
-              controller: TextEditingController(text: cue['text']!)
+              controller: TextEditingController(text: cue['text'])
                 ..selection = TextSelection.fromPosition(
                   TextPosition(offset: cue['text']!.length),
                 ),
@@ -1120,17 +1119,17 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 controller.currentSubtitleCues[index]['text'] = val;
                 controller.currentSubtitleCues.refresh();
               },
-              style: AppTextStyles.labelLarge.copyWith(color: Colors.white),
+              style: AppTextStyles.labelLarge.copyWith(color: AppColors.textPrimary),
               maxLines: 2,
               decoration: const InputDecoration(
                 border: InputBorder.none,
                 hintText: 'Enter cue subtitles text...',
-                hintStyle: TextStyle(color: Colors.white24),
+                hintStyle: TextStyle(color: AppColors.textDisabled),
               ),
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+            icon: const Icon(Icons.delete_outline, color: AppColors.error),
             onPressed: () {
               controller.currentSubtitleCues.removeAt(index);
             },
@@ -1151,7 +1150,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
           width: 65,
           child: Text(
             label,
-            style: AppTextStyles.caption.copyWith(color: Colors.white38),
+            style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
           ),
         ),
         Expanded(
@@ -1160,11 +1159,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
             child: TextFormField(
               initialValue: value,
               onChanged: onChanged,
-              style: AppTextStyles.labelMedium.copyWith(color: Colors.white70),
+              style: AppTextStyles.labelMedium.copyWith(color: AppColors.textSecondary),
               decoration: const InputDecoration(
                 contentPadding: EdgeInsets.symmetric(
                   horizontal: 6,
-                  vertical: 0,
                 ),
                 fillColor: Colors.black26,
                 filled: true,
@@ -1192,7 +1190,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 Text(
                   status,
                   style: AppTextStyles.labelLarge.copyWith(
-                    color: Colors.white70,
+                    color: AppColors.textSecondary,
                     fontSize: 13,
                   ),
                 ),
@@ -1200,7 +1198,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   '${(progress * 100).toInt()}%',
                   style: AppTextStyles.labelLarge.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: Colors.amber,
+                    color: AppColors.warning,
                     fontSize: 13,
                   ),
                 ),
@@ -1209,8 +1207,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
             const SizedBox(height: 12),
             LinearProgressIndicator(
               value: progress,
-              backgroundColor: Colors.white10,
-              valueColor: const AlwaysStoppedAnimation(Colors.amber),
+              backgroundColor: AppColors.bgDivider,
+              valueColor: const AlwaysStoppedAnimation(AppColors.warning),
             ),
           ],
         ),
@@ -1225,11 +1223,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
       StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: const Color(0xFF161616),
-          title: Text(
+          title: const Text(
             'Add Subtitles Track',
             style: TextStyle(
-              fontFamily: 'Roboto',
-              color: Colors.white,
+              
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -1240,7 +1238,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
               Text(
                 'Translate your video campaign into another language using AI voice translation.',
                 style: AppTextStyles.labelLarge.copyWith(
-                  color: Colors.white60,
+                  color: AppColors.textSecondary,
                   fontSize: 13,
                 ),
               ),
@@ -1248,14 +1246,14 @@ class AdvertiserPortalScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white10,
+                  color: AppColors.bgDivider,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: selectedLang,
                     dropdownColor: const Color(0xFF161616),
-                    iconEnabledColor: Colors.amber,
+                    iconEnabledColor: AppColors.warning,
                     isExpanded: true,
                     items: [
                       for (final lang in controller.supportedLanguages)
@@ -1264,7 +1262,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             value: lang['code'],
                             child: Text(
                               lang['name']!,
-                              style: const TextStyle(color: Colors.white),
+                              style: const TextStyle(color: AppColors.textPrimary),
                             ),
                           ),
                     ],
@@ -1280,10 +1278,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
           ),
           actions: [
             TextButton(
-              onPressed: () => Get.back(),
+              onPressed: Get.back,
               child: const Text(
                 'Cancel',
-                style: TextStyle(color: Colors.white38),
+                style: TextStyle(color: AppColors.textTertiary),
               ),
             ),
             ElevatedButton(
@@ -1294,8 +1292,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.amber,
-                foregroundColor: Colors.black,
+                backgroundColor: AppColors.warning,
+                foregroundColor: AppColors.bgPage,
               ),
               child: const Text('Translate Subtitles'),
             ),
@@ -1328,7 +1326,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(width: 300, child: listWidget),
-                const VerticalDivider(color: Colors.white10, width: 1),
+                const VerticalDivider(color: AppColors.bgDivider, width: 1),
                 Expanded(child: managerWidget),
               ],
             );
@@ -1343,17 +1341,17 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         child: Row(
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.arrow_back, color: Colors.white,
+                              icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary,
                               ),
                               onPressed: () {
                                 controller.selectedAdForAudio.value = null;
                               },
                             ),
-                            Text(
+                            const Text(
                               'Back to Ads List',
                               style: TextStyle(
-                                fontFamily: 'Roboto',
-                                color: Colors.white,
+                                
+                                color: AppColors.textPrimary,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -1373,7 +1371,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
     AdvertiserPortalController controller,
     List<AdItem> campaigns,
   ) {
-    return Container(
+    return ColoredBox(
       color: const Color(0xFF0F0F0F),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1384,22 +1382,22 @@ class AdvertiserPortalScreen extends StatelessWidget {
               'Select Video Ad to Dub',
               style: AppTextStyles.sectionHeader.copyWith(
                 fontSize: 16,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontWeight: FontWeight.bold,
               ),
             ),
           ),
-          const Divider(color: Colors.white10, height: 1),
+          const Divider(color: AppColors.bgDivider, height: 1),
           Expanded(
             child: campaigns.isEmpty
                 ? Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(24.0),
+                      padding: const EdgeInsets.all(24),
                       child: Text(
                         'No video campaigns available. Audio dubs can only be requested on Skippable Video ads.',
                         textAlign: TextAlign.center,
                         style: AppTextStyles.labelLarge.copyWith(
-                          color: Colors.white38,
+                          color: AppColors.textTertiary,
                           fontSize: 13,
                         ),
                       ),
@@ -1416,11 +1414,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       return Container(
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? Colors.amber.withValues(alpha: 0.08)
+                              ? AppColors.warning.withValues(alpha: 0.08)
                               : Colors.transparent,
                           border: Border(
                             bottom: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.05),
+                              color: AppColors.textPrimary.withValues(alpha: 0.05),
                             ),
                           ),
                         ),
@@ -1440,7 +1438,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             child: const Center(
                               child: Icon(
                                 Icons.music_note_rounded,
-                                color: Colors.white,
+                                color: AppColors.textPrimary,
                                 size: 16,
                               ),
                             ),
@@ -1451,13 +1449,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                             style: AppTextStyles.labelLarge.copyWith(
                               fontWeight: FontWeight.bold,
-                              color: isSelected ? Colors.amber : Colors.white,
+                              color: isSelected ? AppColors.warning : AppColors.textPrimary,
                             ),
                           ),
                           subtitle: Text(
                             '$dubCount Audio track${dubCount == 1 ? "" : "s"} available',
                             style: AppTextStyles.labelMedium.copyWith(
-                              color: Colors.white38,
+                              color: AppColors.textTertiary,
                             ),
                           ),
                         ),
@@ -1479,13 +1477,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
             const Icon(
               Icons.translate_rounded,
               size: 64,
-              color: Colors.white24,
+              color: AppColors.textDisabled,
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
               'Select a video campaign from the list to manage audio voiceovers.',
               textAlign: TextAlign.center,
-              style: AppTextStyles.labelLarge.copyWith(color: Colors.white38),
+              style: AppTextStyles.labelLarge.copyWith(color: AppColors.textTertiary),
             ),
           ],
         ),
@@ -1512,17 +1510,17 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       ad.title,
                       style: AppTextStyles.sectionHeader.copyWith(
                         fontSize: 18,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         fontWeight: FontWeight.bold,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text(
                       'AI voice cloning and audio dubbing configuration board',
                       style: AppTextStyles.labelMedium.copyWith(
-                        color: Colors.white38,
+                        color: AppColors.textTertiary,
                       ),
                     ),
                   ],
@@ -1533,15 +1531,15 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     ? null
                     : () => _showRequestAudioDubDialog(controller),
                 icon: const Icon(Icons.translate_rounded, size: 16),
-                label: Text('Request Voice Dub'),
+                label: const Text('Request Voice Dub'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.amber,
-                  foregroundColor: Colors.black,
+                  backgroundColor: AppColors.warning,
+                  foregroundColor: AppColors.bgPage,
                 ),
               ),
             ],
           ),
-          const Divider(color: Colors.white10, height: 32),
+          const Divider(color: AppColors.bgDivider, height: 32),
           if (controller.isTranslatingAudio.value)
             _buildPipelineProgressCard(
               controller.audioStatusText.value,
@@ -1552,7 +1550,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
               'Configured Voiceover Layers',
               style: AppTextStyles.sectionHeader.copyWith(
                 fontSize: 16,
-                color: Colors.white70,
+                color: AppColors.textSecondary,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -1596,23 +1594,23 @@ class AdvertiserPortalScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.05)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.amber.withValues(alpha: 0.1),
+              color: AppColors.warning.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: const Icon(
               Icons.volume_up_rounded,
-              color: Colors.amber,
+              color: AppColors.warning,
               size: 18,
             ),
           ),
-          SizedBox(width: 16),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1621,7 +1619,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   langName,
                   style: AppTextStyles.labelLarge.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                   ),
                 ),
                 Text(
@@ -1629,7 +1627,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.labelMedium.copyWith(
-                    color: Colors.white38,
+                    color: AppColors.textTertiary,
                   ),
                 ),
               ],
@@ -1638,12 +1636,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.green.withValues(alpha: 0.15),
+              color: AppColors.success.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
               isOriginal ? 'ORIGINAL' : 'AI CLONED',
-              style: AppTextStyles.badge.copyWith(color: Colors.greenAccent),
+              style: AppTextStyles.badge.copyWith(color: AppColors.success),
             ),
           ),
         ],
@@ -1659,11 +1657,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
       StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: const Color(0xFF161616),
-          title: Text(
+          title: const Text(
             'Request AI Voice Dubbing',
             style: TextStyle(
-              fontFamily: 'Roboto',
-              color: Colors.white,
+              
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -1674,29 +1672,29 @@ class AdvertiserPortalScreen extends StatelessWidget {
               Text(
                 'Select target dub language and AI voice clone parameters.',
                 style: AppTextStyles.labelLarge.copyWith(
-                  color: Colors.white60,
+                  color: AppColors.textSecondary,
                   fontSize: 13,
                 ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Text(
                 'Target Language',
                 style: AppTextStyles.labelMedium.copyWith(
-                  color: Colors.white70,
+                  color: AppColors.textSecondary,
                 ),
               ),
               const SizedBox(height: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white10,
+                  color: AppColors.bgDivider,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: selectedLang,
                     dropdownColor: const Color(0xFF161616),
-                    iconEnabledColor: Colors.amber,
+                    iconEnabledColor: AppColors.warning,
                     isExpanded: true,
                     items: [
                       for (final lang in controller.supportedLanguages)
@@ -1705,7 +1703,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             value: lang['code'],
                             child: Text(
                               lang['name']!,
-                              style: const TextStyle(color: Colors.white),
+                              style: const TextStyle(color: AppColors.textPrimary),
                             ),
                           ),
                     ],
@@ -1717,46 +1715,46 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Text(
                 'Voice Style',
                 style: AppTextStyles.labelMedium.copyWith(
-                  color: Colors.white70,
+                  color: AppColors.textSecondary,
                 ),
               ),
               const SizedBox(height: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white10,
+                  color: AppColors.bgDivider,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: selectedVoice,
                     dropdownColor: const Color(0xFF161616),
-                    iconEnabledColor: Colors.amber,
+                    iconEnabledColor: AppColors.warning,
                     isExpanded: true,
                     items: const [
                       DropdownMenuItem(
                         value: 'natural',
                         child: Text(
                           'Natural Tone Voice Clone',
-                          style: TextStyle(color: Colors.white),
+                          style: TextStyle(color: AppColors.textPrimary),
                         ),
                       ),
                       DropdownMenuItem(
                         value: 'studio_male',
                         child: Text(
                           'Studio Narration (Male)',
-                          style: TextStyle(color: Colors.white),
+                          style: TextStyle(color: AppColors.textPrimary),
                         ),
                       ),
                       DropdownMenuItem(
                         value: 'studio_female',
                         child: Text(
                           'Studio Narration (Female)',
-                          style: TextStyle(color: Colors.white),
+                          style: TextStyle(color: AppColors.textPrimary),
                         ),
                       ),
                     ],
@@ -1772,10 +1770,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
           ),
           actions: [
             TextButton(
-              onPressed: () => Get.back(),
+              onPressed: Get.back,
               child: const Text(
                 'Cancel',
-                style: TextStyle(color: Colors.white38),
+                style: TextStyle(color: AppColors.textTertiary),
               ),
             ),
             ElevatedButton(
@@ -1786,8 +1784,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.amber,
-                foregroundColor: Colors.black,
+                backgroundColor: AppColors.warning,
+                foregroundColor: AppColors.bgPage,
               ),
               child: const Text('Request Dubbing'),
             ),
@@ -1825,32 +1823,32 @@ class AdvertiserPortalScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.amber.withValues(alpha: 0.15),
+              color: AppColors.warning.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+              border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
             ),
             child: Text(
               'TRUTHWORLD FOR BUSINESS',
               style: AppTextStyles.badge.copyWith(
-                color: Colors.amber,
-                letterSpacing: 1.0,
+                color: AppColors.warning,
+                letterSpacing: 1,
               ),
             ),
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           Text(
             'Reach Millions of Engaged Viewers',
             style: AppTextStyles.displaySmall.copyWith(
-              color: Colors.white,
+              color: AppColors.textPrimary,
               fontSize: 24,
               fontWeight: FontWeight.bold,
             ),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
             'Create skippable video ads, homepage banners, and recommendations targeting active communities on Truthworld.',
             style: AppTextStyles.labelLarge.copyWith(
-              color: Colors.white70,
+              color: AppColors.textSecondary,
               height: 1.4,
             ),
           ),
@@ -1868,20 +1866,20 @@ class AdvertiserPortalScreen extends StatelessWidget {
           .where((ad) => ad.userId == AuthService.to.uid)
           .toList();
 
-      double totalSpend = 0.0;
-      int totalImpressions = 0;
-      int totalClicks = 0;
+      var totalSpend = 0;
+      var totalImpressions = 0;
+      var totalClicks = 0;
 
       for (final ad in myCampaigns) {
         totalImpressions += ad.impressions;
         totalClicks += ad.clicks;
-        final double calculatedSpend =
+        final calculatedSpend =
             (ad.impressions * 0.15) + (ad.clicks * 2.0);
-        final double budget = ad.budgetAmount ?? 2000.0;
+        final budget = ad.budgetAmount ?? 2000.0;
         totalSpend += calculatedSpend > budget ? budget : calculatedSpend;
       }
 
-      final double avgCtr = totalImpressions > 0
+      final avgCtr = totalImpressions > 0
           ? (totalClicks / totalImpressions) * 100
           : 0.0;
 
@@ -1893,10 +1891,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
         if (isPercentage) {
           return '${val.toStringAsFixed(2)}%';
         }
-        final int intVal = val.toInt();
-        final String str = intVal.toString();
-        final RegExp reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
-        final String formatted = str.replaceAllMapped(
+        final intVal = val.toInt();
+        final str = intVal.toString();
+        final reg = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
+        final formatted = str.replaceAllMapped(
           reg,
           (Match m) => '${m[1]},',
         );
@@ -1919,7 +1917,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 'Total Spend',
                 formatNumber(totalSpend, isCurrency: true),
                 Icons.payments_rounded,
-                Colors.greenAccent,
+                AppColors.success,
                 'spend',
               ),
               _buildInteractiveStatCard(
@@ -1975,7 +1973,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
               : const Color(0xFF161616),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isSelected ? Colors.indigoAccent : Colors.white12,
+            color: isSelected ? Colors.indigoAccent : AppColors.bgDivider,
             width: isSelected ? 2.0 : 1.0,
           ),
           boxShadow: isSelected
@@ -1999,7 +1997,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   label,
                   style: AppTextStyles.labelLarge.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: isSelected ? Colors.white : Colors.white60,
+                    color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
                     fontSize: 13,
                   ),
                 ),
@@ -2009,7 +2007,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
             Text(
               value,
               style: AppTextStyles.pageTitle.copyWith(
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
               ),
@@ -2024,8 +2022,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
     BuildContext context,
     AdvertiserPortalController controller,
   ) {
-    String metricTitle = 'Spend Trend';
-    Color metricColor = Colors.greenAccent;
+    var metricTitle = 'Spend Trend';
+    var metricColor = AppColors.success;
     if (controller.selectedMetric.value == 'impressions') {
       metricTitle = 'Impressions Trend';
       metricColor = Colors.cyanAccent;
@@ -2044,24 +2042,24 @@ class AdvertiserPortalScreen extends StatelessWidget {
           .where((ad) => ad.userId == AuthService.to.uid)
           .toList();
 
-      double totalSpend = 0.0;
-      int totalImpressions = 0;
-      int totalClicks = 0;
+      var totalSpend = 0;
+      var totalImpressions = 0;
+      var totalClicks = 0;
 
       for (final ad in myCampaigns) {
         totalImpressions += ad.impressions;
         totalClicks += ad.clicks;
-        final double calculatedSpend =
+        final calculatedSpend =
             (ad.impressions * 0.15) + (ad.clicks * 2.0);
-        final double budget = ad.budgetAmount ?? 2000.0;
+        final budget = ad.budgetAmount ?? 2000.0;
         totalSpend += calculatedSpend > budget ? budget : calculatedSpend;
       }
 
-      final double avgCtr = totalImpressions > 0
+      final avgCtr = totalImpressions > 0
           ? (totalClicks / totalImpressions) * 100
           : 0.0;
 
-      double selectedMetricTotal = 0.0;
+      var selectedMetricTotal = 0;
       if (controller.selectedMetric.value == 'spend') {
         selectedMetricTotal = totalSpend;
       } else if (controller.selectedMetric.value == 'impressions') {
@@ -2074,7 +2072,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
 
       final days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       final weights = [0.08, 0.12, 0.10, 0.15, 0.13, 0.22, 0.20];
-      final List<ChartData> chartData = List.generate(7, (i) {
+      final chartData = List<ChartData>.generate(7, (i) {
         return ChartData(days[i], selectedMetricTotal * weights[i]);
       });
 
@@ -2084,7 +2082,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFF161616),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white12),
+          border: Border.all(color: AppColors.bgDivider),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2093,7 +2091,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
               '$metricTitle (Last 7 Days)',
               style: AppTextStyles.sectionHeader.copyWith(
                 fontSize: 16,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -2105,13 +2103,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 plotAreaBorderWidth: 0,
                 primaryXAxis: const CategoryAxis(
                   majorGridLines: MajorGridLines(width: 0),
-                  labelStyle: TextStyle(color: Colors.white38),
+                  labelStyle: TextStyle(color: AppColors.textTertiary),
                 ),
                 primaryYAxis: const NumericAxis(
                   axisLine: AxisLine(width: 0),
                   majorTickLines: MajorTickLines(size: 0),
-                  majorGridLines: MajorGridLines(color: Colors.white12),
-                  labelStyle: TextStyle(color: Colors.white38),
+                  majorGridLines: MajorGridLines(color: AppColors.bgDivider),
+                  labelStyle: TextStyle(color: AppColors.textTertiary),
                 ),
                 tooltipBehavior: TooltipBehavior(enable: true),
                 series: <CartesianSeries<ChartData, String>>[
@@ -2122,11 +2120,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     name: metricTitle,
                     color: metricColor.withValues(alpha: 0.25),
                     borderColor: metricColor,
-                    borderWidth: 2,
                     gradient: LinearGradient(
                       colors: [
                         metricColor.withValues(alpha: 0.35),
-                        metricColor.withValues(alpha: 0.0),
+                        metricColor.withValues(alpha: 0),
                       ],
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
@@ -2184,7 +2181,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF161616),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white12),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2204,13 +2201,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       : isSkippable
                       ? Icons.play_circle_filled_rounded
                       : Icons.ad_units_rounded,
-                  color: Colors.white70,
+                  color: AppColors.textSecondary,
                   size: 28,
                 ),
               ),
             ),
           ),
-          SizedBox(width: 16),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2219,16 +2216,16 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   children: [
                     Text(
                       campaign.advertiser,
-                      style: AppTextStyles.badge.copyWith(color: Colors.amber),
+                      style: AppTextStyles.badge.copyWith(color: AppColors.warning),
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 6,
                         vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: Colors.white10,
+                        color: AppColors.bgDivider,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
@@ -2238,29 +2235,29 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             ? 'Video Ad'
                             : 'Feed Ad',
                         style: AppTextStyles.caption.copyWith(
-                          color: Colors.white70,
+                          color: AppColors.textSecondary,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
                   ],
                 ),
-                SizedBox(height: 6),
+                const SizedBox(height: 6),
                 Text(
                   campaign.title,
                   style: AppTextStyles.sectionHeader.copyWith(
                     fontSize: 16,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     fontWeight: FontWeight.bold,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   campaign.description,
                   style: AppTextStyles.labelMedium.copyWith(
-                    color: Colors.white60,
+                    color: AppColors.textSecondary,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -2268,7 +2265,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(width: 16),
+          const SizedBox(width: 16),
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -2276,29 +2273,29 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 amountStr,
                 style: AppTextStyles.sectionHeader.copyWith(
                   fontSize: 16,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               Text(
                 budgetStr,
-                style: AppTextStyles.caption.copyWith(color: Colors.white38),
+                style: AppTextStyles.caption.copyWith(color: AppColors.textTertiary),
               ),
-              SizedBox(height: 6),
+              const SizedBox(height: 6),
               Row(
                 children: [
                   Icon(
                     Icons.circle,
                     color: campaign.status == 'paused'
-                        ? Colors.grey
+                        ? AppColors.textSecondary
                         : campaign.status == 'underReview'
-                        ? Colors.amber
+                        ? AppColors.warning
                         : campaign.status == 'verification_rejected'
-                        ? Colors.red
-                        : Colors.green,
+                        ? AppColors.error
+                        : AppColors.success,
                     size: 8,
                   ),
-                  SizedBox(width: 4),
+                  const SizedBox(width: 4),
                   Text(
                     campaign.status == 'paused'
                         ? 'Paused'
@@ -2309,12 +2306,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         : 'Active',
                     style: AppTextStyles.badge.copyWith(
                       color: campaign.status == 'paused'
-                          ? Colors.white38
+                          ? AppColors.textTertiary
                           : campaign.status == 'underReview'
-                          ? Colors.amber
+                          ? AppColors.warning
                           : campaign.status == 'verification_rejected'
-                          ? Colors.redAccent
-                          : Colors.greenAccent,
+                          ? AppColors.error
+                          : AppColors.success,
                     ),
                   ),
                 ],
@@ -2326,21 +2323,21 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   onTap: () {
                     Get.defaultDialog(
                       title: 'Moderation Details',
-                      titleStyle: TextStyle(
-                        fontFamily: 'Roboto',
-                        color: Colors.white,
+                      titleStyle: const TextStyle(
+                        
+                        color: AppColors.textPrimary,
                         fontWeight: FontWeight.bold,
                       ),
                       middleText: campaign.moderationReason!,
-                      middleTextStyle: TextStyle(
-                        fontFamily: 'Roboto',
-                        color: Colors.white70,
+                      middleTextStyle: const TextStyle(
+                        
+                        color: AppColors.textSecondary,
                       ),
                       backgroundColor: const Color(0xFF161616),
                       textConfirm: 'OK',
-                      confirmTextColor: Colors.black,
-                      buttonColor: Colors.amber,
-                      onConfirm: () => Get.back(),
+                      confirmTextColor: AppColors.bgPage,
+                      buttonColor: AppColors.warning,
+                      onConfirm: Get.back,
                     );
                   },
                   child: Row(
@@ -2348,14 +2345,14 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     children: [
                       const Icon(
                         Icons.info_outline,
-                        color: Colors.redAccent,
+                        color: AppColors.error,
                         size: 12,
                       ),
-                      SizedBox(width: 2),
+                      const SizedBox(width: 2),
                       Text(
                         'Why?',
                         style: AppTextStyles.caption.copyWith(
-                          color: Colors.redAccent,
+                          color: AppColors.error,
                           decoration: TextDecoration.underline,
                         ),
                       ),
@@ -2373,7 +2370,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: Colors.white10,
+                        color: AppColors.bgDivider,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Icon(
@@ -2386,10 +2383,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         color:
                             (campaign.status == 'underReview' ||
                                 campaign.status == 'verification_rejected')
-                            ? Colors.white30
+                            ? AppColors.textTertiary
                             : isPaused
-                            ? Colors.greenAccent
-                            : Colors.amber,
+                            ? AppColors.success
+                            : AppColors.warning,
                         size: 16,
                       ),
                     ),
@@ -2399,23 +2396,23 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     onTap: () {
                       Get.defaultDialog(
                         title: 'Delete Campaign',
-                        titleStyle: TextStyle(
-                          fontFamily: 'Roboto',
-                          color: Colors.white,
+                        titleStyle: const TextStyle(
+                          
+                          color: AppColors.textPrimary,
                           fontWeight: FontWeight.bold,
                         ),
                         middleText:
                             'Are you sure you want to delete "${campaign.title}"?',
-                        middleTextStyle: TextStyle(
-                          fontFamily: 'Roboto',
-                          color: Colors.white70,
+                        middleTextStyle: const TextStyle(
+                          
+                          color: AppColors.textSecondary,
                         ),
                         backgroundColor: const Color(0xFF161616),
                         textConfirm: 'Delete',
                         textCancel: 'Cancel',
-                        confirmTextColor: Colors.black,
-                        cancelTextColor: Colors.white,
-                        buttonColor: Colors.redAccent,
+                        confirmTextColor: AppColors.bgPage,
+                        cancelTextColor: AppColors.textPrimary,
+                        buttonColor: AppColors.error,
                         onConfirm: () {
                           AdService.to.deleteCampaign(campaign.id);
                           Get.back();
@@ -2426,12 +2423,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
-                        color: Colors.white10,
+                        color: AppColors.bgDivider,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: const Icon(
                         Icons.delete_outline_rounded,
-                        color: Colors.redAccent,
+                        color: AppColors.error,
                         size: 16,
                       ),
                     ),
@@ -2455,25 +2452,24 @@ class AdvertiserPortalScreen extends StatelessWidget {
         backgroundColor: const Color(0xFF0F0F0F),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Get.back(),
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: Get.back,
         ),
         actions: [
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            padding: const EdgeInsets.symmetric(vertical: 8),
             child: ElevatedButton(
               onPressed: () => controller.handleGoogleSignIn(),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.amber,
-                foregroundColor: Colors.black,
+                backgroundColor: AppColors.warning,
+                foregroundColor: AppColors.bgPage,
                 elevation: 4,
-                shadowColor: Colors.amber.withValues(alpha: 0.4),
+                shadowColor: AppColors.warning.withValues(alpha: 0.4),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                 ),
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 0,
                 ),
               ),
               child: Text(
@@ -2485,25 +2481,25 @@ class AdvertiserPortalScreen extends StatelessWidget {
               ),
             ),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Image.asset('assets/logo.png', height: 32, width: 32),
-          SizedBox(width: 16),
+          const SizedBox(width: 16),
         ],
       ),
       body: Center(
         child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(24),
             child: Container(
               constraints: const BoxConstraints(maxWidth: 450),
               padding: const EdgeInsets.all(40),
               decoration: BoxDecoration(
                 color: const Color(0xFF161616),
                 borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.white12),
+                border: Border.all(color: AppColors.bgDivider),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.5),
+                    color: AppColors.bgPage.withValues(alpha: 0.5),
                     blurRadius: 20,
                     offset: const Offset(0, 10),
                   ),
@@ -2526,54 +2522,52 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     child: const Center(
                       child: Icon(
                         Icons.campaign_rounded,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         size: 36,
                       ),
                     ),
                   ),
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
                   Text(
                     'Truthworld Ads',
                     style: context.typography.hero.copyWith(
                       fontSize: 28,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text(
                     'Grow your channel, brand, or business.',
                     textAlign: TextAlign.center,
                     style: AppTextStyles.labelLarge.copyWith(
-                      color: Colors.amber,
+                      color: AppColors.warning,
                     ),
                   ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   _buildBenefitRow(
                     Icons.check_circle_outline_rounded,
                     'Promote your channel videos directly',
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 10),
                   _buildBenefitRow(
                     Icons.check_circle_outline_rounded,
                     'Target active & engaged communities',
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 10),
                   _buildBenefitRow(
                     Icons.check_circle_outline_rounded,
                     'Custom budget control & transparent stats',
                   ),
-                  SizedBox(height: 32),
-                  controller.isSigningIn.value
-                      ? const CircularProgressIndicator(
+                  const SizedBox(height: 32),
+                  if (controller.isSigningIn.value) const CircularProgressIndicator(
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            Colors.amber,
+                            AppColors.warning,
                           ),
-                        )
-                      : ElevatedButton.icon(
+                        ) else ElevatedButton.icon(
                           onPressed: () => controller.handleGoogleSignIn(),
                           icon: const Icon(
                             Icons.login_rounded,
-                            color: Colors.black,
+                            color: AppColors.bgPage,
                             size: 18,
                           ),
                           label: Text(
@@ -2584,20 +2578,20 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             ),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Colors.black,
+                            backgroundColor: AppColors.textPrimary,
+                            foregroundColor: AppColors.bgPage,
                             minimumSize: const Size(double.infinity, 50),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
                         ),
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   Text(
                     'Access your advertiser dashboard, launch self-serve campaigns, and track click-through metrics instantly.',
                     textAlign: TextAlign.center,
                     style: AppTextStyles.caption.copyWith(
-                      color: Colors.white38,
+                      color: AppColors.textTertiary,
                       height: 1.4,
                     ),
                   ),
@@ -2613,13 +2607,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
   Widget _buildBenefitRow(IconData icon, String text) {
     return Row(
       children: [
-        Icon(icon, color: Colors.greenAccent, size: 16),
-        SizedBox(width: 10),
+        Icon(icon, color: AppColors.success, size: 16),
+        const SizedBox(width: 10),
         Expanded(
           child: Text(
             text,
             style: AppTextStyles.labelLarge.copyWith(
-              color: Colors.white70,
+              color: AppColors.textSecondary,
               fontSize: 13,
             ),
           ),
@@ -2633,8 +2627,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
       final user = AuthService.to.currentUser.value;
       if (user == null) return const SizedBox.shrink();
 
-      String? imageUrl = AuthService.to.activePhotoUrl.isNotEmpty ? AuthService.to.activePhotoUrl : null;
-      String displayName = AuthService.to.activeDisplayName.isNotEmpty ? AuthService.to.activeDisplayName : (user.displayName ?? 'U');
+      final imageUrl = AuthService.to.activePhotoUrl.isNotEmpty ? AuthService.to.activePhotoUrl : null;
+      final var displayName = AuthService.to.activeDisplayName.isNotEmpty ? AuthService.to.activeDisplayName : (user.displayName ?? 'U');
 
       final hasImage = imageUrl != null && imageUrl.isNotEmpty;
       final initials = displayName.trim().isNotEmpty
@@ -2644,11 +2638,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
       return Container(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white24, width: 1),
+          border: Border.all(color: AppColors.textDisabled),
         ),
         child: CircleAvatar(
           radius: radius,
-          backgroundColor: Colors.white10,
+          backgroundColor: AppColors.bgDivider,
           child: ClipOval(
             child: hasImage
                 ? Image.network(
@@ -2671,7 +2665,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
       child: Text(
         initials,
         style: AppTextStyles.labelMedium.copyWith(
-          color: Colors.white,
+          color: AppColors.textPrimary,
           fontSize: radius * 0.9,
           fontWeight: FontWeight.bold,
         ),
@@ -2700,7 +2694,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
     final selectedVideoTitle = ''.obs;
     final selectedVideoId = ''.obs;
 
-    final List<List<Color>> gradientOptions = [
+    final gradientOptions = <List<Color>>[
       [const Color(0xFF8B5CF6), const Color(0xFFEC4899)],
       [const Color(0xFFEF4444), const Color(0xFFF59E0B)],
       [const Color(0xFF10B981), const Color(0xFF059669)],
@@ -2724,38 +2718,38 @@ class AdvertiserPortalScreen extends StatelessWidget {
           ),
           child: Column(
             children: [
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               Container(
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: AppColors.textDisabled,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
                       'Launch Ad Campaign',
                       style: AppTextStyles.pageTitle.copyWith(
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     IconButton(
-                      onPressed: () => Get.back(),
-                      icon: const Icon(Icons.close, color: Colors.white54),
+                      onPressed: Get.back,
+                      icon: const Icon(Icons.close, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
               ),
-              const Divider(color: Colors.white10),
+              const Divider(color: AppColors.bgDivider),
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24.0),
+                  padding: const EdgeInsets.all(24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -2763,7 +2757,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         'Select Placement Format',
                         style: AppTextStyles.labelLarge.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: Colors.white70,
+                          color: AppColors.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -2817,25 +2811,25 @@ class AdvertiserPortalScreen extends StatelessWidget {
                           ],
                         );
                       }),
-                      SizedBox(height: 24),
+                      const SizedBox(height: 24),
                       _buildInputField(
                         'Brand / Advertiser Name',
                         advertiserController,
                         'e.g. Acme Corp',
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                       _buildInputField(
                         'Campaign Headline Title',
                         titleController,
                         'e.g. Master App Development in 30 Days',
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                       _buildInputField(
                         'Description Subtext',
                         descriptionController,
                         'e.g. Learn flutter, dart, firebase, and responsive UI from industry experts.',
                       ),
-                      SizedBox(height: 16),
+                      const SizedBox(height: 16),
                       Row(
                         children: [
                           Expanded(
@@ -2845,7 +2839,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               'e.g. Learn More',
                             ),
                           ),
-                          SizedBox(width: 12),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: _buildInputField(
                               'Destination Link Target',
@@ -2855,12 +2849,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
                           ),
                         ],
                       ),
-                      SizedBox(height: 24),
+                      const SizedBox(height: 24),
                       Text(
                         'Creative Assets (Optional for Banner Formats)',
                         style: AppTextStyles.labelLarge.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: Colors.white70,
+                          color: AppColors.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -2878,7 +2872,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                   ? 'Video Creative Link (Required)'
                                   : 'Video Creative Link (Optional)',
                               style: AppTextStyles.labelMedium.copyWith(
-                                color: Colors.white60,
+                                color: AppColors.textSecondary,
                               ),
                             ),
                             const SizedBox(height: 6),
@@ -2927,10 +2921,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                     Icons.video_library_rounded,
                                     size: 16,
                                   ),
-                                  label: Text('From Channel'),
+                                  label: const Text('From Channel'),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white10,
-                                    foregroundColor: Colors.white,
+                                    backgroundColor: AppColors.bgDivider,
+                                    foregroundColor: AppColors.textPrimary,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(10),
                                     ),
@@ -2942,13 +2936,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               if (selectedVideoTitle.value.isNotEmpty) {
                                 return Padding(
                                   padding: const EdgeInsets.only(
-                                    top: 8.0,
-                                    bottom: 8.0,
+                                    top: 8,
+                                    bottom: 8,
                                   ),
                                   child: Text(
                                     'Linked video: ${selectedVideoTitle.value}',
                                     style: AppTextStyles.badge.copyWith(
-                                      color: Colors.amber,
+                                      color: AppColors.warning,
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -2957,23 +2951,23 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               }
                               return const SizedBox.shrink();
                             }),
-                            SizedBox(height: 16),
+                            const SizedBox(height: 16),
 
                             // Sponsor Midroll Video
                             if (isSponsor) ...[
                               Text(
                                 'Detailed Midroll Video (Plays at 7 min mark) [Required]',
                                 style: AppTextStyles.labelMedium.copyWith(
-                                  color: Colors.white60,
+                                  color: AppColors.textSecondary,
                                 ),
                               ),
-                              SizedBox(height: 6),
+                              const SizedBox(height: 6),
                               _buildInputField(
                                 '',
                                 midrollVideoUrlController,
                                 'e.g. https://storage.googleapis.com/.../midroll.mp4',
                               ),
-                              SizedBox(height: 16),
+                              const SizedBox(height: 16),
                             ],
 
                             // Image creative link
@@ -2983,16 +2977,16 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                     ? 'Sponsor Brand Image (Shown in Recommended list) [Required]'
                                     : 'Image Banner Link (Optional)',
                                 style: AppTextStyles.labelMedium.copyWith(
-                                  color: Colors.white60,
+                                  color: AppColors.textSecondary,
                                 ),
                               ),
-                              SizedBox(height: 6),
+                              const SizedBox(height: 6),
                               _buildInputField(
                                 '',
                                 imageUrlController,
                                 'e.g. https://mywebsite.com/ad-banner.png',
                               ),
-                              SizedBox(height: 16),
+                              const SizedBox(height: 16),
                             ],
 
                             // Sponsor Interactive Pinned Comment
@@ -3000,16 +2994,16 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               Text(
                                 'Sponsor Interactive Pinned Comment Text [Required]',
                                 style: AppTextStyles.labelMedium.copyWith(
-                                  color: Colors.white60,
+                                  color: AppColors.textSecondary,
                                 ),
                               ),
-                              SizedBox(height: 6),
+                              const SizedBox(height: 6),
                               _buildInputField(
                                 '',
                                 pinnedCommentController,
                                 'e.g. Sir can you suggest best laptops under 50k?',
                               ),
-                              SizedBox(height: 16),
+                              const SizedBox(height: 16),
                             ],
 
                             // Gradient theme fallback picker
@@ -3017,7 +3011,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               Text(
                                 'Select Fallback / Banner Theme',
                                 style: AppTextStyles.labelMedium.copyWith(
-                                  color: Colors.white60,
+                                  color: AppColors.textSecondary,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -3042,7 +3036,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                           shape: BoxShape.circle,
                                           border: Border.all(
                                             color: selectedGradient.value == idx
-                                                ? Colors.amber
+                                                ? AppColors.warning
                                                 : Colors.transparent,
                                             width: 3,
                                           ),
@@ -3056,12 +3050,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
                           ],
                         );
                       }),
-                      SizedBox(height: 24),
+                      const SizedBox(height: 24),
                       Text(
                         'Select Campaign Budget Plan',
                         style: AppTextStyles.labelLarge.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: Colors.white70,
+                          color: AppColors.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -3115,13 +3109,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             AppSnackbar.show(
                               'Required Fields',
                               'Please fill brand name, title, and description.',
-                              backgroundColor: Colors.red.shade900,
-                              colorText: Colors.white,
+                              backgroundColor: AppColors.error,
+                              colorText: AppColors.textPrimary,
                             );
                             return;
                           }
 
-                          String targetVideoUrl = videoUrlController.text
+                          var targetVideoUrl = videoUrlController.text
                               .trim();
                           if (adFormat.value == 'skippable' &&
                               targetVideoUrl.isEmpty) {
@@ -3186,8 +3180,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.amber,
-                          foregroundColor: Colors.black,
+                          backgroundColor: AppColors.warning,
+                          foregroundColor: AppColors.bgPage,
                           minimumSize: const Size(double.infinity, 50),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -3232,7 +3226,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
             decoration: BoxDecoration(
               color: const Color(0xFF161616),
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white12),
+              border: Border.all(color: AppColors.bgDivider),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -3244,26 +3238,26 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       'Promote Channel Video',
                       style: AppTextStyles.sectionHeader.copyWith(
                         fontSize: 18,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                     IconButton(
-                      onPressed: () => Get.back(),
+                      onPressed: Get.back,
                       icon: const Icon(
                         Icons.close,
-                        color: Colors.white54,
+                        color: AppColors.textSecondary,
                         size: 20,
                       ),
                     ),
                   ],
                 ),
-                const Divider(color: Colors.white10),
-                SizedBox(height: 8),
+                const Divider(color: AppColors.bgDivider),
+                const SizedBox(height: 8),
                 Text(
                   'Select one of your channel videos to promote. This will automatically pre-fill your ad fields and link to this video.',
                   style: AppTextStyles.labelLarge.copyWith(
-                    color: Colors.white60,
+                    color: AppColors.textSecondary,
                     fontSize: 13,
                   ),
                 ),
@@ -3271,12 +3265,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
                 Expanded(
                   child: Obx(() {
                     if (controller.channelVideos.isEmpty) {
-                      return Center(
+                      return const Center(
                         child: Text(
                           'No videos found in your channel.',
                           style: TextStyle(
-                            fontFamily: 'Roboto',
-                            color: Colors.white38,
+                            
+                            color: AppColors.textTertiary,
                           ),
                         ),
                       );
@@ -3295,20 +3289,20 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               child: Container(
                                 width: 60,
                                 height: 36,
-                                color: Colors.black,
+                                color: AppColors.bgPage,
                                 child: video['thumbnailUrl'].isNotEmpty
                                     ? Image.network(
                                         video['thumbnailUrl'],
                                         fit: BoxFit.cover,
                                         errorBuilder: (c, o, s) => const Icon(
                                           Icons.video_library_rounded,
-                                          color: Colors.white24,
+                                          color: AppColors.textDisabled,
                                           size: 18,
                                         ),
                                       )
                                     : const Icon(
                                         Icons.video_library_rounded,
-                                        color: Colors.white24,
+                                        color: AppColors.textDisabled,
                                         size: 18,
                                       ),
                               ),
@@ -3319,7 +3313,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: AppTextStyles.labelLarge.copyWith(
                                 fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                                color: AppColors.textPrimary,
                               ),
                             ),
                             subtitle: Text(
@@ -3327,12 +3321,12 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AppTextStyles.labelMedium.copyWith(
-                                color: Colors.white38,
+                                color: AppColors.textTertiary,
                               ),
                             ),
                             trailing: const Icon(
                               Icons.arrow_forward_ios_rounded,
-                              color: Colors.white38,
+                              color: AppColors.textTertiary,
                               size: 14,
                             ),
                             onTap: () {
@@ -3370,7 +3364,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
               : const Color(0xFF1A1A1A),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isSelected ? Colors.indigoAccent : Colors.white10,
+            color: isSelected ? Colors.indigoAccent : AppColors.bgDivider,
             width: 1.5,
           ),
         ),
@@ -3379,14 +3373,14 @@ class AdvertiserPortalScreen extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color: isSelected ? Colors.indigoAccent : Colors.white60,
+              color: isSelected ? Colors.indigoAccent : AppColors.textSecondary,
               size: 16,
             ),
-            SizedBox(width: 6),
+            const SizedBox(width: 6),
             Text(
               label,
               style: AppTextStyles.badge.copyWith(
-                color: isSelected ? Colors.white : Colors.white60,
+                color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),
@@ -3409,19 +3403,19 @@ class AdvertiserPortalScreen extends StatelessWidget {
           Text(
             label,
             style: AppTextStyles.labelLarge.copyWith(
-              color: Colors.white70,
+              color: AppColors.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
         ],
         TextField(
           controller: controller,
-          style: AppTextStyles.labelLarge.copyWith(color: Colors.white),
+          style: AppTextStyles.labelLarge.copyWith(color: AppColors.textPrimary),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: Colors.white24),
+            hintStyle: const TextStyle(color: AppColors.textDisabled),
             fillColor: const Color(0xFF1C1C1C),
             filled: true,
             border: OutlineInputBorder(
@@ -3456,7 +3450,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
               : const Color(0xFF1A1A1A),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? Colors.indigoAccent : Colors.white10,
+            color: isSelected ? Colors.indigoAccent : AppColors.bgDivider,
             width: 1.5,
           ),
         ),
@@ -3464,10 +3458,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
           children: [
             Icon(
               isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color: isSelected ? Colors.indigoAccent : Colors.white38,
+              color: isSelected ? Colors.indigoAccent : AppColors.textTertiary,
               size: 20,
             ),
-            SizedBox(width: 16),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -3476,14 +3470,14 @@ class AdvertiserPortalScreen extends StatelessWidget {
                     tierName,
                     style: AppTextStyles.labelLarge.copyWith(
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
                     subtitle,
                     style: AppTextStyles.labelMedium.copyWith(
-                      color: Colors.white38,
+                      color: AppColors.textTertiary,
                     ),
                   ),
                 ],
@@ -3493,7 +3487,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
               cost,
               style: AppTextStyles.sectionHeader.copyWith(
                 fontSize: 16,
-                color: Colors.amber,
+                color: AppColors.warning,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -3512,11 +3506,9 @@ class AdvertiserPortalScreen extends StatelessWidget {
     required String ctaText,
     required String ctaTarget,
     required bool isSkippable,
-    String? videoUrl,
+    required String budgetTier, required String adType, String? videoUrl,
     String? imageUrl,
     List<Color>? gradient,
-    required String budgetTier,
-    required String adType,
     String? videoId,
     String? midrollVideoUrl,
     String? pinnedCommentText,
@@ -3546,19 +3538,19 @@ class AdvertiserPortalScreen extends StatelessWidget {
             decoration: BoxDecoration(
               color: const Color(0xFF161616),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white12),
+              border: Border.all(color: AppColors.bgDivider),
             ),
             child: Obx(() {
               if (progressStep.value > 0) {
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    SizedBox(height: 20),
+                    const SizedBox(height: 20),
                     if (!checkoutSuccess.value) ...[
                       const CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.amber),
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.warning),
                       ),
-                      SizedBox(height: 24),
+                      const SizedBox(height: 24),
                       Text(
                         progressStep.value == 1
                             ? 'Securing checkout channel...'
@@ -3566,48 +3558,48 @@ class AdvertiserPortalScreen extends StatelessWidget {
                             ? 'Authorizing payment method...'
                             : 'Finalizing campaign launch...',
                         style: AppTextStyles.labelLarge.copyWith(
-                          color: Colors.white70,
+                          color: AppColors.textSecondary,
                         ),
                       ),
                     ] else ...[
                       const Icon(
                         Icons.check_circle_rounded,
-                        color: Colors.greenAccent,
+                        color: AppColors.success,
                         size: 64,
                       ),
-                      SizedBox(height: 20),
+                      const SizedBox(height: 20),
                       Text(
                         'Campaign Created Successfully!',
                         style: AppTextStyles.sectionHeader.copyWith(
                           fontSize: 18,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      const SizedBox(height: 8),
                       Text(
                         'Your advertisement has been submitted for moderation. Once approved by Gemini, it will go live.',
                         textAlign: TextAlign.center,
                         style: AppTextStyles.labelLarge.copyWith(
-                          color: Colors.white60,
+                          color: AppColors.textSecondary,
                           fontSize: 13,
                         ),
                       ),
                       const SizedBox(height: 24),
                       ElevatedButton(
-                        onPressed: () => Get.back(),
+                        onPressed: Get.back,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.greenAccent,
-                          foregroundColor: Colors.black,
+                          backgroundColor: AppColors.success,
+                          foregroundColor: AppColors.bgPage,
                           minimumSize: const Size(140, 40),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),
                           ),
                         ),
-                        child: Text(
+                        child: const Text(
                           'Done',
                           style: TextStyle(
-                            fontFamily: 'Roboto',
+                            
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -3629,26 +3621,26 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         'Stripe Checkout',
                         style: AppTextStyles.sectionHeader.copyWith(
                           fontSize: 18,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
                       const Icon(
                         Icons.lock_outline_rounded,
-                        color: Colors.greenAccent,
+                        color: AppColors.success,
                         size: 20,
                       ),
                     ],
                   ),
-                  const Divider(color: Colors.white10, height: 20),
-                  SizedBox(height: 8),
+                  const Divider(color: AppColors.bgDivider, height: 20),
+                  const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         'Ad Campaign (${budgetTier.toUpperCase()})',
                         style: AppTextStyles.labelLarge.copyWith(
-                          color: Colors.white70,
+                          color: AppColors.textSecondary,
                           fontSize: 13,
                         ),
                       ),
@@ -3656,7 +3648,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                         '₹${cost.toStringAsFixed(0)}',
                         style: AppTextStyles.sectionHeader.copyWith(
                           fontSize: 16,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -3714,8 +3706,6 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                 budgetAmount: cost,
                                 adType: adType,
                                 status: 'underReview',
-                                impressions: 0,
-                                clicks: 0,
                                 videoId: videoId,
                                 midrollVideoUrl: midrollVideoUrl,
                                 pinnedCommentText: pinnedCommentText,
@@ -3731,8 +3721,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                 AppSnackbar.show(
                                   'Payment Failed',
                                   'Failed to register campaign.',
-                                  backgroundColor: Colors.red.shade900,
-                                  colorText: Colors.white,
+                                  backgroundColor: AppColors.error,
+                                  colorText: AppColors.textPrimary,
                                 );
                               }
                             },
@@ -3741,8 +3731,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       });
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.amber,
-                      foregroundColor: Colors.black,
+                      backgroundColor: AppColors.warning,
+                      foregroundColor: AppColors.bgPage,
                       minimumSize: const Size(double.infinity, 46),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -3780,29 +3770,29 @@ class AdvertiserPortalScreen extends StatelessWidget {
       if (myCampaigns.isEmpty) {
         return Center(
           child: Padding(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Icon(
                   Icons.campaign_rounded,
                   size: 64,
-                  color: Colors.white24,
+                  color: AppColors.textDisabled,
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 Text(
                   'No Campaigns Found',
                   style: AppTextStyles.sectionHeader.copyWith(
                     fontSize: 18,
-                    color: Colors.white70,
+                    color: AppColors.textSecondary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Text(
                   'Create an advertising campaign to receive user feedback.',
                   style: AppTextStyles.labelLarge.copyWith(
-                    color: Colors.white38,
+                    color: AppColors.textTertiary,
                     fontSize: 13,
                   ),
                   textAlign: TextAlign.center,
@@ -3822,7 +3812,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(color: Colors.amber),
+              child: CircularProgressIndicator(color: AppColors.warning),
             );
           }
 
@@ -3845,22 +3835,22 @@ class AdvertiserPortalScreen extends StatelessWidget {
                   const Icon(
                     Icons.chat_bubble_outline_rounded,
                     size: 64,
-                    color: Colors.white24,
+                    color: AppColors.textDisabled,
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   Text(
                     'No Comments Yet',
                     style: AppTextStyles.sectionHeader.copyWith(
                       fontSize: 18,
-                      color: Colors.white70,
+                      color: AppColors.textSecondary,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   Text(
                     'Users have not commented on your campaigns yet.',
                     style: AppTextStyles.labelLarge.copyWith(
-                      color: Colors.white38,
+                      color: AppColors.textTertiary,
                       fontSize: 13,
                     ),
                   ),
@@ -3876,13 +3866,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
               children: [
                 Text(
                   'User Feedback & Comments',
-                  style: AppTextStyles.pageTitle.copyWith(color: Colors.white),
+                  style: AppTextStyles.pageTitle.copyWith(color: AppColors.textPrimary),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
-                  'Manage comments and reply directly to your sponsors\' audience.',
+                  "Manage comments and reply directly to your sponsors' audience.",
                   style: AppTextStyles.labelLarge.copyWith(
-                    color: Colors.white38,
+                    color: AppColors.textTertiary,
                     fontSize: 13,
                   ),
                 ),
@@ -3904,7 +3894,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: const Color(0xFF161616),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white12),
+                        border: Border.all(color: AppColors.bgDivider),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3923,11 +3913,11 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                 ),
                                 child: const Icon(
                                   Icons.campaign_rounded,
-                                  color: Colors.white,
+                                  color: AppColors.textPrimary,
                                   size: 14,
                                 ),
                               ),
-                              SizedBox(width: 12),
+                              const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3938,14 +3928,14 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                       overflow: TextOverflow.ellipsis,
                                       style: AppTextStyles.labelLarge.copyWith(
                                         fontWeight: FontWeight.bold,
-                                        color: Colors.white,
+                                        color: AppColors.textPrimary,
                                         fontSize: 13,
                                       ),
                                     ),
                                     Text(
                                       'Campaign: ${ad.advertiser}',
                                       style: AppTextStyles.badge.copyWith(
-                                        color: Colors.amber,
+                                        color: AppColors.warning,
                                       ),
                                     ),
                                   ],
@@ -3953,7 +3943,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               ),
                             ],
                           ),
-                          const Divider(color: Colors.white10, height: 24),
+                          const Divider(color: AppColors.bgDivider, height: 24),
 
                           // Comment Details
                           Row(
@@ -3965,16 +3955,16 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                     comment.userProfilePicUrl.isNotEmpty
                                     ? NetworkImage(comment.userProfilePicUrl)
                                     : null,
-                                backgroundColor: Colors.white10,
+                                backgroundColor: AppColors.bgDivider,
                                 child: comment.userProfilePicUrl.isEmpty
                                     ? const Icon(
                                         Icons.person,
-                                        color: Colors.white30,
+                                        color: AppColors.textTertiary,
                                         size: 16,
                                       )
                                     : null,
                               ),
-                              SizedBox(width: 12),
+                              const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -3986,24 +3976,24 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                           style: AppTextStyles.labelLarge
                                               .copyWith(
                                                 fontWeight: FontWeight.bold,
-                                                color: Colors.white70,
+                                                color: AppColors.textSecondary,
                                                 fontSize: 13,
                                               ),
                                         ),
-                                        SizedBox(width: 8),
+                                        const SizedBox(width: 8),
                                         Text(
                                           '${comment.createdAt.hour}:${comment.createdAt.minute.toString().padLeft(2, '0')}',
                                           style: AppTextStyles.caption.copyWith(
-                                            color: Colors.white38,
+                                            color: AppColors.textTertiary,
                                           ),
                                         ),
                                       ],
                                     ),
-                                    SizedBox(height: 4),
+                                    const SizedBox(height: 4),
                                     Text(
                                       comment.text,
                                       style: AppTextStyles.labelLarge.copyWith(
-                                        color: Colors.white,
+                                        color: AppColors.textPrimary,
                                         fontSize: 13,
                                       ),
                                     ),
@@ -4015,14 +4005,14 @@ class AdvertiserPortalScreen extends StatelessWidget {
 
                           // Reply Section
                           if (comment.replyText != null) ...[
-                            SizedBox(height: 16),
+                            const SizedBox(height: 16),
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: Colors.green.withValues(alpha: 0.05),
+                                color: AppColors.success.withValues(alpha: 0.05),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
-                                  color: Colors.green.withValues(alpha: 0.15),
+                                  color: AppColors.success.withValues(alpha: 0.15),
                                 ),
                               ),
                               child: Row(
@@ -4030,10 +4020,10 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                 children: [
                                   const Icon(
                                     Icons.reply_rounded,
-                                    color: Colors.greenAccent,
+                                    color: AppColors.success,
                                     size: 16,
                                   ),
-                                  SizedBox(width: 8),
+                                  const SizedBox(width: 8),
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment:
@@ -4042,14 +4032,14 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                         Text(
                                           'Your Reply (${comment.repliedBy}):',
                                           style: AppTextStyles.badge.copyWith(
-                                            color: Colors.greenAccent,
+                                            color: AppColors.success,
                                           ),
                                         ),
-                                        SizedBox(height: 4),
+                                        const SizedBox(height: 4),
                                         Text(
                                           comment.replyText!,
                                           style: AppTextStyles.labelMedium
-                                              .copyWith(color: Colors.white),
+                                              .copyWith(color: AppColors.textPrimary),
                                         ),
                                       ],
                                     ),
@@ -4058,14 +4048,14 @@ class AdvertiserPortalScreen extends StatelessWidget {
                               ),
                             ),
                           ] else ...[
-                            SizedBox(height: 16),
+                            const SizedBox(height: 16),
                             Row(
                               children: [
                                 Expanded(
                                   child: Container(
                                     height: 40,
                                     decoration: BoxDecoration(
-                                      color: Colors.white10,
+                                      color: AppColors.bgDivider,
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     padding: const EdgeInsets.symmetric(
@@ -4074,13 +4064,13 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                     child: TextField(
                                       controller: replyController,
                                       style: AppTextStyles.labelLarge.copyWith(
-                                        color: Colors.white,
+                                        color: AppColors.textPrimary,
                                         fontSize: 13,
                                       ),
                                       decoration: InputDecoration(
                                         hintText: 'Type a reply...',
                                         hintStyle: AppTextStyles.labelMedium
-                                            .copyWith(color: Colors.white38),
+                                            .copyWith(color: AppColors.textTertiary),
                                         border: InputBorder.none,
                                       ),
                                     ),
@@ -4100,8 +4090,8 @@ class AdvertiserPortalScreen extends StatelessWidget {
                                     }
                                   },
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.amber,
-                                    foregroundColor: Colors.black,
+                                    backgroundColor: AppColors.warning,
+                                    foregroundColor: AppColors.bgPage,
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(8),
                                     ),

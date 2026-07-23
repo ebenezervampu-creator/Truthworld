@@ -1,18 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
-
-import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
+import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class RequestLanguageButton extends StatelessWidget {
+  const RequestLanguageButton({
+    required this.type, required this.onTap, super.key,
+  });
   final String type;
   final VoidCallback onTap;
-  const RequestLanguageButton({
-    super.key,
-    required this.type,
-    required this.onTap,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -50,9 +48,9 @@ class RequestLanguageButton extends StatelessWidget {
 }
 
 class LanguageRequestsList extends StatelessWidget {
+  const LanguageRequestsList({required this.type, super.key, this.tag});
   final String type;
   final String? tag;
-  const LanguageRequestsList({super.key, required this.type, this.tag});
 
   String _fmtDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
 
@@ -66,7 +64,7 @@ class LanguageRequestsList extends StatelessWidget {
           child: Text(
             'Requested Features',
             style: TS.bodySm.copyWith(
-              color: Colors.white70,
+              color: AppColors.textSecondary,
               fontWeight: FontWeight.bold,
               letterSpacing: 0.5,
             ),
@@ -83,8 +81,8 @@ class LanguageRequestsList extends StatelessWidget {
                 .toList();
             if (vc.isLoadingLanguageRequests.value) {
               return Shimmer.fromColors(
-                baseColor: Colors.white.withValues(alpha: 0.1),
-                highlightColor: Colors.white.withValues(alpha: 0.2),
+                baseColor: AppColors.textPrimary.withValues(alpha: 0.1),
+                highlightColor: AppColors.textPrimary.withValues(alpha: 0.2),
                 child: ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   itemCount: 3,
@@ -96,19 +94,19 @@ class LanguageRequestsList extends StatelessWidget {
                         width: 18,
                         height: 18,
                         decoration: const BoxDecoration(
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           shape: BoxShape.circle,
                         ),
                       ),
                       title: Container(
                         width: 80,
                         height: 12,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                       subtitle: Container(
                         width: 120,
                         height: 10,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                   ),
@@ -121,7 +119,7 @@ class LanguageRequestsList extends StatelessWidget {
                 child: Center(
                   child: Text(
                     'No requests yet',
-                    style: TS.bodySm.copyWith(color: Colors.white24),
+                    style: TS.bodySm.copyWith(color: AppColors.textDisabled),
                   ),
                 ),
               );
@@ -137,7 +135,7 @@ class LanguageRequestsList extends StatelessWidget {
                     dense: true,
                     leading: const Icon(
                       Icons.language_rounded,
-                      color: Colors.white38,
+                      color: AppColors.textTertiary,
                       size: 18,
                     ),
                     title: Text(
@@ -147,7 +145,7 @@ class LanguageRequestsList extends StatelessWidget {
                     subtitle: Text(
                       'Requested on ${_fmtDate(r.createdAt.toDate())}',
                       style: TS.bodySm.copyWith(
-                        color: Colors.white24,
+                        color: AppColors.textDisabled,
                         fontSize: 11,
                       ),
                     ),

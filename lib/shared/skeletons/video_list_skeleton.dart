@@ -13,7 +13,7 @@ class VideoListSkeleton extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Thumbnail
-            SkeletonBox(width: 160, height: 90, borderRadius: 8),
+            SkeletonBox(width: 160, height: 90),
             SizedBox(width: 12),
             // Details
             Expanded(

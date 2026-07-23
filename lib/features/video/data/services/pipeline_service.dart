@@ -1,10 +1,10 @@
-import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/features/video/data/models/content_verification.dart';
 import 'package:truthworld/features/video/data/models/pipeline_config.dart';
 import 'package:truthworld/features/video/data/models/pipeline_status.dart';
-import 'package:truthworld/features/video/data/models/content_verification.dart';
 
 /// Pipeline Service - Orchestrates video processing pipeline
 /// Handles job submission, status tracking, and verification
@@ -377,7 +377,7 @@ class PipelineService extends GetxService {
         .where('userId', isEqualTo: user.uid)
         .snapshots()
         .listen((snapshot) {
-          for (var change in snapshot.docChanges) {
+          for (final change in snapshot.docChanges) {
             if (change.type == DocumentChangeType.added) {
               final update = PipelineStatusUpdate.fromMap(
                 change.doc.data() ?? {},

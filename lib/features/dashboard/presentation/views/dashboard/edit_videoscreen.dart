@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class EditVideoScreen extends StatefulWidget {
-  final Video video;
 
-  const EditVideoScreen({super.key, required this.video});
+  const EditVideoScreen({required this.video, super.key});
+  final Video video;
 
   @override
   State<EditVideoScreen> createState() => _EditVideoScreenState();
@@ -22,7 +21,10 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
   late final RxBool _isKidFriendly;
 
   final _formKey = GlobalKey<FormState>();
-  final VideoManagementController _controller = Get.find();
+  final VideoManagementController _controller =
+      Get.isRegistered<VideoManagementController>()
+          ? Get.find<VideoManagementController>()
+          : Get.put(VideoManagementController());
 
   @override
   void initState() {
@@ -55,36 +57,30 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
       };
       _controller.updateVideo(widget.video.id, updatedData);
       Get.back();
-      // The snackbar is already shown by the controller, so we can remove it from here.
     }
   }
-
-  bool get isDarkMode => Theme.of(context).brightness == Brightness.dark;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: isDarkMode
-          ? AppTheme.colors.surface
-          : AppTheme.colors.textPrimary,
+      backgroundColor: AppColors.bgPage,
       appBar: AppBar(
         title: Text(
           'Edit Video',
-          style: GoogleFonts.roboto(fontWeight: FontWeight.bold),
+          style: AppTextStyles.titleLarge,
         ),
-        backgroundColor: isDarkMode
-            ? AppTheme.colors.surface
-            : AppTheme.colors.textPrimary,
+        backgroundColor: AppColors.bgSurface,
         elevation: 0,
         actions: [
           Padding(
-            padding: EdgeInsets.only(right: 12.0),
+            padding: const EdgeInsets.only(right: 12),
             child: ElevatedButton.icon(
               onPressed: _onSave,
-              icon: Icon(Icons.save, size: 18),
-              label: Text('Save'),
+              icon: const Icon(Icons.save, size: 18),
+              label: Text('Save', style: AppTextStyles.buttonText),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.colors.info,
+                backgroundColor: AppColors.brand,
+                foregroundColor: AppColors.textPrimary,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -94,7 +90,7 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
         ],
       ),
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(24.0),
+        padding: const EdgeInsets.all(24),
         child: Form(
           key: _formKey,
           child: Column(
@@ -106,20 +102,20 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
                 validator: (value) =>
                     value!.isEmpty ? 'Title cannot be empty' : null,
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               _buildTextField(
                 controller: _descriptionController,
                 label: 'Description',
                 maxLines: 5,
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               _buildTextField(
                 controller: _tagsController,
                 label: 'Tags (comma separated)',
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               _buildDropdownField(),
-              SizedBox(height: 20),
+              const SizedBox(height: 20),
               _buildSwitchField(),
             ],
           ),
@@ -138,29 +134,19 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
       controller: controller,
       maxLines: maxLines,
       validator: validator,
-      style: TextStyle(
-        color: isDarkMode
-            ? AppTheme.colors.textPrimary
-            : AppTheme.colors.background,
-      ),
+      style: AppTextStyles.inputText,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(
-          color: isDarkMode
-              ? AppTheme.colors.textPrimary70
-              : AppTheme.colors.background54,
-        ),
+        labelStyle: AppTextStyles.inputHint,
         filled: true,
-        fillColor: isDarkMode
-            ? AppTheme.colors.surface
-            : AppTheme.colors.textSecondary,
+        fillColor: AppColors.bgInput,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppTheme.colors.info, width: 2),
+          borderSide: const BorderSide(color: AppColors.brand, width: 2),
         ),
       ),
     );
@@ -175,32 +161,23 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
         }
       },
       items: ['Public', 'Private', 'Unlisted']
-          .map((label) => DropdownMenuItem(value: label, child: Text(label)))
+          .map((label) => DropdownMenuItem(
+                value: label,
+                child: Text(label, style: AppTextStyles.bodyMedium),
+              ))
           .toList(),
       decoration: InputDecoration(
         labelText: 'Visibility',
-        labelStyle: TextStyle(
-          color: isDarkMode
-              ? AppTheme.colors.textPrimary70
-              : AppTheme.colors.background54,
-        ),
+        labelStyle: AppTextStyles.inputHint,
         filled: true,
-        fillColor: isDarkMode
-            ? AppTheme.colors.surface
-            : AppTheme.colors.textSecondary,
+        fillColor: AppColors.bgInput,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
       ),
-      dropdownColor: isDarkMode
-          ? AppTheme.colors.surface
-          : AppTheme.colors.textPrimary,
-      style: TextStyle(
-        color: isDarkMode
-            ? AppTheme.colors.textPrimary
-            : AppTheme.colors.background,
-      ),
+      dropdownColor: AppColors.bgSurface,
+      style: AppTextStyles.inputText,
     ));
   }
 
@@ -208,20 +185,14 @@ class _EditVideoScreenState extends State<EditVideoScreen> {
     return Obx(() => SwitchListTile(
       title: Text(
         'Is this video "Made for Kids"?',
-        style: TextStyle(
-          color: isDarkMode
-              ? AppTheme.colors.textPrimary
-              : AppTheme.colors.background,
-        ),
+        style: AppTextStyles.bodyMedium,
       ),
       value: _isKidFriendly.value,
       onChanged: (value) {
         _isKidFriendly.value = value;
       },
-      activeThumbColor: AppTheme.colors.primary,
-      tileColor: isDarkMode
-          ? AppTheme.colors.surface
-          : AppTheme.colors.textSecondary,
+      activeThumbColor: AppColors.brand,
+      tileColor: AppColors.bgSurface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ));
   }

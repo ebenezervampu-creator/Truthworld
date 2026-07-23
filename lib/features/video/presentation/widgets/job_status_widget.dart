@@ -1,33 +1,31 @@
 import 'package:flutter/material.dart';
-
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/features/video/data/models/pipeline_status.dart';
 import 'package:truthworld/features/video/data/models/content_verification.dart';
+import 'package:truthworld/features/video/data/models/pipeline_status.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 
 /// Job Status Widget - Displays real-time pipeline processing status
 class JobStatusWidget extends StatelessWidget {
+
+  const JobStatusWidget({
+    required this.jobStatus, super.key,
+    this.onCancel,
+    this.onRetry,
+    this.showActions = true,
+  });
   final PipelineJobStatus jobStatus;
   final VoidCallback? onCancel;
   final VoidCallback? onRetry;
   final bool showActions;
 
-  const JobStatusWidget({
-    super.key,
-    required this.jobStatus,
-    this.onCancel,
-    this.onRetry,
-    this.showActions = true,
-  });
-
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!),
+        border: Border.all(color: AppColors.textSecondary),
         borderRadius: BorderRadius.circular(12),
       ),
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -42,10 +40,10 @@ class JobStatusWidget extends StatelessWidget {
           // Progress Text
           Text(
             '${jobStatus.progressPercent}% Complete',
-            style: GoogleFonts.roboto(
+            style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
-              color: Colors.blue,
+              color: AppColors.info,
             ),
           ),
           const SizedBox(height: 20),
@@ -66,17 +64,17 @@ class JobStatusWidget extends StatelessWidget {
   }
 
   Widget _buildHeader() {
-    Color statusColor = Colors.blue;
-    String statusText = jobStatus.currentStageName;
+    var statusColor = AppColors.info;
+    var statusText = jobStatus.currentStageName;
 
     if (jobStatus.isCompleted) {
-      statusColor = Colors.green;
+      statusColor = AppColors.success;
       statusText = 'Completed';
     } else if (jobStatus.isFailed) {
-      statusColor = Colors.red;
+      statusColor = AppColors.error;
       statusText = 'Failed';
     } else if (jobStatus.isProcessing) {
-      statusColor = Colors.orange;
+      statusColor = AppColors.warning;
     }
 
     return Row(
@@ -87,12 +85,12 @@ class JobStatusWidget extends StatelessWidget {
           children: [
             Text(
               'Job ID: ${jobStatus.jobId.substring(0, 8)}...',
-              style: GoogleFonts.roboto(fontSize: 14, color: Colors.grey[600]),
+              style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 4),
             Text(
               statusText,
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,
                 color: statusColor,
@@ -115,13 +113,13 @@ class JobStatusWidget extends StatelessWidget {
       child: LinearProgressIndicator(
         value: jobStatus.overallProgress,
         minHeight: 8,
-        backgroundColor: Colors.grey[200],
+        backgroundColor: AppColors.textSecondary,
         valueColor: AlwaysStoppedAnimation<Color>(
           jobStatus.isFailed
-              ? Colors.red
+              ? AppColors.error
               : jobStatus.isCompleted
-              ? Colors.green
-              : Colors.blue,
+              ? AppColors.success
+              : AppColors.info,
         ),
       ),
     );
@@ -133,12 +131,12 @@ class JobStatusWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Stage Progress',
-          style: GoogleFonts.roboto(fontSize: 14, fontWeight: FontWeight.w500),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 12),
-        ...stages.map((stage) => _buildStageItem(stage)),
+        ...stages.map(_buildStageItem),
       ],
     );
   }
@@ -147,34 +145,29 @@ class JobStatusWidget extends StatelessWidget {
     final status = jobStatus.getStageStatus(stageName);
     final progress = jobStatus.getStageProgressPercent(stageName);
 
-    Color statusColor = Colors.grey;
-    String statusIcon = '○';
+    var statusColor = AppColors.textSecondary;
+    var statusIcon = '○';
 
     switch (status) {
       case StageStatus.pending:
-        statusColor = Colors.grey;
+        statusColor = AppColors.textSecondary;
         statusIcon = '○';
-        break;
       case StageStatus.running:
-        statusColor = Colors.orange;
+        statusColor = AppColors.warning;
         statusIcon = '◑';
-        break;
       case StageStatus.completed:
-        statusColor = Colors.green;
+        statusColor = AppColors.success;
         statusIcon = '✓';
-        break;
       case StageStatus.skipped:
-        statusColor = Colors.grey;
+        statusColor = AppColors.textSecondary;
         statusIcon = '—';
-        break;
       case StageStatus.failed:
-        statusColor = Colors.red;
+        statusColor = AppColors.error;
         statusIcon = '✗';
-        break;
     }
 
     return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -193,7 +186,7 @@ class JobStatusWidget extends StatelessWidget {
               ),
               Text(
                 '$progress%',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                   color: statusColor,
@@ -207,7 +200,7 @@ class JobStatusWidget extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress / 100,
               minHeight: 4,
-              backgroundColor: Colors.grey[200],
+              backgroundColor: AppColors.textSecondary,
               valueColor: AlwaysStoppedAnimation<Color>(statusColor),
             ),
           ),
@@ -227,29 +220,29 @@ class JobStatusWidget extends StatelessWidget {
               const Text('ETA:'),
               Text(
                 _formatEta(jobStatus.eta!),
-                style: TextStyle(fontWeight: FontWeight.w500),
+                style: const TextStyle(fontWeight: FontWeight.w500),
               ),
             ],
           ),
         if (jobStatus.errorMessage != null) ...[
           const SizedBox(height: 8),
           Container(
-            padding: EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.red.shade50,
-              border: Border.all(color: Colors.red.shade200),
+              color: AppColors.error,
+              border: Border.all(color: AppColors.error),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               children: [
-                const Icon(Icons.error, color: Colors.red, size: 20),
+                const Icon(Icons.error, color: AppColors.error, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     jobStatus.errorMessage!,
-                    style: GoogleFonts.roboto(
+                    style: const TextStyle(
                       fontSize: 12,
-                      color: Colors.red.shade700,
+                      color: AppColors.error,
                     ),
                   ),
                 ),
@@ -261,23 +254,23 @@ class JobStatusWidget extends StatelessWidget {
           const SizedBox(height: 8),
           ...jobStatus.warnings.map(
             (warning) => Container(
-              margin: EdgeInsets.only(bottom: 8),
-              padding: EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.amber.shade50,
-                border: Border.all(color: Colors.amber.shade200),
+                color: AppColors.warning,
+                border: Border.all(color: AppColors.warning),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.warning, color: Colors.orange, size: 20),
+                  const Icon(Icons.warning, color: AppColors.warning, size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       warning,
-                      style: GoogleFonts.roboto(
+                      style: const TextStyle(
                         fontSize: 12,
-                        color: Colors.amber.shade700,
+                        color: AppColors.warning,
                       ),
                     ),
                   ),
@@ -298,7 +291,7 @@ class JobStatusWidget extends StatelessWidget {
             child: ElevatedButton.icon(
               icon: const Icon(Icons.close),
               label: const Text('Cancel'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
               onPressed: onCancel,
             ),
           ),
@@ -307,7 +300,7 @@ class JobStatusWidget extends StatelessWidget {
             child: ElevatedButton.icon(
               icon: const Icon(Icons.refresh),
               label: const Text('Retry'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
               onPressed: onRetry,
             ),
           ),
@@ -342,23 +335,22 @@ class JobStatusWidget extends StatelessWidget {
 
 /// Content Verification Widget
 class VerificationWidget extends StatelessWidget {
-  final ContentVerification verification;
-  final VoidCallback? onRefresh;
 
   const VerificationWidget({
-    super.key,
-    required this.verification,
+    required this.verification, super.key,
     this.onRefresh,
   });
+  final ContentVerification verification;
+  final VoidCallback? onRefresh;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!),
+        border: Border.all(color: AppColors.textSecondary),
         borderRadius: BorderRadius.circular(12),
       ),
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -378,20 +370,20 @@ class VerificationWidget extends StatelessWidget {
           if (verification.profanityCheck != null)
             _buildDetailedCheck(
               'Profanity Check',
-              verification.profanityCheck!,
+              verification.profanityCheck,
             ),
           if (verification.contentSafetyCheck != null) ...[
             const SizedBox(height: 16),
             _buildDetailedCheck(
               'Content Safety',
-              verification.contentSafetyCheck!,
+              verification.contentSafetyCheck,
             ),
           ],
           if (verification.transcriptCheck != null) ...[
             const SizedBox(height: 16),
             _buildDetailedCheck(
               'Transcript Quality',
-              verification.transcriptCheck!,
+              verification.transcriptCheck,
             ),
           ],
         ],
@@ -400,29 +392,24 @@ class VerificationWidget extends StatelessWidget {
   }
 
   Widget _buildVerificationHeader() {
-    Color statusColor = Colors.blue;
-    String statusText = verification.status.value;
+    var statusColor = AppColors.info;
+    var statusText = verification.status.value;
 
     switch (verification.status) {
       case VerificationStatus.approved:
-        statusColor = Colors.green;
+        statusColor = AppColors.success;
         statusText = 'Approved';
-        break;
       case VerificationStatus.rejected:
-        statusColor = Colors.red;
+        statusColor = AppColors.error;
         statusText = 'Rejected';
-        break;
       case VerificationStatus.needsReview:
-        statusColor = Colors.orange;
+        statusColor = AppColors.warning;
         statusText = 'Needs Review';
-        break;
       case VerificationStatus.inProgress:
-        statusColor = Colors.blue;
+        statusColor = AppColors.info;
         statusText = 'In Progress';
-        break;
       default:
-        statusColor = Colors.grey;
-        break;
+        statusColor = AppColors.textSecondary;
     }
 
     return Row(
@@ -431,9 +418,9 @@ class VerificationWidget extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Content Verification',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
               ),
@@ -441,7 +428,7 @@ class VerificationWidget extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               statusText,
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 14,
                 color: statusColor,
                 fontWeight: FontWeight.w500,
@@ -453,12 +440,12 @@ class VerificationWidget extends StatelessWidget {
           InkWell(
             onTap: onRefresh,
             child: Container(
-              padding: EdgeInsets.all(8),
-              decoration: BoxDecoration(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.blue.shade50,
+                color: AppColors.info,
               ),
-              child: Icon(Icons.refresh, color: Colors.blue, size: 20),
+              child: const Icon(Icons.refresh, color: AppColors.info, size: 20),
             ),
           ),
       ],
@@ -470,31 +457,31 @@ class VerificationWidget extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue.shade400, Colors.blue.shade600],
+        gradient: const LinearGradient(
+          colors: [AppColors.info, AppColors.info],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(12),
       ),
-      padding: EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
+              const Text(
                 'Overall Score',
-                style: GoogleFonts.roboto(fontSize: 14, color: Colors.white70),
+                style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
               ),
               const SizedBox(height: 8),
               Text(
                 '$score/100',
-                style: GoogleFonts.roboto(
+                style: const TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
             ],
@@ -508,19 +495,19 @@ class VerificationWidget extends StatelessWidget {
                 SizedBox(
                   child: CircularProgressIndicator(
                     value: score / 100,
-                    backgroundColor: Colors.white.withValues(alpha: 0.3),
+                    backgroundColor: AppColors.textPrimary.withValues(alpha: 0.3),
                     valueColor: const AlwaysStoppedAnimation<Color>(
-                      Colors.white,
+                      AppColors.textPrimary,
                     ),
                     strokeWidth: 4,
                   ),
                 ),
                 Text(
                   '$score%',
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ],
@@ -537,35 +524,35 @@ class VerificationWidget extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
+        const Text(
           'Verification Checklist',
-          style: GoogleFonts.roboto(fontSize: 14, fontWeight: FontWeight.w500),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 12),
         ...checks.entries.map((entry) {
           final item = entry.value;
           return Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 8),
             child: Row(
               children: [
                 if (item.hasFailed)
-                  const Icon(Icons.close, color: Colors.red, size: 20)
+                  const Icon(Icons.close, color: AppColors.error, size: 20)
                 else if (item.isComplete)
-                  const Icon(Icons.check_circle, color: Colors.green, size: 20)
+                  const Icon(Icons.check_circle, color: AppColors.success, size: 20)
                 else
-                  const Icon(Icons.schedule, color: Colors.orange, size: 20),
+                  const Icon(Icons.schedule, color: AppColors.warning, size: 20),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(item.name, style: GoogleFonts.roboto(fontSize: 13)),
+                      Text(item.name, style: const TextStyle(fontSize: 13)),
                       if (item.result != null)
                         Text(
                           item.result!,
-                          style: GoogleFonts.roboto(
+                          style: const TextStyle(
                             fontSize: 11,
-                            color: Colors.grey[600],
+                            color: AppColors.textSecondary,
                           ),
                         ),
                     ],
@@ -582,16 +569,16 @@ class VerificationWidget extends StatelessWidget {
   Widget _buildDetailedCheck(String title, dynamic checkResult) {
     return Container(
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey[300]!),
+        border: Border.all(color: AppColors.textSecondary),
         borderRadius: BorderRadius.circular(8),
       ),
-      padding: EdgeInsets.all(12),
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: GoogleFonts.roboto(
+            style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -616,10 +603,10 @@ class VerificationWidget extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Severity:', style: GoogleFonts.roboto(fontSize: 12)),
+            const Text('Severity:', style: TextStyle(fontSize: 12)),
             Text(
               '${(result.severity * 100).toInt()}%',
-              style: GoogleFonts.roboto(
+              style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
@@ -630,7 +617,7 @@ class VerificationWidget extends StatelessWidget {
         if (result.detectedWords.isNotEmpty)
           Text(
             'Words detected: ${result.detectedWords.length}',
-            style: GoogleFonts.roboto(fontSize: 12, color: Colors.red),
+            style: const TextStyle(fontSize: 12, color: AppColors.error),
           ),
       ],
     );
@@ -643,10 +630,10 @@ class VerificationWidget extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Safety Score:', style: GoogleFonts.roboto(fontSize: 12)),
+            const Text('Safety Score:', style: TextStyle(fontSize: 12)),
             Text(
               '${(result.safetyScore * 100).toInt()}%',
-              style: GoogleFonts.roboto(
+              style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
@@ -657,7 +644,7 @@ class VerificationWidget extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'Flagged: ${result.flaggedCategories.join(", ")}',
-            style: GoogleFonts.roboto(fontSize: 12, color: Colors.orange),
+            style: const TextStyle(fontSize: 12, color: AppColors.warning),
           ),
         ],
       ],
@@ -671,10 +658,10 @@ class VerificationWidget extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Accuracy:', style: GoogleFonts.roboto(fontSize: 12)),
+            const Text('Accuracy:', style: TextStyle(fontSize: 12)),
             Text(
               '${(result.accuracy * 100).toInt()}%',
-              style: GoogleFonts.roboto(
+              style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),

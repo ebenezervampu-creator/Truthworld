@@ -1,5 +1,5 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/data/models/channel.dart';
@@ -9,22 +9,21 @@ import 'package:truthworld/theme/app_theme.dart';
 /// using its name. When tapped, it navigates to the channel's details page.
 /// Includes an optimized static cache to prevent redundant Firestore lookups.
 class ChannelAvatarByName extends StatefulWidget {
-  final String channelName;
-  final double radius;
-  final bool showName;
-  final TextStyle? nameStyle;
-  final double spacing;
-  final VoidCallback? onTap;
 
   const ChannelAvatarByName({
-    super.key,
-    required this.channelName,
+    required this.channelName, super.key,
     this.radius = 20,
     this.showName = false,
     this.nameStyle,
     this.spacing = 8,
     this.onTap,
   });
+  final String channelName;
+  final double radius;
+  final bool showName;
+  final TextStyle? nameStyle;
+  final double spacing;
+  final VoidCallback? onTap;
 
   @override
   State<ChannelAvatarByName> createState() => _ChannelAvatarByNameState();
@@ -142,8 +141,8 @@ class _ChannelAvatarByNameState extends State<ChannelAvatarByName> {
                 widget.channelName,
                 style:
                     widget.nameStyle ??
-                    TextStyle(
-                      fontFamily: 'Roboto',
+                    const TextStyle(
+                      
                       fontSize: 14,
                       fontWeight: FontWeight.w500,
                       color: AppColors.textPrimary,

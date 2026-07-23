@@ -1,16 +1,13 @@
+import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/theme/app_theme.dart';
+import 'package:video_player/video_player.dart';
 
 /// Represents a single selectable audio track (base or dubbed language).
-class AudioTrackOption {
-  final String code;
-  final String label;
-  final String? audioUrl; // null => use video's embedded audio
-  final bool isEmbedded; // true => original video audio
+class AudioTrackOption { // true => original video audio
 
   const AudioTrackOption({
     required this.code,
@@ -18,6 +15,10 @@ class AudioTrackOption {
     this.audioUrl,
     this.isEmbedded = false,
   });
+  final String code;
+  final String label;
+  final String? audioUrl; // null => use video's embedded audio
+  final bool isEmbedded;
 }
 
 /// Controls synchronised playback of a video + optional dubbed audio overlay.
@@ -99,25 +100,23 @@ class MultiAudioPlayerController extends GetxController {
       chewieController?.dispose();
       chewieController = ChewieController(
         videoPlayerController: _videoCtrl!,
-        autoPlay: false,
-        looping: false,
         showControls: false,
         autoInitialize: true,
         allowedScreenSleep: false,
         aspectRatio: _videoCtrl!.value.aspectRatio,
-        placeholder: Container(
-          color: Colors.black,
-          child: const Center(
+        placeholder: const ColoredBox(
+          color: AppColors.bgPage,
+          child: Center(
             child: CircularProgressIndicator(color: Color(0xFF9B30FF)),
           ),
         ),
         errorBuilder: (context, errorMessage) {
           return Center(
             child: Padding(
-              padding: const EdgeInsets.all(12.0),
+              padding: const EdgeInsets.all(12),
               child: Text(
                 errorMessage,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+                style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
                 textAlign: TextAlign.center,
               ),
             ),

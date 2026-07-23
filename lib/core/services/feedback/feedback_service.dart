@@ -1,4 +1,3 @@
-library;
 
 /// Central Feedback Service Hub
 ///
@@ -20,11 +19,12 @@ library;
 ///
 ///   // Loading state
 ///   DialogService.loading(message: 'Processing...');
+library;
 
 
+export 'dialog_service.dart';
 export 'snackbar_service.dart';
 export 'toast_service.dart';
-export 'dialog_service.dart';
 
 
 

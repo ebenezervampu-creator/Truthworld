@@ -1,21 +1,16 @@
-import '../../data/models/watch_event_model.dart';
+import 'package:truthworld/features/analytics/data/models/watch_event_model.dart';
 
 /// Immutable UI state for the geographic breakdown widget.
 ///
 /// This keeps the grouping, sorting, and summary calculations in one place so
 /// the widget stays presentational and state transitions remain predictable.
 class GeoBreakdownState {
-  final List<GeoRegionModel> indianStates;
-  final List<GeoRegionModel> countries;
-  final int totalCount;
 
   const GeoBreakdownState({
     required this.indianStates,
     required this.countries,
     required this.totalCount,
   });
-
-  bool get hasData => totalCount > 0;
 
   factory GeoBreakdownState.fromRegions(List<GeoRegionModel> regions) {
     final sortedRegions = [...regions]
@@ -38,4 +33,9 @@ class GeoBreakdownState {
       totalCount: totalCount,
     );
   }
+  final List<GeoRegionModel> indianStates;
+  final List<GeoRegionModel> countries;
+  final int totalCount;
+
+  bool get hasData => totalCount > 0;
 }

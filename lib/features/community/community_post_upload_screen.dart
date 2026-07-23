@@ -1,13 +1,14 @@
 import 'dart:io' as io;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
+import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/community/community_post_upload_controller.dart';
 import 'package:truthworld/features/community/data/models/community_draft.dart';
 import 'package:truthworld/features/community/data/models/poll_model.dart';
 import 'package:truthworld/features/presentation/widgets/upload_shared_widgets.dart';
-import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 // =============================================================================
@@ -15,7 +16,6 @@ import 'package:truthworld/theme/app_theme.dart';
 // =============================================================================
 
 class CommunityPostUploadScreen extends StatelessWidget {
-  final CommunityDraft? draftToLoad;
 
   CommunityPostUploadScreen({super.key, this.draftToLoad}) {
     if (draftToLoad != null) {
@@ -28,6 +28,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
       }
     }
   }
+  final CommunityDraft? draftToLoad;
 
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
@@ -87,7 +88,6 @@ class CommunityPostUploadScreen extends StatelessWidget {
                             borderRadius: context.radius.lg,
                             border: Border.all(
                               color: context.colors.divider,
-                              width: 1,
                             ),
                           ),
                           child: Row(
@@ -101,7 +101,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                                 child: Text(
                                   channel.channelName,
                                   style: TextStyle(
-                                    fontFamily: 'Roboto',
+                                    
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
                                     color: context.colors.textPrimary,
@@ -188,7 +188,6 @@ class CommunityPostUploadScreen extends StatelessWidget {
                               borderRadius: context.radius.lg,
                               border: Border.all(
                                 color: context.colors.divider,
-                                width: 1,
                               ),
                             ),
                             child: Row(
@@ -202,7 +201,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                                   child: Text(
                                     channel.channelName,
                                     style: TextStyle(
-                                      fontFamily: 'Roboto',
+                                      
                                       fontSize: 13,
                                       fontWeight: FontWeight.w600,
                                       color: context.colors.textPrimary,
@@ -265,7 +264,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
         Text(
           'Add 1 image, any aspect ratio. Max 20 MB.',
           style: TextStyle(
-            fontFamily: 'Roboto',
+            
             fontSize: 12,
             color: context.colors.textSecondary,
           ),
@@ -368,7 +367,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                           ),
                           child: const Icon(
                             Icons.close_rounded,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             size: 18,
                           ),
                         ),
@@ -387,22 +386,22 @@ class CommunityPostUploadScreen extends StatelessWidget {
                           color: context.colors.background.withValues(alpha: 0.54),
                           borderRadius: context.radius.sm,
                         ),
-                        child: Row(
+                        child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.edit_rounded,
-                              color: Colors.white,
+                              color: AppColors.textPrimary,
                               size: 12,
                             ),
-                            const SizedBox(width: 4),
-                            const Text(
+                            SizedBox(width: 4),
+                            Text(
                               'Tap to change',
                               style: TextStyle(
-                                fontFamily: 'Roboto',
+                                
                                 fontSize: 11,
                                 fontWeight: FontWeight.w500,
-                                color: Colors.white,
+                                color: AppColors.textPrimary,
                               ),
                             ),
                           ],
@@ -424,7 +423,6 @@ class CommunityPostUploadScreen extends StatelessWidget {
                       border: Border.all(
                         color: context.colors.divider,
                         width: 2,
-                        strokeAlign: BorderSide.strokeAlignInside,
                       ),
                     ),
                     child: Column(
@@ -438,7 +436,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                         Text(
                           'JPEG, PNG, GIF • Any aspect ratio',
                           style: TextStyle(
-                            fontFamily: 'Roboto',
+                            
                             fontSize: 12,
                             color: context.colors.textSecondary,
                           ),
@@ -467,7 +465,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
             title: Text(
               'Add a poll',
               style: TextStyle(
-                fontFamily: 'Roboto',
+                
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
                 color: context.colors.textPrimary,
@@ -476,7 +474,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
             subtitle: Text(
               'Let your community vote',
               style: TextStyle(
-                fontFamily: 'Roboto',
+                
                 fontSize: 12,
                 color: context.colors.textSecondary,
               ),
@@ -533,7 +531,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
               Text(
                 'Options (3–5)',
                 style: TextStyle(
-                  fontFamily: 'Roboto',
+                  
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                   color: context.colors.textSecondary,
@@ -556,7 +554,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                           child: Text(
                             '${i + 1}',
                             style: TextStyle(
-                              fontFamily: 'Roboto',
+                              
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
                               color: context.colors.textSecondary,
@@ -570,14 +568,14 @@ class CommunityPostUploadScreen extends StatelessWidget {
                           initialValue: _c.pollOptions[i],
                           onChanged: (v) => _c.updatePollOption(i, v),
                           style: TextStyle(
-                            fontFamily: 'Roboto',
+                            
                             fontSize: 14,
                             color: context.colors.textPrimary,
                           ),
                           decoration: InputDecoration(
                             hintText: 'Option ${i + 1}',
                             hintStyle: TextStyle(
-                              fontFamily: 'Roboto',
+                              
                               color: context.colors.textSecondary.withValues(alpha: 0.5),
                               fontSize: 14,
                             ),
@@ -629,7 +627,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                   label: Text(
                     'Add Option',
                     style: TextStyle(
-                      fontFamily: 'Roboto',
+                      
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                       color: context.colors.textSecondary,
@@ -677,7 +675,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 Text(
                   'Poll Duration',
                   style: TextStyle(
-                    fontFamily: 'Roboto',
+                    
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                     color: context.colors.textSecondary,
@@ -714,7 +712,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                           ? '1 day'
                           : '$days days',
                       style: TextStyle(
-                        fontFamily: 'Roboto',
+                        
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         color: isSelected
@@ -772,7 +770,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    fontFamily: 'Roboto',
+                    
                     fontSize: 13,
                     fontWeight: FontWeight.w500,
                     color: isSelected
@@ -804,7 +802,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontFamily: 'Roboto',
+              
               fontSize: 14,
               fontWeight: FontWeight.w500,
               color: color,
@@ -869,7 +867,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
         Text(
           'Visibility',
           style: TextStyle(
-            fontFamily: 'Roboto',
+            
             fontSize: 13,
             fontWeight: FontWeight.w500,
             color: context.colors.textSecondary,
@@ -883,7 +881,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
         Text(
           'Category',
           style: TextStyle(
-            fontFamily: 'Roboto',
+            
             fontSize: 13,
             fontWeight: FontWeight.w500,
             color: context.colors.textSecondary,
@@ -916,7 +914,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                   child: Text(
                     cat,
                     style: TextStyle(
-                      fontFamily: 'Roboto',
+                      
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
                       color: isSelected
@@ -937,7 +935,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
             title: Text(
               'Schedule Post',
               style: TextStyle(
-                fontFamily: 'Roboto',
+                
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
                 color: context.colors.textPrimary,
@@ -954,7 +952,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
             title: Text(
               'Kid Friendly',
               style: TextStyle(
-                fontFamily: 'Roboto',
+                
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
                 color: context.colors.textPrimary,
@@ -1017,7 +1015,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 Text(
                   'Preview',
                   style: TextStyle(
-                    fontFamily: 'Roboto',
+                    
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: context.colors.textPrimary,
@@ -1093,13 +1091,13 @@ class CommunityPostUploadScreen extends StatelessWidget {
               gradient: context.gradients.primary,
               borderRadius: context.radius.lg,
             ),
-            child: const Icon(Icons.forum_rounded, color: Colors.white),
+            child: const Icon(Icons.forum_rounded, color: AppColors.textPrimary),
           ),
           const SizedBox(height: 12),
           Text(
             'Community Post',
             style: TextStyle(
-              fontFamily: 'Roboto',
+              
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: context.colors.textPrimary,
@@ -1126,7 +1124,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back),
-            onPressed: () => Get.back(),
+            onPressed: Get.back,
           ),
           const SizedBox(width: 8),
           Container(
@@ -1135,13 +1133,13 @@ class CommunityPostUploadScreen extends StatelessWidget {
               gradient: context.gradients.primary,
               borderRadius: context.radius.lg,
             ),
-            child: const Icon(Icons.forum_rounded, color: Colors.white),
+            child: const Icon(Icons.forum_rounded, color: AppColors.textPrimary),
           ),
           const SizedBox(width: 12),
           Text(
             'Community Post',
             style: TextStyle(
-              fontFamily: 'Roboto',
+              
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: context.colors.textPrimary,
@@ -1159,12 +1157,12 @@ class CommunityPostUploadScreen extends StatelessWidget {
       child: SizedBox(
         width: double.infinity,
         child: OutlinedButton.icon(
-          onPressed: () => Get.back(),
+          onPressed: Get.back,
           icon: const Icon(Icons.arrow_back, size: 18),
           label: const Text(
             'Back to Home',
             style: TextStyle(
-              fontFamily: 'Roboto',
+              
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -1213,7 +1211,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
           label: Text(
             _c.isSavingDraft.value ? 'Saving...' : 'Save as Draft',
             style: const TextStyle(
-              fontFamily: 'Roboto',
+              
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -1237,8 +1235,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
     BuildContext context, {
     required IconData icon,
     required String title,
-    Color? accentColor,
-    required List<Widget> children,
+    required List<Widget> children, Color? accentColor,
   }) {
     final effectiveAccentColor = accentColor ?? context.colors.brand;
     return Container(
@@ -1266,13 +1263,13 @@ class CommunityPostUploadScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-                child: Icon(icon, size: 18, color: Colors.white),
+                child: Icon(icon, size: 18, color: AppColors.textPrimary),
               ),
               const SizedBox(width: 12),
               Text(
                 title,
                 style: TextStyle(
-                  fontFamily: 'Roboto',
+                  
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
                   color: context.colors.textPrimary,
@@ -1310,15 +1307,15 @@ class CommunityPostUploadScreen extends StatelessWidget {
   }
 
   Widget _buildChannelVerificationBanner(Channel channel, BuildContext context) {
-    final bool isUnderReview = channel.status == ChannelStatus.underReview;
-    final bool isPending = channel.status == ChannelStatus.verificationPending;
-    final bool isRejected =
+    final isUnderReview = channel.status == ChannelStatus.underReview;
+    final isPending = channel.status == ChannelStatus.verificationPending;
+    final isRejected =
         channel.status == ChannelStatus.verificationRejected;
 
-    Color statusColor = context.colors.error;
-    IconData statusIcon = Icons.gpp_bad_rounded;
-    String title = 'Channel Blocked';
-    String message = 'Your channel is not active.';
+    var statusColor = context.colors.error;
+    var statusIcon = Icons.gpp_bad_rounded;
+    var title = 'Channel Blocked';
+    var message = 'Your channel is not active.';
 
     if (isUnderReview) {
       statusColor = context.colors.brand;
@@ -1327,7 +1324,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
       message =
           'Your channel details are currently under review by Gemini. You can publish once approved.';
     } else if (isPending) {
-      statusColor = Colors.amber;
+      statusColor = AppColors.warning;
       statusIcon = Icons.pending_actions_rounded;
       title = 'Verification Pending';
       message =
@@ -1368,7 +1365,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 Text(
                   title,
                   style: TextStyle(
-                    fontFamily: 'Roboto',
+                    
                     color: statusColor,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -1378,7 +1375,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
                 Text(
                   message,
                   style: TextStyle(
-                    fontFamily: 'Roboto',
+                    
                     color: context.colors.textSecondary,
                     fontSize: 12,
                   ),

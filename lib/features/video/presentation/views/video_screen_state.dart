@@ -1,10 +1,5 @@
 /// Immutable UI state for the video screen.
 class VideoScreenState {
-  final bool isLoadingVideo;
-  final bool isLoadingRecommendations;
-  final bool hasVideoError;
-  final bool hasRecommendations;
-  final bool hasVideoData;
 
   const VideoScreenState({
     required this.isLoadingVideo,
@@ -29,6 +24,11 @@ class VideoScreenState {
       hasVideoData: hasVideoData,
     );
   }
+  final bool isLoadingVideo;
+  final bool isLoadingRecommendations;
+  final bool hasVideoError;
+  final bool hasRecommendations;
+  final bool hasVideoData;
 
   bool get showPlayerFallback => isLoadingVideo || hasVideoError;
   bool get showRecommendationsEmptyState =>

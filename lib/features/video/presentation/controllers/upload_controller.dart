@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io' as io;
 import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,25 +9,23 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:multi_lang_bad_words_filter/multi_lang_bad_words_filter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:profanity_filter/profanity_filter.dart';
-import 'package:multi_lang_bad_words_filter/multi_lang_bad_words_filter.dart';
-import 'package:safe_text/safe_text.dart';
 import 'package:truthworld/core/mixins/content_validation_mixin.dart';
-import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/video/data/models/ai_features.dart';
-import 'package:uuid/uuid.dart';
-import 'package:video_player/video_player.dart';
-import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
-import 'package:truthworld/features/topics/data/models/topic.dart';
-import 'package:truthworld/core/utils/mentions_helper.dart';
-
-// ignore: avoid_web_libraries_in_flutter
-import 'package:universal_html/html.dart' as html;
-import 'dart:io' as io;
 import 'package:truthworld/core/services/image_verification_service.dart';
 import 'package:truthworld/core/services/verification_cache_service.dart';
+import 'package:truthworld/core/utils/mentions_helper.dart';
+import 'package:truthworld/data/models/channel.dart';
+import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/video/data/models/ai_features.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/theme/app_theme.dart';
+// ignore: avoid_web_libraries_in_flutter
+import 'package:universal_html/html.dart' as html;
+import 'package:uuid/uuid.dart';
+import 'package:video_player/video_player.dart';
 
 class UploadController extends GetxController with ContentValidationMixin {
   final _imageVerificationService = ImageVerificationService();
@@ -44,7 +44,7 @@ class UploadController extends GetxController with ContentValidationMixin {
 
   /// Current upload progress (0.0 - 1.0) - maintained for backward compatibility with UI
   RxDouble uploadProgress = 0.0.obs;
-  RxString selectedCategory = "Other".obs;
+  RxString selectedCategory = 'Other'.obs;
   Rx<Channel?> selectedChannel = Rx<Channel?>(null);
   RxString selectedVisibility = 'Public'.obs;
   RxBool isKidFriendly = false.obs;
@@ -57,11 +57,13 @@ class UploadController extends GetxController with ContentValidationMixin {
   RxList<Topic> availableTopics = <Topic>[].obs;
   RxBool isTopicsLoading = false.obs;
   RxString topicsError = ''.obs;
+  RxString topicSearchQuery = ''.obs;
+  final RxMap<String, Map<String, String>> channelMetadataCache = <String, Map<String, String>>{}.obs;
   final RxMap<String, dynamic> newTopicData = <String, dynamic>{}.obs;
   RxBool isScheduled = false.obs;
-  Rx<DateTime> scheduledDate = DateTime.now().add(Duration(days: 1)).obs;
-  final RxString finalstatus = "".obs;
-  final RxString finalstatusReason = "".obs;
+  Rx<DateTime> scheduledDate = DateTime.now().add(const Duration(days: 1)).obs;
+  final RxString finalstatus = ''.obs;
+  final RxString finalstatusReason = ''.obs;
   final RxString titleValidationStatus = 'UNKNOWN'.obs;
   final RxString titleValidationReason = ''.obs;
   final RxString descriptionValidationStatus = 'UNKNOWN'.obs;
@@ -96,7 +98,6 @@ class UploadController extends GetxController with ContentValidationMixin {
   /// Build the AI features map for Firestore.
   Map<String, dynamic> buildFeaturesMap({String? pipelineStage}) {
     return AIFeatures(
-      transcript: true,
       genLangSubs: aiGenerateSubtitles.value,
       generateDubbing: aiGenerateDubbing.value,
       translationLanguages: List<String>.from(aiTranslationLanguages),
@@ -127,7 +128,7 @@ class UploadController extends GetxController with ContentValidationMixin {
         );
       }
     } catch (e) {
-      Get.snackbar('Error', 'Failed to pick voice sample: \$e');
+      Get.snackbar('Error', r'Failed to pick voice sample: $e');
     }
   }
 
@@ -182,13 +183,13 @@ class UploadController extends GetxController with ContentValidationMixin {
   final FirebaseStorage _firebaseStorage = FirebaseStorage.instance;
   final Uuid _uuid = Uuid();
 
-  var videos = <Video>[].obs;
-  var searchedVideos = <Video>[].obs;
-  var channels = <Channel>[].obs;
+  RxList<Video> videos = <Video>[].obs;
+  RxList<Video> searchedVideos = <Video>[].obs;
+  RxList<Channel> channels = <Channel>[].obs;
 
-  var pickedImage = Rx<PlatformFile?>(null);
-  var pickedCommunityImage = Rx<PlatformFile?>(null);
-  var pickedVideo = Rx<PlatformFile?>(null);
+  Rx<PlatformFile?> pickedImage = Rx<PlatformFile?>(null);
+  Rx<PlatformFile?> pickedCommunityImage = Rx<PlatformFile?>(null);
+  Rx<PlatformFile?> pickedVideo = Rx<PlatformFile?>(null);
 
   // Storage for upload tasks and URLs
   UploadTask? _videoUploadTask;
@@ -208,19 +209,19 @@ class UploadController extends GetxController with ContentValidationMixin {
 
   // Channel Loading State
   RxBool isChannelsLoading = true.obs;
-  RxString channelsError = "".obs;
+  RxString channelsError = ''.obs;
   StreamSubscription<QuerySnapshot>? _channelsSubscription;
 
   // ══════════════════════════════════════════════════════════════
   // MULTI-STAGE UPLOAD STATE MANAGEMENT
   // ══════════════════════════════════════════════════════════════
   RxInt uploadStage = 0.obs; // 0: Media, 1: Details, 2: Settings, 3: Publish
-  RxString uploadStageLabel = "Upload Media".obs;
+  RxString uploadStageLabel = 'Upload Media'.obs;
   RxBool canAdvanceStage = false.obs;
   
   // UI Processing State
   RxBool isProcessing = false.obs;
-  RxString processingMessage = "".obs;
+  RxString processingMessage = ''.obs;
   RxBool isFormValid = false.obs;
 
   double get overallProgress => (uploadStage.value + 1) / 4.0;
@@ -294,13 +295,13 @@ class UploadController extends GetxController with ContentValidationMixin {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        throw Exception("User not authenticated");
+        throw Exception('User not authenticated');
       }
 
       // Refresh token to ensure it's valid
       final refreshed = await _refreshAuthToken();
       if (!refreshed) {
-        throw Exception("Failed to refresh authentication token");
+        throw Exception('Failed to refresh authentication token');
       }
 
       debugPrint('✅ Authentication verified for user: ${user.uid}');
@@ -308,8 +309,8 @@ class UploadController extends GetxController with ContentValidationMixin {
     } catch (e) {
       debugPrint('❌ Authentication verification failed: $e');
       Get.snackbar(
-        "Authentication Error",
-        "Please log in again to continue uploading",
+        'Authentication Error',
+        'Please log in again to continue uploading',
         snackPosition: SnackPosition.BOTTOM,
       );
       return false;
@@ -323,7 +324,7 @@ class UploadController extends GetxController with ContentValidationMixin {
   /// Update the current upload stage
   void setUploadStage(int stage) {
     uploadStage.value = stage;
-    final stages = ["Upload Media", "All Details", "Settings", "Publish"];
+    final stages = ['Upload Media', 'All Details', 'Settings', 'Publish'];
     uploadStageLabel.value = stages[stage];
     debugPrint('📍 Moved to stage $stage: ${stages[stage]}');
   }
@@ -349,8 +350,8 @@ class UploadController extends GetxController with ContentValidationMixin {
   Future<bool> advanceUploadStage() async {
     if (!_isCurrentStageValid()) {
       Get.snackbar(
-        "Incomplete Stage",
-        "Please complete the current stage before advancing",
+        'Incomplete Stage',
+        'Please complete the current stage before advancing',
         snackPosition: SnackPosition.BOTTOM,
       );
       return false;
@@ -368,7 +369,7 @@ class UploadController extends GetxController with ContentValidationMixin {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        throw Exception("User not authenticated");
+        throw Exception('User not authenticated');
       }
 
       // Get the ID token and ensure it's fresh
@@ -384,7 +385,7 @@ class UploadController extends GetxController with ContentValidationMixin {
       debugPrint('✅ Storage auth ready for user: ${user.uid}');
     } catch (e) {
       debugPrint('❌ Failed to prepare Storage auth: $e');
-      throw Exception("Storage auth preparation failed: $e");
+      throw Exception('Storage auth preparation failed: $e');
     }
   }
 
@@ -400,7 +401,7 @@ class UploadController extends GetxController with ContentValidationMixin {
 
   Future<void> fetchChannelsWithRetry() async {
     isChannelsLoading.value = true;
-    channelsError.value = "";
+    channelsError.value = '';
     fetchChannels();
   }
 
@@ -409,7 +410,7 @@ class UploadController extends GetxController with ContentValidationMixin {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       isChannelsLoading.value = false;
-      channelsError.value = "User not logged in";
+      channelsError.value = 'User not logged in';
       return;
     }
 
@@ -419,7 +420,7 @@ class UploadController extends GetxController with ContentValidationMixin {
     _channelsSubscription?.cancel();
 
     _channelsSubscription = _firestore
-        .collection("channels")
+        .collection('channels')
         .where('ownerId', isEqualTo: user.uid)
         .snapshots()
         .listen(
@@ -428,12 +429,12 @@ class UploadController extends GetxController with ContentValidationMixin {
             
             // Filter active channels in memory (status != deleted)
             channels.value = snapshot.docs
-                .map((doc) => Channel.fromDocumentSnapshot(doc))
+                .map(Channel.fromDocumentSnapshot)
                 .where((channel) => channel.status != ChannelStatus.deleted)
                 .toList();
 
             isChannelsLoading.value = false;
-            channelsError.value = "";
+            channelsError.value = '';
 
             // Auto-select first channel if none selected
             if (channels.isNotEmpty && selectedChannel.value == null) {
@@ -446,7 +447,7 @@ class UploadController extends GetxController with ContentValidationMixin {
           onError: (error) {
             debugPrint('❌ Error fetching channels: $error');
             isChannelsLoading.value = false;
-            channelsError.value = "Failed to load channels: $error";
+            channelsError.value = 'Failed to load channels: $error';
           },
         );
   }
@@ -462,15 +463,15 @@ class UploadController extends GetxController with ContentValidationMixin {
         final extension = pickedFile.extension?.toLowerCase();
         const allowedExtensions = {'jpg', 'jpeg', 'png', 'gif'};
         if (extension == null || !allowedExtensions.contains(extension)) {
-          Get.snackbar("Error", "Unsupported image format. Allowed formats: JPG, JPEG, PNG, GIF.");
+          Get.snackbar('Error', 'Unsupported image format. Allowed formats: JPG, JPEG, PNG, GIF.');
           return;
         }
 
         // Validate size (2MB limit for video thumbnails, 10MB limit for community posts)
         final maxSize = forCommunity ? 10 * 1024 * 1024 : 2 * 1024 * 1024;
         if (pickedFile.size > maxSize) {
-          final sizeLimitMB = forCommunity ? "10MB" : "2MB";
-          Get.snackbar("Error", "Selected image exceeds the $sizeLimitMB limit.");
+          final sizeLimitMB = forCommunity ? '10MB' : '2MB';
+          Get.snackbar('Error', 'Selected image exceeds the $sizeLimitMB limit.');
           return;
         }
 
@@ -481,10 +482,10 @@ class UploadController extends GetxController with ContentValidationMixin {
         }
         await _startImageUpload(pickedFile, forCommunity: forCommunity);
       } else {
-        Get.snackbar("Info", "No image selected.");
+        Get.snackbar('Info', 'No image selected.');
       }
     } catch (e) {
-      Get.snackbar("Error", "Failed to pick image: $e");
+      Get.snackbar('Error', 'Failed to pick image: $e');
     }
   }
 
@@ -500,7 +501,7 @@ class UploadController extends GetxController with ContentValidationMixin {
 
         const maxSizeInBytes = 2 * 1024 * 1024 * 1024; // 2GB
         if (pickedFile.size > maxSizeInBytes) {
-          Get.snackbar("Error", "Selected video exceeds the 2GB limit.");
+          Get.snackbar('Error', 'Selected video exceeds the 2GB limit.');
           return;
         }
 
@@ -509,7 +510,7 @@ class UploadController extends GetxController with ContentValidationMixin {
           'mp4', 'mov', 'avi', 'wmv', 'webm', 'flv', '3gpp', '3gp', 'mpeg', 'mpg', 'mkv', 'mpegps', 'm4v', 'dnxhr', 'prores', 'cineform', 'hevc'
         };
         if (extension == null || !allowedExtensions.contains(extension)) {
-          Get.snackbar("Error", "Unsupported video format. YouTube allowed formats are supported.");
+          Get.snackbar('Error', 'Unsupported video format. YouTube allowed formats are supported.');
           return;
         }
 
@@ -517,7 +518,7 @@ class UploadController extends GetxController with ContentValidationMixin {
 
         int duration;
         if (kIsWeb) {
-          final blob = html.Blob([pickedFile.bytes!]);
+          final blob = html.Blob([pickedFile.bytes]);
           final url = html.Url.createObjectUrlFromBlob(blob);
           final video = html.VideoElement()
             ..src = url
@@ -536,20 +537,20 @@ class UploadController extends GetxController with ContentValidationMixin {
         }
 
         if (duration > maxDurationSeconds) {
-          Get.snackbar("Error", "Video exceeds 60 minute limit.");
+          Get.snackbar('Error', 'Video exceeds 60 minute limit.');
           return;
         }
 
         pickedVideo.value = pickedFile;
-        Get.snackbar("Success", "Video selected successfully!");
+        Get.snackbar('Success', 'Video selected successfully!');
 
         await initializeVideoPlayer();
         await _startVideoUpload(pickedVideo.value!);
       } else {
-        Get.snackbar("Info", "No video selected.");
+        Get.snackbar('Info', 'No video selected.');
       }
     } catch (e) {
-      Get.snackbar("Error", "Failed to pick video: $e");
+      Get.snackbar('Error', 'Failed to pick video: $e');
     }
   }
 
@@ -564,7 +565,7 @@ class UploadController extends GetxController with ContentValidationMixin {
     }
 
     if (kIsWeb) {
-      final blob = html.Blob([file.bytes!]);
+      final blob = html.Blob([file.bytes]);
       final url = html.Url.createObjectUrlFromBlob(blob);
       videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(url));
     } else {
@@ -613,7 +614,7 @@ class UploadController extends GetxController with ContentValidationMixin {
         return _formatDuration(duration);
       }
     } catch (e) {
-      throw Exception("Failed to get video duration: $e");
+      throw Exception('Failed to get video duration: $e');
     }
   }
 
@@ -646,7 +647,7 @@ class UploadController extends GetxController with ContentValidationMixin {
         return durationMs;
       }
     } catch (e) {
-      throw Exception("Failed to get video duration: $e");
+      throw Exception('Failed to get video duration: $e');
     }
   }
 
@@ -678,12 +679,12 @@ class UploadController extends GetxController with ContentValidationMixin {
       debugPrint('🔐 Refreshing authentication token...');
       final authValid = await _verifyAuthentication();
       if (!authValid) {
-        throw Exception("Authentication failed. Please log in again.");
+        throw Exception('Authentication failed. Please log in again.');
       }
 
       debugPrint('🔐 Verifying authentication before upload...');
       final currentUser = FirebaseAuth.instance.currentUser;
-      if (currentUser == null) throw Exception("User not authenticated");
+      if (currentUser == null) throw Exception('User not authenticated');
 
       final userId = currentUser.uid;
       final uniqueId = const Uuid().v4();
@@ -759,17 +760,16 @@ class UploadController extends GetxController with ContentValidationMixin {
                 if (modStatus == 'APPROVED') {
                   debugPrint('✅ Video content APPROVED by Gemini moderation');
                   Get.snackbar(
-                    "Content Approved",
-                    "✅ Your video complies with Community Guidelines",
+                    'Content Approved',
+                    '✅ Your video complies with Community Guidelines',
                     snackPosition: SnackPosition.BOTTOM,
                     backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.15),
-                    duration: const Duration(seconds: 3),
                   );
                 } else if (modStatus == 'REJECTED') {
                   debugPrint('❌ Video content REJECTED: $modReason');
                   Get.snackbar(
-                    "Content Rejected",
-                    "❌ $modReason",
+                    'Content Rejected',
+                    '❌ $modReason',
                     snackPosition: SnackPosition.BOTTOM,
                     backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.15),
                     duration: const Duration(seconds: 5),
@@ -797,17 +797,17 @@ class UploadController extends GetxController with ContentValidationMixin {
               isUploading.value = false;
 
               // Final check on URLs to ensure UI is ready
-              if (data['videoUrl'] != null) videoUrl.value = data['videoUrl'];
+              if (data['videoUrl'] != null) videoUrl.value = data['videoUrl'] as String;
               if (data['thumbnailUrl'] != null) {
-                thumbnailUrl.value = data['thumbnailUrl'];
+                thumbnailUrl.value = data['thumbnailUrl'] as String;
               }
 
               Get.snackbar(
-                "Success",
-                "Video processed and ready to publish!",
+                'Success',
+                'Video processed and ready to publish!',
                 snackPosition: SnackPosition.BOTTOM,
                 backgroundColor: const Color(0xFF10B981),
-                colorText: Colors.white,
+                colorText: AppColors.textPrimary,
               );
               statusListener?.cancel();
             } else if (status == 'rejected') {
@@ -817,11 +817,11 @@ class UploadController extends GetxController with ContentValidationMixin {
               videoUploadProgress.value = 0.0;
               uploadProgress.value = 0.0;
               Get.snackbar(
-                "Video Rejected",
-                "$reason",
+                'Video Rejected',
+                '$reason',
                 snackPosition: SnackPosition.BOTTOM,
                 backgroundColor: const Color(0xFFEF4444),
-                colorText: Colors.white,
+                colorText: AppColors.textPrimary,
                 duration: const Duration(seconds: 5),
               );
               statusListener?.cancel();
@@ -832,11 +832,11 @@ class UploadController extends GetxController with ContentValidationMixin {
               videoUploadProgress.value = 0.0;
               uploadProgress.value = 0.0;
               Get.snackbar(
-                "Error",
-                "Video processing failed: $error",
+                'Error',
+                'Video processing failed: $error',
                 snackPosition: SnackPosition.BOTTOM,
                 backgroundColor: const Color(0xFFEF4444),
-                colorText: Colors.white,
+                colorText: AppColors.textPrimary,
               );
               statusListener?.cancel();
             }
@@ -874,7 +874,7 @@ class UploadController extends GetxController with ContentValidationMixin {
         (event) {
           if (event.totalBytes > 0) {
             // Report full upload progress (0.0 - 1.0). Do not cap at 90%.
-            final progress = (event.bytesTransferred / event.totalBytes);
+            final progress = event.bytesTransferred / event.totalBytes;
             videoUploadProgress.value = progress;
             uploadProgress.value = progress;
             if (progress % 0.1 < 0.01) {
@@ -916,10 +916,9 @@ class UploadController extends GetxController with ContentValidationMixin {
       // Allow new uploads while processing continues server-side.
       isUploading.value = false;
       Get.snackbar(
-        "Processing",
-        "Upload complete! Processing video...",
+        'Processing',
+        'Upload complete! Processing video...',
         snackPosition: SnackPosition.BOTTOM,
-        duration: Duration(seconds: 3),
       );
 
       debugPrint('⏳ Waiting for Cloud Function to complete processing...');
@@ -940,33 +939,33 @@ class UploadController extends GetxController with ContentValidationMixin {
       }
 
       // Handle specific auth errors with web-specific diagnostics
-      String errorMessage = "Upload failed";
+      var errorMessage = 'Upload failed';
       if (e.code.contains('permission-denied') ||
           e.code.contains('unauthorized') ||
-          e.message?.contains('not authorized') == true) {
+          (e.message?.contains('not authorized') ?? false)) {
         errorMessage =
-            "Authorization error. Please try:\n"
-            "1. Clear browser cache (Ctrl+Shift+Del)\n"
-            "2. Log out completely\n"
-            "3. Log back in\n"
-            "4. Try uploading again";
+            'Authorization error. Please try:\n'
+            '1. Clear browser cache (Ctrl+Shift+Del)\n'
+            '2. Log out completely\n'
+            '3. Log back in\n'
+            '4. Try uploading again';
         debugPrint('⚠️ AUTH ERROR DETECTED');
         debugPrint('   Code: ${e.code}');
         debugPrint('   Message: ${e.message}');
         debugPrint('   Plugin: ${e.plugin}');
         debugPrint('   Platform: ${kIsWeb ? "Web (Flutter)" : "Native"}');
       } else if (e.code.contains('unauthenticated')) {
-        errorMessage = "Authentication expired. Please log in again.";
+        errorMessage = 'Authentication expired. Please log in again.';
         debugPrint('⚠️ SESSION EXPIRED - Redirecting to login');
       } else {
-        errorMessage = "Failed to upload video: ${e.message}";
+        errorMessage = 'Failed to upload video: ${e.message}';
       }
 
       Get.snackbar(
-        "Error",
+        'Error',
         errorMessage,
         snackPosition: SnackPosition.BOTTOM,
-        duration: Duration(seconds: 5),
+        duration: const Duration(seconds: 5),
       );
     } catch (e, stackTrace) {
       debugPrint('❌ Unexpected error during upload: $e\n$stackTrace');
@@ -982,8 +981,8 @@ class UploadController extends GetxController with ContentValidationMixin {
       }
 
       Get.snackbar(
-        "Error",
-        "Unexpected error: $e",
+        'Error',
+        'Unexpected error: $e',
         snackPosition: SnackPosition.BOTTOM,
       );
     }
@@ -1009,10 +1008,10 @@ class UploadController extends GetxController with ContentValidationMixin {
     uploadProgress.value = 0.0;
 
     // Determine which task/ref to use
-    UploadTask? activeTask = forCommunity
+    final activeTask = forCommunity
         ? _currentUploadTaskCommunity
         : _currentUploadTaskVideo;
-    Reference? existingRef = forCommunity
+    final existingRef = forCommunity
         ? _currentImageRefCommunity
         : _currentImageRefVideo;
 
@@ -1040,9 +1039,9 @@ class UploadController extends GetxController with ContentValidationMixin {
         );
       } catch (e) {
         if (e.toString().contains('object-not-found')) {
-          debugPrint("Previous image does not exist, skipping delete");
+          debugPrint('Previous image does not exist, skipping delete');
         } else {
-          debugPrint("Failed to delete previous image: $e");
+          debugPrint('Failed to delete previous image: $e');
         }
       }
     }
@@ -1097,7 +1096,7 @@ class UploadController extends GetxController with ContentValidationMixin {
       } else {
         thumbnailUrl.value = downloadUrl;
       }
-      debugPrint("Image uploaded successfully: $downloadUrl");
+      debugPrint('Image uploaded successfully: $downloadUrl');
 
       // 6️⃣ Track moderation for this image
       final docId = uniqueFileName;
@@ -1106,7 +1105,7 @@ class UploadController extends GetxController with ContentValidationMixin {
       _startImageVerification(docId, forCommunity: forCommunity);
     } catch (e) {
       uploadProgress.value = 0.0;
-      Get.snackbar("Error", "Failed to upload image: $e");
+      Get.snackbar('Error', 'Failed to upload image: $e');
     }
   }
 
@@ -1128,33 +1127,32 @@ class UploadController extends GetxController with ContentValidationMixin {
       // Cache the result for future reference
       _cacheService.setVerification(docId, result);
 
-      debugPrint("🔍 [VERIFICATION UPDATE] $docId: $status (community=$forCommunity)");
-      debugPrint("   Reason: $reason");
+      debugPrint('🔍 [VERIFICATION UPDATE] $docId: $status (community=$forCommunity)');
+      debugPrint('   Reason: $reason');
 
-      if (status == "REJECTED") {
+      if (status == 'REJECTED') {
         Get.snackbar(
-          "Rejected",
-          "Your image was rejected: $reason",
+          'Rejected',
+          'Your image was rejected: $reason',
           backgroundColor: Get.theme.colorScheme.error.withValues(alpha: 0.1),
           duration: const Duration(seconds: 4),
         );
-      } else if (status == "FLAGGED") {
+      } else if (status == 'FLAGGED') {
         Get.snackbar(
-          "Review",
-          "Your image needs review: $reason",
-          backgroundColor: Colors.orange.withValues(alpha: 0.1),
+          'Review',
+          'Your image needs review: $reason',
+          backgroundColor: AppColors.warning.withValues(alpha: 0.1),
           duration: const Duration(seconds: 4),
         );
-      } else if (status == "APPROVED") {
+      } else if (status == 'APPROVED') {
         Get.snackbar(
-          "Approved",
-          "✅ Your image was approved!",
+          'Approved',
+          '✅ Your image was approved!',
           backgroundColor: const Color(0xFF10B981).withValues(alpha: 0.1),
-          duration: const Duration(seconds: 3),
         );
       }
 
-      if (status != "PENDING") {
+      if (status != 'PENDING') {
         Future.delayed(const Duration(seconds: 2), () {
           if (forCommunity) {
             _communityImageModerationSubscription?.cancel();
@@ -1166,15 +1164,15 @@ class UploadController extends GetxController with ContentValidationMixin {
     }, onError: (error) {
       debugPrint('❌ [VERIFICATION ERROR] $error');
       if (forCommunity) {
-        communityImageStatus.value = "ERROR";
-        communityImageStatusReason.value = "Verification service error: $error";
+        communityImageStatus.value = 'ERROR';
+        communityImageStatusReason.value = 'Verification service error: $error';
       } else {
-        finalstatus.value = "ERROR";
-        finalstatusReason.value = "Verification service error: $error";
+        finalstatus.value = 'ERROR';
+        finalstatusReason.value = 'Verification service error: $error';
       }
       Get.snackbar(
-        "Verification Error",
-        "Failed to verify image: $error",
+        'Verification Error',
+        'Failed to verify image: $error',
         backgroundColor: const Color(0xFFEF4444).withValues(alpha: 0.1),
         duration: const Duration(seconds: 4),
       );
@@ -1195,10 +1193,10 @@ class UploadController extends GetxController with ContentValidationMixin {
   List<String> _generateKeywords(String title) {
     final cleanTitle = title.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '');
     final words = cleanTitle.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-    final Set<String> keywords = {};
+    final keywords = <String>{};
     for (final word in words) {
       keywords.add(word);
-      for (int i = 1; i <= word.length; i++) {
+      for (var i = 1; i <= word.length; i++) {
         keywords.add(word.substring(0, i));
       }
     }
@@ -1285,30 +1283,30 @@ class UploadController extends GetxController with ContentValidationMixin {
     };
 
     if (pickedVideo.value == null) {
-      Get.snackbar("Error", "Please select a video.");
+      Get.snackbar('Error', 'Please select a video.');
       return;
     }
 
     if (videoUrl.value.isEmpty) {
-      Get.snackbar("Error", "Video upload not complete.");
+      Get.snackbar('Error', 'Video upload not complete.');
       return;
     }
 
     // All your validations...
     if (title.isEmpty || title.length > maxTitleLength) {
-      Get.snackbar("Error", "Invalid title.");
+      Get.snackbar('Error', 'Invalid title.');
       return;
     }
 
     final titleValidation = await validateContent(title, fieldName: 'Title');
     if (!titleValidation.isValid) {
-      Get.snackbar("Error", titleValidation.message);
+      Get.snackbar('Error', titleValidation.message);
       return;
     }
 
     // Description validation
     if (description.isEmpty || description.length > maxDescriptionLength) {
-      Get.snackbar("Error", "Invalid description.");
+      Get.snackbar('Error', 'Invalid description.');
       return;
     }
 
@@ -1318,7 +1316,7 @@ class UploadController extends GetxController with ContentValidationMixin {
       checkPhoneNumbers: true,
     );
     if (!descValidation.isValid) {
-      Get.snackbar("Error", descValidation.message);
+      Get.snackbar('Error', descValidation.message);
       return;
     }
 
@@ -1327,18 +1325,18 @@ class UploadController extends GetxController with ContentValidationMixin {
     if (validTags.isNotEmpty) {
       final tagsValidation = await validateTags(validTags);
       if (!tagsValidation.isValid) {
-        Get.snackbar("Error", tagsValidation.message);
+        Get.snackbar('Error', tagsValidation.message);
         return;
       }
     }
 
     if (channelName.trim().isEmpty) {
-      Get.snackbar("Error", "Selected channel name is missing. Please select a valid channel.");
+      Get.snackbar('Error', 'Selected channel name is missing. Please select a valid channel.');
       return;
     }
     
     if (channelId.trim().isEmpty) {
-      Get.snackbar("Error", "Selected channel ID is missing. Please select a valid channel.");
+      Get.snackbar('Error', 'Selected channel ID is missing. Please select a valid channel.');
       return;
     }
 
@@ -1347,13 +1345,13 @@ class UploadController extends GetxController with ContentValidationMixin {
       debugPrint('🔐 Refreshing token before final publish...');
       final authValid = await _verifyAuthentication();
       if (!authValid) {
-        throw Exception("Authentication failed before publishing");
+        throw Exception('Authentication failed before publishing');
       }
 
       debugPrint('🔐 Checking authentication...');
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) {
-        throw Exception("User not authenticated");
+        throw Exception('User not authenticated');
       }
       final userId = currentUser.uid;
       debugPrint('✅ User authenticated: $userId');
@@ -1377,7 +1375,7 @@ class UploadController extends GetxController with ContentValidationMixin {
       // Use the ID that was created during video upload
       final videoId = _currentVideoId;
       if (videoId == null) {
-        throw Exception("No video ID found - upload may have failed");
+        throw Exception('No video ID found - upload may have failed');
       }
 
       debugPrint('📄 Video ID: $videoId');
@@ -1390,7 +1388,7 @@ class UploadController extends GetxController with ContentValidationMixin {
 
       if (!docSnapshot.exists) {
         debugPrint('❌ Document does not exist! This should not happen.');
-        throw Exception("Video document not found in Firestore");
+        throw Exception('Video document not found in Firestore');
       }
 
       debugPrint('✅ Document exists');
@@ -1402,7 +1400,7 @@ class UploadController extends GetxController with ContentValidationMixin {
         debugPrint('❌ OWNERSHIP MISMATCH!');
         debugPrint('   Document ownerId: $existingOwnerId');
         debugPrint('   Current user ID: $userId');
-        throw Exception("Ownership verification failed");
+        throw Exception('Ownership verification failed');
       }
 
       debugPrint('✅ Ownership verified');
@@ -1440,24 +1438,24 @@ class UploadController extends GetxController with ContentValidationMixin {
       if (newTopicData.isNotEmpty) {
         debugPrint('🆕 Creating new inline topic: ${newTopicData['title']}');
         
-        final String newTitle = newTopicData['title'];
-        final String newDescription = newTopicData['description'] ?? '';
-        final String newCategory = newTopicData['category'] ?? 'Music';
-        final TopicVisibilityType newVisibility = newTopicData['visibilityType'] ?? TopicVisibilityType.public;
-        final String? newAccessCode = newTopicData['accessCode'];
-        final String thumbnailSource = newTopicData['thumbnailSource'] ?? 'video';
+        final newTitle = newTopicData['title'] as String;
+        final newDescription = (newTopicData['description'] as String?) ?? '';
+        final newCategory = (newTopicData['category'] as String?) ?? 'Music';
+        final newVisibility = (newTopicData['visibilityType'] as TopicVisibilityType?) ?? TopicVisibilityType.public;
+        final newAccessCode = newTopicData['accessCode'] as String?;
+        final thumbnailSource = (newTopicData['thumbnailSource'] as String?) ?? 'video';
         
         String? finalThumbnailUrl;
         if (thumbnailSource == 'custom' && newTopicData['customThumbnailBytes'] != null) {
           final bytes = newTopicData['customThumbnailBytes'] as Uint8List;
-          final fileName = newTopicData['customThumbnailName'] ?? 'custom_topic_thumb.jpg';
+          final fileName = (newTopicData['customThumbnailName'] as String?) ?? 'custom_topic_thumb.jpg';
           finalThumbnailUrl = await uploadTopicCustomThumbnail(bytes, fileName);
         } else {
           // Use first video's thumbnail
           finalThumbnailUrl = thumbnailUrl.value;
         }
         
-        final String newSlug = newTitle
+        final newSlug = newTitle
             .toLowerCase()
             .replaceAll(RegExp(r'[^a-z0-9\s-]'), '')
             .replaceAll(RegExp(r'\s+'), '-');
@@ -1468,13 +1466,13 @@ class UploadController extends GetxController with ContentValidationMixin {
             .limit(1)
             .get();
             
-        String finalSlug = newSlug;
+        var finalSlug = newSlug;
         if (existingSlug.docs.isNotEmpty) {
           finalSlug = '$newSlug-${const Uuid().v4().substring(0, 6)}';
         }
 
-        final String rawHandle = newTopicData['handle'] ?? '';
-        String cleanHandle = rawHandle.trim();
+        final rawHandle = (newTopicData['handle'] as String?) ?? '';
+        var cleanHandle = rawHandle.trim();
         if (cleanHandle.startsWith('T/')) {
           cleanHandle = cleanHandle.substring(2);
         }
@@ -1482,13 +1480,13 @@ class UploadController extends GetxController with ContentValidationMixin {
           cleanHandle = cleanHandle.substring(2);
         }
         cleanHandle = cleanHandle
-            .replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '-')
-            .replaceAll(RegExp(r'-+'), '-');
+            .replaceAll(RegExp('[^a-zA-Z0-9_-]'), '-')
+            .replaceAll(RegExp('-+'), '-');
         if (cleanHandle.isEmpty) {
           cleanHandle = finalSlug;
         }
-        final String finalHandle = 'T/$cleanHandle';
-        final String finalHandleLowercase = finalHandle.toLowerCase();
+        final finalHandle = 'T/$cleanHandle';
+        final finalHandleLowercase = finalHandle.toLowerCase();
         
         final newTopicRef = _firestore.collection('topics').doc();
         final newTopic = Topic(
@@ -1535,7 +1533,7 @@ class UploadController extends GetxController with ContentValidationMixin {
       await docRef.update(updateData);
 
       // Scan for handle mentions and notify
-      final String fullMetadataText = '${title.trim()} ${description.trim()}';
+      final fullMetadataText = '${title.trim()} ${description.trim()}';
       try {
         await MentionsHelper.processAndNotifyMentions(
           text: fullMetadataText,
@@ -1596,7 +1594,7 @@ class UploadController extends GetxController with ContentValidationMixin {
       setUploadStage(3);
 
       debugPrint('🎉 Upload completed successfully!');
-      Get.snackbar("Success", "Video uploaded successfully!");
+      Get.snackbar('Success', 'Video uploaded successfully!');
       uploadProgress.value = 0.0;
       _resetUploads();
     } on FirebaseException catch (e) {
@@ -1605,22 +1603,22 @@ class UploadController extends GetxController with ContentValidationMixin {
       debugPrint('   Message: ${e.message}');
       debugPrint('   Plugin: ${e.plugin}');
 
-      String errorMessage = "Failed to update video: ";
+      var errorMessage = 'Failed to update video: ';
       if (e.code == 'permission-denied' ||
-          e.message?.contains('not authorized') == true) {
+          (e.message?.contains('not authorized') ?? false)) {
         errorMessage +=
-            "Permission denied. Please log in again and try uploading.";
+            'Permission denied. Please log in again and try uploading.';
         debugPrint('⚠️ AUTH ERROR - User needs to re-authenticate');
       } else {
         errorMessage += e.message ?? e.code;
       }
 
-      Get.snackbar("Error", errorMessage);
+      Get.snackbar('Error', errorMessage);
     } catch (e, stackTrace) {
       debugPrint('❌ ERROR: Upload failed');
       debugPrint('Error: $e');
       debugPrint('Stack trace: $stackTrace');
-      Get.snackbar("Error", "Failed to complete video upload: $e");
+      Get.snackbar('Error', 'Failed to complete video upload: $e');
     }
   }
   // ==========================================================================
@@ -1637,8 +1635,8 @@ class UploadController extends GetxController with ContentValidationMixin {
   ) async {
     if (isCommunityPostUploading.value) {
       Get.snackbar(
-        "Please wait",
-        "A community post is already being published.",
+        'Please wait',
+        'A community post is already being published.',
       );
       return;
     }
@@ -1658,42 +1656,42 @@ class UploadController extends GetxController with ContentValidationMixin {
     }
     */
     if (pickedCommunityImage.value == null) {
-      Get.snackbar("Error", "Please select an image.");
+      Get.snackbar('Error', 'Please select an image.');
       return;
     }
 
     if (communityImageUrl.value.isEmpty) {
-      Get.snackbar("Error", "Image upload not complete.");
+      Get.snackbar('Error', 'Image upload not complete.');
       return;
     }
 
     // CONTENT VALIDATION - Title
     if (title.isEmpty) {
-      Get.snackbar("Error", "Title cannot be empty.");
+      Get.snackbar('Error', 'Title cannot be empty.');
       return;
     }
 
     if (title.length > maxTitleLength) {
-      Get.snackbar("Error", "Title cannot exceed $maxTitleLength characters.");
+      Get.snackbar('Error', 'Title cannot exceed $maxTitleLength characters.');
       return;
     }
 
     final titleValidation = await validateContent(title, fieldName: 'Title');
     if (!titleValidation.isValid) {
-      Get.snackbar("Error", titleValidation.message);
+      Get.snackbar('Error', titleValidation.message);
       return;
     }
 
     // CONTENT VALIDATION - Description
     if (description.isEmpty) {
-      Get.snackbar("Error", "Description cannot be empty.");
+      Get.snackbar('Error', 'Description cannot be empty.');
       return;
     }
 
     if (description.length > maxDescriptionLength) {
       Get.snackbar(
-        "Error",
-        "Description cannot exceed $maxDescriptionLength characters.",
+        'Error',
+        'Description cannot exceed $maxDescriptionLength characters.',
       );
       return;
     }
@@ -1704,7 +1702,7 @@ class UploadController extends GetxController with ContentValidationMixin {
       checkPhoneNumbers: true,
     );
     if (!descValidation.isValid) {
-      Get.snackbar("Error", descValidation.message);
+      Get.snackbar('Error', descValidation.message);
       return;
     }
 
@@ -1713,7 +1711,7 @@ class UploadController extends GetxController with ContentValidationMixin {
     if (validTags.isNotEmpty) {
       final tagsValidation = await validateTags(validTags);
       if (!tagsValidation.isValid) {
-        Get.snackbar("Error", tagsValidation.message);
+        Get.snackbar('Error', tagsValidation.message);
         return;
       }
     }
@@ -1724,16 +1722,16 @@ class UploadController extends GetxController with ContentValidationMixin {
       final authValid = await _verifyAuthentication();
       if (!authValid) {
         throw Exception(
-          "Authentication failed before uploading community post",
+          'Authentication failed before uploading community post',
         );
       }
 
       isUploading.value = true;
       isCommunityPostUploading.value = true;
-      DocumentReference docRef = _firestore.collection('Community').doc();
-      debugPrint("Attempting to publish community post with ID: ${docRef.id}");
+      final DocumentReference docRef = _firestore.collection('Community').doc();
+      debugPrint('Attempting to publish community post with ID: ${docRef.id}');
 
-      Map<String, dynamic> data = {
+      final data = <String, dynamic>{
         'id': docRef.id,
         'title': title.trim(),
         'description': description.trim(),
@@ -1765,28 +1763,28 @@ class UploadController extends GetxController with ContentValidationMixin {
       }
 
       await docRef.set(data);
-      debugPrint("Community post published successfully!");
+      debugPrint('Community post published successfully!');
 
-      Get.snackbar("Success", "Community Post uploaded successfully!");
+      Get.snackbar('Success', 'Community Post uploaded successfully!');
       uploadProgress.value = 0.0;
       _resetUploads();
     } on FirebaseException catch (e) {
       debugPrint('🔥 FirebaseException: ${e.code} - ${e.message}');
-      String errorMessage = "Failed to upload community post: ";
+      var errorMessage = 'Failed to upload community post: ';
       if (e.code == 'permission-denied' ||
-          e.message?.contains('not authorized') == true) {
-        errorMessage += "Authentication failed. Please log in again.";
+          (e.message?.contains('not authorized') ?? false)) {
+        errorMessage += 'Authentication failed. Please log in again.';
       } else {
         errorMessage += e.message ?? e.code;
       }
-      Get.snackbar("Upload Failed", errorMessage);
+      Get.snackbar('Upload Failed', errorMessage);
     } catch (e) {
-      debugPrint("CRITICAL: Failed to publish community post: $e");
+      debugPrint('CRITICAL: Failed to publish community post: $e');
       Get.snackbar(
-        "Upload Failed",
-        "Failed to publish post: ${e.toString()}",
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        'Upload Failed',
+        'Failed to publish post: $e',
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
     } finally {
       isUploading.value = false;
@@ -1838,14 +1836,18 @@ class UploadController extends GetxController with ContentValidationMixin {
           .where('status', isNotEqualTo: 'deletion_pending')
           .get();
           
-      final List<Topic> fetched = [];
-      for (var doc in snap.docs) {
+      final fetched = <Topic>[];
+      for (final doc in snap.docs) {
         try {
           final t = Topic.fromDocumentSnapshot(doc);
           if (t.visibilityType == TopicVisibilityType.public ||
               t.creatorId == user.uid ||
               (selectedChannel.value != null && t.channelId == selectedChannel.value!.id)) {
             fetched.add(t);
+            // Pre-fetch channel metadata for public topics asynchronously
+            if (t.channelId != null && t.channelId!.isNotEmpty) {
+              fetchChannelMetadata(t.channelId!);
+            }
           }
         } catch (e) {
           debugPrint('Error parsing topic doc: $e');
@@ -1862,6 +1864,67 @@ class UploadController extends GetxController with ContentValidationMixin {
     }
   }
 
+  /// Resolves and caches channel metadata (name, handle, avatar) for a given channelId
+  Future<void> fetchChannelMetadata(String channelId) async {
+    if (channelId.isEmpty || channelMetadataCache.containsKey(channelId)) return;
+
+    // Check in user's own channels first
+    for (final c in channels) {
+      if (c.id == channelId) {
+        channelMetadataCache[channelId] = {
+          'name': c.channelName,
+          'handle': c.handle,
+          'avatarUrl': c.avatarUrl,
+        };
+        return;
+      }
+    }
+
+    try {
+      final doc = await _firestore.collection('channels').doc(channelId).get();
+      if (doc.exists && doc.data() != null) {
+        final data = doc.data()!;
+        final name = (data['channelName'] ?? data['name'] ?? 'TruthWorld Channel').toString();
+        final handle = (data['handle'] ?? '').toString();
+        final avatarUrl = (data['avatarUrl'] ?? '').toString();
+        channelMetadataCache[channelId] = {
+          'name': name,
+          'handle': handle,
+          'avatarUrl': avatarUrl,
+        };
+      } else {
+        channelMetadataCache[channelId] = {
+          'name': 'Channel',
+          'handle': '',
+          'avatarUrl': '',
+        };
+      }
+    } catch (e) {
+      debugPrint('Error fetching channel metadata for $channelId: $e');
+    }
+  }
+
+  /// Synchronously retrieve cached channel metadata for a channelId or trigger async fetch
+  Map<String, String>? getChannelMetadata(String channelId) {
+    if (channelId.isEmpty) return null;
+    if (channelMetadataCache.containsKey(channelId)) {
+      return channelMetadataCache[channelId];
+    }
+    for (final c in channels) {
+      if (c.id == channelId) {
+        final meta = {
+          'name': c.channelName,
+          'handle': c.handle,
+          'avatarUrl': c.avatarUrl,
+        };
+        channelMetadataCache[channelId] = meta;
+        return meta;
+      }
+    }
+    fetchChannelMetadata(channelId);
+    return null;
+  }
+
   void selectTopic(String id) {
     selectedTopicId.value = id;
   }
@@ -1876,10 +1939,10 @@ class UploadController extends GetxController with ContentValidationMixin {
           
       if (query.docs.isEmpty) {
         Get.snackbar(
-          "Error",
-          "Topic not found with slug: $slug",
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
+          'Error',
+          'Topic not found with slug: $slug',
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
         );
         return false;
       }
@@ -1890,10 +1953,10 @@ class UploadController extends GetxController with ContentValidationMixin {
       if (topic.visibilityType == TopicVisibilityType.private) {
         if (topic.accessCode != passcode) {
           Get.snackbar(
-            "Error",
-            "Incorrect passcode for private topic",
-            backgroundColor: Colors.red,
-            colorText: Colors.white,
+            'Error',
+            'Incorrect passcode for private topic',
+            backgroundColor: AppColors.error,
+            colorText: AppColors.textPrimary,
           );
           return false;
         }
@@ -1904,18 +1967,18 @@ class UploadController extends GetxController with ContentValidationMixin {
       }
       selectedTopicId.value = topic.slug;
       Get.snackbar(
-        "Success",
-        "Successfully unlocked private topic: ${topic.title}",
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
+        'Success',
+        'Successfully unlocked private topic: ${topic.title}',
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
       );
       return true;
     } catch (e) {
       Get.snackbar(
-        "Error",
-        "Failed to unlock topic: $e",
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        'Error',
+        'Failed to unlock topic: $e',
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
       return false;
     }
@@ -1950,6 +2013,10 @@ class UploadController extends GetxController with ContentValidationMixin {
 // ==========================================================================
 
 class VideoRepository {
+
+  VideoRepository() {
+    _initializeFilters();
+  }
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final int reportThresholdToBlock = 5;
 
@@ -1957,55 +2024,47 @@ class VideoRepository {
   final ProfanityFilter _profanityFilter = ProfanityFilter();
   late final BadWordFilter _multiLangFilter;
 
-  VideoRepository() {
-    _initializeFilters();
-  }
-
   void _initializeFilters() {
     _multiLangFilter = BadWordFilter(
       languages: ['en', 'fa', 'ar', 'tr', 'de', 'fr', 'es', 'ru'],
       includeSensitiveTopics: true,
       matchInsideWords: true,
-      censorCharacter: '*',
-      caseSensitive: false,
     );
   }
 
   /// Validate report details for inappropriate content
   Future<ContentValidationResult> validateReportDetails(String details) async {
     if (details.trim().isEmpty) {
-      return ContentValidationResult(isValid: true, message: 'Valid');
+      return const ContentValidationResult(isValid: true, message: 'Valid');
     }
 
     // Check for profanity in report details
     if (_profanityFilter.hasProfanity(details)) {
-      return ContentValidationResult(
+      return const ContentValidationResult(
         isValid: false,
         message: 'Report details contain inappropriate language.',
       );
     }
 
-    String filteredText = _multiLangFilter.filterText(details);
+    final filteredText = _multiLangFilter.filterText(details);
     if (filteredText != details) {
-      return ContentValidationResult(
+      return const ContentValidationResult(
         isValid: false,
         message: 'Report details contain inappropriate content.',
       );
     }
 
-    bool containsBadWord = await SafeTextFilter.containsBadWord(
-      text: details,
-      extraWords: ['xxx', 'nsfw', 'porn', 'sex', 'nude'],
-    );
+    final containsBadWord = ['xxx', 'nsfw', 'porn', 'sex', 'nude']
+        .any((word) => details.toLowerCase().contains(word));
 
     if (containsBadWord) {
-      return ContentValidationResult(
+      return const ContentValidationResult(
         isValid: false,
         message: 'Report details contain inappropriate language.',
       );
     }
 
-    return ContentValidationResult(isValid: true, message: 'Valid');
+    return const ContentValidationResult(isValid: true, message: 'Valid');
   }
 
   Future<void> addReport({
@@ -2029,17 +2088,17 @@ class VideoRepository {
         final snapshot = await transaction.get(videoRef);
 
         if (!snapshot.exists) {
-          throw Exception("Video not found.");
+          throw Exception('Video not found.');
         }
 
         final videoData = snapshot.data()!;
-        List<dynamic> reports = videoData['reports'] ?? [];
-        int reportCount = (videoData['reportCount'] as num?)?.toInt() ?? 0;
+        final reports = (videoData['reports'] as List<dynamic>?) ?? [];
+        var reportCount = (videoData['reportCount'] as num?)?.toInt() ?? 0;
 
-        bool isUpdated = false;
+        var isUpdated = false;
 
         // Check for existing report from the same reporter
-        for (int i = 0; i < reports.length; i++) {
+        for (var i = 0; i < reports.length; i++) {
           final report = reports[i] as Map<String, dynamic>?;
           if (report != null && report['reporterId'] == reporterId) {
             reports[i] = {

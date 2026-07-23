@@ -1,46 +1,44 @@
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:truthworld/components/ui/user_avatar.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/watchhistory/presentation/controllers/watch_history_controller.dart';
-import 'package:truthworld/components/ui/user_avatar.dart';
-import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 // ==========================================================================
 // YOUTUBE-STYLE THEME COLORS
 // ==========================================================================
 
-final Color bgColor = Colors.black;
-final Color surfaceColor = AppColors.bgPage;
-final Color cardColor = Color(0xFF1E1E1E);
-final Color primaryText = Colors.white;
-final Color secondaryText = AppColors.textSecondary;
-final Color accentColor = Colors.white;
-final Color buttonBg = AppColors.bgSurfaceHover;
+const Color bgColor = AppColors.bgPage;
+const Color surfaceColor = AppColors.bgPage;
+const Color cardColor = Color(0xFF1E1E1E);
+const Color primaryText = AppColors.textPrimary;
+const Color secondaryText = AppColors.textSecondary;
+const Color accentColor = AppColors.textPrimary;
+const Color buttonBg = AppColors.bgSurfaceHover;
 
 // ==========================================================================
 // RESPONSIVE BREAKPOINTS
 // ==========================================================================
 
-const double kMobileBreakpoint = 600.0;
-const double kTabletBreakpoint = 1000.0;
-const double kDesktopBreakpoint = 1200.0;
+const double kMobileBreakpoint = 600;
+const double kTabletBreakpoint = 1000;
+const double kDesktopBreakpoint = 1200;
 
 // ==========================================================================
 // MODERNIZED LIBRARY SCREEN
 // ==========================================================================
 
 class LibraryScreen extends StatefulWidget {
-  final bool isDashboard;
   const LibraryScreen({super.key, this.isDashboard = false});
+  final bool isDashboard;
 
   @override
   State<LibraryScreen> createState() => LibraryScreenState();
@@ -82,7 +80,7 @@ class LibraryScreenState extends State<LibraryScreen>
       vsync: this,
     );
 
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(
         parent: _fadeAnimationController,
         curve: Curves.easeOutCubic,
@@ -90,14 +88,14 @@ class LibraryScreenState extends State<LibraryScreen>
     );
 
     _slideAnimation =
-        Tween<Offset>(begin: const Offset(0.0, 0.1), end: Offset.zero).animate(
+        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
           CurvedAnimation(
             parent: _slideAnimationController,
             curve: Curves.easeOutCubic,
           ),
         );
 
-    _scaleAnimation = Tween<double>(begin: 0.95, end: 1.0).animate(
+    _scaleAnimation = Tween<double>(begin: 0.95, end: 1).animate(
       CurvedAnimation(
         parent: _scaleAnimationController,
         curve: Curves.easeOutBack,
@@ -140,8 +138,8 @@ class LibraryScreenState extends State<LibraryScreen>
   Widget _buildResponsiveLayout(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final bool isDesktop = constraints.maxWidth >= kDesktopBreakpoint;
-        final bool isTablet =
+        final isDesktop = constraints.maxWidth >= kDesktopBreakpoint;
+        final isTablet =
             constraints.maxWidth >= kMobileBreakpoint &&
             constraints.maxWidth < kDesktopBreakpoint;
         // final bool isMobile = constraints.maxWidth < kMobileBreakpoint; // isMobile is the else case
@@ -221,25 +219,25 @@ class LibraryScreenState extends State<LibraryScreen>
       title: Row(
         children: [
           Container(
-            padding: EdgeInsets.all(8),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [Colors.white, Colors.white.withValues(alpha: 0.5)],
+                colors: [AppColors.textPrimary, AppColors.textPrimary.withValues(alpha: 0.5)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(
+            child: const Icon(
               Icons.video_library_rounded,
-              color: Colors.white,
+              color: AppColors.textPrimary,
               size: 24,
             ),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Text(
-            "Your Library",
-            style: GoogleFonts.roboto(
+            'Your Library',
+            style: TextStyle(
               fontSize: isTablet ? 24 : 22,
               fontWeight: FontWeight.bold,
               color: primaryText,
@@ -258,7 +256,7 @@ class LibraryScreenState extends State<LibraryScreen>
           onPressed: () => _showMoreOptions(context),
           tooltip: 'More Options',
         ),
-        SizedBox(width: 8),
+        const SizedBox(width: 8),
       ],
     );
   }
@@ -269,7 +267,7 @@ class LibraryScreenState extends State<LibraryScreen>
     required String tooltip,
   }) {
     return Container(
-      margin: EdgeInsets.only(right: 8),
+      margin: const EdgeInsets.only(right: 8),
       child: Material(
         color: buttonBg.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(12),
@@ -277,7 +275,7 @@ class LibraryScreenState extends State<LibraryScreen>
           onTap: onPressed,
           borderRadius: BorderRadius.circular(12),
           child: Container(
-            padding: EdgeInsets.all(10),
+            padding: const EdgeInsets.all(10),
             child: Icon(icon, color: secondaryText, size: 22),
           ),
         ),
@@ -294,17 +292,17 @@ class LibraryScreenState extends State<LibraryScreen>
       backgroundColor: bgColor,
       body: Center(
         child: Container(
-          constraints: BoxConstraints(maxWidth: 500),
+          constraints: const BoxConstraints(maxWidth: 500),
           padding: EdgeInsets.all(isDesktop ? 40 : 24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               _buildUnauthenticatedIcon(),
-              SizedBox(height: 32),
+              const SizedBox(height: 32),
               _buildUnauthenticatedTitle(),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               _buildUnauthenticatedSubtitle(),
-              SizedBox(height: 40),
+              const SizedBox(height: 40),
               _buildSignInButton(context),
             ],
           ),
@@ -315,8 +313,8 @@ class LibraryScreenState extends State<LibraryScreen>
 
   Widget _buildUnauthenticatedIcon() {
     return TweenAnimationBuilder<double>(
-      duration: Duration(milliseconds: 800),
-      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 800),
+      tween: Tween(begin: 0, end: 1),
       builder: (context, value, child) {
         return Transform.scale(
           scale: value,
@@ -327,11 +325,11 @@ class LibraryScreenState extends State<LibraryScreen>
               color: buttonBg,
               borderRadius: BorderRadius.circular(24),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.1),
+                color: AppColors.textPrimary.withValues(alpha: 0.1),
                 width: 2,
               ),
             ),
-            child: Center(
+            child: const Center(
               child: Icon(
                 Icons.lock_outline_rounded,
                 color: primaryText,
@@ -345,10 +343,10 @@ class LibraryScreenState extends State<LibraryScreen>
   }
 
   Widget _buildUnauthenticatedTitle() {
-    return Text(
-      "Access Your Personal Video Library",
+    return const Text(
+      'Access Your Personal Video Library',
       textAlign: TextAlign.center,
-      style: GoogleFonts.roboto(
+      style: TextStyle(
         fontSize: 28,
         fontWeight: FontWeight.bold,
         color: primaryText,
@@ -357,10 +355,10 @@ class LibraryScreenState extends State<LibraryScreen>
   }
 
   Widget _buildUnauthenticatedSubtitle() {
-    return Text(
-      "Sign in to view your saved videos, watch history, and custom playlists. Your content is waiting!",
+    return const Text(
+      'Sign in to view your saved videos, watch history, and custom playlists. Your content is waiting!',
       textAlign: TextAlign.center,
-      style: GoogleFonts.roboto(fontSize: 16, color: secondaryText),
+      style: TextStyle(fontSize: 16, color: secondaryText),
     );
   }
 
@@ -370,18 +368,18 @@ class LibraryScreenState extends State<LibraryScreen>
         HapticFeedback.lightImpact();
         Get.toNamed('/auth');
       },
-      icon: Icon(Icons.login_rounded, color: Colors.black),
-      label: Text(
-        "Sign In to Continue",
-        style: GoogleFonts.roboto(
+      icon: const Icon(Icons.login_rounded, color: AppColors.bgPage),
+      label: const Text(
+        'Sign In to Continue',
+        style: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.bold,
-          color: Colors.black,
+          color: AppColors.bgPage,
         ),
       ),
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white,
-        padding: EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+        backgroundColor: AppColors.textPrimary,
+        padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
         elevation: 5,
       ),
@@ -408,7 +406,7 @@ class LibraryScreenState extends State<LibraryScreen>
                 ? Get.find<HomeController>()
                 : Get.put(HomeController());
 
-            final bool isLibraryEmpty = !homeController.hasWatchHistory.value &&
+            final isLibraryEmpty = !homeController.hasWatchHistory.value &&
                 !homeController.hasPlaylists.value &&
                 !homeController.hasFollowedTopics.value &&
                 !homeController.hasLikedVideos.value &&
@@ -425,25 +423,25 @@ class LibraryScreenState extends State<LibraryScreen>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.folder_open_outlined,
                         size: 64,
                         color: secondaryText,
                       ),
                       const SizedBox(height: 16),
-                      Text(
-                        "Your library is empty",
-                        style: GoogleFonts.roboto(
+                      const Text(
+                        'Your library is empty',
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                           color: primaryText,
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text(
-                        "Configure your settings or create a channel to get started.",
+                      const Text(
+                        'Configure your settings or create a channel to get started.',
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 14,
                           color: secondaryText,
                         ),
@@ -457,10 +455,10 @@ class LibraryScreenState extends State<LibraryScreen>
                                 HapticFeedback.lightImpact();
                                 Get.toNamed('/settings');
                               },
-                              icon: Icon(Icons.settings_outlined, size: 18, color: primaryText),
-                              label: Text(
-                                "Settings",
-                                style: GoogleFonts.roboto(
+                              icon: const Icon(Icons.settings_outlined, size: 18, color: primaryText),
+                              label: const Text(
+                                'Settings',
+                                style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                   color: primaryText,
@@ -468,7 +466,7 @@ class LibraryScreenState extends State<LibraryScreen>
                               ),
                               style: OutlinedButton.styleFrom(
                                 backgroundColor: buttonBg,
-                                side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                side: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.1)),
                                 padding: const EdgeInsets.symmetric(vertical: 12),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(20),
@@ -483,10 +481,10 @@ class LibraryScreenState extends State<LibraryScreen>
                                 HapticFeedback.lightImpact();
                                 Get.toNamed('/channelscreen');
                               },
-                              icon: Icon(Icons.add_circle_outline, size: 18, color: primaryText),
-                              label: Text(
-                                "Create Channel",
-                                style: GoogleFonts.roboto(
+                              icon: const Icon(Icons.add_circle_outline, size: 18, color: primaryText),
+                              label: const Text(
+                                'Create Channel',
+                                style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                   color: primaryText,
@@ -494,7 +492,7 @@ class LibraryScreenState extends State<LibraryScreen>
                               ),
                               style: OutlinedButton.styleFrom(
                                 backgroundColor: buttonBg,
-                                side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                                side: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.1)),
                                 padding: const EdgeInsets.symmetric(vertical: 12),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(20),
@@ -515,35 +513,35 @@ class LibraryScreenState extends State<LibraryScreen>
             items.addAll([
               _buildLibraryListTile(
                 icon: Icons.history_rounded,
-                title: "History",
+                title: 'History',
                 onTap: () => Get.toNamed('/history'),
               ),
               _buildLibraryListTile(
                 icon: Icons.playlist_play_rounded,
-                title: "Playlists",
+                title: 'Playlists',
                 onTap: () => Get.toNamed('/playlistscreen'),
               ),
               _buildLibraryListTile(
                 icon: Icons.people_outline_rounded,
-                title: "Following Topics",
+                title: 'Following Topics',
                 onTap: () => Get.toNamed('/following-topics'),
               ),
               _buildLibraryListTile(
                 icon: Icons.thumb_up_outlined,
-                title: "Liked videos",
+                title: 'Liked videos',
                 onTap: () => Get.toNamed('/likedvideos'),
               ),
               _buildLibraryListTile(
                 icon: Icons.content_cut_rounded,
-                title: "Clips",
+                title: 'Clips',
                 onTap: () => Get.toNamed('/clips'),
               ),
               _buildLibraryListTile(
                 icon: Icons.file_download_outlined,
-                title: "Downloads",
+                title: 'Downloads',
                 trailing: const Icon(
                   Icons.check_circle,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                   size: 20,
                 ),
                 onTap: () {
@@ -556,7 +554,7 @@ class LibraryScreenState extends State<LibraryScreen>
               ),
               _buildLibraryListTile(
                 icon: Icons.settings_outlined,
-                title: "Settings",
+                title: 'Settings',
                 onTap: () {
                   if (Get.isRegistered<HomeController>()) {
                     Get.find<HomeController>().onSideNavItemSelect(HomeController.indexSettings);
@@ -566,17 +564,17 @@ class LibraryScreenState extends State<LibraryScreen>
                 },
               ),
               const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8.0),
-                child: Divider(color: Colors.white10, height: 1),
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Divider(color: AppColors.bgDivider, height: 1),
               ),
               _buildLibraryListTile(
                 icon: Icons.workspace_premium_outlined,
-                title: "Get Premium",
+                title: 'Get Premium',
                 onTap: () => Get.toNamed('/premium'),
               ),
               _buildLibraryListTile(
                 icon: Icons.add_circle_outline,
-                title: "Create Channel to upload videos",
+                title: 'Create Channel to upload videos',
                 onTap: () => Get.toNamed('/channelscreen'),
               ),
             ]);
@@ -592,10 +590,9 @@ class LibraryScreenState extends State<LibraryScreen>
 
   Widget _buildProfileHeader(String userId) {
     return Obx(() {
-      final user = FirebaseAuth.instance.currentUser;
       final authService = AuthService.to;
       final hasChannel = authService.hasChannel.value;
-      final Channel? channel = authService.userChannel;
+      final channel = authService.userChannel;
 
       final displayName = authService.activeDisplayName;
       final handle = authService.activeHandle;
@@ -612,7 +609,7 @@ class LibraryScreenState extends State<LibraryScreen>
                   : null,
               borderRadius: BorderRadius.circular(12),
               child: Padding(
-                padding: const EdgeInsets.all(4.0),
+                padding: const EdgeInsets.all(4),
                 child: Row(
                   children: [
                     UserAvatar(
@@ -630,7 +627,7 @@ class LibraryScreenState extends State<LibraryScreen>
                         children: [
                           Text(
                             displayName,
-                            style: GoogleFonts.roboto(
+                            style: const TextStyle(
                               fontSize: 24,
                               fontWeight: FontWeight.bold,
                               color: primaryText,
@@ -639,7 +636,7 @@ class LibraryScreenState extends State<LibraryScreen>
                           const SizedBox(height: 4),
                           Text(
                             handle,
-                            style: GoogleFonts.roboto(
+                            style: const TextStyle(
                               fontSize: 14,
                               color: secondaryText,
                             ),
@@ -660,8 +657,7 @@ class LibraryScreenState extends State<LibraryScreen>
   Widget _buildLibraryListTile({
     required IconData icon,
     required String title,
-    Widget? trailing,
-    required VoidCallback onTap,
+    required VoidCallback onTap, Widget? trailing,
   }) {
     return Material(
       color: Colors.transparent,
@@ -676,21 +672,21 @@ class LibraryScreenState extends State<LibraryScreen>
             children: [
               Icon(
                 icon,
-                color: Colors.white,
+                color: AppColors.textPrimary,
                 size: 24,
               ),
               const SizedBox(width: 24),
               Expanded(
                 child: Text(
                   title,
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w400,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ),
-              if (trailing != null) trailing,
+              ?trailing,
             ],
           ),
         ),
@@ -710,40 +706,40 @@ class LibraryScreenState extends State<LibraryScreen>
       builder: (context) => AlertDialog(
         backgroundColor: surfaceColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
+        title: const Text(
           'Search Library',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             color: primaryText,
             fontWeight: FontWeight.bold,
           ),
         ),
         content: TextField(
-          style: GoogleFonts.roboto(color: primaryText),
+          style: const TextStyle(color: primaryText),
           decoration: InputDecoration(
             hintText: 'Search videos, playlists...',
-            hintStyle: GoogleFonts.roboto(color: secondaryText),
+            hintStyle: const TextStyle(color: secondaryText),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: buttonBg),
+              borderSide: const BorderSide(color: buttonBg),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.white),
+              borderSide: const BorderSide(color: AppColors.textPrimary),
             ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(
+            child: const Text(
               'Cancel',
               style: TextStyle(color: secondaryText),
             ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.white),
-            child: Text('Search', style: TextStyle(color: Colors.white)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.textPrimary),
+            child: const Text('Search', style: TextStyle(color: AppColors.textPrimary)),
           ),
         ],
       ),
@@ -751,39 +747,39 @@ class LibraryScreenState extends State<LibraryScreen>
   }
 
   void _showCreatePlaylistDialog(BuildContext context) {
-    final TextEditingController controller = TextEditingController();
+    final controller = TextEditingController();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: surfaceColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
+        title: const Text(
           'Create Playlist',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             color: primaryText,
             fontWeight: FontWeight.bold,
           ),
         ),
         content: TextField(
           controller: controller,
-          style: GoogleFonts.roboto(color: primaryText),
+          style: const TextStyle(color: primaryText),
           decoration: InputDecoration(
             hintText: 'Playlist name',
-            hintStyle: GoogleFonts.roboto(color: secondaryText),
+            hintStyle: const TextStyle(color: secondaryText),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: buttonBg),
+              borderSide: const BorderSide(color: buttonBg),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: Colors.white),
+              borderSide: const BorderSide(color: AppColors.textPrimary),
             ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(
+            child: const Text(
               'Cancel',
               style: TextStyle(color: secondaryText),
             ),
@@ -810,11 +806,11 @@ class LibraryScreenState extends State<LibraryScreen>
     showModalBottomSheet(
       context: context,
       backgroundColor: surfaceColor,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) => Container(
-        padding: EdgeInsets.all(20),
+        padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -826,7 +822,7 @@ class LibraryScreenState extends State<LibraryScreen>
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            SizedBox(height: 20),
+            const SizedBox(height: 20),
             _buildMoreOption(
               icon: Icons.settings_rounded,
               title: 'Library Settings',
@@ -860,7 +856,7 @@ class LibraryScreenState extends State<LibraryScreen>
       leading: Icon(icon, color: secondaryText),
       title: Text(
         title,
-        style: GoogleFonts.roboto(
+        style: const TextStyle(
           color: primaryText,
           fontSize: 16,
           fontWeight: FontWeight.w500,
@@ -877,21 +873,21 @@ class LibraryScreenState extends State<LibraryScreen>
       builder: (context) => AlertDialog(
         backgroundColor: surfaceColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
+        title: const Text(
           'Clear History',
-          style: GoogleFonts.roboto(
+          style: TextStyle(
             color: primaryText,
             fontWeight: FontWeight.bold,
           ),
         ),
-        content: Text(
+        content: const Text(
           'Are you sure you want to clear your watch history? This action cannot be undone.',
-          style: GoogleFonts.roboto(color: secondaryText),
+          style: TextStyle(color: secondaryText),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text(
+            child: const Text(
               'Cancel',
               style: TextStyle(color: secondaryText),
             ),
@@ -902,8 +898,8 @@ class LibraryScreenState extends State<LibraryScreen>
               if (context.mounted) Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.textPrimary,
             ),
             child: const Text('Clear'),
           ),
@@ -919,8 +915,7 @@ class LibraryScreenState extends State<LibraryScreen>
         color: surfaceColor,
         border: Border(
           left: BorderSide(
-            color: Colors.white.withValues(alpha: 0.05),
-            width: 1,
+            color: AppColors.textPrimary.withValues(alpha: 0.05),
           ),
         ),
       ),
@@ -957,7 +952,7 @@ class LibraryScreenState extends State<LibraryScreen>
             photoUrl: authService.activePhotoUrl,
             displayName: displayName,
             backgroundColor: buttonBg,
-            textColor: Colors.white,
+            textColor: AppColors.textPrimary,
             fontSize: 18,
           ),
         ),
@@ -968,7 +963,7 @@ class LibraryScreenState extends State<LibraryScreen>
             children: [
               Text(
                 displayName,
-                style: GoogleFonts.roboto(
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: primaryText,
@@ -977,7 +972,7 @@ class LibraryScreenState extends State<LibraryScreen>
               if (handleOrEmail.isNotEmpty)
                 Text(
                   handleOrEmail,
-                  style: GoogleFonts.roboto(
+                  style: const TextStyle(
                     fontSize: 12,
                     color: secondaryText,
                   ),
@@ -998,14 +993,14 @@ class LibraryScreenState extends State<LibraryScreen>
         color: buttonBg,
         borderRadius: BorderRadius.circular(12),
       ),
-      child: TextField(
-        style: GoogleFonts.roboto(color: primaryText, fontSize: 14),
+      child: const TextField(
+        style: TextStyle(color: primaryText, fontSize: 14),
         decoration: InputDecoration(
-          hintText: "Search in library...",
-          hintStyle: GoogleFonts.roboto(color: secondaryText),
+          hintText: 'Search in library...',
+          hintStyle: TextStyle(color: secondaryText),
           border: InputBorder.none,
           icon: Icon(Icons.search_rounded, color: secondaryText, size: 20),
-          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+          contentPadding: EdgeInsets.symmetric(vertical: 12),
         ),
       ),
     );
@@ -1015,9 +1010,9 @@ class LibraryScreenState extends State<LibraryScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          "Quick Actions",
-          style: GoogleFonts.roboto(
+        const Text(
+          'Quick Actions',
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
             color: secondaryText,
@@ -1027,22 +1022,22 @@ class LibraryScreenState extends State<LibraryScreen>
         const SizedBox(height: 16),
         _buildSidebarAction(
           icon: Icons.add_box_rounded,
-          title: "New Playlist",
+          title: 'New Playlist',
           onTap: () => _showCreatePlaylistDialog(context),
         ),
         _buildSidebarAction(
           icon: Icons.history_rounded,
-          title: "Watch History",
+          title: 'Watch History',
           onTap: () => Get.toNamed('/watchhistory'),
         ),
         _buildSidebarAction(
           icon: Icons.thumb_up_rounded,
-          title: "Liked Videos",
+          title: 'Liked Videos',
           onTap: () => Get.toNamed('/likedvideos'),
         ),
         _buildSidebarAction(
           icon: Icons.settings_rounded,
-          title: "Settings",
+          title: 'Settings',
           onTap: () => Get.toNamed('/settings'),
         ),
       ],
@@ -1067,7 +1062,7 @@ class LibraryScreenState extends State<LibraryScreen>
               const SizedBox(width: 16),
               Text(
                 title,
-                style: GoogleFonts.roboto(
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
                   color: primaryText,
@@ -1084,9 +1079,9 @@ class LibraryScreenState extends State<LibraryScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          "PLAYLISTS",
-          style: GoogleFonts.roboto(
+        const Text(
+          'PLAYLISTS',
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
             color: secondaryText,
@@ -1104,9 +1099,9 @@ class LibraryScreenState extends State<LibraryScreen>
                 .snapshots(),
             builder: (context, snapshot) {
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return Text(
-                  "No playlists yet",
-                  style: GoogleFonts.roboto(color: secondaryText, fontSize: 13),
+                return const Text(
+                  'No playlists yet',
+                  style: TextStyle(color: secondaryText, fontSize: 13),
                 );
               }
 
@@ -1144,14 +1139,14 @@ class LibraryScreenState extends State<LibraryScreen>
               : null,
         ),
         child: playlist.thumbnailUrl.isEmpty
-            ? const Icon(Icons.playlist_play, color: Colors.white, size: 16)
+            ? const Icon(Icons.playlist_play, color: AppColors.textPrimary, size: 16)
             : null,
       ),
       title: Text(
         playlist.playlistName,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: GoogleFonts.roboto(
+        style: const TextStyle(
           fontSize: 14,
           color: primaryText,
         ),

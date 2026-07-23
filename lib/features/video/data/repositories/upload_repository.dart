@@ -38,7 +38,7 @@ class UploadRepository {
     final imageRef = _storage.ref().child('thumbnails/$uniqueId.jpg');
     final metadata = SettableMetadata(contentType: 'image/jpeg');
     final uploadTask = await imageRef.putData(bytes, metadata);
-    return await uploadTask.ref.getDownloadURL();
+    return uploadTask.ref.getDownloadURL();
   }
 
   /// Uploads an AI voice sample for dubbing cloning
@@ -50,7 +50,7 @@ class UploadRepository {
     final sampleExt = voiceSampleFile.extension ?? 'wav';
     final sampleRef = _storage.ref().child('voices/$userId/$uniqueId.$sampleExt');
     final sampleMeta = SettableMetadata(contentType: 'audio/$sampleExt');
-    final Uint8List sampleBytes = await voiceSampleFile.xFile.readAsBytes();
+    final sampleBytes = await voiceSampleFile.xFile.readAsBytes();
     await sampleRef.putData(sampleBytes, sampleMeta);
   }
 

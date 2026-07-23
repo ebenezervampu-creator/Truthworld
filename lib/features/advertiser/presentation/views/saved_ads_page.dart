@@ -1,9 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/widgets/ad_widgets.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class SavedAdsPage extends StatefulWidget {
   const SavedAdsPage({super.key});
@@ -37,27 +38,27 @@ class _SavedAdsPageState extends State<SavedAdsPage>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header Section
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(24, 24, 24, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Interacted Ads',
                     style: TextStyle(
-                      fontFamily: 'Roboto',
+                      
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: AppColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     'Your liked, bookmarked, and commented advertiser sponsor layers',
                     style: TextStyle(
-                      fontFamily: 'Roboto',
+                      
                       fontSize: 14,
-                      color: Colors.white38,
+                      color: AppColors.textTertiary,
                     ),
                   ),
                 ],
@@ -68,15 +69,15 @@ class _SavedAdsPageState extends State<SavedAdsPage>
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.02),
+                color: AppColors.textPrimary.withValues(alpha: 0.02),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.white10),
+                border: Border.all(color: AppColors.bgDivider),
               ),
               child: TabBar(
                 controller: _tabController,
-                indicatorColor: Colors.amber,
-                labelColor: Colors.amber,
-                unselectedLabelColor: Colors.white60,
+                indicatorColor: AppColors.warning,
+                labelColor: AppColors.warning,
+                unselectedLabelColor: AppColors.textSecondary,
                 indicatorSize: TabBarIndicatorSize.tab,
                 dividerColor: Colors.transparent,
                 tabs: const [
@@ -174,7 +175,7 @@ class _SavedAdsPageState extends State<SavedAdsPage>
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(
-            child: CircularProgressIndicator(color: Colors.amber),
+            child: CircularProgressIndicator(color: AppColors.warning),
           );
         }
 
@@ -211,7 +212,7 @@ class _SavedAdsPageState extends State<SavedAdsPage>
               decoration: BoxDecoration(
                 color: const Color(0xFF161616),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white10),
+                border: Border.all(color: AppColors.bgDivider),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -228,7 +229,7 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                         ),
                         child: const Icon(
                           Icons.campaign_rounded,
-                          color: Colors.white,
+                          color: AppColors.textPrimary,
                           size: 16,
                         ),
                       ),
@@ -239,9 +240,9 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                           children: [
                             Text(
                               ad.advertiser,
-                              style: TextStyle(
-                                fontFamily: 'Roboto',
-                                color: Colors.amber,
+                              style: const TextStyle(
+                                
+                                color: AppColors.warning,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 11,
                               ),
@@ -250,9 +251,9 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                               ad.title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontFamily: 'Roboto',
-                                color: Colors.white,
+                              style: const TextStyle(
+                                
+                                color: AppColors.textPrimary,
                                 fontWeight: FontWeight.w500,
                                 fontSize: 13,
                               ),
@@ -263,7 +264,7 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                       IconButton(
                         icon: const Icon(
                           Icons.arrow_forward_ios_rounded,
-                          color: Colors.white38,
+                          color: AppColors.textTertiary,
                           size: 14,
                         ),
                         onPressed: () =>
@@ -271,7 +272,7 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                       ),
                     ],
                   ),
-                  const Divider(color: Colors.white10, height: 24),
+                  const Divider(color: AppColors.bgDivider, height: 24),
 
                   // User's Comment
                   Row(
@@ -279,7 +280,7 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                     children: [
                       const Icon(
                         Icons.subdirectory_arrow_right_rounded,
-                        color: Colors.amber,
+                        color: AppColors.warning,
                         size: 18,
                       ),
                       const SizedBox(width: 8),
@@ -287,20 +288,20 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
+                            const Text(
                               'Your Comment:',
                               style: TextStyle(
-                                fontFamily: 'Roboto',
-                                color: Colors.white38,
+                                
+                                color: AppColors.textTertiary,
                                 fontSize: 11,
                               ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               comment.text,
-                              style: TextStyle(
-                                fontFamily: 'Roboto',
-                                color: Colors.white70,
+                              style: const TextStyle(
+                                
+                                color: AppColors.textSecondary,
                                 fontSize: 13,
                               ),
                             ),
@@ -316,10 +317,10 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.amber.withValues(alpha: 0.05),
+                        color: AppColors.warning.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: Colors.amber.withValues(alpha: 0.15),
+                          color: AppColors.warning.withValues(alpha: 0.15),
                         ),
                       ),
                       child: Column(
@@ -330,14 +331,14 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                               const Icon(
                                 Icons.campaign_rounded,
                                 size: 14,
-                                color: Colors.amber,
+                                color: AppColors.warning,
                               ),
                               const SizedBox(width: 6),
                               Text(
                                 '${comment.repliedBy ?? 'Sponsor'} (Advertiser Reply)',
-                                style: TextStyle(
-                                  fontFamily: 'Roboto',
-                                  color: Colors.amber,
+                                style: const TextStyle(
+                                  
+                                  color: AppColors.warning,
                                   fontWeight: FontWeight.bold,
                                   fontSize: 11,
                                 ),
@@ -347,9 +348,9 @@ class _SavedAdsPageState extends State<SavedAdsPage>
                           const SizedBox(height: 6),
                           Text(
                             comment.replyText!,
-                            style: TextStyle(
-                              fontFamily: 'Roboto',
-                              color: Colors.white,
+                            style: const TextStyle(
+                              
+                              color: AppColors.textPrimary,
                               fontSize: 13,
                             ),
                           ),
@@ -373,29 +374,29 @@ class _SavedAdsPageState extends State<SavedAdsPage>
   }) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32.0),
+        padding: const EdgeInsets.symmetric(horizontal: 32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 64, color: Colors.white24),
+            Icon(icon, size: 64, color: AppColors.textDisabled),
             const SizedBox(height: 16),
             Text(
               title,
-              style: TextStyle(
-                fontFamily: 'Roboto',
+              style: const TextStyle(
+                
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.white70,
+                color: AppColors.textSecondary,
               ),
             ),
             const SizedBox(height: 8),
             Text(
               subtitle,
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'Roboto',
+              style: const TextStyle(
+                
                 fontSize: 13,
-                color: Colors.white38,
+                color: AppColors.textTertiary,
               ),
             ),
           ],

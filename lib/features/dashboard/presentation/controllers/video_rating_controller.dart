@@ -4,15 +4,15 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/services/video_media_service.dart';
 
 class VideoRatingController extends GetxController {
+
+  VideoRatingController({required this.channelId});
   final String channelId;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  VideoRatingController({required this.channelId});
-
-  var ratedVideos = <Video>[].obs;
-  var isLoading = true.obs;
-  var errorMessage = ''.obs;
-  var selectedVideo = Rxn<Video>();
+  RxList<Video> ratedVideos = <Video>[].obs;
+  RxBool isLoading = true.obs;
+  RxString errorMessage = ''.obs;
+  Rxn<Video> selectedVideo = Rxn<Video>();
 
   @override
   void onInit() {
@@ -34,7 +34,7 @@ class VideoRatingController extends GetxController {
           .get();
 
       ratedVideos.value = snapshot.docs
-          .map((doc) => Video.fromDocumentSnapshot(doc))
+          .map(Video.fromDocumentSnapshot)
           .where((video) => 
             video.trustScore > 0 || 
             video.videoRating > 0 || 
@@ -52,13 +52,13 @@ class VideoRatingController extends GetxController {
       });
 
     } catch (e) {
-      errorMessage.value = "Failed to load rated videos: $e";
+      errorMessage.value = 'Failed to load rated videos: $e';
     } finally {
       isLoading.value = false;
     }
   }
 
-  void selectVideo(Video video) async {
+  Future<void> selectVideo(Video video) async {
     selectedVideo.value = video;
     await VideoMediaService().getCredibility(video.id);
     selectedVideo.refresh();

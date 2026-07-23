@@ -170,6 +170,16 @@ mixin InfiniteScrollMixin on State {
 ///
 /// Combines pagination controller with ListView/SliverList
 class InfiniteList<T> extends StatelessWidget {
+
+  const InfiniteList({
+    required this.controller, required this.itemBuilder, super.key,
+    this.loadingBuilder,
+    this.emptyBuilder,
+    this.errorBuilder,
+    this.scrollController,
+    this.addAutomaticKeepAlives = true,
+    this.reverse = false,
+  });
   final PaginationController<T> controller;
   final Widget Function(BuildContext context, int index, T item) itemBuilder;
   final Widget Function(BuildContext context)? loadingBuilder;
@@ -178,18 +188,6 @@ class InfiniteList<T> extends StatelessWidget {
   final ScrollController? scrollController;
   final bool addAutomaticKeepAlives;
   final bool reverse;
-
-  const InfiniteList({
-    super.key,
-    required this.controller,
-    required this.itemBuilder,
-    this.loadingBuilder,
-    this.emptyBuilder,
-    this.errorBuilder,
-    this.scrollController,
-    this.addAutomaticKeepAlives = true,
-    this.reverse = false,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -258,20 +256,18 @@ class InfiniteList<T> extends StatelessWidget {
 ///
 /// For use in CustomScrollView
 class InfiniteSliverList<T> extends StatelessWidget {
+
+  const InfiniteSliverList({
+    required this.controller, required this.itemBuilder, super.key,
+    this.loadingBuilder,
+    this.emptyBuilder,
+    this.addAutomaticKeepAlives = false,
+  });
   final PaginationController<T> controller;
   final Widget Function(BuildContext context, int index, T item) itemBuilder;
   final Widget Function(BuildContext context)? loadingBuilder;
   final Widget Function(BuildContext context)? emptyBuilder;
   final bool addAutomaticKeepAlives;
-
-  const InfiniteSliverList({
-    super.key,
-    required this.controller,
-    required this.itemBuilder,
-    this.loadingBuilder,
-    this.emptyBuilder,
-    this.addAutomaticKeepAlives = false,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -330,20 +326,17 @@ class InfiniteSliverList<T> extends StatelessWidget {
 ///
 /// For use in CustomScrollView with SliverGrid
 class InfiniteSliverGrid<T> extends StatelessWidget {
+
+  const InfiniteSliverGrid({
+    required this.controller, required this.itemBuilder, required this.gridDelegate, super.key,
+    this.loadingBuilder,
+    this.addAutomaticKeepAlives = false,
+  });
   final PaginationController<T> controller;
   final Widget Function(BuildContext context, int index, T item) itemBuilder;
   final SliverGridDelegate gridDelegate;
   final Widget Function(BuildContext context)? loadingBuilder;
   final bool addAutomaticKeepAlives;
-
-  const InfiniteSliverGrid({
-    super.key,
-    required this.controller,
-    required this.itemBuilder,
-    required this.gridDelegate,
-    this.loadingBuilder,
-    this.addAutomaticKeepAlives = false,
-  });
 
   @override
   Widget build(BuildContext context) {

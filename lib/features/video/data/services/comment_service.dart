@@ -1,12 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:truthworld/features/video/data/models/comment.dart';
-import 'package:truthworld/features/video/data/models/reply.dart';
-import 'package:truthworld/features/video/data/models/comment_report.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/features/video/data/models/comment.dart';
+import 'package:truthworld/features/video/data/models/comment_report.dart';
+import 'package:truthworld/features/video/data/models/reply.dart';
 
 
 class CommentService {
+
+  factory CommentService() {
+    return _instance;
+  }
+
+
+  CommentService._internal();
   static final CommentService _instance = CommentService._internal();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -19,13 +26,6 @@ class CommentService {
   FirebaseFunctions get _functions =>
       FirebaseFunctions.instanceFor(region: 'asia-south1');
 
-
-  CommentService._internal();
-
-  factory CommentService() {
-    return _instance;
-  }
-
   // ============================================================================
   // COMMENTS - CREATE, READ, UPDATE, DELETE
   // ============================================================================
@@ -37,9 +37,8 @@ class CommentService {
     required String userName,
     required String userProfilePicUrl,
     required String channelId,
-    String? channelName,
+    required String text, String? channelName,
     String? channelProfilePicUrl,
-    required String text,
   }) async {
     // Input validation
     if (text.trim().isEmpty) {
@@ -92,7 +91,6 @@ class CommentService {
           dislikeCount: 0,
           reportCount: 0,
           createdAt: Timestamp.now(),
-          hasCreatorReply: false,
         );
 
         await docRef.set(newComment.toMap());
@@ -117,7 +115,7 @@ class CommentService {
         .limit(limit)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => Comment.fromDocumentSnapshot(doc))
+            .map(Comment.fromDocumentSnapshot)
             .toList());
   }
 
@@ -177,7 +175,7 @@ class CommentService {
             .get();
 
         final batch = _firestore.batch();
-        for (var doc in repliesSnapshot.docs) {
+        for (final doc in repliesSnapshot.docs) {
           batch.delete(doc.reference);
         }
 
@@ -208,9 +206,8 @@ class CommentService {
     required String userName,
     required String userProfilePicUrl,
     required String channelId,
-    String? channelName,
+    required String text, String? channelName,
     String? channelProfilePicUrl,
-    required String text,
   }) async {
     try {
       final callable = _functions.httpsCallable('addReplyNested');
@@ -278,7 +275,7 @@ class CommentService {
         .orderBy('createdAt', descending: false)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => Reply.fromDocumentSnapshot(doc))
+            .map(Reply.fromDocumentSnapshot)
             .toList());
   }
 
@@ -761,7 +758,7 @@ class CommentService {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => CommentReport.fromDocumentSnapshot(doc))
+            .map(CommentReport.fromDocumentSnapshot)
             .toList());
   }
 
@@ -780,7 +777,7 @@ class CommentService {
         .asyncMap((videoSnapshot) async {
       final videos = <Map<String, dynamic>>[];
 
-      for (var videoDoc in videoSnapshot.docs) {
+      for (final videoDoc in videoSnapshot.docs) {
         final videoData = videoDoc.data();
         
         final commentsSnapshot = await videoDoc.reference
@@ -811,7 +808,7 @@ class CommentService {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => Comment.fromDocumentSnapshot(doc))
+            .map(Comment.fromDocumentSnapshot)
             .toList());
   }
 
@@ -841,7 +838,7 @@ class CommentService {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => Comment.fromDocumentSnapshot(doc))
+            .map(Comment.fromDocumentSnapshot)
             .toList());
   }
 
@@ -855,7 +852,7 @@ class CommentService {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => Comment.fromDocumentSnapshot(doc))
+            .map(Comment.fromDocumentSnapshot)
             .toList());
   }
 
@@ -869,7 +866,7 @@ class CommentService {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => Comment.fromDocumentSnapshot(doc))
+            .map(Comment.fromDocumentSnapshot)
             .toList());
   }
 

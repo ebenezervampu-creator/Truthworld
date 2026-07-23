@@ -1,7 +1,6 @@
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:truthworld/core/services/image_verification_service.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// ============================================================================
 /// OPTIMIZED VERIFICATION UI WIDGET - INSTANT FEEDBACK
@@ -13,20 +12,18 @@ import 'package:truthworld/core/services/image_verification_service.dart';
 /// - Real-time visual indicators
 
 class OptimizedVerificationStatusWidget extends StatelessWidget {
+
+  const OptimizedVerificationStatusWidget({
+    required this.result, required this.isDark, super.key,
+    this.onApproved,
+    this.onRetry,
+    this.autoScroll = true,
+  });
   final VerificationResult result;
   final bool isDark;
   final VoidCallback? onApproved;
   final VoidCallback? onRetry;
   final bool autoScroll;
-
-  const OptimizedVerificationStatusWidget({
-    super.key,
-    required this.result,
-    required this.isDark,
-    this.onApproved,
-    this.onRetry,
-    this.autoScroll = true,
-  });
 
   Color _getStatusColor(BuildContext context) {
     final twColors = context.colors;
@@ -133,7 +130,7 @@ class OptimizedVerificationStatusWidget extends StatelessWidget {
                         children: [
                           Text(
                             _getStatusLabel(),
-                            style: GoogleFonts.roboto(
+                            style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.w700,
                               color: statusColor,
@@ -143,10 +140,10 @@ class OptimizedVerificationStatusWidget extends StatelessWidget {
                             const SizedBox(height: 4),
                             Text(
                               result.reason,
-                              style: GoogleFonts.roboto(
+                              style: TextStyle(
                                 fontSize: 13,
                                 color: isDark
-                                    ? Colors.white60
+                                    ? AppColors.textSecondary
                                     : context.colors.textSecondary,
                                 height: 1.4,
                               ),
@@ -262,7 +259,7 @@ class OptimizedVerificationStatusWidget extends StatelessWidget {
         Expanded(
           child: Text(
             scoreLabel,
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 12,
               color: statusColor,
               fontWeight: FontWeight.w500,
@@ -316,20 +313,18 @@ class OptimizedVerificationStatusWidget extends StatelessWidget {
 /// Perfect for integrating into upload/channel screens
 
 class VerificationStatusListenerWidget extends StatelessWidget {
+
+  const VerificationStatusListenerWidget({
+    required this.docId, required this.isDark, super.key,
+    this.onApproved,
+    this.onRetry,
+    this.autoScroll = true,
+  });
   final String docId;
   final bool isDark;
   final VoidCallback? onApproved;
   final VoidCallback? onRetry;
   final bool autoScroll;
-
-  const VerificationStatusListenerWidget({
-    super.key,
-    required this.docId,
-    required this.isDark,
-    this.onApproved,
-    this.onRetry,
-    this.autoScroll = true,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -381,7 +376,7 @@ class VerificationStatusListenerWidget extends StatelessWidget {
                       children: [
                         Text(
                           'Verification Error',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w700,
                             color: twColors.error,
@@ -390,10 +385,10 @@ class VerificationStatusListenerWidget extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           'Failed to connect to verification service',
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 13,
                             color: isDark
-                                ? Colors.white60
+                                ? AppColors.textSecondary
                                 : twColors.textSecondary,
                           ),
                         ),
@@ -429,14 +424,13 @@ class VerificationStatusListenerWidget extends StatelessWidget {
 /// Ideal for preview cards and list items
 
 class VerificationBadge extends StatelessWidget {
-  final VerificationStatus status;
-  final bool compact;
 
   const VerificationBadge({
-    super.key,
-    required this.status,
+    required this.status, super.key,
     this.compact = false,
   });
+  final VerificationStatus status;
+  final bool compact;
 
   Color _getStatusColor(BuildContext context) {
     final twColors = context.colors;
@@ -514,7 +508,7 @@ class VerificationBadge extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               _getStatusLabel(),
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
                 color: statusColor,
@@ -532,7 +526,6 @@ class VerificationBadge extends StatelessWidget {
         borderRadius: twRadius.circularMd,
         border: Border.all(
           color: statusColor.withValues(alpha: 0.3),
-          width: 1,
         ),
       ),
       child: Row(
@@ -546,7 +539,7 @@ class VerificationBadge extends StatelessWidget {
           SizedBox(width: twSpacing.xs + 2),
           Text(
             _getStatusLabel(),
-            style: GoogleFonts.roboto(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
               color: statusColor,

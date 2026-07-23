@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'tw_breakpoints.dart';
-import 'device_state.dart';
-import 'tw_layout_tokens.dart';
-import 'tw_typography.dart';
+import 'package:truthworld/theme/device_state.dart';
+import 'package:truthworld/theme/tw_breakpoints.dart';
+import 'package:truthworld/theme/tw_layout_tokens.dart';
+import 'package:truthworld/theme/tw_typography.dart';
 
-export 'tw_breakpoints.dart';
 export 'device_state.dart';
+export 'tw_breakpoints.dart';
 export 'tw_layout_tokens.dart';
 
 class Responsive {
@@ -34,8 +34,8 @@ class Responsive {
 typedef ResponsiveWidgetBuilder = Widget Function(BuildContext context, DeviceState device);
 
 class ResponsiveBuilder extends StatelessWidget {
+  const ResponsiveBuilder({required this.builder, super.key});
   final ResponsiveWidgetBuilder builder;
-  const ResponsiveBuilder({super.key, required this.builder});
 
   @override
   Widget build(BuildContext context) {
@@ -53,18 +53,17 @@ class ResponsiveBuilder extends StatelessWidget {
 }
 
 class ResponsiveContainer extends StatelessWidget {
-  final Widget child;
-  final EdgeInsets? padding;
-  final double? maxWidth;
-  final bool centerContent;
 
   const ResponsiveContainer({
-    super.key,
-    required this.child,
+    required this.child, super.key,
     this.padding,
     this.maxWidth,
     this.centerContent = true,
   });
+  final Widget child;
+  final EdgeInsets? padding;
+  final double? maxWidth;
+  final bool centerContent;
 
   @override
   Widget build(BuildContext context) {

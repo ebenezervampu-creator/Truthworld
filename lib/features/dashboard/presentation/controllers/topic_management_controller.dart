@@ -1,22 +1,50 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/core/services/deep_link_service.dart';
+import 'package:truthworld/core/services/feedback/feedback_service.dart';
+import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/theme/app_theme.dart';
 import 'package:uuid/uuid.dart';
 
 class TopicManagementController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
 
+  // Reactive State
+  final RxString searchQuery = ''.obs;
+  final RxList<Topic> topicsList = <Topic>[].obs;
+  final RxBool isLoading = false.obs;
+
+  /// Computed Filtered Topics based on search query
+  List<Topic> get filteredTopics {
+    final query = searchQuery.value.trim().toLowerCase();
+    if (query.isEmpty) return topicsList;
+    return topicsList.where((topic) {
+      return topic.title.toLowerCase().contains(query) ||
+          topic.handle.toLowerCase().contains(query) ||
+          topic.description.toLowerCase().contains(query) ||
+          topic.category.toLowerCase().contains(query);
+    }).toList();
+  }
+
+  // Summary Metrics Getters
+  int get totalTopicsCount => topicsList.length;
+  int get totalVideosCount => topicsList.fold(0, (acc, t) => acc + t.videoCount);
+  int get publicTopicsCount => topicsList.where((t) => t.visibilityType == TopicVisibilityType.public).length;
+  int get privateTopicsCount => topicsList.where((t) => t.visibilityType == TopicVisibilityType.private).length;
+
   Future<void> _ensureStorageAuthReady() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        throw Exception("User not authenticated");
+        throw Exception('User not authenticated');
       }
       await user.getIdToken(true);
       if (kIsWeb) {
@@ -35,7 +63,7 @@ class TopicManagementController extends GetxController {
       debugPrint(
         '❌ [TopicManagementController] Failed to prepare Storage auth: $e',
       );
-      throw Exception("Storage auth preparation failed: $e");
+      throw Exception('Storage auth preparation failed: $e');
     }
   }
 
@@ -71,7 +99,7 @@ class TopicManagementController extends GetxController {
         .snapshots()
         .map(
           (snapshot) => snapshot.docs
-              .map((doc) => Topic.fromDocumentSnapshot(doc))
+              .map(Topic.fromDocumentSnapshot)
               .toList(),
         );
   }
@@ -91,11 +119,11 @@ class TopicManagementController extends GetxController {
           .collection('videos')
           .get();
 
-      final List<Map<String, dynamic>> videos = [];
-      final Set<String> seenIds = {};
+      final videos = <Map<String, dynamic>>[];
+      final seenIds = <String>{};
 
       void addDocs(List<QueryDocumentSnapshot> docs) {
-        for (var doc in docs) {
+        for (final doc in docs) {
           final data = doc.data() as Map<String, dynamic>?;
           if (data != null) {
             final id = doc.id;
@@ -139,7 +167,7 @@ class TopicManagementController extends GetxController {
           .collection('channels')
           .doc(channelId)
           .get();
-      int videoCount = 0;
+      var videoCount = 0;
       if (channelDoc.exists) {
         videoCount = (channelDoc.data()?['videoCount'] as num?)?.toInt() ?? 0;
       }
@@ -163,8 +191,8 @@ class TopicManagementController extends GetxController {
           AppSnackbar.show(
             'Action Restricted',
             'To create a topic, you must have at least one uploaded video on your channel.',
-            backgroundColor: Colors.red,
-            colorText: Colors.white,
+            backgroundColor: AppColors.error,
+            colorText: AppColors.textPrimary,
             duration: const Duration(seconds: 4),
           );
           return;
@@ -172,7 +200,7 @@ class TopicManagementController extends GetxController {
       }
 
       // 2. Validate and clean handle format
-      String cleanHandle = handle.trim();
+      var cleanHandle = handle.trim();
       if (cleanHandle.startsWith('T/')) {
         cleanHandle = cleanHandle.substring(2);
       }
@@ -180,19 +208,19 @@ class TopicManagementController extends GetxController {
         cleanHandle = cleanHandle.substring(2);
       }
       cleanHandle = cleanHandle
-          .replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '-')
-          .replaceAll(RegExp(r'-+'), '-');
+          .replaceAll(RegExp('[^a-zA-Z0-9_-]'), '-')
+          .replaceAll(RegExp('-+'), '-');
       if (cleanHandle.isEmpty) {
         AppSnackbar.show(
           'Validation Error',
           'Topic handle is required and must contain alphanumeric characters.',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
         );
         return;
       }
-      final String finalHandle = 'T/$cleanHandle';
-      final String finalHandleLowercase = finalHandle.toLowerCase();
+      final finalHandle = 'T/$cleanHandle';
+      final finalHandleLowercase = finalHandle.toLowerCase();
 
       // Check if handle is already taken
       final existingHandle = await _firestore
@@ -205,13 +233,13 @@ class TopicManagementController extends GetxController {
         AppSnackbar.show(
           'Action Restricted',
           'Topic handle is already taken. Please choose a different one.',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
+          backgroundColor: AppColors.error,
+          colorText: AppColors.textPrimary,
         );
         return;
       }
 
-      final String slug = title
+      final slug = title
           .toLowerCase()
           .replaceAll(RegExp(r'[^a-z0-9\s-]'), '')
           .replaceAll(RegExp(r'\s+'), '-');
@@ -222,7 +250,7 @@ class TopicManagementController extends GetxController {
           .limit(1)
           .get();
 
-      String finalSlug = slug;
+      var finalSlug = slug;
       if (existingSlug.docs.isNotEmpty) {
         finalSlug = '$slug-${const Uuid().v4().substring(0, 6)}';
       }
@@ -254,7 +282,7 @@ class TopicManagementController extends GetxController {
       // Update selected videos to link to this new topic in a batch write
       if (selectedVideoIds.isNotEmpty) {
         final batch = _firestore.batch();
-        for (var videoId in selectedVideoIds) {
+        for (final videoId in selectedVideoIds) {
           final videoRef = _firestore.collection('videos').doc(videoId);
           batch.update(videoRef, {
             'topicId': finalSlug,
@@ -267,15 +295,15 @@ class TopicManagementController extends GetxController {
       AppSnackbar.show(
         'Success',
         'Topic created successfully',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
       );
     } catch (e) {
       AppSnackbar.show(
         'Error',
         'Failed to create topic: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
     }
   }
@@ -327,7 +355,7 @@ class TopicManagementController extends GetxController {
       final batch = _firestore.batch();
 
       // Videos that were unlinked: remove topicId and topics entry
-      for (var videoId in currentLinkedVideos) {
+      for (final videoId in currentLinkedVideos) {
         if (!selectedVideoIds.contains(videoId)) {
           final videoRef = _firestore.collection('videos').doc(videoId);
           batch.update(videoRef, {
@@ -338,7 +366,7 @@ class TopicManagementController extends GetxController {
       }
 
       // Videos that were newly linked: set topicId and topics entry
-      for (var videoId in selectedVideoIds) {
+      for (final videoId in selectedVideoIds) {
         if (!currentLinkedVideos.contains(videoId)) {
           final videoRef = _firestore.collection('videos').doc(videoId);
           batch.update(videoRef, {
@@ -353,15 +381,15 @@ class TopicManagementController extends GetxController {
       AppSnackbar.show(
         'Success',
         'Topic updated successfully',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
       );
     } catch (e) {
       AppSnackbar.show(
         'Error',
         'Failed to update topic: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
     }
   }
@@ -373,19 +401,150 @@ class TopicManagementController extends GetxController {
         'visibilityType': 'private',
         'deletionRequestedAt': FieldValue.serverTimestamp(),
       });
+      topicsList.removeWhere((t) => t.id == topic.id);
       AppSnackbar.show(
         'Success',
         'Topic is now private and scheduled for deletion in 30 days',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
+        backgroundColor: AppColors.success,
+        colorText: AppColors.textPrimary,
       );
     } catch (e) {
       AppSnackbar.show(
         'Error',
         'Failed to schedule topic deletion: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
+        backgroundColor: AppColors.error,
+        colorText: AppColors.textPrimary,
       );
+    }
+  }
+
+  /// Navigates to topic route using app router
+  void viewTopic(Topic topic) {
+    if (topic.topicRoute.isNotEmpty) {
+      Get.toNamed(topic.topicRoute);
+    }
+  }
+
+  /// Copies topic deep link URL to clipboard
+  void copyLink(Topic topic) {
+    final url = DeepLinkService.topicUrl(topic.routePathParameter);
+    Clipboard.setData(ClipboardData(text: url));
+    AppSnackbar.show(
+      'Link Copied',
+      'Topic link copied to clipboard: $url',
+      backgroundColor: const Color(0xFF10B981),
+      colorText: AppColors.textPrimary,
+    );
+  }
+
+  /// Destructive Confirmation Dialog for deleting topic
+  void deleteTopicWithConfirmation(BuildContext context, Topic topic) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    Get.dialog(
+      AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.delete_outline_rounded, color: AppColors.error, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Delete Topic?',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to delete "${topic.title}"?',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: isDark ? AppColors.textPrimary : const Color(0xFF111827),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This will remove the topic knowledge hub from your studio. Linked videos will remain safe on your channel.',
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? const Color(0xFF9CA3AF) : const Color(0xFF6B7280),
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: Get.back,
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: isDark ? AppColors.textSecondary : AppColors.bgPage54,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Get.back();
+              deleteTopic(topic);
+            },
+            icon: const Icon(Icons.delete_rounded, size: 16),
+            label: const Text(
+              'Delete Topic',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: AppColors.textPrimary,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Callback for presentation layer to handle EditTopicDialog
+  Function(BuildContext context, Topic topic)? onEditTopicRequested;
+
+  /// Triggers Edit Topic Dialog via callback
+  void editTopic(BuildContext context, Topic topic) {
+    final isOwner =
+        Get.isRegistered<AuthService>() &&
+        ((topic.channelId != null &&
+            topic.channelId!.isNotEmpty &&
+            AuthService.to.userChannel?.id == topic.channelId) ||
+         (topic.creatorId != null &&
+            topic.creatorId!.isNotEmpty &&
+            AuthService.to.uid == topic.creatorId));
+
+    if (!isOwner) {
+      SnackbarService.error(message: 'Only the topic creator channel can edit this topic.');
+      return;
+    }
+
+    if (onEditTopicRequested != null) {
+      onEditTopicRequested!(context, topic);
     }
   }
 }

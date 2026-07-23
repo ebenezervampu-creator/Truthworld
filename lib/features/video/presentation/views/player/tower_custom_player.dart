@@ -1,34 +1,31 @@
+import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
 import 'package:truthworld/core/widgets/mobile_friendly_video_player.dart';
-
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
+import 'package:truthworld/features/video/presentation/views/player/controls/fullscreen_actions_bar.dart';
+import 'package:truthworld/features/video/presentation/views/player/controls/player_controls.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
-import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
-
-import 'overlays/stats_for_nerds_overlay.dart';
-import 'overlays/player_state_overlays.dart';
-import 'overlays/subtitle_overlay.dart';
-import 'overlays/player_comments_overlay.dart';
-import 'overlays/player_transcript_overlay.dart';
-import 'controls/player_controls.dart';
-import 'controls/fullscreen_actions_bar.dart';
-import 'panels/player_settings_panels.dart';
-import 'overlays/ad_overlay.dart';
-import 'overlays/real_time_fact_overlay.dart';
-import 'overlays/end_screen_overlay.dart';
+import 'package:truthworld/features/video/presentation/views/player/overlays/ad_overlay.dart';
+import 'package:truthworld/features/video/presentation/views/player/overlays/end_screen_overlay.dart';
+import 'package:truthworld/features/video/presentation/views/player/overlays/player_comments_overlay.dart';
+import 'package:truthworld/features/video/presentation/views/player/overlays/player_state_overlays.dart';
+import 'package:truthworld/features/video/presentation/views/player/overlays/player_transcript_overlay.dart';
+import 'package:truthworld/features/video/presentation/views/player/overlays/real_time_fact_overlay.dart';
+import 'package:truthworld/features/video/presentation/views/player/overlays/stats_for_nerds_overlay.dart';
+import 'package:truthworld/features/video/presentation/views/player/overlays/subtitle_overlay.dart';
+import 'package:truthworld/features/video/presentation/views/player/panels/player_settings_panels.dart';
+import 'package:truthworld/features/video/presentation/widgets/interaction_gate.dart';
+import 'package:truthworld/theme/app_theme.dart';
+import 'package:video_player/video_player.dart';
 
 class TowerCustomPlayer extends StatelessWidget {
-  final VideoPlayerController videoPlayerController;
-  final String? tag;
   const TowerCustomPlayer({
-    super.key,
-    required this.videoPlayerController,
+    required this.videoPlayerController, super.key,
     this.tag,
   });
+  final VideoPlayerController videoPlayerController;
+  final String? tag;
 
   @override
   Widget build(BuildContext context) {
@@ -43,9 +40,7 @@ class TowerCustomPlayer extends StatelessWidget {
           );
 
     // Register mobile settings bottom sheet callback to display settings at bottom
-    TowerPlayerController.showMobileSettingsCallback = (ctx, controller) {
-      MobileSettingsBottomSheet.show(ctx, controller);
-    };
+    TowerPlayerController.showMobileSettingsCallback = MobileSettingsBottomSheet.show;
 
     return GetBuilder<TowerPlayerController>(
       init: ctrl,
@@ -70,8 +65,10 @@ class TowerCustomPlayer extends StatelessWidget {
                 onKeyEvent: c.handleKey,
                 child: Obx(() => AbsorbPointer(
                   absorbing: c.isPiP.value,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
+                  child: InteractionGate(
+                    lockController: c.lockController,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
                   // YouTube-standard: single tap = controls toggle (mobile), play/pause (desktop)
                   onTap: () => c.onTap(playerWidth > 1050),
                   // Proper Flutter double-tap disambiguation:
@@ -120,9 +117,8 @@ class TowerCustomPlayer extends StatelessWidget {
                                     c.isInitialized.value &&
                                         c.chewieController != null
                                     ? InteractiveViewer(
-                                        clipBehavior: Clip.hardEdge,
-                                        minScale: 1.0,
-                                        maxScale: 6.0,
+                                        minScale: 1,
+                                        maxScale: 6,
                                         child: AspectRatio(
                                           aspectRatio: c.aspectRatio.value,
                                           child: Chewie(
@@ -142,13 +138,12 @@ class TowerCustomPlayer extends StatelessWidget {
                                         aspectRatio: apc.value.aspectRatio,
                                         child: MobileFriendlyVideoPlayer(
                                           controller: apc,
-                                          looping: false,
                                         ),
                                       )
                                     : const CircularProgressIndicator(
                                         valueColor:
                                             AlwaysStoppedAnimation<Color>(
-                                              Colors.amber,
+                                              AppColors.warning,
                                             ),
                                       ),
                               ),
@@ -156,11 +151,21 @@ class TowerCustomPlayer extends StatelessWidget {
                         );
                       }),
 
-                      // ── Layer 0.5: Audio-only UI ───────────────────────────
+                      // ── Layer 0.5: Audio-only UI with 250ms Crossfade ───────────────
                       Obx(
-                        () => c.isAudioOnly.value
-                            ? RepaintBoundary(child: AudioOnlyOverlay(ctrl: c))
-                            : const SizedBox.shrink(),
+                        () => AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 250),
+                          transitionBuilder: (child, animation) =>
+                              FadeTransition(opacity: animation, child: child),
+                          child: c.isAudioOnly.value
+                              ? RepaintBoundary(
+                                  key: const ValueKey('audio_overlay'),
+                                  child: AudioOnlyOverlay(ctrl: c),
+                                )
+                              : const SizedBox.shrink(
+                                  key: ValueKey('video_viewport'),
+                                ),
+                        ),
                       ),
 
                       // ── Layer 0.7: Brightness overlay ──────────────────────
@@ -173,7 +178,7 @@ class TowerCustomPlayer extends StatelessWidget {
                         return Positioned.fill(
                           child: IgnorePointer(
                             child: ColoredBox(
-                              color: Colors.black.withValues(alpha: opacity),
+                              color: AppColors.bgPage.withValues(alpha: opacity),
                             ),
                           ),
                         );
@@ -244,9 +249,9 @@ class TowerCustomPlayer extends StatelessWidget {
                                 vertical: 8,
                               ),
                               decoration: BoxDecoration(
-                                color: Colors.black.withValues(alpha: 0.7),
+                                color: AppColors.bgPage.withValues(alpha: 0.7),
                                 borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: Colors.white24),
+                                border: Border.all(color: AppColors.textDisabled),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -387,7 +392,7 @@ class TowerCustomPlayer extends StatelessWidget {
                                                     20.0)
                                                 .clamp(20.0, playerWidth - 60.0)
                                           : 20.0,
-                                      bottom: 150.0,
+                                      bottom: 150,
                                       child: GestureDetector(
                                         behavior: HitTestBehavior.opaque,
                                         onTap: () {}, // Absorb taps
@@ -433,10 +438,11 @@ class TowerCustomPlayer extends StatelessWidget {
                         if (c.isShowingAd.value || c.isPiP.value) return const SizedBox.shrink();
                         // touch an observable
                         c.isAudioOnly.value;
-                        bool isSwitching = false, isManual = false;
+                        var isSwitching = false;
+                        var isManual = false;
                         try {
-                          if (Get.isRegistered<VideoController>(tag: c.tag)) {
-                            final vc = Get.find<VideoController>(tag: c.tag);
+                          final vc = c.videoController;
+                          if (vc != null) {
                             isSwitching = vc.isSwitchingResolution.value;
                             isManual = !vc.isAutoSwitching.value;
                           }
@@ -485,12 +491,12 @@ class TowerCustomPlayer extends StatelessWidget {
                 ),
               ),
             ),
-          ),
-        );
-          },
+          )),
         );
       },
     );
+  },
+);
   }
 }
 

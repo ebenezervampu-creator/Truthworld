@@ -1,9 +1,4 @@
 class RouteMetadata {
-  final String title;
-  final String description;
-  final String? image;
-  final String? keywords;
-  final String? author;
 
   const RouteMetadata({
     required this.title,
@@ -12,6 +7,11 @@ class RouteMetadata {
     this.keywords,
     this.author,
   });
+  final String title;
+  final String description;
+  final String? image;
+  final String? keywords;
+  final String? author;
 }
 
 class RouteMetadataConfig {
@@ -65,6 +65,21 @@ class RouteMetadataConfig {
       title: 'My Videos',
       description: 'Manage and view your uploaded videos',
       keywords: 'my videos, uploads, content',
+    ),
+    '/upload': const RouteMetadata(
+      title: 'Create Content',
+      description: 'Choose what you want to create on Truthworld',
+      keywords: 'create, upload, video, community, content',
+    ),
+    '/upload/video': const RouteMetadata(
+      title: 'Upload Video',
+      description: 'Share your video content with the world on Truthworld',
+      keywords: 'upload, video, share, content',
+    ),
+    '/upload/community': const RouteMetadata(
+      title: 'Community Post',
+      description: 'Share text and image updates with your subscribers',
+      keywords: 'community, post, share, text, image',
     ),
     '/uploadscreen': const RouteMetadata(
       title: 'Upload Video',

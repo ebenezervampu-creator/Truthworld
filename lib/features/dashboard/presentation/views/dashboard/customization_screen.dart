@@ -1,19 +1,17 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'dart:typed_data';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/theme/app_theme.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/customization_controller.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class ChannelCustomizationPage extends StatefulWidget {
-  final String channelId;
-  final String ownerId;
 
   const ChannelCustomizationPage({
-    super.key,
-    required this.channelId,
-    required this.ownerId,
+    required this.channelId, required this.ownerId, super.key,
   });
+  final String channelId;
+  final String ownerId;
 
   @override
   State<ChannelCustomizationPage> createState() =>
@@ -54,14 +52,14 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
         elevation: 0,
         title: const Text(
           'Channel Customization',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: AppColors.textPrimary),
         ),
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: AppColors.textPrimary),
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppTokens.colors.error,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.grey,
+          labelColor: AppColors.textPrimary,
+          unselectedLabelColor: AppColors.textSecondary,
           tabs: const [
             Tab(text: 'Branding'),
             Tab(text: 'Basic Info'),
@@ -73,7 +71,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
           Obx(() {
             if (controller.isSaving.value) {
               return const Padding(
-                padding: EdgeInsets.all(16.0),
+                padding: EdgeInsets.all(16),
                 child: SizedBox(
                   width: 24,
                   height: 24,
@@ -90,8 +88,8 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                     controller.saveChanges();
                   }
                 },
-                icon: const Icon(Icons.save, color: Colors.white),
-                label: const Text('Save', style: TextStyle(color: Colors.white)),
+                icon: const Icon(Icons.save, color: AppColors.textPrimary),
+                label: const Text('Save', style: TextStyle(color: AppColors.textPrimary)),
               );
             }
           }),
@@ -162,7 +160,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
       decoration: BoxDecoration(
         color: bannerColor.withValues(alpha: 0.1),
         border: Border(
-          bottom: BorderSide(color: bannerColor.withValues(alpha: 0.3), width: 1),
+          bottom: BorderSide(color: bannerColor.withValues(alpha: 0.3)),
         ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -188,7 +186,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: bannerColor,
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
@@ -197,8 +195,8 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: GoogleFonts.roboto(
-                    color: Colors.white70,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
                     fontSize: 13,
                     height: 1.4,
                   ),
@@ -221,7 +219,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
           const SizedBox(height: 8),
           const Text(
             'Recommended size: 2560 x 1440 pixels',
-            style: TextStyle(color: Colors.white54, fontSize: 12),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
           ),
           const SizedBox(height: 16),
           Obx(() => _buildImagePicker(
@@ -240,7 +238,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
           const SizedBox(height: 8),
           const Text(
             'Recommended size: 800 x 800 pixels',
-            style: TextStyle(color: Colors.white54, fontSize: 12),
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
           ),
           const SizedBox(height: 16),
           Center(
@@ -280,7 +278,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
     IconData icon;
     String title;
     String subtitle;
-    bool isPending = false;
+    var isPending = false;
 
     if (status == 'PENDING') {
       color = const Color(0xFF3B82F6); // Blue
@@ -308,7 +306,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -332,7 +330,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     color: color,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
@@ -341,8 +339,8 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: GoogleFonts.roboto(
-                    color: Colors.white70,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
                     fontSize: 12,
                     height: 1.3,
                   ),
@@ -351,10 +349,10 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                   const SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: () => controller.bypassVerification(isBanner),
-                    icon: const Icon(Icons.check_circle_outline_rounded, size: 14, color: Colors.white70),
+                    icon: const Icon(Icons.check_circle_outline_rounded, size: 14, color: AppColors.textSecondary),
                     label: const Text(
                       'Bypass Verification (Local Dev/Test)',
-                      style: TextStyle(color: Colors.white70, fontSize: 11, decoration: TextDecoration.underline),
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 11, decoration: TextDecoration.underline),
                     ),
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,
@@ -398,7 +396,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
             hint: 'yourchannel',
             prefix: const Text(
               '@',
-              style: TextStyle(color: Colors.white70, fontSize: 16),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
             ),
           ),
           const SizedBox(height: 24),
@@ -517,7 +515,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
     return Text(
       title,
       style: const TextStyle(
-        color: Colors.white,
+        color: AppColors.textPrimary,
         fontSize: 18,
         fontWeight: FontWeight.bold,
       ),
@@ -540,18 +538,18 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
       maxLines: maxLines,
       keyboardType: keyboardType,
       validator: validator,
-      style: const TextStyle(color: Colors.white),
+      style: const TextStyle(color: AppColors.textPrimary),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
         helperText: helperText,
         prefix: prefix,
         prefixIcon: prefixIcon != null
-            ? Icon(prefixIcon, color: Colors.white70)
+            ? Icon(prefixIcon, color: AppColors.textSecondary)
             : null,
-        labelStyle: const TextStyle(color: Colors.white70),
-        hintStyle: const TextStyle(color: Colors.white38),
-        helperStyle: const TextStyle(color: Colors.white54),
+        labelStyle: const TextStyle(color: AppColors.textSecondary),
+        hintStyle: const TextStyle(color: AppColors.textTertiary),
+        helperStyle: const TextStyle(color: AppColors.textSecondary),
         filled: true,
         fillColor: AppColors.bgSurface,
         border: OutlineInputBorder(
@@ -564,7 +562,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: AppTokens.colors.error, width: 1),
+          borderSide: BorderSide(color: AppTokens.colors.error),
         ),
       ),
     );
@@ -585,22 +583,22 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
       imageWidget = Image.network(
         currentUrl,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Container(
+        errorBuilder: (context, error, stackTrace) => const ColoredBox(
           color: AppColors.bgSurface,
-          child: const Icon(
+          child: Icon(
             Icons.broken_image,
             size: 48,
-            color: Colors.white38,
+            color: AppColors.textTertiary,
           ),
         ),
       );
     } else {
-      imageWidget = Container(
+      imageWidget = const ColoredBox(
         color: AppColors.bgSurface,
-        child: const Icon(
+        child: Icon(
           Icons.add_photo_alternate,
           size: 48,
-          color: Colors.white38,
+          color: AppColors.textTertiary,
         ),
       );
     }
@@ -616,7 +614,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
             borderRadius: isCircular
                 ? BorderRadius.circular(height / 2)
                 : BorderRadius.circular(8),
-            border: Border.all(color: Colors.white24, width: 2),
+            border: Border.all(color: AppColors.textDisabled, width: 2),
           ),
           clipBehavior: Clip.antiAlias,
           child: Stack(
@@ -630,7 +628,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        Colors.black.withValues(alpha: 0.3),
+                        AppColors.bgPage.withValues(alpha: 0.3),
                       ],
                     ),
                   ),
@@ -646,7 +644,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                     borderRadius: BorderRadius.circular(24),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.3),
+                        color: AppColors.bgPage.withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 2),
                       ),
@@ -654,7 +652,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                   ),
                   child: const Icon(
                     Icons.camera_alt,
-                    color: Colors.white,
+                    color: AppColors.textPrimary,
                     size: 20,
                   ),
                 ),
@@ -679,10 +677,10 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
         borderRadius: BorderRadius.circular(8),
       ),
       child: SwitchListTile(
-        title: Text(title, style: const TextStyle(color: Colors.white)),
+        title: Text(title, style: const TextStyle(color: AppColors.textPrimary)),
         subtitle: Text(
           subtitle,
-          style: const TextStyle(color: Colors.white70, fontSize: 12),
+          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
         ),
         value: value,
         onChanged: onChanged,

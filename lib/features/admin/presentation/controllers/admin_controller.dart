@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/core/services/auth_service.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 class AdminController extends GetxController {
   static AdminController get to => Get.find<AdminController>();
@@ -94,7 +96,7 @@ class AdminController extends GetxController {
             'Access Denied',
             'Your account does not have administrator privileges.',
             backgroundColor: const Color(0xFFCF6679),
-            colorText: Colors.white,
+            colorText: AppColors.textPrimary,
             snackPosition: SnackPosition.BOTTOM,
           );
           await AuthService.to.signOut();
@@ -193,8 +195,8 @@ class AdminController extends GetxController {
         if (timeA == null && timeB == null) return 0;
         if (timeA == null) return 1;
         if (timeB == null) return -1;
-        final DateTime dtA = timeA is Timestamp ? timeA.toDate() : (DateTime.tryParse(timeA.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0));
-        final DateTime dtB = timeB is Timestamp ? timeB.toDate() : (DateTime.tryParse(timeB.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0));
+        final dtA = timeA is Timestamp ? timeA.toDate() : (DateTime.tryParse(timeA.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0));
+        final dtB = timeB is Timestamp ? timeB.toDate() : (DateTime.tryParse(timeB.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0));
         return dtB.compareTo(dtA);
       });
       
@@ -222,8 +224,8 @@ class AdminController extends GetxController {
         if (timeA == null && timeB == null) return 0;
         if (timeA == null) return 1;
         if (timeB == null) return -1;
-        final DateTime dtA = timeA is Timestamp ? timeA.toDate() : (DateTime.tryParse(timeA.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0));
-        final DateTime dtB = timeB is Timestamp ? timeB.toDate() : (DateTime.tryParse(timeB.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0));
+        final dtA = timeA is Timestamp ? timeA.toDate() : (DateTime.tryParse(timeA.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0));
+        final dtB = timeB is Timestamp ? timeB.toDate() : (DateTime.tryParse(timeB.toString()) ?? DateTime.fromMillisecondsSinceEpoch(0));
         return dtB.compareTo(dtA);
       });
 
@@ -257,12 +259,12 @@ class AdminController extends GetxController {
     try {
       await AuthService.to.signInWithGoogle();
     } catch (e) {
-      debugPrint("Admin Google Sign In failed: $e");
+      debugPrint('Admin Google Sign In failed: $e');
       Get.snackbar(
         'Authentication Error',
         'Google Sign In failed: ${e.toString().replaceAll("Exception: ", "")}',
         backgroundColor: const Color(0xFFCF6679),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         snackPosition: SnackPosition.BOTTOM,
       );
     } finally {
@@ -281,7 +283,7 @@ class AdminController extends GetxController {
       await AuthService.to.signOut();
       Get.offAllNamed('/admin/login');
     } catch (e) {
-      debugPrint("Admin Sign Out failed: $e");
+      debugPrint('Admin Sign Out failed: $e');
     } finally {
       isLoading.value = false;
     }
@@ -292,7 +294,7 @@ class AdminController extends GetxController {
     isActionSubmitting.value = true;
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception("Session expired. Please log in again.");
+      if (user == null) throw Exception('Session expired. Please log in again.');
 
       final idToken = await user.getIdToken();
       final response = await http.post(
@@ -310,14 +312,14 @@ class AdminController extends GetxController {
 
       if (response.statusCode != 200) {
         final errBody = jsonDecode(response.body);
-        throw Exception(errBody['error'] ?? "Failed to moderate video.");
+        throw Exception(errBody['error'] ?? 'Failed to moderate video.');
       }
 
       Get.snackbar(
         'Success',
         'Video successfully ${action}ed.',
         backgroundColor: const Color(0xFF2BA640),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         snackPosition: SnackPosition.BOTTOM,
       );
       selectedVideo.value = null;
@@ -325,9 +327,9 @@ class AdminController extends GetxController {
     } catch (e) {
       Get.snackbar(
         'Moderation Error',
-        e.toString().replaceAll("Exception: ", ""),
+        e.toString().replaceAll('Exception: ', ''),
         backgroundColor: const Color(0xFFCF6679),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         snackPosition: SnackPosition.BOTTOM,
       );
       return false;
@@ -341,7 +343,7 @@ class AdminController extends GetxController {
     isActionSubmitting.value = true;
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) throw Exception("Session expired. Please log in again.");
+      if (user == null) throw Exception('Session expired. Please log in again.');
 
       final idToken = await user.getIdToken();
       final response = await http.post(
@@ -359,14 +361,14 @@ class AdminController extends GetxController {
 
       if (response.statusCode != 200) {
         final errBody = jsonDecode(response.body);
-        throw Exception(errBody['error'] ?? "Failed to moderate image.");
+        throw Exception(errBody['error'] ?? 'Failed to moderate image.');
       }
 
       Get.snackbar(
         'Success',
         'Image successfully ${action}ed.',
         backgroundColor: const Color(0xFF2BA640),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         snackPosition: SnackPosition.BOTTOM,
       );
       selectedImage.value = null;
@@ -374,9 +376,9 @@ class AdminController extends GetxController {
     } catch (e) {
       Get.snackbar(
         'Moderation Error',
-        e.toString().replaceAll("Exception: ", ""),
+        e.toString().replaceAll('Exception: ', ''),
         backgroundColor: const Color(0xFFCF6679),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         snackPosition: SnackPosition.BOTTOM,
       );
       return false;
@@ -403,7 +405,7 @@ class AdminController extends GetxController {
         'Success',
         'Channel successfully ${action}ed.',
         backgroundColor: const Color(0xFF2BA640),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         snackPosition: SnackPosition.BOTTOM,
       );
       selectedChannel.value = null;
@@ -413,7 +415,7 @@ class AdminController extends GetxController {
         'Moderation Error',
         e.toString(),
         backgroundColor: const Color(0xFFCF6679),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         snackPosition: SnackPosition.BOTTOM,
       );
       return false;
@@ -452,7 +454,7 @@ class AdminController extends GetxController {
         'Success',
         'Report successfully resolved.',
         backgroundColor: const Color(0xFF2BA640),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         snackPosition: SnackPosition.BOTTOM,
       );
       selectedReport.value = null;
@@ -460,9 +462,9 @@ class AdminController extends GetxController {
     } catch (e) {
       Get.snackbar(
         'Moderation Error',
-        e.toString().replaceAll("Exception: ", ""),
+        e.toString().replaceAll('Exception: ', ''),
         backgroundColor: const Color(0xFFCF6679),
-        colorText: Colors.white,
+        colorText: AppColors.textPrimary,
         snackPosition: SnackPosition.BOTTOM,
       );
       return false;

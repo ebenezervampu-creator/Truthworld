@@ -1,7 +1,7 @@
 import 'package:get/get.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/core/services/logger_service.dart';
+import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 
 /// Thin service layer providing a clean public API for the miniplayer.
 ///
@@ -220,15 +220,15 @@ class MiniplayerService extends GetxService {
 
 /// Custom exception for miniplayer errors.
 class MiniplayerException implements Exception {
-  final String message;
-  final dynamic originalError;
-  final StackTrace? stackTrace;
 
   MiniplayerException(
     this.message, {
     this.originalError,
     this.stackTrace,
   });
+  final String message;
+  final dynamic originalError;
+  final StackTrace? stackTrace;
 
   @override
   String toString() => 'MiniplayerException: $message';

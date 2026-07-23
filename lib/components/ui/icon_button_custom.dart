@@ -15,18 +15,9 @@ enum IconButtonVariant { primary, secondary, danger, ghost }
 /// - Accessibility with semantic labels
 /// - Consistent hover/active states
 class IconButtonCustom extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback? onPressed;
-  final IconButtonSize size;
-  final IconButtonVariant variant;
-  final bool isLoading;
-  final String? tooltip;
-  final Color? color;
-  final double? iconSize;
 
   const IconButtonCustom({
-    super.key,
-    required this.icon,
+    required this.icon, super.key,
     this.onPressed,
     this.size = IconButtonSize.medium,
     this.variant = IconButtonVariant.primary,
@@ -35,6 +26,14 @@ class IconButtonCustom extends StatelessWidget {
     this.color,
     this.iconSize,
   });
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final IconButtonSize size;
+  final IconButtonVariant variant;
+  final bool isLoading;
+  final String? tooltip;
+  final Color? color;
+  final double? iconSize;
 
   double _getPadding() {
     switch (size) {
@@ -78,7 +77,7 @@ class IconButtonCustom extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final RxBool isPressed = false.obs;
+    final isPressed = false.obs;
 
     return Semantics(
       button: true,

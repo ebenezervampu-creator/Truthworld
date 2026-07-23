@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/video_rating_controller.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class VideoRatingPage extends GetView<VideoRatingController> {
@@ -34,24 +33,24 @@ class VideoRatingPage extends GetView<VideoRatingController> {
 
   Widget _buildVideoList() {
     if (controller.ratedVideos.isEmpty) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.rate_review_outlined, size: 64, color: AppColors.textSecondary),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
               'No rated videos found',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,
                 color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               'Videos with credibility analysis will appear here.',
-              style: GoogleFonts.roboto(
+              style: TextStyle(
                 fontSize: 14,
                 color: AppColors.textSecondary,
               ),
@@ -64,23 +63,23 @@ class VideoRatingPage extends GetView<VideoRatingController> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.all(24.0),
+        const Padding(
+          padding: EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Video Ratings & Credibility',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
                   color: AppColors.textPrimary,
                 ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               Text(
                 'AI-driven transparency reports and trust scores for your content.',
-                style: GoogleFonts.roboto(
+                style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textSecondary,
                 ),
@@ -117,7 +116,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
         onTap: () => controller.selectVideo(video),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(16),
           child: Row(
             children: [
               // Video Thumbnail
@@ -131,7 +130,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
                   errorBuilder: (context, error, stackTrace) => Container(
                     width: 120,
                     height: 68,
-                    color: Colors.grey[900],
+                    color: AppColors.textSecondary,
                     child: const Icon(Icons.video_library),
                   ),
                 ),
@@ -144,7 +143,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
                   children: [
                     Text(
                       video.title,
-                      style: GoogleFonts.roboto(
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                         color: AppColors.textPrimary,
@@ -155,7 +154,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
                     const SizedBox(height: 4),
                     Text(
                       DateFormat('MMM d, yyyy').format(video.createdAt.toDate()),
-                      style: GoogleFonts.roboto(
+                      style: const TextStyle(
                         fontSize: 12,
                         color: AppColors.textSecondary,
                       ),
@@ -171,7 +170,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
                         ),
                         child: Text(
                           video.trustLabel!,
-                          style: GoogleFonts.roboto(
+                          style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                             color: scoreColor,
@@ -194,7 +193,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
                     child: Center(
                       child: Text(
                         score.toInt().toString(),
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
                           color: scoreColor,
@@ -203,9 +202,9 @@ class VideoRatingPage extends GetView<VideoRatingController> {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
+                  const Text(
                     'Score',
-                    style: GoogleFonts.roboto(
+                    style: TextStyle(
                       fontSize: 10,
                       color: AppColors.textSecondary,
                     ),
@@ -213,7 +212,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
                 ],
               ),
               const SizedBox(width: 16),
-              Icon(Icons.arrow_forward_ios_rounded, size: 16, color: AppColors.textSecondary),
+              const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: AppColors.textSecondary),
             ],
           ),
         ),
@@ -229,7 +228,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
       children: [
         // Header
         Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(24),
           child: Row(
             children: [
               IconButton(
@@ -238,10 +237,10 @@ class VideoRatingPage extends GetView<VideoRatingController> {
                 color: AppColors.textPrimary,
               ),
               const SizedBox(width: 8),
-              Expanded(
+              const Expanded(
                 child: Text(
                   'Transparency Report',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
                     color: AppColors.textPrimary,
@@ -276,7 +275,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
                             child: CircularProgressIndicator(
                               value: score / 100,
                               strokeWidth: 8,
-                              backgroundColor: Colors.white10,
+                              backgroundColor: AppColors.bgDivider,
                               valueColor: AlwaysStoppedAnimation<Color>(scoreColor),
                             ),
                           ),
@@ -285,15 +284,15 @@ class VideoRatingPage extends GetView<VideoRatingController> {
                             children: [
                               Text(
                                 score.toInt().toString(),
-                                style: GoogleFonts.roboto(
+                                style: const TextStyle(
                                   fontSize: 32,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.textPrimary,
                                 ),
                               ),
-                              Text(
+                              const Text(
                                 '/100',
-                                style: GoogleFonts.roboto(
+                                style: TextStyle(
                                   fontSize: 12,
                                   color: AppColors.textSecondary,
                                 ),
@@ -309,7 +308,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
                           children: [
                             Text(
                               video.title,
-                              style: GoogleFonts.roboto(
+                              style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.textPrimary,
@@ -319,7 +318,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
                             if (video.trustLabel != null)
                               Text(
                                 video.trustLabel!,
-                                style: GoogleFonts.roboto(
+                                style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w500,
                                   color: scoreColor,
@@ -348,7 +347,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
                 if (video.deductions.isNotEmpty) ...[
                   _buildSectionTitle('Trust Deductions'),
                   const SizedBox(height: 12),
-                  ...video.deductions.map((d) => _buildDeductionItem(d)),
+                  ...video.deductions.map(_buildDeductionItem),
                   const SizedBox(height: 24),
                 ],
 
@@ -370,7 +369,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
   Widget _buildSectionTitle(String title) {
     return Text(
       title,
-      style: GoogleFonts.roboto(
+      style: const TextStyle(
         fontSize: 16,
         fontWeight: FontWeight.bold,
         color: AppColors.textPrimary,
@@ -388,8 +387,8 @@ class VideoRatingPage extends GetView<VideoRatingController> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(label, style: GoogleFonts.roboto(fontSize: 13, color: AppColors.textSecondary)),
-              Text('${(value * 100).toInt()}%', style: GoogleFonts.roboto(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
+              Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+              Text('${(value * 100).toInt()}%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
             ],
           ),
           const SizedBox(height: 6),
@@ -398,7 +397,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
             child: LinearProgressIndicator(
               value: value,
               minHeight: 6,
-              backgroundColor: Colors.white10,
+              backgroundColor: AppColors.bgDivider,
               valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
           ),
@@ -412,23 +411,23 @@ class VideoRatingPage extends GetView<VideoRatingController> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.red.withValues(alpha: 0.05),
+        color: AppColors.error.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.red.withValues(alpha: 0.1)),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded, size: 16, color: Colors.red),
+          const Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.error),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               d.reason,
-              style: GoogleFonts.roboto(fontSize: 13, color: AppColors.textPrimary),
+              style: const TextStyle(fontSize: 13, color: AppColors.textPrimary),
             ),
           ),
           Text(
             '-${d.points.toInt()}',
-            style: GoogleFonts.roboto(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.error),
           ),
         ],
       ),
@@ -445,7 +444,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
       child: Column(
         children: [
           _buildHonestyStat('Honesty Score', honesty.score),
-          const Divider(height: 16, color: Colors.white10),
+          const Divider(height: 16, color: AppColors.bgDivider),
           _buildHonestyStat('Labeling Accuracy', honesty.score), // Using score as placeholder
         ],
       ),
@@ -456,7 +455,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: GoogleFonts.roboto(fontSize: 13, color: AppColors.textSecondary)),
+        Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
         Row(
           children: [
             ...List.generate(5, (index) {
@@ -464,7 +463,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
               return Icon(
                 value >= starValue ? Icons.star : Icons.star_border,
                 size: 16,
-                color: Colors.amber,
+                color: AppColors.warning,
               );
             }),
           ],

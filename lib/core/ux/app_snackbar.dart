@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:truthworld/core/ux/app_toast.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 /// Centralized Snackbar feedback service delegating to the unified AppToast.
 /// Enforces consistent styling, duration, action buttons, and responsive behaviors.
@@ -60,8 +61,8 @@ class AppSnackbar {
         (backgroundColor != null &&
             (backgroundColor.toARGB32() == 0xFFEF4444 ||
              backgroundColor.toARGB32() == 0xFFCF6679 ||
-             backgroundColor == Colors.red ||
-             backgroundColor == Colors.redAccent));
+             backgroundColor == AppColors.error ||
+             backgroundColor == AppColors.error));
 
     final isSuccess = titleLower.contains('success') ||
         titleLower.contains('complete') ||
@@ -73,8 +74,8 @@ class AppSnackbar {
         (backgroundColor != null &&
             (backgroundColor.toARGB32() == 0xFF2BA640 ||
              backgroundColor.toARGB32() == 0xFF10B981 ||
-             backgroundColor == Colors.green ||
-             backgroundColor == Colors.greenAccent));
+             backgroundColor == AppColors.success ||
+             backgroundColor == AppColors.success));
 
     final isWarning = titleLower.contains('warning') ||
         titleLower.contains('alert') ||
@@ -85,8 +86,8 @@ class AppSnackbar {
         (backgroundColor != null &&
             (backgroundColor.toARGB32() == 0xFFF59E0B ||
              backgroundColor.toARGB32() == 0xFFF9BF05 ||
-             backgroundColor == Colors.amber ||
-             backgroundColor == Colors.orange));
+             backgroundColor == AppColors.warning ||
+             backgroundColor == AppColors.warning));
 
     if (isError) {
       AppToast.error(message, title: title);

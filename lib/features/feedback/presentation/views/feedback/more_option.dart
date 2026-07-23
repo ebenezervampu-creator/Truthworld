@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/theme/app_theme.dart';
 
 void showMoreOptionsBottomSheet(
   BuildContext context,
@@ -17,11 +18,11 @@ void showMoreOptionsBottomSheet(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            margin: EdgeInsets.symmetric(vertical: 10),
+            margin: const EdgeInsets.symmetric(vertical: 10),
             width: 40,
             height: 5,
             decoration: BoxDecoration(
-              color: Colors.grey,
+              color: AppColors.textSecondary,
               borderRadius: BorderRadius.circular(10),
             ),
           ),
@@ -38,7 +39,7 @@ void showMoreOptionsBottomSheet(
             title: const Text('Not interested'),
             onTap: () {
               Navigator.pop(context);
-              Get.snackbar('Preference Updated', 'We\'ll show less like this.');
+              Get.snackbar('Preference Updated', "We'll show less like this.");
             },
           ),
           ListTile(
@@ -51,7 +52,7 @@ void showMoreOptionsBottomSheet(
           ),
           const Divider(),
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [

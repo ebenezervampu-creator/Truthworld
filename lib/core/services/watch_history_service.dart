@@ -34,10 +34,10 @@ class WatchHistoryService extends GetxService {
           .collection('watch_history')
           .snapshots()
           .listen((snapshot) {
-        final Map<String, double> newProgress = {};
-        final Map<String, int> newPositions = {};
+        final newProgress = <String, double>{};
+        final newPositions = <String, int>{};
         
-        for (var doc in snapshot.docs) {
+        for (final doc in snapshot.docs) {
           final data = doc.data();
           final videoId = doc.id;
           final percentage = (data['watchPercentage'] as num?)?.toDouble() ?? 0.0;
