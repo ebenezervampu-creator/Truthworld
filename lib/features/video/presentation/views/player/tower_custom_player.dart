@@ -316,6 +316,9 @@ class TowerCustomPlayer extends StatelessWidget {
 
                       // ── Layer 6: Main controls ─────────────────────────────
                       Obx(() {
+                        c.isShowingAd.value;
+                        c.isPiP.value;
+                        c.controlsVisible.value;
                         if (c.isShowingAd.value || c.isPiP.value) return const SizedBox.shrink();
                         return Positioned.fill(
                           child: AnimatedOpacity(
@@ -333,6 +336,12 @@ class TowerCustomPlayer extends StatelessWidget {
                       }),
                       // ── Layer 6.5: Popups ──────────────────────────────────
                       Obx(() {
+                        c.isShowingAd.value;
+                        c.isPiP.value;
+                        c.controlsVisible.value;
+                        c.isFullScreen.value;
+                        c.showCommentsPopup.value;
+                        c.showTranscriptPopup.value;
                         if (c.isShowingAd.value || c.isPiP.value) return const SizedBox.shrink();
                         return Positioned.fill(
                           child: AnimatedOpacity(
@@ -350,6 +359,7 @@ class TowerCustomPlayer extends StatelessWidget {
                                       right: 20,
                                       width: 350,
                                       child: Obx(() {
+                                        c.showCommentsPopup.value;
                                         if (!c.showCommentsPopup.value) {
                                           return const SizedBox.shrink();
                                         }
@@ -364,6 +374,7 @@ class TowerCustomPlayer extends StatelessWidget {
                                       right: 20,
                                       width: 350,
                                       child: Obx(() {
+                                        c.showTranscriptPopup.value;
                                         if (!c.showTranscriptPopup.value) {
                                           return const SizedBox.shrink();
                                         }
@@ -411,6 +422,9 @@ class TowerCustomPlayer extends StatelessWidget {
 
                       // ── Layer 7: Settings panel + dismiss scrim ─────────────
                       Obx(() {
+                        c.isShowingAd.value;
+                        c.isPiP.value;
+                        c.settingsOpen.value;
                         if (c.isShowingAd.value || c.isPiP.value) return const SizedBox.shrink();
                         return c.settingsOpen.value
                             ? Positioned.fill(
@@ -457,6 +471,8 @@ class TowerCustomPlayer extends StatelessWidget {
 
                       // ── Layer 8.5: Ad Overlay ──────────────────────────────
                       Obx(() {
+                        c.isShowingAd.value;
+                        c.isPiP.value;
                         if (c.isShowingAd.value && !c.isPiP.value) {
                           return Positioned.fill(
                             child: AdOverlay(ctrl: c),
@@ -467,6 +483,8 @@ class TowerCustomPlayer extends StatelessWidget {
 
                       // ── Layer 8.6: End Screen Overlay ───────────────────────
                       Obx(() {
+                        c.showEndScreen.value;
+                        c.isPiP.value;
                         if (c.showEndScreen.value && !c.isPiP.value) {
                           return Positioned.fill(
                             child: EndScreenOverlay(ctrl: c),
@@ -477,6 +495,8 @@ class TowerCustomPlayer extends StatelessWidget {
 
                       // ── Layer 9: Stats for Nerds ───────────────────────────
                       Obx(() {
+                        c.showStatsForNerds.value;
+                        c.isPiP.value;
                         if (!c.showStatsForNerds.value || c.isPiP.value) return const SizedBox.shrink();
                         return Positioned(
                           top: 16,

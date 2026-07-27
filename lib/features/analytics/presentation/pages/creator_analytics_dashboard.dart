@@ -1,21 +1,12 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/features/analytics/data/models/watch_event_model.dart';
 import 'package:truthworld/features/analytics/data/services/video_analytics_service.dart';
 import 'package:truthworld/features/analytics/presentation/controllers/creator_analytics_controller.dart';
-import 'package:truthworld/theme/app_theme.dart';
+import 'package:truthworld/theme/app_colors.dart';
 
-/// Premium Creator Analytics Dashboard — YouTube-grade analytics UI.
-///
-/// Features:
-/// - Date range filter pills (7d / 28d / 90d / 1y / All time)
-/// - Summary metric cards (Views, Watchtime, CTR, Engagement, Live viewers)
-/// - Watchtime retention distribution (pie chart)
-/// - Traffic source breakdown (pie chart)
-/// - Geographic breakdown (state pie + city bar + rural/urban donut)
-/// - Device & quality breakdown
-/// - Subscriber conversion & returning viewers
+/// Premium Industry-Standard Creator Analytics Dashboard.
+/// Built with 100% AppColors, AppTheme typography & GetX state management.
 class CreatorAnalyticsDashboard extends StatelessWidget {
   const CreatorAnalyticsDashboard({super.key});
 
@@ -41,21 +32,21 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
     });
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0F),
+      backgroundColor: AppColors.bgPage,
       appBar: AppBar(
         title: Text(
           videoId.isNotEmpty ? 'Video Analytics' : 'Channel Analytics',
           style: const TextStyle(
             color: AppColors.textPrimary,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.bold,
             fontSize: 20,
           ),
         ),
-        backgroundColor: const Color(0xFF0A0A0F),
+        backgroundColor: AppColors.bgPage,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-          onPressed: Get.back,
+          icon: const Icon(Icons.arrow_back_rounded, color: AppColors.textPrimary),
+          onPressed: () => Get.back<void>(),
         ),
         actions: [
           Obx(() {
@@ -63,13 +54,11 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
             if (count > 0) {
               return Container(
                 margin: const EdgeInsets.only(right: 12),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.2),
+                  color: AppColors.brand.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(20),
-                  border:
-                      Border.all(color: AppColors.error.withValues(alpha: 0.5)),
+                  border: Border.all(color: AppColors.brand.withValues(alpha: 0.4)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -77,11 +66,11 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
                     _PulsingDot(),
                     const SizedBox(width: 6),
                     Text(
-                      '$count watching',
+                      '$count watching live',
                       style: const TextStyle(
-                        color: AppColors.error,
+                        color: AppColors.brand,
                         fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
@@ -91,7 +80,7 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
             return const SizedBox.shrink();
           }),
           IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.textSecondary),
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.textSecondary),
             onPressed: controller.refreshAnalytics,
           ),
         ],
@@ -102,49 +91,57 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
 
         if (isLoading) {
           return const Center(
-            child: CircularProgressIndicator(color: Color(0xFFDC2626)),
+            child: CircularProgressIndicator(color: AppColors.brand),
           );
         }
 
         return RefreshIndicator(
-          color: const Color(0xFFDC2626),
+          color: AppColors.brand,
           onRefresh: controller.refreshAnalytics,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 36),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header info
-                if (videoId.isNotEmpty) ...[
-                  Text(
-                    videoTitle,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                // Header video / channel title badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgSurface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.bgDivider),
                   ),
-                  const SizedBox(height: 12),
-                ] else ...[
-                  Text(
-                    channelName,
-                    style: const TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        videoId.isNotEmpty ? Icons.play_circle_fill_rounded : Icons.sensors_rounded,
+                        color: AppColors.brand,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          videoId.isNotEmpty ? videoTitle : channelName,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                ],
+                ),
+                const SizedBox(height: 14),
 
-                // Date range filter pills
+                // Date range filter pills (100% AppColors styling)
                 _DateRangeFilterPills(controller: controller),
                 const SizedBox(height: 20),
 
-                // Error message
+                // Error message banner
                 Obx(() {
                   final videoId = controller.selectedVideoId.value;
                   final error = videoId.isNotEmpty
@@ -157,21 +154,18 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
                     margin: const EdgeInsets.only(bottom: 16),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: AppColors.warning.withValues(alpha: 0.1),
+                      color: AppColors.warningContainer,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                          color: AppColors.warning.withValues(alpha: 0.3)),
+                      border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.info_outline,
-                            color: AppColors.warning, size: 18),
+                        const Icon(Icons.info_outline_rounded, color: AppColors.warning, size: 18),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             error,
-                            style: const TextStyle(
-                                color: AppColors.warning, fontSize: 13),
+                            style: const TextStyle(color: AppColors.warning, fontSize: 13),
                           ),
                         ),
                       ],
@@ -179,11 +173,11 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
                   );
                 }),
 
-                // Summary Cards Grid
+                // Summary Cards Grid (Standardized with 100% AppColors & AppTheme)
                 _SummaryCardsGrid(controller: controller),
                 const SizedBox(height: 24),
 
-                // Watchtime Retention Distribution
+                // Audience Retention
                 if (controller.watchtimeChartData.isNotEmpty) ...[
                   const _SectionHeader(title: 'Audience Retention'),
                   const SizedBox(height: 12),
@@ -218,7 +212,7 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
 
                 // Urban vs Rural
                 if (controller.areaTypeChartData.isNotEmpty) ...[
-                  const _SectionHeader(title: 'Urban vs Rural'),
+                  const _SectionHeader(title: 'Urban vs Rural Viewers'),
                   const SizedBox(height: 12),
                   _AreaTypeCard(controller: controller),
                   const SizedBox(height: 24),
@@ -232,7 +226,7 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
                   const SizedBox(height: 24),
                 ],
 
-                const SizedBox(height: 40),
+                const SizedBox(height: 32),
               ],
             ),
           ),
@@ -247,7 +241,6 @@ class CreatorAnalyticsDashboard extends StatelessWidget {
 // =============================================================================
 
 class _DateRangeFilterPills extends StatelessWidget {
-
   const _DateRangeFilterPills({required this.controller});
   final CreatorAnalyticsController controller;
 
@@ -260,8 +253,7 @@ class _DateRangeFilterPills extends StatelessWidget {
           children: AnalyticsDateRange.values
               .where((r) => r != AnalyticsDateRange.custom)
               .map((range) {
-            final isSelected =
-                controller.selectedDateRange.value == range;
+            final isSelected = controller.selectedDateRange.value == range;
             return Padding(
               padding: const EdgeInsets.only(right: 8),
               child: InkWell(
@@ -269,26 +261,29 @@ class _DateRangeFilterPills extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: isSelected
-                        ? const Color(0xFFDC2626)
-                        : AppColors.textPrimary.withValues(alpha: 0.05),
+                    color: isSelected ? AppColors.brand : AppColors.bgSurface,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: isSelected
-                          ? const Color(0xFFDC2626)
-                          : AppColors.textPrimary.withValues(alpha: 0.12),
+                      color: isSelected ? AppColors.brand : AppColors.bgDivider,
                     ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: AppColors.brand.withValues(alpha: 0.3),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            )
+                          ]
+                        : null,
                   ),
                   child: Text(
                     range.label,
                     style: TextStyle(
                       color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
-                      fontSize: 13,
-                      fontWeight:
-                          isSelected ? FontWeight.w500 : FontWeight.w400,
+                      fontSize: 12,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                     ),
                   ),
                 ),
@@ -302,11 +297,10 @@ class _DateRangeFilterPills extends StatelessWidget {
 }
 
 // =============================================================================
-// SUMMARY CARDS GRID
+// SUMMARY CARDS GRID (100% AppColors System)
 // =============================================================================
 
 class _SummaryCardsGrid extends StatelessWidget {
-
   const _SummaryCardsGrid({required this.controller});
   final CreatorAnalyticsController controller;
 
@@ -317,56 +311,47 @@ class _SummaryCardsGrid extends StatelessWidget {
       final ca = controller.channelAnalytics.value;
 
       final views = va?.totalViews ?? ca?.totalVideoWatches ?? 0;
-      final uniqueViewers =
-          va?.totalUniqueViewers ?? ca?.totalUniqueViewers ?? 0;
+      final uniqueViewers = va?.totalUniqueViewers ?? ca?.totalUniqueViewers ?? 0;
 
       return Wrap(
         spacing: 12,
         runSpacing: 12,
         children: [
           _MetricCard(
-            icon: Icons.visibility,
+            icon: Icons.visibility_rounded,
             title: 'Total Views',
             value: _formatNumber(views),
             subtitle: '$uniqueViewers unique viewers',
-            accentColor: const Color(0xFF3B82F6),
           ),
           _MetricCard(
-            icon: Icons.schedule,
+            icon: Icons.schedule_rounded,
             title: 'Watch Time',
             value: controller.totalWatchTime.value,
             subtitle: 'Avg ${controller.averageWatchTime.value}',
-            accentColor: const Color(0xFF22C55E),
           ),
           _MetricCard(
-            icon: Icons.trending_up,
+            icon: Icons.trending_up_rounded,
             title: 'Engagement',
             value: '${controller.engagementScore.value.toStringAsFixed(1)}%',
-            subtitle:
-                '${controller.completionRate.value.toStringAsFixed(1)}% completion',
-            accentColor: const Color(0xFF8B5CF6),
+            subtitle: '${controller.completionRate.value.toStringAsFixed(1)}% completion',
           ),
           _MetricCard(
-            icon: Icons.touch_app,
+            icon: Icons.touch_app_rounded,
             title: 'CTR',
             value: '${controller.ctrValue.value.toStringAsFixed(1)}%',
             subtitle: 'Clicks ÷ Impressions',
-            accentColor: const Color(0xFFF97316),
           ),
           _MetricCard(
-            icon: Icons.people,
+            icon: Icons.people_alt_rounded,
             title: 'Returning',
             value: '${controller.returningViewerCount.value}',
-            subtitle: ReturningViewerDefinition.tooltip,
-            accentColor: const Color(0xFF06B6D4),
+            subtitle: 'Repeat viewers',
           ),
           _MetricCard(
-            icon: Icons.person_add,
+            icon: Icons.person_add_alt_1_rounded,
             title: 'Sub Conv.',
-            value:
-                '${controller.subscriberConversionRate.value.toStringAsFixed(2)}%',
+            value: '${controller.subscriberConversionRate.value.toStringAsFixed(2)}%',
             subtitle: 'Views → Subscribers',
-            accentColor: const Color(0xFFEC4899),
           ),
         ],
       );
@@ -375,69 +360,78 @@ class _SummaryCardsGrid extends StatelessWidget {
 }
 
 class _MetricCard extends StatelessWidget {
-
   const _MetricCard({
     required this.icon,
     required this.title,
     required this.value,
     required this.subtitle,
-    required this.accentColor,
   });
   final IconData icon;
   final String title;
   final String value;
   final String subtitle;
-  final Color accentColor;
 
   @override
   Widget build(BuildContext context) {
     final width = (MediaQuery.of(context).size.width - 44) / 2;
     return Container(
       width: width.clamp(140, 220),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            accentColor.withValues(alpha: 0.12),
-            accentColor.withValues(alpha: 0.04),
-          ],
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accentColor.withValues(alpha: 0.2)),
+        color: AppColors.bgSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.bgDivider),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: accentColor, size: 16),
-              const SizedBox(width: 6),
-              Text(
-                title,
-                style: TextStyle(
-                  color: AppColors.textPrimary.withValues(alpha: 0.7),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.brand.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: AppColors.brand, size: 14),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Text(
             value,
             style: const TextStyle(
               color: AppColors.textPrimary,
               fontSize: 22,
-              fontWeight: FontWeight.w700,
+              fontWeight: FontWeight.bold,
+              letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             subtitle,
-            style: TextStyle(
-              color: AppColors.textPrimary.withValues(alpha: 0.5),
+            style: const TextStyle(
+              color: AppColors.textTertiary,
               fontSize: 11,
             ),
             maxLines: 1,
@@ -454,7 +448,6 @@ class _MetricCard extends StatelessWidget {
 // =============================================================================
 
 class _WatchtimeRetentionCard extends StatelessWidget {
-
   const _WatchtimeRetentionCard({required this.controller});
   final CreatorAnalyticsController controller;
 
@@ -464,13 +457,12 @@ class _WatchtimeRetentionCard extends StatelessWidget {
       child: Column(
         children: [
           SizedBox(
-            height: 220,
+            height: 200,
             child: Obx(() {
               final data = controller.watchtimeChartData;
               if (data.isEmpty) {
                 return const Center(
-                  child: Text('No data',
-                      style: TextStyle(color: AppColors.textTertiary)),
+                  child: Text('No retention data', style: TextStyle(color: AppColors.textTertiary)),
                 );
               }
 
@@ -480,18 +472,17 @@ class _WatchtimeRetentionCard extends StatelessWidget {
                     return PieChartSectionData(
                       value: d.value,
                       color: Color(d.color),
-                      title:
-                          '${d.percentage.toStringAsFixed(0)}%',
+                      title: '${d.percentage.toStringAsFixed(0)}%',
                       titleStyle: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 11,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.bold,
                       ),
-                      radius: 80,
+                      radius: 75,
                       titlePositionPercentageOffset: 0.55,
                     );
                   }).toList(),
-                  centerSpaceRadius: 35,
+                  centerSpaceRadius: 32,
                   sectionsSpace: 2,
                 ),
               );
@@ -505,9 +496,10 @@ class _WatchtimeRetentionCard extends StatelessWidget {
               runSpacing: 8,
               children: controller.watchtimeChartData.map((d) {
                 return _LegendItem(
-                    color: Color(d.color),
-                    label: d.title,
-                    value: '${d.value.toInt()} (${d.percentage.toStringAsFixed(1)}%)');
+                  color: Color(d.color),
+                  label: d.title,
+                  value: '${d.value.toInt()} (${d.percentage.toStringAsFixed(1)}%)',
+                );
               }).toList(),
             );
           }),
@@ -522,7 +514,6 @@ class _WatchtimeRetentionCard extends StatelessWidget {
 // =============================================================================
 
 class _TrafficSourceCard extends StatelessWidget {
-
   const _TrafficSourceCard({required this.controller});
   final CreatorAnalyticsController controller;
 
@@ -532,13 +523,12 @@ class _TrafficSourceCard extends StatelessWidget {
       child: Column(
         children: [
           SizedBox(
-            height: 200,
+            height: 190,
             child: Obx(() {
               final data = controller.trafficSourceChartData;
               if (data.isEmpty) {
                 return const Center(
-                  child: Text('No data',
-                      style: TextStyle(color: AppColors.textTertiary)),
+                  child: Text('No traffic data', style: TextStyle(color: AppColors.textTertiary)),
                 );
               }
 
@@ -548,18 +538,16 @@ class _TrafficSourceCard extends StatelessWidget {
                     return PieChartSectionData(
                       value: d.value,
                       color: Color(d.color),
-                      title: d.percentage >= 5
-                          ? '${d.percentage.toStringAsFixed(0)}%'
-                          : '',
+                      title: d.percentage >= 5 ? '${d.percentage.toStringAsFixed(0)}%' : '',
                       titleStyle: const TextStyle(
                         color: AppColors.textPrimary,
                         fontSize: 10,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.bold,
                       ),
-                      radius: 75,
+                      radius: 70,
                     );
                   }).toList(),
-                  centerSpaceRadius: 30,
+                  centerSpaceRadius: 28,
                   sectionsSpace: 2,
                 ),
               );
@@ -573,29 +561,25 @@ class _TrafficSourceCard extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Row(
                     children: [
-                      Icon(_getTrafficSourceIcon(s.sourceKey),
-                          color: AppColors.textSecondary, size: 16),
+                      Icon(_getTrafficSourceIcon(s.sourceKey), color: AppColors.brand, size: 16),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           s.source,
-                          style: const TextStyle(
-                              color: AppColors.textSecondary, fontSize: 13),
+                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
                         ),
                       ),
                       Text(
                         '${s.count}',
                         style: const TextStyle(
-                            color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+                            color: AppColors.textPrimary, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(width: 8),
                       SizedBox(
                         width: 50,
                         child: Text(
                           '${s.percentage.toStringAsFixed(1)}%',
-                          style: TextStyle(
-                              color: AppColors.textPrimary.withValues(alpha: 0.5),
-                              fontSize: 12),
+                          style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
                           textAlign: TextAlign.right,
                         ),
                       ),
@@ -613,21 +597,21 @@ class _TrafficSourceCard extends StatelessWidget {
   IconData _getTrafficSourceIcon(String key) {
     switch (key) {
       case 'search':
-        return Icons.search;
+        return Icons.search_rounded;
       case 'suggested':
-        return Icons.recommend;
+        return Icons.auto_awesome_rounded;
       case 'direct':
-        return Icons.link;
+        return Icons.link_rounded;
       case 'external':
-        return Icons.open_in_new;
+        return Icons.open_in_new_rounded;
       case 'channel_page':
-        return Icons.person;
+        return Icons.person_rounded;
       case 'shorts_feed':
-        return Icons.video_library;
+        return Icons.video_library_rounded;
       case 'trending':
-        return Icons.trending_up;
+        return Icons.trending_up_rounded;
       default:
-        return Icons.public;
+        return Icons.public_rounded;
     }
   }
 }
@@ -637,7 +621,6 @@ class _TrafficSourceCard extends StatelessWidget {
 // =============================================================================
 
 class _GeographicBreakdownCard extends StatelessWidget {
-
   const _GeographicBreakdownCard({required this.controller});
   final CreatorAnalyticsController controller;
 
@@ -650,7 +633,7 @@ class _GeographicBreakdownCard extends StatelessWidget {
           // State pie chart
           if (controller.stateTrafficChartData.isNotEmpty) ...[
             SizedBox(
-              height: 200,
+              height: 190,
               child: Obx(() {
                 final data = controller.stateTrafficChartData;
                 return PieChart(
@@ -659,18 +642,16 @@ class _GeographicBreakdownCard extends StatelessWidget {
                       return PieChartSectionData(
                         value: d.value,
                         color: Color(d.color),
-                        title: d.percentage >= 8
-                            ? '${d.percentage.toStringAsFixed(0)}%'
-                            : '',
+                        title: d.percentage >= 8 ? '${d.percentage.toStringAsFixed(0)}%' : '',
                         titleStyle: const TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 10,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.bold,
                         ),
-                        radius: 70,
+                        radius: 65,
                       );
                     }).toList(),
-                    centerSpaceRadius: 28,
+                    centerSpaceRadius: 26,
                     sectionsSpace: 2,
                   ),
                 );
@@ -679,16 +660,15 @@ class _GeographicBreakdownCard extends StatelessWidget {
             const SizedBox(height: 16),
           ],
 
-          // Top states list
           const Text(
-            'Top States',
+            'Top Region Performance',
             style: TextStyle(
               color: AppColors.textPrimary,
               fontSize: 14,
-              fontWeight: FontWeight.w500,
+              fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Obx(() {
             return Column(
               children: controller.topStates.map((s) {
@@ -699,15 +679,14 @@ class _GeographicBreakdownCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           s.stateName,
-                          style: const TextStyle(
-                              color: AppColors.textSecondary, fontSize: 13),
+                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
                         ),
                       ),
                       Text(
                         '${s.viewCount}',
                         style: const TextStyle(
                           color: AppColors.textPrimary,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -717,10 +696,8 @@ class _GeographicBreakdownCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(3),
                           child: LinearProgressIndicator(
                             value: s.percentage / 100,
-                            backgroundColor:
-                                AppColors.textPrimary.withValues(alpha: 0.1),
-                            valueColor:
-                                const AlwaysStoppedAnimation(Color(0xFF3B82F6)),
+                            backgroundColor: AppColors.bgInput,
+                            valueColor: const AlwaysStoppedAnimation(AppColors.brand),
                             minHeight: 6,
                           ),
                         ),
@@ -730,8 +707,8 @@ class _GeographicBreakdownCard extends StatelessWidget {
                         width: 40,
                         child: Text(
                           '${s.percentage.toStringAsFixed(1)}%',
-                          style: TextStyle(
-                            color: AppColors.textPrimary.withValues(alpha: 0.5),
+                          style: const TextStyle(
+                            color: AppColors.textTertiary,
                             fontSize: 11,
                           ),
                           textAlign: TextAlign.right,
@@ -754,7 +731,6 @@ class _GeographicBreakdownCard extends StatelessWidget {
 // =============================================================================
 
 class _TopCitiesCard extends StatelessWidget {
-
   const _TopCitiesCard({required this.controller});
   final CreatorAnalyticsController controller;
 
@@ -764,25 +740,20 @@ class _TopCitiesCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // City bar chart
           SizedBox(
-            height: 220,
+            height: 200,
             child: Obx(() {
               final data = controller.cityTrafficChartData;
               if (data.isEmpty) {
                 return const Center(
-                  child: Text('No city data',
-                      style: TextStyle(color: AppColors.textTertiary)),
+                  child: Text('No city data', style: TextStyle(color: AppColors.textTertiary)),
                 );
               }
 
               return BarChart(
                 BarChartData(
                   alignment: BarChartAlignment.spaceAround,
-                  maxY: data
-                          .map((d) => d.value)
-                          .reduce((a, b) => a > b ? a : b) *
-                      1.2,
+                  maxY: data.map((d) => d.value).reduce((a, b) => a > b ? a : b) * 1.2,
                   barGroups: data.asMap().entries.map((entry) {
                     return BarChartGroupData(
                       x: entry.key,
@@ -790,7 +761,7 @@ class _TopCitiesCard extends StatelessWidget {
                         BarChartRodData(
                           toY: entry.value.value,
                           color: Color(entry.value.color),
-                          width: 16,
+                          width: 14,
                           borderRadius: const BorderRadius.only(
                             topLeft: Radius.circular(4),
                             topRight: Radius.circular(4),
@@ -800,12 +771,9 @@ class _TopCitiesCard extends StatelessWidget {
                     );
                   }).toList(),
                   titlesData: FlTitlesData(
-                    leftTitles: const AxisTitles(
-                        ),
-                    rightTitles: const AxisTitles(
-                        ),
-                    topTitles: const AxisTitles(
-                        ),
+                    leftTitles: const AxisTitles(),
+                    rightTitles: const AxisTitles(),
+                    topTitles: const AxisTitles(),
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
@@ -816,19 +784,17 @@ class _TopCitiesCard extends StatelessWidget {
                           }
                           final label = data[idx].label;
                           return Padding(
-                            padding: const EdgeInsets.only(top: 8),
+                            padding: const EdgeInsets.only(top: 6),
                             child: Text(
-                              label.length > 6
-                                  ? '${label.substring(0, 5)}..'
-                                  : label,
-                              style: TextStyle(
-                                color: AppColors.textPrimary.withValues(alpha: 0.6),
+                              label.length > 6 ? '${label.substring(0, 5)}..' : label,
+                              style: const TextStyle(
+                                color: AppColors.textTertiary,
                                 fontSize: 9,
                               ),
                             ),
                           );
                         },
-                        reservedSize: 30,
+                        reservedSize: 26,
                       ),
                     ),
                   ),
@@ -839,8 +805,6 @@ class _TopCitiesCard extends StatelessWidget {
             }),
           ),
           const SizedBox(height: 12),
-
-          // City details list
           Obx(() {
             return Column(
               children: controller.topCities.take(5).map((c) {
@@ -848,28 +812,26 @@ class _TopCitiesCard extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Row(
                     children: [
-                      const Icon(Icons.location_city,
-                          color: AppColors.textTertiary, size: 14),
+                      const Icon(Icons.location_city_rounded, color: AppColors.brand, size: 14),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           c.cityName,
-                          style: const TextStyle(
-                              color: AppColors.textSecondary, fontSize: 13),
+                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
                         ),
                       ),
                       Text(
                         '${c.viewCount}',
                         style: const TextStyle(
                             color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.bold,
                             fontSize: 13),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         '${c.percentage.toStringAsFixed(1)}%',
-                        style: TextStyle(
-                          color: AppColors.textPrimary.withValues(alpha: 0.5),
+                        style: const TextStyle(
+                          color: AppColors.textTertiary,
                           fontSize: 12,
                         ),
                       ),
@@ -890,7 +852,6 @@ class _TopCitiesCard extends StatelessWidget {
 // =============================================================================
 
 class _AreaTypeCard extends StatelessWidget {
-
   const _AreaTypeCard({required this.controller});
   final CreatorAnalyticsController controller;
 
@@ -899,10 +860,9 @@ class _AreaTypeCard extends StatelessWidget {
     return _GlassCard(
       child: Row(
         children: [
-          // Donut chart
           SizedBox(
-            width: 140,
-            height: 140,
+            width: 120,
+            height: 120,
             child: Obx(() {
               final data = controller.areaTypeChartData;
               if (data.isEmpty) {
@@ -918,32 +878,31 @@ class _AreaTypeCard extends StatelessWidget {
                       value: d.value,
                       color: Color(d.color),
                       title: '',
-                      radius: 30,
+                      radius: 28,
                     );
                   }).toList(),
-                  centerSpaceRadius: 35,
+                  centerSpaceRadius: 30,
                   sectionsSpace: 3,
                 ),
               );
             }),
           ),
-          const SizedBox(width: 24),
-          // Stats
+          const SizedBox(width: 20),
           Expanded(
             child: Obx(() {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _AreaStatRow(
-                    label: 'Urban',
+                    label: 'Urban Viewers',
                     percentage: controller.urbanPercentage.value,
-                    color: const Color(0xFF3B82F6),
+                    color: AppColors.brand,
                   ),
                   const SizedBox(height: 12),
                   _AreaStatRow(
-                    label: 'Rural',
+                    label: 'Rural Viewers',
                     percentage: controller.ruralPercentage.value,
-                    color: const Color(0xFF22C55E),
+                    color: AppColors.success,
                   ),
                 ],
               );
@@ -956,7 +915,6 @@ class _AreaTypeCard extends StatelessWidget {
 }
 
 class _AreaStatRow extends StatelessWidget {
-
   const _AreaStatRow({
     required this.label,
     required this.percentage,
@@ -974,8 +932,8 @@ class _AreaStatRow extends StatelessWidget {
         Row(
           children: [
             Container(
-              width: 10,
-              height: 10,
+              width: 8,
+              height: 8,
               decoration: BoxDecoration(
                 color: color,
                 shape: BoxShape.circle,
@@ -984,16 +942,15 @@ class _AreaStatRow extends StatelessWidget {
             const SizedBox(width: 8),
             Text(
               label,
-              style:
-                  const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
             ),
             const Spacer(),
             Text(
               '${percentage.toStringAsFixed(1)}%',
               style: const TextStyle(
                 color: AppColors.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ],
@@ -1003,9 +960,9 @@ class _AreaStatRow extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
             value: percentage / 100,
-            backgroundColor: AppColors.textPrimary.withValues(alpha: 0.1),
+            backgroundColor: AppColors.bgInput,
             valueColor: AlwaysStoppedAnimation(color),
-            minHeight: 6,
+            minHeight: 5,
           ),
         ),
       ],
@@ -1018,7 +975,6 @@ class _AreaStatRow extends StatelessWidget {
 // =============================================================================
 
 class _DeviceBreakdownCard extends StatelessWidget {
-
   const _DeviceBreakdownCard({required this.controller});
   final CreatorAnalyticsController controller;
 
@@ -1034,7 +990,7 @@ class _DeviceBreakdownCard extends StatelessWidget {
                 children: [
                   Icon(
                     _deviceIcon(d.deviceType),
-                    color: AppColors.textSecondary,
+                    color: AppColors.brand,
                     size: 18,
                   ),
                   const SizedBox(width: 10),
@@ -1045,17 +1001,15 @@ class _DeviceBreakdownCard extends StatelessWidget {
                         Text(
                           d.deviceType.capitalize ?? d.deviceType,
                           style: const TextStyle(
-                              color: AppColors.textPrimary, fontSize: 13),
+                              color: AppColors.textPrimary, fontSize: 13, fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 4),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(3),
                           child: LinearProgressIndicator(
                             value: d.percentage / 100,
-                            backgroundColor:
-                                AppColors.textPrimary.withValues(alpha: 0.1),
-                            valueColor:
-                                AlwaysStoppedAnimation(_deviceColor(d.deviceType)),
+                            backgroundColor: AppColors.bgInput,
+                            valueColor: const AlwaysStoppedAnimation(AppColors.brand),
                             minHeight: 5,
                           ),
                         ),
@@ -1067,7 +1021,7 @@ class _DeviceBreakdownCard extends StatelessWidget {
                     '${d.percentage.toStringAsFixed(1)}%',
                     style: const TextStyle(
                       color: AppColors.textPrimary,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
@@ -1082,26 +1036,13 @@ class _DeviceBreakdownCard extends StatelessWidget {
   IconData _deviceIcon(String type) {
     switch (type.toLowerCase()) {
       case 'mobile':
-        return Icons.phone_android;
+        return Icons.phone_android_rounded;
       case 'desktop':
-        return Icons.desktop_windows;
+        return Icons.desktop_windows_rounded;
       case 'tablet':
-        return Icons.tablet;
+        return Icons.tablet_android_rounded;
       default:
-        return Icons.devices;
-    }
-  }
-
-  Color _deviceColor(String type) {
-    switch (type.toLowerCase()) {
-      case 'mobile':
-        return const Color(0xFF3B82F6);
-      case 'desktop':
-        return const Color(0xFF22C55E);
-      case 'tablet':
-        return const Color(0xFF8B5CF6);
-      default:
-        return const Color(0xFFF97316);
+        return Icons.devices_rounded;
     }
   }
 }
@@ -1111,26 +1052,37 @@ class _DeviceBreakdownCard extends StatelessWidget {
 // =============================================================================
 
 class _SectionHeader extends StatelessWidget {
-
   const _SectionHeader({required this.title});
   final String title;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: const TextStyle(
-        color: AppColors.textPrimary,
-        fontSize: 18,
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.3,
-      ),
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 18,
+          decoration: BoxDecoration(
+            color: AppColors.brand,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            letterSpacing: -0.3,
+          ),
+        ),
+      ],
     );
   }
 }
 
 class _GlassCard extends StatelessWidget {
-
   const _GlassCard({required this.child});
   final Widget child;
 
@@ -1138,11 +1090,18 @@ class _GlassCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.textPrimary.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.textPrimary.withValues(alpha: 0.08)),
+        color: AppColors.bgSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.bgDivider),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: child,
     );
@@ -1150,7 +1109,6 @@ class _GlassCard extends StatelessWidget {
 }
 
 class _LegendItem extends StatelessWidget {
-
   const _LegendItem({
     required this.color,
     required this.label,
@@ -1166,18 +1124,18 @@ class _LegendItem extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 10,
-          height: 10,
+          width: 8,
+          height: 8,
           decoration: BoxDecoration(
             color: color,
-            borderRadius: BorderRadius.circular(2),
+            shape: BoxShape.circle,
           ),
         ),
         const SizedBox(width: 6),
         Text(
           '$label: $value',
-          style: TextStyle(
-            color: AppColors.textPrimary.withValues(alpha: 0.7),
+          style: const TextStyle(
+            color: AppColors.textSecondary,
             fontSize: 11,
           ),
         ),
@@ -1222,7 +1180,7 @@ class _PulsingDotState extends State<_PulsingDot>
         width: 8,
         height: 8,
         decoration: const BoxDecoration(
-          color: AppColors.error,
+          color: AppColors.brand,
           shape: BoxShape.circle,
         ),
       ),
@@ -1230,17 +1188,8 @@ class _PulsingDotState extends State<_PulsingDot>
   }
 }
 
-// =============================================================================
-// HELPER
-// =============================================================================
-
 String _formatNumber(int number) {
   if (number >= 1000000) return '${(number / 1000000).toStringAsFixed(1)}M';
   if (number >= 1000) return '${(number / 1000).toStringAsFixed(1)}K';
   return number.toString();
 }
-
-
-
-
-

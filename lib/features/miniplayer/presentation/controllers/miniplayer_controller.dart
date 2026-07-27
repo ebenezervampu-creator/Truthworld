@@ -573,7 +573,12 @@ class MiniplayerController extends GetxController
       final vpc = _vpc;
       if (vpc == null || _isClosed) return;
 
-      final val = vpc.value;
+      final VideoPlayerValue val;
+      try {
+        val = vpc.value;
+      } catch (_) {
+        return;
+      }
       isPlaying.value = val.isPlaying;
       currentPosition.value = val.position;
       isBuffering.value = val.isBuffering;

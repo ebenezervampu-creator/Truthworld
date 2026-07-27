@@ -67,6 +67,17 @@ class TowerPlayerController extends GetxController {
   final FocusNode focusNode = FocusNode();
   final String? tag;
 
+  VideoController? get videoController {
+    final t = tag;
+    if (t != null && Get.isRegistered<VideoController>(tag: t)) {
+      return Get.find<VideoController>(tag: t);
+    } else if (Get.isRegistered<VideoController>()) {
+      return Get.find<VideoController>();
+    }
+    return null;
+  }
+  final RxBool isPlaying = false.obs;
+
   // ── Reactive video state ───────────────────────────────────
   late Rx<VideoPlayerValue> _rxValue;
   VideoPlayerValue get vv => _rxValue.value;
@@ -307,6 +318,7 @@ class TowerPlayerController extends GetxController {
     try {
       final val = videoPlayerController.value;
       _rxValue.value = val;
+      isPlaying.value = val.isPlaying;
       isBuffering.value = val.isBuffering;
       playbackSpeed.value = val.playbackSpeed;
       if (isLooping.value != val.isLooping) isLooping.value = val.isLooping;
@@ -1472,10 +1484,13 @@ class _StateOverlay extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Obx(
-            () => Text(
-              'Poor network · ${ctrl.abr.currentTier.label}',
-              style: const TextStyle(color: AppColors.warning, fontSize: 13),
-            ),
+            () {
+              ctrl.isAudioOnly.value;
+              return Text(
+                'Poor network · ${ctrl.abr.currentTier.label}',
+                style: const TextStyle(color: AppColors.warning, fontSize: 13),
+              );
+            },
           ),
         ],
       ),
@@ -1822,7 +1837,7 @@ class _MainControls extends StatelessWidget {
           ),
           const SizedBox(width: 40),
           _CenterBtn(
-            icon: ctrl.vv.isPlaying
+            icon: ctrl.isPlaying.value
                 ? Icons.pause_rounded
                 : Icons.play_arrow_rounded,
             onTap: ctrl.togglePlayPause,
@@ -1887,7 +1902,7 @@ class _MainControls extends StatelessWidget {
               // Play/Pause
               Obx(
                 () => _IconBtn(
-                  icon: ctrl.vv.isPlaying
+                  icon: ctrl.isPlaying.value
                       ? Icons.pause_rounded
                       : Icons.play_arrow_rounded,
                   onTap: ctrl.togglePlayPause,

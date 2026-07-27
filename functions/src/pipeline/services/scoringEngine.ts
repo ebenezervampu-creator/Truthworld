@@ -1,5 +1,6 @@
-import { FactCheckResult, VerifiedClaim, TranscriptData, TrustVertical, TrustDeduction, VerificationState, UIReport, SynthesisResult, SynthesisOutput, TraceabilityMap } from "../types";
-import { getTrustLabelFromScore } from "./categoryWeights";
+import { FactCheckResult, VerifiedClaim, TranscriptData, TrustVertical, VerificationState, UIReport, SynthesisResult, SynthesisOutput, TraceabilityMap } from "../types";
+// v12.0: getTrustLabelFromScore no longer used — scoring removed
+// import { getTrustLabelFromScore } from "./categoryWeights";
 
 /**
  * 🏛 SCORING ENGINE (v11.0 — Path 1 Epistemic Framework)
@@ -133,81 +134,9 @@ export class ScoringEngine {
       }
     });
 
-    // 3. Calculate Base Truth Index (0-10) — PATH 1 HYBRID MODEL
-    // Formula: (ArithmeticWeightedAverage * 10) - (FalseClaimCount * 2.5)
-    // Ensures fairness while penalizing blatant misinformation.
-    let truthIndex: number | null = null;
-
-    if (stats.total_verifiable > 0) {
-      // v11.7: Domain-Aware Evidence Sensitivity Weighting
-      const intent = synthesisData.contentIntent?.primaryIntent;
-      const isLowStakes = ["educational", "entertainment", "testimonial"].includes(intent);
-      
-      const weights = {
-        verified_true: 1.0,
-        mostly_true: 0.8,
-        disputed: 0.4,
-        unproven: isLowStakes ? 0.7 : 0.3, // Soften penalty for low-stakes trivia
-        inconclusive: isLowStakes ? 0.8 : 0.4,
-        limited_support: isLowStakes ? 0.9 : 0.5,
-        misleading: 0.1,
-        false_claim: 0.0
-      };
-
-      const weightedSum = 
-        (stats.verified_true * weights.verified_true) +
-        (stats.mostly_true * weights.mostly_true) +
-        (stats.disputed * weights.disputed) +
-        (stats.unproven * weights.unproven) +
-        (stats.inconclusive * weights.inconclusive) +
-        (stats.limited_support * weights.limited_support) +
-        (stats.misleading * weights.misleading) +
-        (stats.false_claim * weights.false_claim);
-      
-      const baseScore = (weightedSum / stats.total_verifiable) * 10;
-      
-      // Apply False Claim Penalty (v11.1)
-      const FALSE_CLAIM_PENALTY = 2.5;
-      const totalPenalty = stats.false_claim * FALSE_CLAIM_PENALTY;
-      
-      truthIndex = baseScore - totalPenalty;
-      
-      // 4. Apply Honesty Bonus / Penalty
-      let honestyModifier = 0;
-      if (stats.framing_violations > 0) {
-        honestyModifier = -2.0 * stats.framing_violations;
-      } else if (stats.total_subjective > 0) {
-        honestyModifier = 0.5; // Bonus for correctly labeling beliefs
-      }
-      
-      if (truthIndex !== null) {
-        truthIndex = Math.max(0, Math.min(10.0, truthIndex + honestyModifier));
-      }
-    }
-
-    // 5. Calculate Rationality Score (0-100)
-    // Based on logical consistency and presence of disputed/misleading signals
-    let rationalityScore = 95;
-    const fallacyCount = fallacies.size;
-    let fallacyPenalty = 0;
-    fallacies.forEach(f => {
-      if (f === "cherry_picking") {
-        fallacyPenalty += 15;
-      } else {
-        fallacyPenalty += 10;
-      }
-    });
-    if (stats.disputed > 0 || stats.misleading > 0 || stats.framing_violations > 0 || fallacyCount > 0) {
-      let score = 100;
-      if (stats.disputed > 0) score -= 15;
-      if (stats.misleading > 0) score -= 20;
-      if (stats.framing_violations > 0) score -= 25;
-      score -= fallacyPenalty;
-      rationalityScore = Math.max(0, score);
-    }
-
-    // 6. Final Display & Labeling
-    // 7. Verification State
+    // 3. Remove Scoring (Deprecating Truth Index)
+    
+    // Calculate Verification State
     let finalState: VerificationState = VerificationState.VERIFIED;
     const timeoutRatio = stats.total_verifiable > 0 ? stats.verification_timeout / (stats.total_verifiable + stats.verification_timeout) : (stats.verification_timeout > 0 ? 1 : 0);
 
@@ -216,124 +145,28 @@ export class ScoringEngine {
     } else if (timeoutRatio > 0.8) {
       finalState = VerificationState.FORCE_TIMEOUT;
     } else if (timeoutRatio > 0.5) {
-      // v14.0: Only mark ANALYSIS_INCOMPLETE when timeouts are dominant (>50%).
-      // Previously ANY timeout (even 1 of 10) forced this state, causing
-      // 91/100 videos to be labeled "Inconclusive (Timeout)".
       finalState = VerificationState.ANALYSIS_INCOMPLETE;
     } else if (stats.unproven > stats.total_verifiable * 0.5) {
       finalState = VerificationState.INSUFFICIENT_EVIDENCE;
     }
-    // If timeoutRatio <= 0.5, state stays VERIFIED — the score-based label takes effect.
 
-    const displayScore = truthIndex; 
-    let trustLabel = "";
-    
-    if (displayScore === null) {
-      if (stats.verification_timeout > 0 && stats.total_verifiable === 0) {
-        trustLabel = "Verification Incomplete (Timeout)";
-      } else if (stats.total_subjective > 0 && stats.total_verifiable === 0) {
-        trustLabel = stats.framing_violations > 0 ? "Misleading Framing" : (fallacyCount > 0 ? "Manipulative Opinion" : "Opinion/Belief Content");
-      } else {
-        trustLabel = "Unable to Verify (Inconclusive)";
-      }
-    } else {
-      if (finalState === VerificationState.FORCE_TIMEOUT) {
-        trustLabel = "Inconclusive (Timeout)";
-      } else if (finalState === VerificationState.ANALYSIS_INCOMPLETE) {
-        // v14.0: Partial timeout — use score-based label but note incompleteness
-        const baseLabel = getTrustLabelFromScore(displayScore, false, videoCategory as any);
-        trustLabel = `${baseLabel} (Partial)`;
-      } else {
-        trustLabel = getTrustLabelFromScore(displayScore, false, videoCategory as any);
-      }
-    }
-
-    // 8. Confidence Calibration (v11.7: Confidence Collapse)
     const evaluatedCount = stats.total_verifiable;
-    const unprovenTotal = stats.unproven + stats.inconclusive + stats.limited_support;
-    const unprovenRatio = evaluatedCount > 0 ? unprovenTotal / evaluatedCount : 0;
-    
-    let confidence = 0.85 * Math.exp(-1.2 * timeoutRatio) * Math.exp(-0.8 * unprovenRatio);
-    
-    if (allVerifiedClaims.length === 0 && stats.verification_timeout === 0) confidence = 0.1;
-    else if (allVerifiedClaims.length === 0 && stats.verification_timeout > 0) confidence = 0.15;
-    
-    const confidenceTier = confidence > 0.7 ? 'high' : (confidence > 0.4 ? 'medium' : 'low');
-
-    // 9. Deductions
-    const deductions: TrustDeduction[] = [];
-    if (stats.framing_violations > 0) {
-      deductions.push({
-        factor: 'honesty',
-        points: 2.0 * stats.framing_violations,
-        reason: `${stats.framing_violations} framing violation(s) detected (Opinion/Belief presented as Fact).`
-      });
-    }
-    if (fallacyCount > 0) {
-      deductions.push({
-        factor: 'consistency',
-        points: fallacyPenalty,
-        reason: `${fallacyCount} unique logical fallacy/manipulation(s) detected: ${Array.from(fallacies).join(', ')}.`
-      });
-    }
-
-    // calculate proportional consensus
-    const consensusRatio = stats.total_verifiable > 0 ? stats.disputed / stats.total_verifiable : 0;
-    const proportionalConsensus = Math.round(95 - (consensusRatio * 55));
-
-    // calculate blended 5-tier expertise score
-    let blendedExpertise = 70;
-    if (allVerifiedClaims.length > 0) {
-      const tierScores: Record<string, number> = { "A": 100, "B": 85, "C": 70, "D": 40, "E": 25 };
-      let sumOfClaimExpertiseScores = 0;
-      let claimsWithSourcesCount = 0;
-      allVerifiedClaims.forEach(c => {
-        let highestClaimScore = 0;
-        let hasSource = false;
-        if (c.richSources && c.richSources.length > 0) {
-          hasSource = true;
-          c.richSources.forEach(s => {
-            const score = tierScores[s.tier] || 0;
-            if (score > highestClaimScore) {
-              highestClaimScore = score;
-            }
-          });
-        }
-        sumOfClaimExpertiseScores += highestClaimScore;
-        if (hasSource) {
-          claimsWithSourcesCount++;
-        }
-      });
-      const averageSourceExpertise = sumOfClaimExpertiseScores / allVerifiedClaims.length;
-      const coverageRatio = claimsWithSourcesCount / allVerifiedClaims.length;
-      blendedExpertise = Math.round((averageSourceExpertise * 0.75) + (coverageRatio * 100 * 0.25));
-    }
 
     const result: FactCheckResult = {
       videoId,
       userId,
       transcript,
       analysisState: finalState,
-      scoreAvailable: true,
-      trustScore: truthIndex !== null ? Math.round(truthIndex * 10) : null,
-      videoRating: displayScore ?? undefined,
-      trustLabel: trustLabel as any,
-      confidence,
-      confidenceTier,
+      scoreAvailable: false,
+      trustScore: null,
+      videoRating: undefined,
+      trustLabel: 'Not Scored' as any,
+      confidence: 0,
+      confidenceTier: 'low',
       scoringVersion: ScoringEngine.SCORING_VERSION,
       
-      factors: {
-        accuracy: truthIndex !== null ? truthIndex * 10 : null,
-        evidence: stats.unproven > 0 ? 60 : 90,
-        consensus: proportionalConsensus,
-        consistency: rationalityScore,
-        integrity: stats.framing_violations === 0 ? 100 : 40,
-        expertise: blendedExpertise,
-        freshness: 90,
-        safety: truthIndex !== null ? (truthIndex > 5 ? 100 : 50) : 100,
-        honesty: stats.framing_violations === 0 ? 100 : 20,
-      },
-      deductions,
+      factors: null,
+      deductions: [],
       
       factCheckStats: {
         totalClaims: extractedCount,
@@ -367,10 +200,10 @@ export class ScoringEngine {
       language: "en",
       riskDomain: domain,
       domainRiskMultiplier: 1.0,
-      truthScore: truthIndex !== null ? Math.round(truthIndex * 10) : null,
-      honestyScore: stats.framing_violations === 0 ? 100 : 20,
-      rationalityScore,
-      compositeRating: displayScore,
+      truthScore: null,
+      honestyScore: null,
+      rationalityScore: null,
+      compositeRating: undefined,
       verificationState: finalState,
       chapters: [],
       speakers: [],
@@ -419,10 +252,10 @@ export class ScoringEngine {
 
     return {
       summary: {
-        rating: data.compositeRating,
-        truthScore: data.truthScore,
-        honestyScore: data.honestyScore,
-        rationalityScore: data.rationalityScore,
+        rating: null,
+        truthScore: null,
+        honestyScore: null,
+        rationalityScore: null,
         label: data.trustLabel,
         confidence: data.confidenceTier,
         confidenceInterpretation: data.confidenceInterpretation || "Standard analysis.",
@@ -436,14 +269,7 @@ export class ScoringEngine {
         }
       },
       // v14.0: Dynamic verdict icon based on trust label
-      quickVerdict: (() => {
-        const label = data.trustLabel;
-        if (label.includes('Highly Reliable') || label.includes('Reliable')) return `✅ ${label}`;
-        if (label.includes('Mixed') || label.includes('Partial') || label.includes('Inconclusive') || label.includes('Evolving')) return `⚠️ ${label}`;
-        if (label.includes('Unable to Verify') || label.includes('Structural')) return `❓ ${label}`;
-        if (label.includes('Low') || label.includes('Misleading') || label.includes('Capped')) return `❌ ${label}`;
-        return `⚠️ ${label}`;
-      })(),
+      quickVerdict: "Credibility Analysis Complete",
       narrative: this.generateSummary(data as any), // Narrative field uses the textual summary
       riskNote: stats?.framing_violations > 0 ? "High risk of framing manipulation detected." : "Low structural risk.",
       positiveDrivers: [],
@@ -481,6 +307,17 @@ export class ScoringEngine {
             trustLevel: rs.tier === 'A' || rs.tier === 'B' ? 'High' : (rs.tier === 'C' ? 'Medium' : 'Low'),
             type: rs.type === 'primary' ? 'Primary' : 'Secondary',
             snippet: rs.snippet || "",
+            sourceType: rs.sourceType || 'website',
+            author: rs.author,
+            bookTitle: rs.bookTitle,
+            chapter: rs.chapter,
+            pageNumbers: rs.pageNumbers,
+            volume: rs.volume,
+            journalName: rs.journalName,
+            yearPublished: rs.yearPublished,
+            isbn: rs.isbn,
+            doi: rs.doi,
+            directUrl: rs.directUrl || rs.url,
             retrievalProvider: rs.retrievalProvider || (rs.retrievalMethod === 'google_grounding' ? 'Google Grounding' : 'Direct'),
             citationCount: 1
           })),
@@ -499,10 +336,7 @@ export class ScoringEngine {
   }
 
   generateSummary(result: FactCheckResult): string {
-    const score = result.videoRating;
-    const label = result.trustLabel;
-    
-    let summary = `This video has a Truth Index of ${score?.toFixed(1) || 'N/A'}/10.0, classified as "${label}".\n\n`;
+    let summary = 'This video has been analyzed by the credibility system.\n\n';
     
     const stats = result.factCheckStats;
     if (stats) {
@@ -518,13 +352,6 @@ export class ScoringEngine {
       }
     }
     
-    if (result.deductions && result.deductions.length > 0) {
-      summary += `\nIntegrity Warnings:\n`;
-      result.deductions.forEach(d => {
-        summary += `• ${d.reason}\n`;
-      });
-    }
-
     return summary;
   }
 

@@ -1,37 +1,33 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/core/services/auth_service.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:truthworld/components/ui/playlist_card.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
-import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
-const kPrimaryDark = Color(0xFFA50E2D); // Darker crimson
-const kSecondaryDark = Color(0xFF7B0A21); // Even darker crimson
+const kPrimaryDark = AppColors.brand;
+const kSecondaryDark = AppColors.brandVariant;
 const kBorderRadius = 16.0;
 const kSmallPadding = 8.0;
 const kMediumPadding = 16.0;
 const kLargePadding = 24.0;
-const kDarkBackground = AppColors.bgInput;
-const kDarkSurface = Color(0xFF1A1A1A);
-const kDarksurfaceContainerHighest = Color(0xFF242424);
+const kDarkBackground = AppColors.bgPage;
+const kDarkSurface = AppColors.bgSurface;
+const kDarksurfaceContainerHighest = AppColors.bgSurfaceHover;
 
 // ==========================================================================
 // REGENERATED MODERN PLAYLIST SCREEN UI
 // ==========================================================================
 
 class PlaylistScreen extends StatefulWidget {
-  final String? videoId;
-  final String? videoThumbnail;
-  final String? videoTitle;
-
-  final bool isDashboard;
   const PlaylistScreen({
     super.key,
     this.videoId,
@@ -39,6 +35,11 @@ class PlaylistScreen extends StatefulWidget {
     this.videoTitle,
     this.isDashboard = false,
   });
+  final String? videoId;
+  final String? videoThumbnail;
+  final String? videoTitle;
+
+  final bool isDashboard;
 
   @override
   State<PlaylistScreen> createState() => _PlaylistScreenState();
@@ -49,12 +50,11 @@ class _PlaylistScreenState extends State<PlaylistScreen>
   final TextEditingController playListNameController = TextEditingController();
   final PlaylistController _playlistController = Get.put(PlaylistController());
   final TextEditingController _searchController = TextEditingController();
+  final RxString _selectedPlaylistType = 'private'.obs;
 
   late TabController _tabController;
   late AnimationController _animationController;
   late AnimationController _fabAnimationController;
-  late Animation<double> _fadeAnimation;
-  late Animation<double> _fabScaleAnimation;
 
 
   @override
@@ -71,20 +71,6 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     _fabAnimationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
-    );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
-      ),
-    );
-
-    _fabScaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _fabAnimationController,
-        curve: Curves.elasticOut,
-      ),
     );
 
     // Start animations
@@ -119,28 +105,27 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
 
-    // Persist selected videos locally
-    Set<String> initialSelected = widget.videoId != null
-        ? {widget.videoId!}
-        : {};
-    final Set<String> selectedVideoIds = {...initialSelected};
+    // Initialize selected videos in controller
+    _playlistController.selectedVideoIds.clear();
+    if (widget.videoId != null) {
+      _playlistController.selectedVideoIds.add(widget.videoId!);
+    }
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       useSafeArea: true,
-      enableDrag: true,
       showDragHandle: false,
       builder: (context) {
         return Obx(() {
-          bool isPublic = _tabController.index == 1;
+          final isPublic = _tabController.index == 1;
 
           return AnimatedContainer(
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeOutCubic,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [kDarkBackground, Color(0xFF000000)],
@@ -152,7 +137,6 @@ class _PlaylistScreenState extends State<PlaylistScreen>
               border: Border(
                 top: BorderSide(
                   color: Colors.white.withValues(alpha: 0.08),
-                  width: 1,
                 ),
               ),
               boxShadow: [
@@ -160,7 +144,6 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                   color: Colors.black.withValues(alpha: 0.6),
                   blurRadius: 32,
                   offset: const Offset(0, -8),
-                  spreadRadius: 0,
                 ),
               ],
             ),
@@ -196,7 +179,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                     Row(
                       children: [
                         Container(
-                          padding: EdgeInsets.all(12),
+                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
                               colors: [
@@ -207,10 +190,9 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                               color: kPrimaryDark.withValues(alpha: 0.3),
-                              width: 1,
                             ),
                           ),
-                          child: Icon(
+                          child: const Icon(
                             Icons.playlist_add_rounded,
                             color: kPrimaryDark,
                             size: 24,
@@ -222,7 +204,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                "Create Playlist",
+                                'Create Playlist',
                                 style: GoogleFonts.roboto(
                                   fontSize: isTablet ? 26 : 22,
                                   fontWeight: FontWeight.w700,
@@ -232,7 +214,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                "Organize your videos into collections",
+                                'Organize your videos into collections',
                                 style: GoogleFonts.roboto(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w400,
@@ -267,12 +249,12 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                           fontSize: 16,
                         ),
                         decoration: InputDecoration(
-                          labelText: "Playlist Name",
+                          labelText: 'Playlist Name',
                           labelStyle: GoogleFonts.roboto(
                             color: Colors.white.withValues(alpha: 0.7),
                             fontWeight: FontWeight.w400,
                           ),
-                          hintText: "Enter a descriptive name...",
+                          hintText: 'Enter a descriptive name...',
                           hintStyle: GoogleFonts.roboto(
                             color: Colors.white.withValues(alpha: 0.4),
                             fontWeight: FontWeight.w400,
@@ -297,14 +279,14 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(20),
-                            borderSide: BorderSide(
+                            borderSide: const BorderSide(
                               color: kPrimaryDark,
                               width: 2,
                             ),
                           ),
                           filled: true,
                           fillColor: kDarksurfaceContainerHighest,
-                          contentPadding: EdgeInsets.symmetric(
+                          contentPadding: const EdgeInsets.symmetric(
                             horizontal: 20,
                             vertical: 16,
                           ),
@@ -316,7 +298,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                     // Enhanced channel selector for public playlists
                     if (isPublic) ...[
                       Container(
-                        padding: EdgeInsets.symmetric(
+                        padding: const EdgeInsets.symmetric(
                           horizontal: 20,
                           vertical: 4,
                         ),
@@ -419,7 +401,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                         ),
                         const SizedBox(width: 16),
                         Text(
-                          "Select Videos",
+                          'Select Videos',
                           style: GoogleFonts.roboto(
                             fontSize: isTablet ? 20 : 18,
                             fontWeight: FontWeight.w700,
@@ -429,7 +411,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                         ),
                         const Spacer(),
                         Container(
-                          padding: EdgeInsets.symmetric(
+                          padding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 6,
                           ),
@@ -441,7 +423,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                             ),
                           ),
                           child: Text(
-                            "${_playlistController.selectedVideoIds.length} selected",
+                            '${_playlistController.selectedVideoIds.length} selected',
                             style: GoogleFonts.roboto(
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
@@ -472,7 +454,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Container(
-                                    padding: EdgeInsets.all(16),
+                                    padding: const EdgeInsets.all(16),
                                     decoration: BoxDecoration(
                                       color: kPrimaryDark.withValues(
                                         alpha: 0.1,
@@ -486,7 +468,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                   ),
                                   const SizedBox(height: 16),
                                   Text(
-                                    "Loading your videos...",
+                                    'Loading your videos...',
                                     style: GoogleFonts.roboto(
                                       color: Colors.white.withValues(
                                         alpha: 0.6,
@@ -506,7 +488,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   Container(
-                                    padding: EdgeInsets.all(24),
+                                    padding: const EdgeInsets.all(24),
                                     decoration: BoxDecoration(
                                       color: kDarkSurface,
                                       borderRadius: BorderRadius.circular(20),
@@ -527,7 +509,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                         ),
                                         const SizedBox(height: 16),
                                         Text(
-                                          "No videos yet",
+                                          'No videos yet',
                                           style: GoogleFonts.roboto(
                                             fontSize: 18,
                                             fontWeight: FontWeight.w500,
@@ -538,7 +520,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                         ),
                                         const SizedBox(height: 8),
                                         Text(
-                                          "Upload some videos first to add them to playlists",
+                                          'Upload some videos first to add them to playlists',
                                           textAlign: TextAlign.center,
                                           style: GoogleFonts.roboto(
                                             fontSize: 14,
@@ -556,7 +538,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                           }
 
                           final videos = snapshot.data!.docs
-                              .map((doc) => Video.fromDocumentSnapshot(doc))
+                              .map(Video.fromDocumentSnapshot)
                               .toList();
 
                           return ListView.separated(
@@ -567,7 +549,8 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                 const SizedBox(height: 12),
                             itemBuilder: (context, index) {
                               final video = videos[index];
-                              final isSelected = selectedVideoIds.contains(
+                              final isSelected =
+                                  _playlistController.selectedVideoIds.contains(
                                 video.id,
                               );
 
@@ -586,7 +569,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                       duration: const Duration(
                                         milliseconds: 200,
                                       ),
-                                      padding: EdgeInsets.all(12),
+                                      padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
                                         gradient: isSelected
                                             ? LinearGradient(
@@ -670,39 +653,57 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                                       ),
                                                 ),
                                               ),
-                                              if (isSelected)
-                                                Positioned(
-                                                  top: 8,
-                                                  right: 8,
-                                                  child: Container(
-                                                    padding: EdgeInsets.all(4),
-                                                    decoration: BoxDecoration(
-                                                      color: kPrimaryDark,
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                            12,
+                                              Positioned(
+                                                top: 8,
+                                                right: 8,
+                                                child: AnimatedContainer(
+                                                  duration: const Duration(
+                                                    milliseconds: 200,
+                                                  ),
+                                                  padding: const EdgeInsets.all(4),
+                                                  decoration: BoxDecoration(
+                                                    color: isSelected
+                                                        ? kPrimaryDark
+                                                        : Colors.black
+                                                            .withValues(
+                                                              alpha: 0.5,
+                                                            ),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                      12,
+                                                    ),
+                                                    border: isSelected
+                                                        ? null
+                                                        : Border.all(
+                                                            color: Colors.white
+                                                                .withValues(
+                                                              alpha: 0.6,
+                                                            ),
+                                                            width: 1.5,
                                                           ),
-                                                      boxShadow: [
-                                                        BoxShadow(
-                                                          color: Colors.black
-                                                              .withValues(
-                                                                alpha: 0.2,
-                                                              ),
-                                                          blurRadius: 4,
-                                                          offset: const Offset(
-                                                            0,
-                                                            1,
-                                                          ),
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: Colors.black
+                                                            .withValues(
+                                                          alpha: 0.2,
                                                         ),
-                                                      ],
-                                                    ),
-                                                    child: const Icon(
-                                                      Icons.check_rounded,
-                                                      color: Colors.white,
-                                                      size: 16,
-                                                    ),
+                                                        blurRadius: 4,
+                                                        offset: const Offset(
+                                                          0,
+                                                          1,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  child: Icon(
+                                                    isSelected
+                                                        ? Icons.check_rounded
+                                                        : Icons.add_rounded,
+                                                    color: Colors.white,
+                                                    size: 16,
                                                   ),
                                                 ),
+                                              ),
                                             ],
                                           ),
                                           const SizedBox(width: 16),
@@ -774,7 +775,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                                                     ),
                                                     const SizedBox(width: 4),
                                                     Text(
-                                                      "${video.views} views",
+                                                      '${video.views} views',
                                                       style: GoogleFonts.roboto(
                                                         fontSize: 12,
                                                         fontWeight:
@@ -872,7 +873,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                           size: 20,
                         ),
                         label: Text(
-                          "CREATE PLAYLIST",
+                          'CREATE PLAYLIST',
                           style: GoogleFonts.roboto(
                             fontWeight: FontWeight.w700,
                             fontSize: isTablet ? 17 : 16,
@@ -883,14 +884,13 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                         onPressed: () {
                           if (playListNameController.text.trim().isEmpty) {
                             Get.snackbar(
-                              "Missing Information",
-                              "Please enter a playlist name",
+                              'Missing Information',
+                              'Please enter a playlist name',
                               snackPosition: SnackPosition.TOP,
                               backgroundColor: const Color(0xFFEF4444),
                               colorText: Colors.white,
                               borderRadius: 12,
-                              margin: EdgeInsets.all(16),
-                              duration: const Duration(seconds: 3),
+                              margin: const EdgeInsets.all(16),
                               icon: const Icon(
                                 Icons.error_outline,
                                 color: Colors.white,
@@ -902,14 +902,13 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                               _playlistController.selectedChannel.value ==
                                   null) {
                             Get.snackbar(
-                              "Missing Information",
-                              "Please select a channel for public playlist",
+                              'Missing Information',
+                              'Please select a channel for public playlist',
                               snackPosition: SnackPosition.TOP,
                               backgroundColor: const Color(0xFFEF4444),
                               colorText: Colors.white,
                               borderRadius: 12,
-                              margin: EdgeInsets.all(16),
-                              duration: const Duration(seconds: 3),
+                              margin: const EdgeInsets.all(16),
                               icon: const Icon(
                                 Icons.error_outline,
                                 color: Colors.white,
@@ -921,7 +920,8 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                           _playlistController.createPlayList(
                             playListNameController.text.trim(),
                             isPublic: isPublic,
-                            videoIds: selectedVideoIds.toList(),
+                            videoIds:
+                                _playlistController.selectedVideoIds.toList(),
                           );
 
                           playListNameController.clear();
@@ -929,14 +929,13 @@ class _PlaylistScreenState extends State<PlaylistScreen>
 
                           // Success feedback
                           Get.snackbar(
-                            "Success",
-                            "Playlist created successfully!",
+                            'Success',
+                            'Playlist created successfully!',
                             snackPosition: SnackPosition.TOP,
                             backgroundColor: kPrimaryDark,
                             colorText: Colors.white,
                             borderRadius: 12,
-                            margin: EdgeInsets.all(16),
-                            duration: const Duration(seconds: 3),
+                            margin: const EdgeInsets.all(16),
                             icon: const Icon(
                               Icons.check_circle_outline,
                               color: Colors.white,
@@ -975,21 +974,138 @@ class _PlaylistScreenState extends State<PlaylistScreen>
     }
   }
 
+  Widget _buildTypeSelectionCards() {
+    return Obx(() {
+      final selected = _selectedPlaylistType.value;
+      return Container(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Choose Playlist Type',
+              style: GoogleFonts.roboto(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _buildSelectionCard(
+              type: 'private',
+              isSelected: selected == 'private',
+              icon: Icons.lock_outline_rounded,
+              title: 'Private Playlists',
+              subtitle: 'Personal saved playlists & private videos',
+              onTap: () => _selectedPlaylistType.value = 'private',
+            ),
+            const SizedBox(height: 12),
+            _buildSelectionCard(
+              type: 'public',
+              isSelected: selected == 'public',
+              icon: Icons.public_rounded,
+              title: 'Public Playlists',
+              subtitle: 'Public playlists hosted on your channel',
+              onTap: () => _selectedPlaylistType.value = 'public',
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildSelectionCard({
+    required String type,
+    required bool isSelected,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.bgSurface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? AppColors.brand : AppColors.searchBorder,
+            width: isSelected ? 2 : 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppColors.brand.withValues(alpha: 0.2),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : [],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? AppColors.brand.withValues(alpha: 0.2)
+                    : AppColors.bgSurfaceHover,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSelected ? AppColors.brand : Colors.transparent,
+                ),
+              ),
+              child: Icon(
+                icon,
+                color: isSelected ? AppColors.brand : AppColors.textSecondary,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: GoogleFonts.roboto(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: GoogleFonts.roboto(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: isSelected ? AppColors.brand : AppColors.textTertiary,
+              size: 22,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Obx(() {
       final isCreator = AuthService.to.hasChannel.value;
-      final expectedLength = isCreator ? 2 : 1;
       final refreshTick = _playlistController.refreshTick.value;
-
-      if (_tabController.length != expectedLength) {
-        _tabController.dispose();
-        _tabController = TabController(
-          length: expectedLength,
-          vsync: this,
-          initialIndex: 0,
-        );
-      }
 
       final colorScheme = Theme.of(context).colorScheme;
       final screenWidth = MediaQuery.of(context).size.width;
@@ -997,134 +1113,40 @@ class _PlaylistScreenState extends State<PlaylistScreen>
       final isTablet = screenWidth >= 600 && screenWidth < 1200;
       final isDesktop = screenWidth >= 1200;
 
+      final isPublic = isCreator && _selectedPlaylistType.value == 'public';
+
       return Scaffold(
         backgroundColor: kDarkBackground,
         body: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
-            // Modern Header matching MyVideos
+            // Modern Header matching MyVideos (AppBar kept 100% intact)
             SliverToBoxAdapter(
               child: _buildHeader(isMobile),
             ),
-            // Category Chips
-            SliverToBoxAdapter(
-              child: _buildCategoryChips(),
-            ),
-              // TabBar if needed
-              if (isCreator)
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _SliverAppBarDelegate(
-                    TabBar(
-                      controller: _tabController,
-                      indicatorColor: kPrimaryDark,
-                      labelColor: Colors.white,
-                      unselectedLabelColor: Colors.white.withValues(alpha: 0.5),
-                      labelStyle: GoogleFonts.roboto(fontWeight: FontWeight.bold),
-                      tabs: const [
-                        Tab(text: "Private"),
-                        Tab(text: "Public"),
-                      ],
-                    ),
-                ),
+            // Option cards for channel users (First image uploaded)
+            if (isCreator)
+              SliverToBoxAdapter(
+                child: _buildTypeSelectionCards(),
               ),
 
-            // Tab content
+            // Playlists Grid content (No tabs, no random category chips)
             SliverFillRemaining(
               child: RefreshIndicator(
                 key: ValueKey(refreshTick),
                 color: kPrimaryDark,
                 backgroundColor: colorScheme.surface,
                 onRefresh: _refreshPlaylists,
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildPlaylistsTab(
-                      isPublic: false,
-                      isMobile: isMobile,
-                      isTablet: isTablet,
-                      isDesktop: isDesktop,
-                    ),
-                    if (isCreator)
-                      _buildPlaylistsTab(
-                        isPublic: true,
-                        isMobile: isMobile,
-                        isTablet: isTablet,
-                        isDesktop: isDesktop,
-                      ),
-                  ],
+                child: _buildPlaylistsTab(
+                  isPublic: isPublic,
+                  isMobile: isMobile,
+                  isTablet: isTablet,
+                  isDesktop: isDesktop,
                 ),
               ),
             ),
           ],
         ),
-
-        // Mobile bottom bar
-        bottomNavigationBar: isMobile
-            ? FadeTransition(
-                opacity: _fadeAnimation,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: colorScheme.surface,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 10,
-                        offset: const Offset(0, -2),
-                      ),
-                    ],
-                  ),
-                  child: SafeArea(
-                    child: Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: _buildBottomButton(
-                              icon: _playlistController.isListView.value
-                                  ? Icons.grid_view_rounded
-                                  : Icons.view_list_rounded,
-                              label: "View",
-                              onTap: _toggleView,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildBottomButton(
-                              icon: Icons.sort_rounded,
-                              label: "Sort",
-                              onTap: () => _showSortBottomSheet(),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              )
-            : null,
-
-        // Floating Action Button
-        floatingActionButton: ScaleTransition(
-          scale: _fabScaleAnimation,
-          child: FloatingActionButton.extended(
-            onPressed: showCreatePlaylistModal,
-            backgroundColor: kPrimaryDark,
-            foregroundColor: Colors.white,
-            elevation: 8,
-            icon: const Icon(Icons.add_rounded),
-            label: Text(
-              isMobile ? "New" : "New Playlist",
-              style: GoogleFonts.roboto(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-        floatingActionButtonLocation: isMobile
-            ? FloatingActionButtonLocation.centerFloat
-            : FloatingActionButtonLocation.endFloat,
       );
     });
   }
@@ -1138,7 +1160,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
           color: kDarksurfaceContainerHighest,
           borderRadius: BorderRadius.circular(12),
@@ -1180,7 +1202,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                margin: EdgeInsets.only(top: 12),
+                margin: const EdgeInsets.only(top: 12),
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
@@ -1189,12 +1211,12 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                 ),
               ),
               Padding(
-                padding: EdgeInsets.all(20),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "Sort Playlists",
+                      'Sort Playlists',
                       style: GoogleFonts.roboto(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -1248,15 +1270,15 @@ class _PlaylistScreenState extends State<PlaylistScreen>
       },
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        margin: EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        margin: const EdgeInsets.only(bottom: 8),
         decoration: BoxDecoration(
           color: isSelected
               ? kPrimaryDark.withValues(alpha: 0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: isSelected
-              ? Border.all(color: kPrimaryDark, width: 1)
+              ? Border.all(color: kPrimaryDark)
               : null,
         ),
         child: Row(
@@ -1357,7 +1379,9 @@ class _PlaylistScreenState extends State<PlaylistScreen>
       }
 
       // Copy list to avoid mutating the controller's reactive list on sort
-      List<PlaylistModel> playlists = List<PlaylistModel>.from(sourcePlaylists);
+      var playlists = sourcePlaylists
+          .where((p) => p.thumbnailUrl.trim().isNotEmpty)
+          .toList();
 
       // Apply search filter
       if (_playlistController.searchQuery.value.isNotEmpty) {
@@ -1387,7 +1411,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
         : 3;
 
     return Padding(
-      padding: EdgeInsets.all(20),
+      padding: const EdgeInsets.all(20),
       child: _playlistController.isListView.value || isMobile
           ? ListView.builder(
               itemCount: 6,
@@ -1411,8 +1435,8 @@ class _PlaylistScreenState extends State<PlaylistScreen>
       baseColor: kDarksurfaceContainerHighest,
       highlightColor: kDarkSurface,
       child: Container(
-        margin: EdgeInsets.only(bottom: 16),
-        padding: EdgeInsets.all(16),
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: kDarkSurface,
           borderRadius: BorderRadius.circular(20),
@@ -1486,7 +1510,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
   Widget _buildEmptyStateWidget(BuildContext context, bool isPublic) {
     return Center(
       child: Padding(
-        padding: EdgeInsets.all(40),
+        padding: const EdgeInsets.all(40),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -1512,7 +1536,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
             ),
             const SizedBox(height: 24),
             Text(
-              isPublic ? "No public playlists" : "No playlists yet",
+              isPublic ? 'No public playlists' : 'No playlists yet',
               style: GoogleFonts.roboto(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -1522,8 +1546,8 @@ class _PlaylistScreenState extends State<PlaylistScreen>
             const SizedBox(height: 12),
             Text(
               isPublic
-                  ? "Discover playlists shared by other creators"
-                  : "Create your first playlist to organize your favorite videos",
+                  ? 'Discover playlists shared by other creators'
+                  : 'Create your first playlist to organize your favorite videos',
               textAlign: TextAlign.center,
               style: GoogleFonts.roboto(
                 fontSize: 16,
@@ -1542,7 +1566,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
   Widget _buildNoResultsWidget() {
     return Center(
       child: Padding(
-        padding: EdgeInsets.all(40),
+        padding: const EdgeInsets.all(40),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -1561,7 +1585,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
             ),
             const SizedBox(height: 24),
             Text(
-              "No playlists found",
+              'No playlists found',
               style: GoogleFonts.roboto(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -1570,7 +1594,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              "Try adjusting your search terms",
+              'Try adjusting your search terms',
               style: GoogleFonts.roboto(
                 fontSize: 14,
                 color: Colors.white.withValues(alpha: 0.6),
@@ -1595,20 +1619,96 @@ class _PlaylistScreenState extends State<PlaylistScreen>
         : 4;
 
     return GridView.builder(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio: 1.0, // Perfect fit for thumbnail + metadata
+        childAspectRatio: isMobile ? 0.82 : 0.92,
         crossAxisSpacing: 16,
-        mainAxisSpacing: 24,
+        mainAxisSpacing: 20,
       ),
       itemCount: playlists.length,
       itemBuilder: (context, index) {
-        return EnhancedPlaylistItem(
-          playlist: playlists[index],
-          videoId: widget.videoId,
-          index: index,
-          isGridView: true,
+        final playlist = playlists[index];
+        return PlaylistCard(
+          playlist: playlist,
+          onTap: () {
+            Get.toNamed('/playlist-detail', arguments: {'playlist': playlist});
+          },
+          onOptionsTap: () {
+            _showPlaylistOptionsFor(context, playlist);
+          },
+        );
+      },
+    );
+  }
+
+  void _showPlaylistOptionsFor(BuildContext context, PlaylistModel playlist) {
+    final playlistController = Get.find();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: kDarkSurface,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(24),
+              topRight: Radius.circular(24),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      playlist.playlistName,
+                      style: GoogleFonts.roboto(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    _buildOptionItem(
+                      icon: Icons.share_rounded,
+                      title: 'Share Playlist',
+                      onTap: () {
+                        Navigator.pop(context);
+                        playlistController.sharePlaylist(playlist.id);
+                      },
+                    ),
+                    _buildOptionItem(
+                      icon: Icons.delete_outline_rounded,
+                      title: 'Delete Playlist',
+                      isDestructive: true,
+                      onTap: () {
+                        Navigator.pop(context);
+                        playlistController.deletePlaylist(
+                          playlist.id,
+                          playlist.isPublic,
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -1622,28 +1722,24 @@ class _PlaylistScreenState extends State<PlaylistScreen>
               ? a.sortIndex.compareTo(b.sortIndex)
               : b.sortIndex.compareTo(a.sortIndex),
         );
-        break;
       case 'name':
         playlists.sort(
           (a, b) => _playlistController.isAscending.value
               ? a.playlistName.compareTo(b.playlistName)
               : b.playlistName.compareTo(a.playlistName),
         );
-        break;
       case 'videos':
         playlists.sort(
           (a, b) => _playlistController.isAscending.value
               ? a.videoIds.length.compareTo(b.videoIds.length)
               : b.videoIds.length.compareTo(a.videoIds.length),
         );
-        break;
       case 'created':
         playlists.sort(
           (a, b) => _playlistController.isAscending.value
               ? a.createdAt.compareTo(b.createdAt)
               : b.createdAt.compareTo(a.createdAt),
         );
-        break;
       case 'recent':
       default:
         playlists.sort(
@@ -1651,7 +1747,6 @@ class _PlaylistScreenState extends State<PlaylistScreen>
               ? a.createdAt.compareTo(b.createdAt)
               : b.createdAt.compareTo(a.createdAt),
         );
-        break;
     }
     return playlists;
   }
@@ -1677,7 +1772,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                       ),
                       child: TextField(
                         controller: _searchController,
-                        onChanged: (value) => _playlistController.updateSearchQuery(value),
+                        onChanged: _playlistController.updateSearchQuery,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 14,
@@ -1770,9 +1865,41 @@ class _PlaylistScreenState extends State<PlaylistScreen>
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
-          _buildFilterChip("Recently added", isDropdown: true),
-          ..._playlistController.categories.map((cat) => _buildFilterChip(cat)),
+          _buildFilterChip('Recently added', isDropdown: true),
+          ..._playlistController.categories.map(_buildFilterChip),
         ],
+      ),
+    );
+  }
+
+  Widget _buildOptionItem({
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+    bool isDestructive = false,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        margin: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              color: isDestructive ? Colors.redAccent : Colors.white,
+            ),
+            const SizedBox(width: 16),
+            Text(
+              title,
+              style: GoogleFonts.roboto(
+                color: isDestructive ? Colors.redAccent : Colors.white,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1791,7 +1918,7 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
   @override
   Widget build(
       BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
+    return ColoredBox(
       color: kDarkBackground,
       child: _tabBar,
     );
@@ -1805,18 +1932,15 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
 
 // Enhanced Playlist Item Widget
 class EnhancedPlaylistItem extends StatefulWidget {
+
+  const EnhancedPlaylistItem({
+    required this.playlist, required this.index, required this.isGridView, super.key,
+    this.videoId,
+  });
   final PlaylistModel playlist;
   final String? videoId;
   final int index;
   final bool isGridView;
-
-  const EnhancedPlaylistItem({
-    super.key,
-    required this.playlist,
-    this.videoId,
-    required this.index,
-    required this.isGridView,
-  });
 
   @override
   State<EnhancedPlaylistItem> createState() => _EnhancedPlaylistItemState();
@@ -1836,7 +1960,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
       vsync: this,
     );
     _hoverAnimation = Tween<double>(
-      begin: 1.0,
+      begin: 1,
       end: 1.05,
     ).animate(CurvedAnimation(parent: _hoverController, curve: Curves.easeOut));
   }
@@ -1911,13 +2035,11 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
         color = Colors.redAccent;
         icon = Icons.error_outline_rounded;
         label = 'Rejected';
-        break;
       case 'underReview':
       default:
         color = Colors.amber;
         icon = Icons.hourglass_empty_rounded;
         label = 'Under Review';
-        break;
     }
 
     return Container(
@@ -1925,7 +2047,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1995,7 +2117,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
         ),
         const SizedBox(height: 2),
         Text(
-          "Updated today", // Mocked as per image, can be real date
+          'Updated today', // Mocked as per image, can be real date
           style: GoogleFonts.roboto(
             fontSize: 13,
             color: Colors.white.withValues(alpha: 0.6),
@@ -2069,7 +2191,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      "${widget.playlist.videoCount}",
+                      '${widget.playlist.videoCount}',
                       style: GoogleFonts.roboto(
                         color: Colors.white,
                         fontSize: 12,
@@ -2084,7 +2206,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                 top: 6,
                 right: 6,
                 child: Container(
-                  padding: EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.3),
                     borderRadius: BorderRadius.circular(6),
@@ -2122,7 +2244,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
               Row(
                 children: [
                   Text(
-                    "${widget.playlist.videoCount} videos",
+                    '${widget.playlist.videoCount} videos',
                     style: GoogleFonts.roboto(
                       fontSize: 14,
                       color: Colors.white.withValues(alpha: 0.6),
@@ -2160,7 +2282,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
   }
 
   void _showPlaylistOptions(BuildContext context) {
-    final PlaylistController playlistController = Get.find();
+    final playlistController = Get.find();
 
     showModalBottomSheet(
       context: context,
@@ -2178,7 +2300,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                margin: EdgeInsets.only(top: 12),
+                margin: const EdgeInsets.only(top: 12),
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
@@ -2187,7 +2309,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                 ),
               ),
               Padding(
-                padding: EdgeInsets.all(20),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -2264,7 +2386,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                     ],
                     _buildOptionItem(
                       icon: Icons.edit_rounded,
-                      title: "Edit Playlist",
+                      title: 'Edit Playlist',
                       onTap: () {
                         Navigator.pop(context);
                         _showEditPlaylistDialog(context);
@@ -2272,7 +2394,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                     ),
                     _buildOptionItem(
                       icon: Icons.share_rounded,
-                      title: "Share Playlist",
+                      title: 'Share Playlist',
                       onTap: () {
                         Navigator.pop(context);
                         playlistController.sharePlaylist(widget.playlist.id);
@@ -2284,7 +2406,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                     if (widget.videoId != null)
                       _buildOptionItem(
                         icon: Icons.playlist_add_rounded,
-                        title: "Add video to this playlist",
+                        title: 'Add video to this playlist',
                         onTap: () {
                           Navigator.pop(context);
                           playlistController.addVideoToPlaylist(
@@ -2293,12 +2415,12 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                             widget.playlist.isPublic,
                           );
                           Get.snackbar(
-                            "Success",
+                            'Success',
                             "Video added to '${widget.playlist.playlistName}'",
                             snackPosition: SnackPosition.BOTTOM,
                             backgroundColor: kPrimaryDark,
                             colorText: Colors.white,
-                            margin: EdgeInsets.all(20),
+                            margin: const EdgeInsets.all(20),
                             borderRadius: 16,
                           );
                         },
@@ -2307,7 +2429,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                     if (widget.videoId == null)
                       _buildOptionItem(
                         icon: Icons.video_library_rounded,
-                        title: "Manage Videos",
+                        title: 'Manage Videos',
                         onTap: () {
                           Navigator.pop(context);
                           _showManageVideosSheet(context);
@@ -2315,7 +2437,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                       ),
                     _buildOptionItem(
                       icon: Icons.delete_outline_rounded,
-                      title: "Delete Playlist",
+                      title: 'Delete Playlist',
                       isDestructive: true,
                       onTap: () {
                         playlistController.deletePlaylist(
@@ -2336,9 +2458,9 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
   }
 
   void _showManageVideosSheet(BuildContext context) {
-    final PlaylistController playlistController = Get.find();
+    final playlistController = Get.find();
     
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -2368,7 +2490,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                     ),
                   ),
                   Text(
-                    "Manage Videos",
+                    'Manage Videos',
                     style: GoogleFonts.roboto(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -2381,14 +2503,14 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                       future: playlistController.fetchVideos(widget.playlist.videoIds),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting) {
-                          return Center(child: CircularProgressIndicator(color: kPrimaryDark));
+                          return const Center(child: CircularProgressIndicator(color: kPrimaryDark));
                         }
                         if (snapshot.hasError) {
-                          return Center(child: Text("Error loading videos", style: GoogleFonts.roboto(color: Colors.white)));
+                          return Center(child: Text('Error loading videos', style: GoogleFonts.roboto(color: Colors.white)));
                         }
                         final videos = snapshot.data ?? [];
                         if (videos.isEmpty) {
-                          return Center(child: Text("No videos in this playlist", style: GoogleFonts.roboto(color: Colors.white.withValues(alpha: 0.7))));
+                          return Center(child: Text('No videos in this playlist', style: GoogleFonts.roboto(color: Colors.white.withValues(alpha: 0.7))));
                         }
                         return ListView.builder(
                           controller: scrollController,
@@ -2425,8 +2547,8 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                                   );
                                   Navigator.pop(context); // Close sheet so they can reopen with fresh data
                                   Get.snackbar(
-                                    "Removed",
-                                    "Video removed from playlist",
+                                    'Removed',
+                                    'Video removed from playlist',
                                     snackPosition: SnackPosition.BOTTOM,
                                     backgroundColor: kPrimaryDark,
                                     colorText: Colors.white,
@@ -2449,12 +2571,12 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
   }
 
   void _showEditPlaylistDialog(BuildContext context) {
-    final TextEditingController editController = TextEditingController(
+    final editController = TextEditingController(
       text: widget.playlist.playlistName,
     );
-    final PlaylistController playlistController = Get.find();
+    final playlistController = Get.find<PlaylistController>();
 
-    showDialog(
+    showDialog<void>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -2463,7 +2585,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
             borderRadius: BorderRadius.circular(20),
           ),
           title: Text(
-            "Edit Playlist",
+            'Edit Playlist',
             style: GoogleFonts.roboto(
               color: Colors.white,
               fontWeight: FontWeight.bold,
@@ -2473,9 +2595,9 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
             controller: editController,
             style: GoogleFonts.roboto(color: Colors.white),
             decoration: InputDecoration(
-              labelText: "Playlist Name",
+              labelText: 'Playlist Name',
               labelStyle: GoogleFonts.roboto(color: Colors.white.withValues(alpha: 0.7)),
-              hintText: "Enter new name",
+              hintText: 'Enter new name',
               hintStyle: GoogleFonts.roboto(color: Colors.white.withValues(alpha: 0.4)),
               filled: true,
               fillColor: kDarksurfaceContainerHighest,
@@ -2485,7 +2607,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: kPrimaryDark, width: 2),
+                borderSide: const BorderSide(color: kPrimaryDark, width: 2),
               ),
             ),
             autofocus: true,
@@ -2494,7 +2616,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
             TextButton(
               onPressed: () => Navigator.pop(context),
               child: Text(
-                "Cancel",
+                'Cancel',
                 style: GoogleFonts.roboto(color: Colors.white.withValues(alpha: 0.7)),
               ),
             ),
@@ -2517,7 +2639,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
                 ),
               ),
               child: Text(
-                "Save",
+                'Save',
                 style: GoogleFonts.roboto(fontWeight: FontWeight.bold),
               ),
             ),
@@ -2537,8 +2659,8 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        margin: EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        margin: const EdgeInsets.only(bottom: 8),
         child: Row(
           children: [
             Icon(
@@ -2578,7 +2700,7 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
     } else if (difference.inMinutes > 0) {
       return "${difference.inMinutes} minute${difference.inMinutes == 1 ? '' : 's'} ago";
     } else {
-      return "Just now";
+      return 'Just now';
     }
   }
 }
@@ -2588,16 +2710,14 @@ class _EnhancedPlaylistItemState extends State<EnhancedPlaylistItem>
 // ==========================================================================
 
 class StackedThumbnail extends StatelessWidget {
+
+  const StackedThumbnail({
+    required this.thumbnailUrl, required this.videoCount, super.key,
+    this.isPodcast = false,
+  });
   final String thumbnailUrl;
   final int videoCount;
   final bool isPodcast;
-
-  const StackedThumbnail({
-    super.key,
-    required this.thumbnailUrl,
-    required this.videoCount,
-    this.isPodcast = false,
-  });
 
   @override
   Widget build(BuildContext context) {
@@ -2659,15 +2779,15 @@ class StackedThumbnail extends StatelessWidget {
                       width: width,
                       height: height,
                       fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
+                      placeholder: (context, url) => const ColoredBox(
                         color: kDarksurfaceContainerHighest,
-                        child: const Center(
+                        child: Center(
                           child: Icon(Icons.image, color: Colors.white24),
                         ),
                       ),
-                      errorWidget: (context, url, error) => Container(
+                      errorWidget: (context, url, error) => const ColoredBox(
                         color: kDarksurfaceContainerHighest,
-                        child: const Center(
+                        child: Center(
                           child: Icon(Icons.error, color: Colors.white24),
                         ),
                       ),

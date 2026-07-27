@@ -121,6 +121,15 @@ class _TopicPageState extends State<TopicPage> {
                 topic: controller.topic.value,
                 isDesktop: isDesktop,
                 isTablet: isTablet,
+                onCommentsTap: () {
+                  if (_scrollController.hasClients) {
+                    _scrollController.animateTo(
+                      _scrollController.position.maxScrollExtent,
+                      duration: const Duration(milliseconds: 600),
+                      curve: Curves.easeOutCubic,
+                    );
+                  }
+                },
                 onCommunityTap: () {
                   if (_scrollController.hasClients) {
                     _scrollController.animateTo(

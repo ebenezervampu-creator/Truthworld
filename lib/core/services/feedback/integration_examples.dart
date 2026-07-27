@@ -221,7 +221,7 @@ class SettingsPageExample {
       cancelLabel: 'Cancel',
       onConfirm: () async {
         // Ask for confirmation again
-        final var confirmed = await DialogService.confirm(
+        final confirmed = await DialogService.confirm(
           title: 'Confirm Deletion',
           message: 'Type "DELETE" to confirm',
           confirmLabel: 'Delete',

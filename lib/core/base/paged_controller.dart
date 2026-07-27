@@ -8,6 +8,9 @@ abstract class PagedController<T> extends BaseController {
 
   PagedController({this.pageSize = 10});
   final RxList<T> itemList = <T>[].obs;
+
+  @override
+  bool get isItemsEmpty => itemList.isEmpty;
   
   final _currentPage = 1.obs;
   int get currentPage => _currentPage.value;

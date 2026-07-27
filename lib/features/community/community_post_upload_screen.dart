@@ -72,56 +72,6 @@ class CommunityPostUploadScreen extends StatelessWidget {
           child: Column(
             children: [
               _buildSidebarHeader(context),
-              const SizedBox(height: 16),
-              Padding(
-                padding: context.insets.lg.horizontalInsets,
-                child: Obx(() {
-                  final channel = _c.selectedChannel.value;
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (channel != null) ...[
-                        Container(
-                          padding: context.insets.sm,
-                          decoration: BoxDecoration(
-                            color: context.colors.surface,
-                            borderRadius: context.radius.lg,
-                            border: Border.all(
-                              color: context.colors.divider,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 14,
-                                backgroundImage: NetworkImage(channel.avatarUrl),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  channel.channelName,
-                                  style: TextStyle(
-                                    
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: context.colors.textPrimary,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                      if (channel != null &&
-                          channel.status != ChannelStatus.active) ...[
-                        const SizedBox(height: 12),
-                        _buildChannelVerificationBanner(channel, context),
-                      ],
-                    ],
-                  );
-                }),
-              ),
               const Spacer(),
               _buildBackButton(context),
             ],
@@ -141,9 +91,9 @@ class CommunityPostUploadScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildDetailsSection(context),
-                        const SizedBox(height: 24),
                         _buildImageGallerySection(context),
+                        const SizedBox(height: 24),
+                        _buildDetailsSection(context),
                         const SizedBox(height: 24),
                         _buildPollSection(context),
                         const SizedBox(height: 24),
@@ -175,56 +125,9 @@ class CommunityPostUploadScreen extends StatelessWidget {
               key: _formKey,
               child: Column(
                 children: [
-                  Obx(() {
-                    final channel = _c.selectedChannel.value;
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (channel != null) ...[
-                          Container(
-                            padding: context.insets.sm,
-                            decoration: BoxDecoration(
-                              color: context.colors.surface,
-                              borderRadius: context.radius.lg,
-                              border: Border.all(
-                                color: context.colors.divider,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 14,
-                                  backgroundImage: NetworkImage(channel.avatarUrl),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    channel.channelName,
-                                    style: TextStyle(
-                                      
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: context.colors.textPrimary,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                        if (channel != null &&
-                            channel.status != ChannelStatus.active) ...[
-                          const SizedBox(height: 12),
-                          _buildChannelVerificationBanner(channel, context),
-                        ],
-                      ],
-                    );
-                  }),
+                  _buildImageGallerySection(context),
                   const SizedBox(height: 20),
                   _buildDetailsSection(context),
-                  const SizedBox(height: 20),
-                  _buildImageGallerySection(context),
                   const SizedBox(height: 20),
                   _buildPollSection(context),
                   const SizedBox(height: 20),

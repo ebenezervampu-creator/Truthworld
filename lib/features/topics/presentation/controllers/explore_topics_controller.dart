@@ -1,13 +1,15 @@
 import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
 import 'package:truthworld/core/services/feedback/feedback_service.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/topics/data/models/topic_categories.dart';
 import 'package:truthworld/features/topics/data/repositories/topic_repository.dart';
-
 import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 
 /// GetX Controller for the Topic Discovery Platform UI
 class ExploreTopicsController extends GetxController {
@@ -21,9 +23,15 @@ class ExploreTopicsController extends GetxController {
   // ==========================================================================
   final RxList<Topic> topics = <Topic>[].obs;
   final RxList<Topic> featuredTopics = <Topic>[].obs;
+  final RxList<TopicCategory> availableCategories = <TopicCategory>[].obs;
+  final RxBool isLoadingCategories = false.obs;
   final RxString selectedCategory = 'all'.obs;
   final Rx<ExploreMode> exploreMode = ExploreMode.discover.obs;
   final RxString searchQuery = ''.obs;
+
+  // Topic videos map: topic.id/slug -> List<Video>
+  final RxMap<String, List<Video>> topicVideosMap = <String, List<Video>>{}.obs;
+  final RxMap<String, bool> isLoadingVideosMap = <String, bool>{}.obs;
 
   final RxBool isLoading = false.obs;
   final RxBool isLoadingMore = false.obs;
@@ -62,10 +70,13 @@ class ExploreTopicsController extends GetxController {
     errorMessage.value = '';
 
     try {
-      // 1. Fetch Featured Curated Strips
+      // 1. Fetch available categories with at least 2 videos
+      fetchAvailableCategories();
+
+      // 2. Fetch Featured Curated Strips
       featuredTopics.value = await _repository.fetchFeaturedTopics();
 
-      // 2. Fetch paginated topics
+      // 3. Fetch paginated topics
       await loadTopics(reset: true);
     } catch (e) {
       errorMessage.value = FriendlyErrorTranslator.getFriendlyMessage(
@@ -153,6 +164,11 @@ class ExploreTopicsController extends GetxController {
           .where((t) => !existingIds.contains(t.id))
           .toList();
       topics.addAll(uniqueNewTopics);
+
+      // Fetch videos for newly added topics
+      for (final topic in uniqueNewTopics) {
+        fetchVideosForTopic(topic);
+      }
     } catch (e) {
       errorMessage.value = FriendlyErrorTranslator.getFriendlyMessage(
         e,
@@ -172,10 +188,145 @@ class ExploreTopicsController extends GetxController {
     }
   }
 
+  /// Fetch videos associated with a specific topic
+  Future<void> fetchVideosForTopic(Topic topic) async {
+    final key = topic.id;
+    if (topicVideosMap.containsKey(key) && isLoadingVideosMap[key] != true) {
+      return;
+    }
+
+    isLoadingVideosMap[key] = true;
+    try {
+      var videos = await _repository.getVideosByTopic(topic.slug);
+      if (videos.isEmpty && topic.id != topic.slug) {
+        videos = await _repository.getVideosByTopic(topic.id);
+      }
+      topicVideosMap[key] = videos;
+    } catch (e) {
+      debugPrint('Error fetching videos for topic ${topic.title}: $e');
+      topicVideosMap[key] = [];
+    } finally {
+      isLoadingVideosMap[key] = false;
+    }
+  }
+
   /// Paging handler
   Future<void> loadMoreTopics() async {
     if (!isLoadingMore.value && hasMore.value) {
       await loadTopics();
+    }
+  }
+
+  // ==========================================================================
+  // CATEGORY FILTERING (AT LEAST 2 VIDEOS)
+  // ==========================================================================
+
+  String _capitalizeCategory(String cat) {
+    if (cat.isEmpty) return cat;
+    final trimmed = cat.trim();
+    for (final c in TopicCategoriesConfig.categories) {
+      if (c.title.toLowerCase() == trimmed.toLowerCase() ||
+          c.id.toLowerCase() == trimmed.toLowerCase()) {
+        return c.title;
+      }
+    }
+    return trimmed[0].toUpperCase() + trimmed.substring(1);
+  }
+
+  /// Fetch category video counts and filter categories to those with at least 2 videos
+  Future<void> fetchAvailableCategories() async {
+    isLoadingCategories.value = true;
+    try {
+      final categoryCounts = <String, int>{};
+
+      // 1. Query Firestore videos collection for broader category stats
+      try {
+        final videoSnapshot = await FirebaseFirestore.instance
+            .collection('videos')
+            .limit(500)
+            .get();
+
+        for (final doc in videoSnapshot.docs) {
+          final data = doc.data();
+          final rawCat = (data['category'] as String?)?.trim();
+          if (rawCat != null && rawCat.isNotEmpty && rawCat.toLowerCase() != 'all') {
+            final normalized = _capitalizeCategory(rawCat);
+            categoryCounts[normalized] = (categoryCounts[normalized] ?? 0) + 1;
+          }
+        }
+      } catch (e) {
+        debugPrint('ExploreTopicsController: Error querying videos for categories: $e');
+      }
+
+      // 2. Query Firestore topics collection for topic categories and video counts
+      try {
+        final topicSnapshot = await FirebaseFirestore.instance
+            .collection('topics')
+            .limit(300)
+            .get();
+
+        for (final doc in topicSnapshot.docs) {
+          final data = doc.data();
+          final rawCat = (data['category'] as String?)?.trim();
+          final vCount = (data['videoCount'] as num?)?.toInt() ?? 1;
+          if (rawCat != null && rawCat.isNotEmpty && rawCat.toLowerCase() != 'all') {
+            final normalized = _capitalizeCategory(rawCat);
+            categoryCounts[normalized] =
+                (categoryCounts[normalized] ?? 0) + (vCount > 0 ? vCount : 1);
+          }
+        }
+      } catch (e) {
+        debugPrint('ExploreTopicsController: Error querying topics for categories: $e');
+      }
+
+      // 3. Count from currently loaded topics and topicVideosMap
+      for (final topic in topics) {
+        final cat = topic.category.trim();
+        if (cat.isNotEmpty && cat.toLowerCase() != 'all') {
+          final normalized = _capitalizeCategory(cat);
+          final videos = topicVideosMap[topic.id];
+          final count = (videos != null && videos.isNotEmpty)
+              ? videos.length
+              : (topic.videoCount > 0 ? topic.videoCount : 1);
+          categoryCounts[normalized] = (categoryCounts[normalized] ?? 0) + count;
+        }
+      }
+
+      // Filter to categories that have AT LEAST 2 videos
+      final qualifying = <TopicCategory>[];
+
+      for (final configCat in TopicCategoriesConfig.categories) {
+        if (configCat.id.toLowerCase() == 'all') continue;
+        final countByTitle = categoryCounts[configCat.title] ?? 0;
+        final countById = categoryCounts[configCat.id] ?? 0;
+        final maxCount = countByTitle > countById ? countByTitle : countById;
+        if (maxCount >= 2) {
+          qualifying.add(configCat);
+        }
+      }
+
+      // Include dynamic categories not in TopicCategoriesConfig if count >= 2
+      categoryCounts.forEach((catName, count) {
+        if (count >= 2 && catName.toLowerCase() != 'all') {
+          final alreadyAdded = qualifying.any((qc) =>
+              qc.title.toLowerCase() == catName.toLowerCase() ||
+              qc.id.toLowerCase() == catName.toLowerCase());
+          if (!alreadyAdded) {
+            qualifying.add(TopicCategory(
+              id: catName.toLowerCase().replaceAll(' ', '_'),
+              title: catName,
+              imageUrl:
+                  'https://images.unsplash.com/photo-1541701494587-cb58502866ab?auto=format&fit=crop&w=1200&q=90',
+            ));
+          }
+        }
+      });
+
+      availableCategories.assignAll(qualifying);
+    } catch (e) {
+      debugPrint('ExploreTopicsController: Error fetching available categories: $e');
+    } finally {
+      isLoadingCategories.value = false;
     }
   }
 

@@ -181,7 +181,7 @@ class UploadController extends GetxController with ContentValidationMixin {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _firebaseStorage = FirebaseStorage.instance;
-  final Uuid _uuid = Uuid();
+  final Uuid _uuid = const Uuid();
 
   RxList<Video> videos = <Video>[].obs;
   RxList<Video> searchedVideos = <Video>[].obs;

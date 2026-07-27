@@ -241,7 +241,7 @@ class PipelineConfig {
     required bool enableSubtitles,
     required String videoDuration,
   }) {
-    var cost = 0;
+    var cost = 0.0;
 
     // Base cost per tier
     switch (tier) {

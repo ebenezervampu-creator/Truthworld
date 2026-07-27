@@ -479,6 +479,8 @@ class ChannelScreen extends StatelessWidget {
           icon: Icons.tag_rounded,
           isDarkMode: isDarkMode,
         ),
+        const SizedBox(height: 24),
+        _buildCategorySelection(isDarkMode),
       ],
     );
   }
@@ -1316,6 +1318,273 @@ class ChannelScreen extends StatelessWidget {
   }
 
   // ========================================================================
+  // CATEGORY SELECTION WIDGET
+  // ========================================================================
+  IconData _getCategoryIcon(String category) {
+    switch (category.toLowerCase()) {
+      case 'gaming':
+        return Icons.sports_esports_rounded;
+      case 'music':
+        return Icons.music_note_rounded;
+      case 'entertainment':
+        return Icons.movie_rounded;
+      case 'education':
+        return Icons.school_rounded;
+      case 'technology':
+        return Icons.computer_rounded;
+      case 'sports':
+        return Icons.sports_soccer_rounded;
+      case 'news':
+        return Icons.newspaper_rounded;
+      case 'lifestyle':
+        return Icons.style_rounded;
+      case 'travel':
+        return Icons.flight_takeoff_rounded;
+      case 'food':
+        return Icons.restaurant_rounded;
+      case 'fashion':
+        return Icons.checkroom_rounded;
+      case 'health':
+        return Icons.health_and_safety_rounded;
+      case 'business':
+        return Icons.business_center_rounded;
+      case 'comedy':
+        return Icons.sentiment_very_satisfied_rounded;
+      case 'science':
+        return Icons.science_rounded;
+      case 'art':
+        return Icons.palette_rounded;
+      case 'documentary':
+        return Icons.videocam_rounded;
+      case 'animation':
+        return Icons.animation_rounded;
+      case 'automotive':
+        return Icons.directions_car_rounded;
+      case 'pets & animals':
+        return Icons.pets_rounded;
+      case 'diy & how-to':
+        return Icons.build_rounded;
+      case 'fitness':
+        return Icons.fitness_center_rounded;
+      case 'beauty':
+        return Icons.face_rounded;
+      case 'finance':
+        return Icons.attach_money_rounded;
+      case 'history':
+        return Icons.menu_book_rounded;
+      case 'nature':
+        return Icons.forest_rounded;
+      case 'spirituality':
+        return Icons.self_improvement_rounded;
+      case 'kids & family':
+        return Icons.child_care_rounded;
+      default:
+        return Icons.category_rounded;
+    }
+  }
+
+  Widget _buildCategorySelection(bool isDarkMode) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.category_rounded,
+                  size: 18,
+                  color: isDarkMode
+                      ? AppColors.textSecondary
+                      : const Color(0xFF718096),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Channel Categories',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: isDarkMode
+                        ? AppColors.textPrimary
+                        : const Color(0xFF2D3748),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Text(
+                  '*',
+                  style: TextStyle(
+                    color: Color(0xFFE53E3E),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            Obx(() {
+              final isAll = controller.isAllCategoriesSelected;
+              return InkWell(
+                onTap: () {
+                  if (isAll) {
+                    controller.deselectAllCategories();
+                  } else {
+                    controller.selectAllCategories();
+                  }
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isAll
+                        ? const Color(0xFF6B46C1).withValues(alpha: 0.15)
+                        : (isDarkMode
+                            ? Colors.white.withValues(alpha: 0.05)
+                            : const Color(0xFFEDF2F7)),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isAll
+                          ? const Color(0xFF6B46C1)
+                          : (isDarkMode
+                              ? Colors.white.withValues(alpha: 0.1)
+                              : const Color(0xFFCBD5E0)),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isAll
+                            ? Icons.done_all_rounded
+                            : Icons.select_all_rounded,
+                        size: 14,
+                        color: isAll
+                            ? const Color(0xFF6B46C1)
+                            : (isDarkMode
+                                ? AppColors.textSecondary
+                                : const Color(0xFF4A5568)),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        isAll ? 'Selected All' : 'Select All Categories',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isAll
+                              ? const Color(0xFF6B46C1)
+                              : (isDarkMode
+                                  ? AppColors.textSecondary
+                                  : const Color(0xFF4A5568)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Select one, multiple, or all categories that describe your channel.',
+          style: TextStyle(
+            fontSize: 12,
+            color: isDarkMode
+                ? AppColors.textSecondary
+                : const Color(0xFF718096),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Obx(() {
+          final count = controller.selectedCategories.length;
+          final total = controller.categories.length;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: count > 0
+                      ? const Color(0xFF6B46C1).withValues(alpha: 0.1)
+                      : const Color(0xFFE53E3E).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  count == total
+                      ? 'All Categories Selected ($total/$total)'
+                      : (count > 0
+                          ? '$count of $total Categories Selected'
+                          : 'No category selected - please pick at least one'),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: count > 0
+                        ? const Color(0xFF6B46C1)
+                        : const Color(0xFFE53E3E),
+                  ),
+                ),
+              ),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: controller.categories.map((category) {
+                  final isSelected = controller.isCategorySelected(category);
+                  return FilterChip(
+                    avatar: Icon(
+                      _getCategoryIcon(category),
+                      size: 16,
+                      color: isSelected
+                          ? Colors.white
+                          : (isDarkMode
+                              ? AppColors.textSecondary
+                              : const Color(0xFF4A5568)),
+                    ),
+                    label: Text(category),
+                    selected: isSelected,
+                    onSelected: (_) => controller.toggleCategory(category),
+                    selectedColor: const Color(0xFF6B46C1),
+                    backgroundColor: isDarkMode
+                        ? Colors.white.withValues(alpha: 0.05)
+                        : const Color(0xFFF7FAFC),
+                    checkmarkColor: Colors.white,
+                    labelStyle: TextStyle(
+                      fontSize: 13,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w500,
+                      color: isSelected
+                          ? Colors.white
+                          : (isDarkMode
+                              ? AppColors.textPrimary
+                              : const Color(0xFF2D3748)),
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(
+                        color: isSelected
+                            ? const Color(0xFF6B46C1)
+                            : (isDarkMode
+                                ? Colors.white.withValues(alpha: 0.1)
+                                : const Color(0xFFE2E8F0)),
+                      ),
+                    ),
+                    elevation: isSelected ? 2 : 0,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          );
+        }),
+      ],
+    );
+  }
+
+  // ========================================================================
   // VALIDATION LOGIC
   // ========================================================================
   bool _canProceedFromCurrentStep() {
@@ -1326,8 +1595,10 @@ class ChannelScreen extends StatelessWidget {
     switch (currentStep.value) {
       case 0: // Identity
         return controller.channelName.text.trim().length >= 3 &&
-            controller.customUrl.text.trim().length >= ChannelController.minCustomUrlLength &&
-            controller.description.text.trim().isNotEmpty;
+            controller.customUrl.text.trim().length >=
+                ChannelController.minCustomUrlLength &&
+            controller.description.text.trim().isNotEmpty &&
+            controller.selectedCategories.isNotEmpty;
 
       case 1: // Customization
         return true; // Optional

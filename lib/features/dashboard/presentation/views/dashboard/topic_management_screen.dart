@@ -9,6 +9,7 @@ import 'package:truthworld/core/services/feedback/feedback_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/topics/presentation/widgets/create_topic_dialog.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_card_widget.dart';
 import 'package:truthworld/features/topics/presentation/widgets/topic_popup_menu.dart';
 import 'package:truthworld/theme/app_theme.dart';
@@ -47,7 +48,7 @@ class TopicManagementScreen extends StatelessWidget {
         return;
       }
 
-      Get.dialog(
+      Get.dialog<void>(
         EditTopicDialog(
           topic: topic,
           channelId: topic.channelId ?? channelId,
@@ -88,50 +89,102 @@ class TopicManagementScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title & Subtitle Row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                  // Title & Subtitle Row (Responsive Header Layout)
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isHeaderMobile = constraints.maxWidth < 600;
+                      if (isHeaderMobile) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Topics',
+                              style: AppTextStyles.pageTitle.copyWith(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: textColor,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Manage and curate your channel topic knowledge hubs',
+                              style: AppTextStyles.caption.copyWith(
+                                fontSize: 13,
+                                color: subtextColor,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: () => _showCreateTopicDialog(context, controller),
+                                icon: const Icon(Icons.add_rounded, size: 18),
+                                label: Text(
+                                  'New Topic',
+                                  style: AppTextStyles.buttonText.copyWith(color: AppColors.textPrimary),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF3B82F6),
+                                  foregroundColor: AppColors.textPrimary,
+                                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  elevation: 0,
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            'Topics',
-                            style: context.themeTypography.hero.copyWith(
-                              fontSize: 26,
-                              fontWeight: FontWeight.bold,
-                              color: textColor,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Topics',
+                                  style: AppTextStyles.pageTitle.copyWith(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.bold,
+                                    color: textColor,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Manage and curate your channel topic knowledge hubs',
+                                  style: AppTextStyles.caption.copyWith(
+                                    fontSize: 13,
+                                    color: subtextColor,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Manage and curate your channel topic knowledge hubs',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: subtextColor,
+                          const SizedBox(width: 16),
+                          ElevatedButton.icon(
+                            onPressed: () => _showCreateTopicDialog(context, controller),
+                            icon: const Icon(Icons.add_rounded, size: 18),
+                            label: Text(
+                              'New Topic',
+                              style: AppTextStyles.buttonText.copyWith(color: AppColors.textPrimary),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF3B82F6),
+                              foregroundColor: AppColors.textPrimary,
+                              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
                             ),
                           ),
                         ],
-                      ),
-
-                      ElevatedButton.icon(
-                        onPressed: () => _showCreateTopicDialog(context, controller),
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: const Text(
-                          'New Topic',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF3B82F6),
-                          foregroundColor: AppColors.textPrimary,
-                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
-                        ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 20),
@@ -210,25 +263,37 @@ class TopicManagementScreen extends StatelessWidget {
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
             sliver: SliverToBoxAdapter(
-              child: Obx(() {
-                _retryTrigger.value;
-                return StreamBuilder<List<Topic>>(
-                  stream: controller.fetchChannelTopics(channelId),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return _buildShimmerGrid(context);
-                    }
-                    if (snapshot.hasError) {
-                      return _buildGlassmorphicError(snapshot.error.toString());
-                    }
-                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                      return _buildEmptyState(context, controller);
-                    }
+              child: StreamBuilder<List<Topic>>(
+                stream: controller.fetchChannelTopics(channelId),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return _buildShimmerGrid(context);
+                  }
+                  if (snapshot.hasError) {
+                    return _buildGlassmorphicError(snapshot.error.toString());
+                  }
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return _buildEmptyState(context, controller);
+                  }
 
-                    // Sync snapshot data into controller reactive list
-                    controller.topicsList.value = snapshot.data!;
+                  final topics = snapshot.data!;
+                  // Update controller reactive list safely after the frame renders
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (controller.topicsList.length != topics.length) {
+                      controller.topicsList.assignAll(topics);
+                    }
+                  });
 
-                    final filtered = controller.filteredTopics;
+                  return Obx(() {
+                    final query = controller.searchQuery.value.trim().toLowerCase();
+                    final filtered = query.isEmpty
+                        ? topics
+                        : topics.where((topic) {
+                            return topic.title.toLowerCase().contains(query) ||
+                                topic.handle.toLowerCase().contains(query) ||
+                                topic.description.toLowerCase().contains(query) ||
+                                topic.category.toLowerCase().contains(query);
+                          }).toList();
 
                     if (filtered.isEmpty) {
                       return _buildSearchEmptyState(context, controller);
@@ -257,9 +322,9 @@ class TopicManagementScreen extends StatelessWidget {
                         );
                       },
                     );
-                  },
-                );
-              }),
+                  });
+                },
+              ),
             ),
           ),
 
@@ -655,934 +720,38 @@ class TopicManagementScreen extends StatelessWidget {
     BuildContext context,
     TopicManagementController controller,
   ) {
-    final titleController = TextEditingController();
-    final handleController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final categoryController = TextEditingController(text: 'Technology');
-    final accessCodeController = TextEditingController();
-    final fetchVideosFuture = controller.fetchChannelVideos(channelId);
+    CreateTopicDialog.show(
+      context: context,
+      isDarkMode: isDarkMode,
+      channelVideosFuture: controller.fetchChannelVideos(channelId),
+      onCreateTopicSubmitted: (createCtrl) async {
+        String? finalThumbnailUrl;
+        if (createCtrl.thumbnailSource.value == 'custom' &&
+            createCtrl.pickedCustomImageBytes.value != null) {
+          finalThumbnailUrl = await controller.uploadTopicThumbnail(
+            createCtrl.pickedCustomImageBytes.value!,
+            createCtrl.pickedCustomImageName.value ?? 'custom_topic_thumb.jpg',
+          );
+        } else if (createCtrl.thumbnailSource.value == 'video') {
+          finalThumbnailUrl = createCtrl.chosenVideoThumbnailUrl.value;
+        }
 
-    final selectedVisibility = TopicVisibilityType.public.obs;
-    final obscureAccessCode = true.obs;
-
-    // Thumbnail state
-    final thumbnailSource = 'video'.obs;
-    final chosenVideoThumbnailUrl = Rx<String?>(null);
-    final pickedCustomImageBytes = Rx<Uint8List?>(null);
-    final pickedCustomImageName = Rx<String?>(null);
-    final isSaving = false.obs;
-    final selectedVideoIds = <String>[].obs;
-
-    Get.dialog(
-      Obx(() {
-        return AlertDialog(
-          backgroundColor: isDarkMode
-              ? AppTheme.colors.surface
-              : AppTheme.colors.textPrimary,
-          title: Text(
-            'Create New Topic',
-            style: TextStyle(
-              
-              fontWeight: FontWeight.bold,
-              color: isDarkMode
-                  ? AppTheme.colors.textPrimary
-                  : AppTheme.colors.background,
-            ),
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                TextField(
-                  controller: titleController,
-                  style: TextStyle(
-                    color: isDarkMode
-                        ? AppTheme.colors.textPrimary
-                        : AppTheme.colors.background,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Topic Title',
-                    labelStyle: TextStyle(
-                      color: isDarkMode
-                          ? AppTheme.colors.textPrimary54
-                          : AppTheme.colors.textSecondary,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(
-                        color: isDarkMode
-                            ? const Color(0xFF374151)
-                            : AppColors.bgDivider,
-                      ),
-                    ),
-                    focusedBorder: const OutlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFF6366F1)),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: handleController,
-                  style: TextStyle(
-                    color: isDarkMode
-                        ? AppTheme.colors.textPrimary
-                        : AppTheme.colors.background,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Topic Handle (e.g. war)',
-                    prefixText: 'T/',
-                    prefixStyle: TextStyle(
-                      color: isDarkMode
-                          ? AppTheme.colors.textPrimary
-                          : AppTheme.colors.background,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    labelStyle: TextStyle(
-                      color: isDarkMode
-                          ? AppTheme.colors.textPrimary54
-                          : AppTheme.colors.textSecondary,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(
-                        color: isDarkMode
-                            ? const Color(0xFF374151)
-                            : AppColors.bgDivider,
-                      ),
-                    ),
-                    focusedBorder: const OutlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFF6366F1)),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: descriptionController,
-                  maxLines: 2,
-                  style: TextStyle(
-                    color: isDarkMode
-                        ? AppTheme.colors.textPrimary
-                        : AppTheme.colors.background,
-                  ),
-                  decoration: InputDecoration(
-                    labelText: 'Description',
-                    labelStyle: TextStyle(
-                      color: isDarkMode
-                          ? AppTheme.colors.textPrimary54
-                          : AppTheme.colors.textSecondary,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(
-                        color: isDarkMode
-                            ? const Color(0xFF374151)
-                            : AppColors.bgDivider,
-                      ),
-                    ),
-                    focusedBorder: const OutlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFF6366F1)),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Category',
-                  style: TextStyle(
-                    
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: isDarkMode
-                        ? AppTheme.colors.textPrimary70
-                        : AppTheme.colors.background54,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  initialValue: categoryController.text.isNotEmpty
-                      ? categoryController.text
-                      : 'Technology',
-                  dropdownColor: isDarkMode
-                      ? const Color(0xFF1C2128)
-                      : AppColors.textPrimary,
-                  style: TextStyle(
-                    color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
-                  ),
-                  decoration: InputDecoration(
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(
-                        color: isDarkMode
-                            ? const Color(0xFF374151)
-                            : AppColors.bgDivider,
-                      ),
-                    ),
-                    focusedBorder: const OutlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFF6366F1)),
-                    ),
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: 'Education',
-                      child: Text('Education'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'Entertainment',
-                      child: Text('Entertainment'),
-                    ),
-                    DropdownMenuItem(value: 'Music', child: Text('Music')),
-                    DropdownMenuItem(value: 'News', child: Text('News')),
-                    DropdownMenuItem(value: 'Sports', child: Text('Sports')),
-                    DropdownMenuItem(value: 'Gaming', child: Text('Gaming')),
-                    DropdownMenuItem(
-                      value: 'Technology',
-                      child: Text('Technology'),
-                    ),
-                    DropdownMenuItem(value: 'Science', child: Text('Science')),
-                    DropdownMenuItem(value: 'Travel', child: Text('Travel')),
-                    DropdownMenuItem(
-                      value: 'Lifestyle',
-                      child: Text('Lifestyle'),
-                    ),
-                    DropdownMenuItem(value: 'Comedy', child: Text('Comedy')),
-                    DropdownMenuItem(
-                      value: 'Documentary',
-                      child: Text('Documentary'),
-                    ),
-                    DropdownMenuItem(value: 'Movies', child: Text('Movies')),
-                    DropdownMenuItem(
-                      value: 'TV Shows',
-                      child: Text('TV Shows'),
-                    ),
-                    DropdownMenuItem(value: 'Vlogs', child: Text('Vlogs')),
-                    DropdownMenuItem(
-                      value: 'DIY & How-to',
-                      child: Text('DIY & How-to'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'Health & Fitness',
-                      child: Text('Health & Fitness'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'Fashion & Beauty',
-                      child: Text('Fashion & Beauty'),
-                    ),
-                  ],
-                  onChanged: (val) {
-                    if (val != null) {
-                      categoryController.text = val;
-                    }
-                  },
-                ),
-                const SizedBox(height: 20),
-
-                // Topic Visibility Type Selector
-                Text(
-                  'Visibility Type',
-                  style: TextStyle(
-                    
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: isDarkMode
-                        ? AppTheme.colors.textPrimary70
-                        : AppTheme.colors.background54,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<TopicVisibilityType>(
-                  initialValue: selectedVisibility.value,
-                  dropdownColor: isDarkMode
-                      ? const Color(0xFF1C2128)
-                      : AppColors.textPrimary,
-                  style: TextStyle(
-                    color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
-                  ),
-                  decoration: InputDecoration(
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: BorderSide(
-                        color: isDarkMode
-                            ? const Color(0xFF374151)
-                            : AppColors.bgDivider,
-                      ),
-                    ),
-                    focusedBorder: const OutlineInputBorder(
-                      borderSide: BorderSide(color: Color(0xFF6366F1)),
-                    ),
-                  ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: TopicVisibilityType.public,
-                      child: Text('Public (Anyone can contribute)'),
-                    ),
-                    DropdownMenuItem(
-                      value: TopicVisibilityType.channelOnly,
-                      child: Text('Channel Only (Only you can contribute)'),
-                    ),
-                    DropdownMenuItem(
-                      value: TopicVisibilityType.private,
-                      child: Text('Private (Passcode required for others)'),
-                    ),
-                  ],
-                  onChanged: (val) {
-                    if (val != null) {
-                      selectedVisibility.value = val;
-                    }
-                  },
-                ),
-
-                // Private Access Code field
-                if (selectedVisibility.value ==
-                    TopicVisibilityType.private) ...[
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: accessCodeController,
-                    obscureText: obscureAccessCode.value,
-                    style: TextStyle(
-                      color: isDarkMode
-                          ? AppTheme.colors.textPrimary
-                          : AppTheme.colors.background,
-                    ),
-                    decoration: InputDecoration(
-                      labelText: 'Setup Access Code',
-                      labelStyle: TextStyle(
-                        color: isDarkMode
-                            ? AppTheme.colors.textPrimary54
-                            : AppTheme.colors.textSecondary,
-                      ),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          obscureAccessCode.value
-                              ? Icons.visibility_off
-                              : Icons.visibility,
-                          color: AppColors.textSecondary,
-                        ),
-                        onPressed: () {
-                          obscureAccessCode.value = !obscureAccessCode.value;
-                        },
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                          color: isDarkMode
-                              ? const Color(0xFF374151)
-                              : AppColors.bgDivider,
-                        ),
-                      ),
-                      focusedBorder: const OutlineInputBorder(
-                        borderSide: BorderSide(color: Color(0xFF6366F1)),
-                      ),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 20),
-
-                // Topic Thumbnail Section
-                Text(
-                  'Topic Thumbnail',
-                  style: TextStyle(
-                    
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: isDarkMode
-                        ? AppTheme.colors.textPrimary70
-                        : AppTheme.colors.background54,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: isDarkMode
-                        ? const Color(0xFF161B22)
-                        : const Color(0xFFF9FAFB),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: isDarkMode
-                          ? const Color(0xFF30363D)
-                          : const Color(0xFFE5E7EB),
-                    ),
-                  ),
-                  padding: const EdgeInsets.all(4),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: InkWell(
-                          onTap: () {
-                            thumbnailSource.value = 'video';
-                          },
-                          child: Container(
-                            alignment: Alignment.center,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            decoration: BoxDecoration(
-                              color: thumbnailSource.value == 'video'
-                                  ? const Color(0xFF6366F1)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              'Use Video Thumbnail',
-                              style: TextStyle(
-                                
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: thumbnailSource.value == 'video'
-                                    ? AppColors.textPrimary
-                                    : (isDarkMode
-                                          ? AppColors.textSecondary
-                                          : AppColors.bgPage54),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: InkWell(
-                          onTap: () {
-                            thumbnailSource.value = 'custom';
-                          },
-                          child: Container(
-                            alignment: Alignment.center,
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            decoration: BoxDecoration(
-                              color: thumbnailSource.value == 'custom'
-                                  ? const Color(0xFF6366F1)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              'Upload Custom',
-                              style: TextStyle(
-                                
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: thumbnailSource.value == 'custom'
-                                    ? AppColors.textPrimary
-                                    : (isDarkMode
-                                          ? AppColors.textSecondary
-                                          : AppColors.bgPage54),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-
-                FutureBuilder<List<Map<String, dynamic>>>(
-                  future: fetchVideosFuture,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(16),
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      );
-                    }
-                    if (snapshot.hasError ||
-                        !snapshot.hasData ||
-                        snapshot.data!.isEmpty) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Text(
-                          'No videos found on your channel. Upload a video first to create topics.',
-                          style: TextStyle(
-                            
-                            color: AppColors.error,
-                            fontSize: 13,
-                          ),
-                        ),
-                      );
-                    }
-
-                    final channelVideos = snapshot.data!;
-
-                    // Render thumbnail preview selector if video source is active
-                    Widget renderThumbnailSelector() {
-                      if (thumbnailSource.value != 'video') {
-                        // Custom upload UI
-                        return GestureDetector(
-                          onTap: () async {
-                            try {
-                              final picker = ImagePicker();
-                              final pickedFile = await picker.pickImage(
-                                source: ImageSource.gallery,
-                              );
-                              if (pickedFile != null) {
-                                final pickedImage = await pickedFile
-                                    .readAsBytes();
-                                pickedCustomImageBytes.value = pickedImage;
-                                pickedCustomImageName.value =
-                                    'topic_${DateTime.now().millisecondsSinceEpoch}.jpg';
-                              }
-                            } catch (e) {
-                              AppSnackbar.show(
-                                'Error',
-                                'Failed to pick image: $e',
-                                backgroundColor: AppColors.error,
-                                colorText: AppColors.textPrimary,
-                              );
-                            }
-                          },
-                          child: Container(
-                            width: double.infinity,
-                            height: 120,
-                            decoration: BoxDecoration(
-                              color: isDarkMode
-                                  ? const Color(0xFF161B22)
-                                  : const Color(0xFFF9FAFB),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isDarkMode
-                                    ? const Color(0xFF30363D)
-                                    : const Color(0xFFE5E7EB),
-                                style: pickedCustomImageBytes.value == null
-                                    ? BorderStyle.solid
-                                    : BorderStyle.none,
-                              ),
-                            ),
-                            clipBehavior: Clip.antiAlias,
-                            child: pickedCustomImageBytes.value != null
-                                ? Stack(
-                                    children: [
-                                      Positioned.fill(
-                                        child: Image.memory(
-                                          pickedCustomImageBytes.value!,
-                                          fit: BoxFit.cover,
-                                        ),
-                                      ),
-                                      Positioned(
-                                        top: 8,
-                                        right: 8,
-                                        child: GestureDetector(
-                                          onTap: () {
-                                            pickedCustomImageBytes.value = null;
-                                            pickedCustomImageName.value = null;
-                                          },
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              color: AppColors.bgPage.withValues(
-                                                alpha: 0.6,
-                                              ),
-                                              shape: BoxShape.circle,
-                                            ),
-                                            padding: const EdgeInsets.all(4),
-                                            child: const Icon(
-                                              Icons.close,
-                                              color: AppColors.textPrimary,
-                                              size: 16,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  )
-                                : Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.cloud_upload_outlined,
-                                        size: 32,
-                                        color: isDarkMode
-                                            ? AppColors.textSecondary
-                                            : AppColors.bgPage54,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Tap to upload topic thumbnail',
-                                        style: TextStyle(
-                                          
-                                          fontSize: 12,
-                                          color: isDarkMode
-                                              ? AppColors.textSecondary
-                                              : AppColors.bgPage54,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                          ),
-                        );
-                      }
-
-                      // Video source UI
-                      if (selectedVideoIds.isEmpty) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Text(
-                            'Link at least one video below to use its thumbnail.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontStyle: FontStyle.italic,
-                              color: isDarkMode
-                                  ? AppColors.textSecondary
-                                  : AppColors.bgPage54,
-                            ),
-                          ),
-                        );
-                      }
-
-                      final selectedVideos = channelVideos
-                          .where((v) => selectedVideoIds.contains(v['id']))
-                          .toList();
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Select which video's thumbnail to use:",
-                            style: TextStyle(
-                              
-                              fontSize: 12,
-                              color: isDarkMode
-                                  ? AppTheme.colors.textPrimary70
-                                  : AppTheme.colors.background54,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: selectedVideos.map((v) {
-                                final String videoUrl = v['thumbnailUrl'] ?? '';
-                                final isSelected =
-                                    chosenVideoThumbnailUrl.value == videoUrl;
-                                return GestureDetector(
-                                  onTap: () {
-                                    chosenVideoThumbnailUrl.value = videoUrl;
-                                  },
-                                  child: Container(
-                                    margin: const EdgeInsets.only(right: 12),
-                                    width: 140,
-                                    height: 80,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: isSelected
-                                            ? const Color(0xFF6366F1)
-                                            : Colors.transparent,
-                                        width: 2.5,
-                                      ),
-                                      boxShadow: isSelected
-                                          ? [
-                                              BoxShadow(
-                                                color: const Color(
-                                                  0xFF6366F1,
-                                                ).withValues(alpha: 0.4),
-                                                blurRadius: 8,
-                                                spreadRadius: 1,
-                                              ),
-                                            ]
-                                          : null,
-                                    ),
-                                    clipBehavior: Clip.antiAlias,
-                                    child: Stack(
-                                      children: [
-                                        Positioned.fill(
-                                          child: videoUrl.isNotEmpty
-                                              ? Image.network(
-                                                  videoUrl,
-                                                  fit: BoxFit.cover,
-                                                  errorBuilder: (c, o, s) =>
-                                                      Container(
-                                                        color: Colors
-                                                            .grey
-                                                            .shade800,
-                                                      ),
-                                                )
-                                              : Container(
-                                                  color: AppColors.textSecondary,
-                                                ),
-                                        ),
-                                        if (isSelected)
-                                          Positioned(
-                                            top: 4,
-                                            right: 4,
-                                            child: Container(
-                                              decoration: const BoxDecoration(
-                                                color: Color(0xFF6366F1),
-                                                shape: BoxShape.circle,
-                                              ),
-                                              padding: const EdgeInsets.all(2),
-                                              child: const Icon(
-                                                Icons.check,
-                                                color: AppColors.textPrimary,
-                                                size: 14,
-                                              ),
-                                            ),
-                                          ),
-                                        Positioned(
-                                          bottom: 0,
-                                          left: 0,
-                                          right: 0,
-                                          child: Container(
-                                            padding: const EdgeInsets.all(4),
-                                            color: AppColors.bgPage.withValues(
-                                              alpha: 0.6,
-                                            ),
-                                            child: Text(
-                                              v['title'] ?? '',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(
-                                                color: AppColors.textPrimary,
-                                                fontSize: 11,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                          ),
-                        ],
-                      );
-                    }
-
-                    return Obx(() {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          renderThumbnailSelector(),
-                          const SizedBox(height: 20),
-                          Text(
-                            'Link Videos (At least 1 required)',
-                            style: TextStyle(
-                              
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              color: isDarkMode
-                                  ? AppTheme.colors.textPrimary70
-                                  : AppTheme.colors.background54,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Material(
-                            color: isDarkMode
-                                ? const Color(0xFF161B22)
-                                : const Color(0xFFF9FAFB),
-                            clipBehavior: Clip.antiAlias,
-                            shape: RoundedRectangleBorder(
-                              side: BorderSide(
-                                color: isDarkMode
-                                    ? const Color(0xFF30363D)
-                                    : const Color(0xFFE5E7EB),
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: channelVideos.map((video) {
-                                final String videoId = video['id'];
-                                final String title = video['title'];
-                                final String thumbnailUrl = video['thumbnailUrl'];
-                                final isSelected = selectedVideoIds.contains(
-                                  videoId,
-                                );
-
-                                return Material(
-                                  color: Colors.transparent,
-                                  child: CheckboxListTile(
-                                    activeColor: const Color(0xFF6366F1),
-                                    checkColor: AppColors.textPrimary,
-                                    value: isSelected,
-                                    title: Text(
-                                      title,
-                                      style: TextStyle(
-                                        color: isDarkMode
-                                            ? AppColors.textPrimary
-                                            : AppColors.bgPage,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    secondary: ClipRRect(
-                                      borderRadius: BorderRadius.circular(6),
-                                      child: thumbnailUrl.isNotEmpty
-                                          ? Image.network(
-                                              thumbnailUrl,
-                                              width: 44,
-                                              height: 25,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (c, o, s) =>
-                                                  Container(
-                                                    width: 44,
-                                                    height: 25,
-                                                    color: AppColors.textSecondary.withValues(
-                                                      alpha: 0.3,
-                                                    ),
-                                                    child: const Icon(
-                                                      Icons.video_library,
-                                                      size: 14,
-                                                    ),
-                                                  ),
-                                            )
-                                          : Container(
-                                              width: 44,
-                                              height: 25,
-                                              color: AppColors.textSecondary.withValues(
-                                                alpha: 0.3,
-                                              ),
-                                              child: const Icon(
-                                                Icons.video_library,
-                                                size: 14,
-                                              ),
-                                            ),
-                                    ),
-                                    onChanged: (bool? checked) {
-                                      if (checked ?? false) {
-                                        selectedVideoIds.add(videoId);
-                                      } else {
-                                        selectedVideoIds.remove(videoId);
-                                      }
-                                      // Sync chosen video thumbnail
-                                      if (selectedVideoIds.isNotEmpty) {
-                                        final selectedMap = channelVideos
-                                            .where(
-                                              (v) => selectedVideoIds.contains(
-                                                v['id'],
-                                              ),
-                                            )
-                                            .toList();
-                                        if (chosenVideoThumbnailUrl.value ==
-                                                null ||
-                                            !selectedMap.any(
-                                              (v) =>
-                                                  v['thumbnailUrl'] ==
-                                                  chosenVideoThumbnailUrl.value,
-                                            )) {
-                                          chosenVideoThumbnailUrl.value =
-                                              selectedMap.first['thumbnailUrl'];
-                                        }
-                                      } else {
-                                        chosenVideoThumbnailUrl.value = null;
-                                      }
-                                    },
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                          ),
-                        ],
-                      );
-                    });
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: Get.back,
-              child: Text(
-                'Cancel',
-                style: TextStyle(
-                  color: isDarkMode
-                      ? AppTheme.colors.textPrimary70
-                      : AppTheme.colors.background54,
-                ),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: isSaving.value
-                  ? null
-                  : () async {
-                       if (titleController.text.isEmpty) {
-                        AppSnackbar.show(
-                          'Error',
-                          'Title is required',
-                          backgroundColor: AppColors.error,
-                          colorText: AppColors.textPrimary,
-                        );
-                        return;
-                      }
-                      if (handleController.text.trim().isEmpty) {
-                        AppSnackbar.show(
-                          'Error',
-                          'Topic handle is required',
-                          backgroundColor: AppColors.error,
-                          colorText: AppColors.textPrimary,
-                        );
-                        return;
-                      }
-                      if (selectedVisibility.value ==
-                              TopicVisibilityType.private &&
-                          accessCodeController.text.trim().isEmpty) {
-                        AppSnackbar.show(
-                          'Error',
-                          'Access code is required for private topics',
-                          backgroundColor: AppColors.error,
-                          colorText: AppColors.textPrimary,
-                        );
-                        return;
-                      }
-                      if (selectedVideoIds.isEmpty) {
-                        AppSnackbar.show(
-                          'Validation Error',
-                          'Please select at least one video to link to your new topic.',
-                          backgroundColor: AppColors.error,
-                          colorText: AppColors.textPrimary,
-                          duration: const Duration(seconds: 4),
-                        );
-                        return;
-                      }
-
-                      isSaving.value = true;
-
-                      try {
-                        String? finalThumbnailUrl;
-                        if (thumbnailSource.value == 'custom' &&
-                            pickedCustomImageBytes.value != null) {
-                          finalThumbnailUrl = await controller
-                              .uploadTopicThumbnail(
-                                pickedCustomImageBytes.value!,
-                                pickedCustomImageName.value!,
-                              );
-                        } else if (thumbnailSource.value == 'video') {
-                          finalThumbnailUrl = chosenVideoThumbnailUrl.value;
-                        }
-
-                        await controller.createTopic(
-                          channelId: channelId,
-                          title: titleController.text,
-                          handle: handleController.text,
-                          description: descriptionController.text,
-                          category: categoryController.text.isEmpty
-                              ? 'General'
-                              : categoryController.text,
-                          selectedVideoIds: selectedVideoIds,
-                          visibilityType: selectedVisibility.value,
-                          accessCode:
-                              selectedVisibility.value ==
-                                  TopicVisibilityType.private
-                              ? accessCodeController.text.trim()
-                              : null,
-                          thumbnailUrl: finalThumbnailUrl,
-                        );
-                      } catch (e) {
-                        debugPrint('Error creating topic: $e');
-                      } finally {
-                        isSaving.value = false;
-                        Get.back();
-                      }
-                    },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6366F1),
-              ),
-              child: isSaving.value
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.textPrimary,
-                      ),
-                    )
-                  : const Text('Create', style: TextStyle(color: AppColors.textPrimary)),
-            ),
-          ],
+        await controller.createTopic(
+          channelId: channelId,
+          title: createCtrl.titleController.text,
+          handle: createCtrl.handleController.text,
+          description: createCtrl.descriptionController.text,
+          category: createCtrl.categoryController.text.isEmpty
+              ? 'General'
+              : createCtrl.categoryController.text,
+          selectedVideoIds: createCtrl.selectedVideoIds,
+          visibilityType: createCtrl.selectedVisibility.value,
+          accessCode: createCtrl.selectedVisibility.value == TopicVisibilityType.private
+              ? createCtrl.accessCodeController.text.trim()
+              : null,
+          thumbnailUrl: finalThumbnailUrl,
         );
-      }),
+      },
     );
   }
 }
@@ -1696,13 +865,13 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
             (v) => selectedVideoIds.contains(v['id']),
           );
           if (firstVideo != null) {
-            chosenVideoThumbnailUrl.value = firstVideo['thumbnailUrl'];
+            chosenVideoThumbnailUrl.value = firstVideo['thumbnailUrl'] as String?;
           }
         }
       }
 
       _isLoading.value = false;
-    } catch (e) {
+    } catch (_) {
       _isLoading.value = false;
     }
   }
@@ -1860,6 +1029,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<TopicVisibilityType>(
+                      isExpanded: true,
                       initialValue: selectedVisibility.value,
                       dropdownColor: widget.isDarkMode
                           ? const Color(0xFF1C2128)
@@ -1882,15 +1052,15 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                       items: const [
                         DropdownMenuItem(
                           value: TopicVisibilityType.public,
-                          child: Text('Public (Anyone can contribute)'),
+                          child: Text('Public (Anyone can contribute)', overflow: TextOverflow.ellipsis),
                         ),
                         DropdownMenuItem(
                           value: TopicVisibilityType.channelOnly,
-                          child: Text('Channel Only (Only you can contribute)'),
+                          child: Text('Channel Only (Only you can contribute)', overflow: TextOverflow.ellipsis),
                         ),
                         DropdownMenuItem(
                           value: TopicVisibilityType.private,
-                          child: Text('Private (Passcode required for others)'),
+                          child: Text('Private (Passcode required for others)', overflow: TextOverflow.ellipsis),
                         ),
                       ],
                       onChanged: (val) {
@@ -2193,8 +1363,8 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                   (v) => selectedVideoIds.contains(v['id']),
                                 )
                                 .map((v) {
-                                  final String videoUrl =
-                                      v['thumbnailUrl'] ?? '';
+                                  final videoUrl =
+                                      (v['thumbnailUrl'] as String?) ?? '';
                                   final isSelected =
                                       chosenVideoThumbnailUrl.value == videoUrl;
                                   return GestureDetector(
@@ -2273,7 +1443,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                                 alpha: 0.6,
                                               ),
                                               child: Text(
-                                                v['title'] ?? '',
+                                                (v['title'] as String?) ?? '',
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                                 style: const TextStyle(
@@ -2337,9 +1507,9 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: channelVideos.map((video) {
-                            final String videoId = video['id'];
-                            final String title = video['title'];
-                            final String thumbnailUrl = video['thumbnailUrl'];
+                            final videoId = (video['id'] as String?) ?? '';
+                            final title = (video['title'] as String?) ?? '';
+                            final thumbnailUrl = (video['thumbnailUrl'] as String?) ?? '';
                             final isSelected = selectedVideoIds.contains(
                               videoId,
                             );
@@ -2417,7 +1587,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                                               chosenVideoThumbnailUrl.value,
                                         )) {
                                       chosenVideoThumbnailUrl.value =
-                                          selectedMap.first['thumbnailUrl'];
+                                          selectedMap.first['thumbnailUrl'] as String?;
                                     }
                                   } else {
                                     chosenVideoThumbnailUrl.value = null;
@@ -2433,7 +1603,7 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
               ),
         actions: [
           TextButton(
-            onPressed: Get.back,
+            onPressed: () => Get.back<void>(),
             child: Text(
               'Cancel',
               style: TextStyle(
@@ -2510,11 +1680,11 @@ class _EditTopicDialogState extends State<EditTopicDialog> {
                               : null,
                           thumbnailUrl: finalThumbnailUrl,
                         );
-                      } catch (e) {
+                      } on Exception catch (e) {
                         debugPrint('Error updating topic: $e');
                       } finally {
                         isSaving.value = false;
-                        Get.back();
+                        Get.back<void>();
                       }
                     },
               style: ElevatedButton.styleFrom(

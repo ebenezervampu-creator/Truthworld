@@ -20,6 +20,8 @@ class InteractionGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
+      lockController.isLocked.value;
+      lockController.pillState.value;
       final locked = lockController.isLocked.value;
 
       return Stack(
@@ -43,6 +45,8 @@ class InteractionGate extends StatelessWidget {
 
           // YouTube-Style Floating Unlock Pill Overlay
           Obx(() {
+            lockController.isLocked.value;
+            lockController.pillState.value;
             final pillVisible =
                 locked && lockController.pillState.value == UnlockPillState.visible;
 

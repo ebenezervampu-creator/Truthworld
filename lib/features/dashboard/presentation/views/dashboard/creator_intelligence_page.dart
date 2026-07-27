@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/creator_intelligence_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
 import 'package:truthworld/features/notifications/data/models/user_notification.dart';
-import 'package:truthworld/theme/app_colors.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class CreatorIntelligencePage extends StatelessWidget {
@@ -105,8 +104,92 @@ class CreatorIntelligencePage extends StatelessWidget {
 
   Widget _buildHeaderBanner(
       BuildContext context, CreatorIntelligenceController controller, bool isDarkMode) {
+    final isMobile = MediaQuery.of(context).size.width < 700;
+
+    final titleSection = Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: AppColors.brand.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(
+            Icons.insights_rounded,
+            color: AppColors.brand,
+            size: 28,
+          ),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Creator Intelligence',
+                style: AppTextStyles.pageTitle.copyWith(
+                  fontSize: isMobile ? 20 : 24,
+                  color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Real-time channel milestones, performance insights & verification audits',
+                style: AppTextStyles.caption.copyWith(
+                  fontSize: 13,
+                  color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    final actionSection = Row(
+      mainAxisSize: isMobile ? MainAxisSize.max : MainAxisSize.min,
+      mainAxisAlignment: isMobile ? MainAxisAlignment.spaceBetween : MainAxisAlignment.end,
+      children: [
+        Obx(() {
+          if (controller.unreadCount.value > 0) {
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              margin: const EdgeInsets.only(right: 12),
+              decoration: BoxDecoration(
+                color: AppColors.brand,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${controller.unreadCount.value} UNREAD',
+                style: AppTextStyles.badge.copyWith(
+                  fontSize: 11,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            );
+          }
+          return const SizedBox.shrink();
+        }),
+        OutlinedButton.icon(
+          onPressed: () => controller.markAllAsRead(),
+          icon: const Icon(Icons.done_all_rounded, size: 16),
+          label: Text(
+            'Mark all as read',
+            style: AppTextStyles.buttonText.copyWith(fontSize: 13),
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.brand,
+            side: const BorderSide(color: AppColors.brand),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+      ],
+    );
+
     return Container(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
       decoration: BoxDecoration(
         color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
         border: Border(
@@ -115,94 +198,23 @@ class CreatorIntelligencePage extends StatelessWidget {
           ),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.brand.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.insights_rounded,
-                      color: AppColors.brand,
-                      size: 28,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Creator Intelligence',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Real-time channel milestones, performance insights & verification audits',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  Obx(() {
-                    if (controller.unreadCount.value > 0) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        margin: const EdgeInsets.only(right: 12),
-                        decoration: BoxDecoration(
-                          color: AppColors.brand,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '${controller.unreadCount.value} UNREAD',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  }),
-                  OutlinedButton.icon(
-                    onPressed: () => controller.markAllAsRead(),
-                    icon: const Icon(Icons.done_all_rounded, size: 16),
-                    label: const Text(
-                      'Mark all as read',
-                      style: TextStyle(fontSize: 13),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.brand,
-                      side: const BorderSide(color: AppColors.brand),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
+      child: isMobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                titleSection,
+                const SizedBox(height: 14),
+                actionSection,
+              ],
+            )
+          : Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(child: titleSection),
+                const SizedBox(width: 16),
+                actionSection,
+              ],
+            ),
     );
   }
 
@@ -221,6 +233,7 @@ class CreatorIntelligencePage extends StatelessWidget {
       height: 60,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
       child: Obx(() {
+        final currentCategory = controller.selectedCategory.value;
         return ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: categories.length,
@@ -228,7 +241,7 @@ class CreatorIntelligencePage extends StatelessWidget {
           itemBuilder: (context, index) {
             final cat = categories[index];
             final catId = cat['id']! as String;
-            final isSelected = controller.selectedCategory.value == catId;
+            final isSelected = currentCategory == catId;
 
             return ChoiceChip(
               avatar: Icon(
@@ -236,7 +249,14 @@ class CreatorIntelligencePage extends StatelessWidget {
                 size: 16,
                 color: isSelected ? AppColors.textPrimary : AppColors.brand,
               ),
-              label: Text(cat['label']! as String),
+              label: Text(
+                cat['label']! as String,
+                style: AppTextStyles.labelMedium.copyWith(
+                  color: isSelected ? AppColors.textPrimary : (isDarkMode ? AppColors.textPrimary : AppColors.bgPage),
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
               selected: isSelected,
               onSelected: (selected) {
                 if (selected) {
@@ -245,11 +265,6 @@ class CreatorIntelligencePage extends StatelessWidget {
               },
               selectedColor: AppColors.brand,
               backgroundColor: isDarkMode ? AppColors.bgSurface : AppColors.textSecondary,
-              labelStyle: TextStyle(
-                color: isSelected ? AppColors.textPrimary : (isDarkMode ? AppColors.textPrimary : AppColors.bgPage),
-                fontSize: 13,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              ),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
@@ -269,7 +284,7 @@ class CreatorIntelligencePage extends StatelessWidget {
       padding: const EdgeInsets.only(top: 20, bottom: 10),
       child: Text(
         title,
-        style: TextStyle(
+        style: AppTextStyles.labelMedium.copyWith(
           fontSize: 12,
           fontWeight: FontWeight.bold,
           letterSpacing: 1.2,
@@ -298,13 +313,13 @@ class CreatorIntelligencePage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.warning_rounded, color: AppColors.error, size: 22),
-              SizedBox(width: 8),
+              const Icon(Icons.warning_rounded, color: AppColors.error, size: 22),
+              const SizedBox(width: 8),
               Text(
                 'ACTION REQUIRED',
-                style: TextStyle(
+                style: AppTextStyles.labelMedium.copyWith(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.1,
@@ -410,16 +425,17 @@ class CreatorIntelligencePage extends StatelessWidget {
                               Expanded(
                                 child: Text(
                                   notification.title,
-                                  style: TextStyle(
+                                  style: AppTextStyles.titleMedium.copyWith(
                                     fontSize: 15,
                                     fontWeight: notification.read ? FontWeight.w500 : FontWeight.bold,
                                     color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
                                   ),
                                 ),
                               ),
+                              const SizedBox(width: 8),
                               Text(
                                 DateFormat('h:mm a').format(notification.createdAt),
-                                style: TextStyle(
+                                style: AppTextStyles.caption.copyWith(
                                   fontSize: 12,
                                   color: isDarkMode ? AppColors.textTertiary : AppColors.textSecondary,
                                 ),
@@ -429,7 +445,7 @@ class CreatorIntelligencePage extends StatelessWidget {
                           const SizedBox(height: 6),
                           Text(
                             notification.message,
-                            style: TextStyle(
+                            style: AppTextStyles.bodyMedium.copyWith(
                               fontSize: 13,
                               height: 1.4,
                               color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
@@ -464,15 +480,23 @@ class CreatorIntelligencePage extends StatelessWidget {
                   const SizedBox(height: 14),
                   const Divider(height: 1, color: AppColors.bgDivider),
                   const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
+                  Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
                       if (notification.verificationReportId != null)
                         ElevatedButton.icon(
                           onPressed: () => _showVerificationReportModal(
                               context, controller, notification.verificationReportId!),
                           icon: const Icon(Icons.assessment_rounded, size: 16),
-                          label: const Text('View Verification Audit'),
+                          label: Text(
+                            'View Verification Audit',
+                            style: AppTextStyles.buttonText.copyWith(
+                              fontSize: 12,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.brand,
                             foregroundColor: AppColors.textPrimary,
@@ -483,8 +507,7 @@ class CreatorIntelligencePage extends StatelessWidget {
                             ),
                           ),
                         ),
-                      for (final action in notification.actions) ...[
-                        const SizedBox(width: 8),
+                      for (final action in notification.actions)
                         OutlinedButton(
                           onPressed: () => _handleAction(context, action, isDarkMode),
                           style: OutlinedButton.styleFrom(
@@ -495,9 +518,14 @@ class CreatorIntelligencePage extends StatelessWidget {
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
-                          child: Text(action.label),
+                          child: Text(
+                            action.label,
+                            style: AppTextStyles.buttonText.copyWith(
+                              fontSize: 12,
+                              color: AppColors.brand,
+                            ),
+                          ),
                         ),
-                      ],
                     ],
                   ),
                 ],
@@ -523,12 +551,13 @@ class CreatorIntelligencePage extends StatelessWidget {
         children: [
           const Icon(Icons.history_rounded, size: 14, color: AppColors.brand),
           const SizedBox(width: 6),
-          Text(
-            'Snapshot at creation: ${NumberFormat.compact().format(snap.views)} views • ${NumberFormat.compact().format(snap.subscribers)} subs',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+          Flexible(
+            child: Text(
+              'Snapshot at creation: ${NumberFormat.compact().format(snap.views)} views • ${NumberFormat.compact().format(snap.subscribers)} subs',
+              style: AppTextStyles.captionBold.copyWith(
+                fontSize: 11,
+                color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+              ),
             ),
           ),
         ],
@@ -538,39 +567,42 @@ class CreatorIntelligencePage extends StatelessWidget {
 
   Widget _buildEmptyState(BuildContext context, bool isDarkMode) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.insights_rounded,
-            size: 64,
-            color: isDarkMode ? AppColors.textTertiary : AppColors.textSecondary,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No Creator Insights Yet',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.insights_rounded,
+              size: 64,
+              color: isDarkMode ? AppColors.textTertiary : AppColors.textSecondary,
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Milestones, video verification audit reports, and AI growth tips will appear here.',
-            style: TextStyle(
-              fontSize: 13,
-              color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+            const SizedBox(height: 16),
+            Text(
+              'No Creator Insights Yet',
+              style: AppTextStyles.pageTitle.copyWith(
+                fontSize: 18,
+                color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 6),
+            Text(
+              'Milestones, video verification audit reports, and AI growth tips will appear here.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.bodySmall.copyWith(
+                fontSize: 13,
+                color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   void _showVerificationReportModal(
       BuildContext context, CreatorIntelligenceController controller, String reportId) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -606,12 +638,13 @@ class CreatorIntelligencePage extends StatelessWidget {
                     children: [
                       const Icon(Icons.verified_user_rounded, color: AppColors.brand, size: 28),
                       const SizedBox(width: 12),
-                      Text(
-                        'Truth Verification Audit Report',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                      Expanded(
+                        child: Text(
+                          'Truth Verification Audit Report',
+                          style: AppTextStyles.headlineSmall.copyWith(
+                            fontSize: 20,
+                            color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                          ),
                         ),
                       ),
                     ],
@@ -627,11 +660,11 @@ class CreatorIntelligencePage extends StatelessWidget {
                       ),
                     )
                   else if (data == null)
-                    const Expanded(
+                    Expanded(
                       child: Center(
                         child: Text(
                           'Verification Report Details Available in Verification Tab.',
-                          style: TextStyle(color: AppColors.textSecondary),
+                          style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
                         ),
                       ),
                     )
@@ -640,10 +673,10 @@ class CreatorIntelligencePage extends StatelessWidget {
                       child: ListView(
                         children: [
                           _buildAuditRow('Status', (data['status'] ?? 'Rejected').toString().toUpperCase(), AppColors.error),
-                          _buildAuditRow('Primary Reason', data['primaryReason'] ?? 'AI Synthetic Content Detected without disclosure', isDarkMode ? AppColors.textPrimary : AppColors.bgPage),
-                          _buildAuditRow('Confidence Score', '${((data['confidenceScore'] ?? 0.86) * 100).toInt()}%', AppColors.warning),
+                          _buildAuditRow('Primary Reason', data['primaryReason'] as String? ?? 'AI Synthetic Content Detected without disclosure', isDarkMode ? AppColors.textPrimary : AppColors.bgPage),
+                          _buildAuditRow('Confidence Score', '${(((data['confidenceScore'] as num?) ?? 0.86) * 100).toInt()}%', AppColors.warning),
                           _buildAuditRow('Detected Flagged Frames', (data['flaggedFrames'] as List? ?? ['00:45', '02:12', '05:31']).join(', '), AppColors.info),
-                          _buildAuditRow('Recommended Action', data['recommendedFix'] ?? 'Enable AI Synthetic content label in video metadata settings or submit an appeal.', isDarkMode ? AppColors.textPrimary : AppColors.bgPage),
+                          _buildAuditRow('Recommended Action', data['recommendedFix'] as String? ?? 'Enable AI Synthetic content label in video metadata settings or submit an appeal.', isDarkMode ? AppColors.textPrimary : AppColors.bgPage),
                           const SizedBox(height: 24),
                           Row(
                             children: [
@@ -651,10 +684,13 @@ class CreatorIntelligencePage extends StatelessWidget {
                                 child: ElevatedButton.icon(
                                   onPressed: () {
                                     Navigator.pop(context);
-                                    Get.to(() => TruthVerificationDashboardPage(channelId: channelId, isDarkMode: isDarkMode));
+                                    Get.to<void>(() => TruthVerificationDashboardPage(channelId: channelId, isDarkMode: isDarkMode));
                                   },
                                   icon: const Icon(Icons.gavel_rounded),
-                                  label: const Text('Submit Appeal'),
+                                  label: Text(
+                                    'Submit Appeal',
+                                    style: AppTextStyles.buttonText.copyWith(color: AppColors.textPrimary),
+                                  ),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.brand,
                                     foregroundColor: AppColors.textPrimary,
@@ -687,16 +723,15 @@ class CreatorIntelligencePage extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: AppTextStyles.captionBold.copyWith(
               fontSize: 12,
-              fontWeight: FontWeight.bold,
               color: AppColors.textTertiary,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             value,
-            style: TextStyle(
+            style: AppTextStyles.bodyMedium.copyWith(
               fontSize: 14,
               fontWeight: FontWeight.w600,
               color: valueColor,
@@ -712,7 +747,7 @@ class CreatorIntelligencePage extends StatelessWidget {
       case 'OPEN_ANALYTICS':
         Get.snackbar('Navigating', 'Opening Channel Analytics...', backgroundColor: AppColors.brand, colorText: AppColors.textPrimary);
       case 'APPEAL_VERIFICATION':
-        Get.to(() => TruthVerificationDashboardPage(channelId: channelId, isDarkMode: isDarkMode));
+        Get.to<void>(() => TruthVerificationDashboardPage(channelId: channelId, isDarkMode: isDarkMode));
       default:
         Get.snackbar('Action Triggered', action.label, backgroundColor: AppColors.bgSurface, colorText: AppColors.textPrimary);
     }

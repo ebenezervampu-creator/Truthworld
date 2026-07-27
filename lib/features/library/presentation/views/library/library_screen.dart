@@ -405,6 +405,8 @@ class LibraryScreenState extends State<LibraryScreen>
             final homeController = Get.isRegistered<HomeController>()
                 ? Get.find<HomeController>()
                 : Get.put(HomeController());
+            final authService = AuthService.to;
+            final hasChannel = authService.hasChannel.value;
 
             final isLibraryEmpty = !homeController.hasWatchHistory.value &&
                 !homeController.hasPlaylists.value &&
@@ -438,10 +440,12 @@ class LibraryScreenState extends State<LibraryScreen>
                         ),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        'Configure your settings or create a channel to get started.',
+                      Text(
+                        hasChannel
+                            ? 'Configure your settings to get started.'
+                            : 'Configure your settings or create a channel to get started.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 14,
                           color: secondaryText,
                         ),
@@ -474,32 +478,34 @@ class LibraryScreenState extends State<LibraryScreen>
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () {
-                                HapticFeedback.lightImpact();
-                                Get.toNamed('/channelscreen');
-                              },
-                              icon: const Icon(Icons.add_circle_outline, size: 18, color: primaryText),
-                              label: const Text(
-                                'Create Channel',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  color: primaryText,
+                          if (!hasChannel) ...[
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  HapticFeedback.lightImpact();
+                                  Get.toNamed('/channelscreen');
+                                },
+                                icon: const Icon(Icons.add_circle_outline, size: 18, color: primaryText),
+                                label: const Text(
+                                  'Create Channel',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: primaryText,
+                                  ),
                                 ),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                backgroundColor: buttonBg,
-                                side: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.1)),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
+                                style: OutlinedButton.styleFrom(
+                                  backgroundColor: buttonBg,
+                                  side: BorderSide(color: AppColors.textPrimary.withValues(alpha: 0.1)),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                     ],
@@ -530,6 +536,16 @@ class LibraryScreenState extends State<LibraryScreen>
                 icon: Icons.thumb_up_outlined,
                 title: 'Liked videos',
                 onTap: () => Get.toNamed('/likedvideos'),
+              ),
+              _buildLibraryListTile(
+                icon: Icons.bookmark_outline_rounded,
+                title: 'Saved posts',
+                onTap: () => Get.toNamed('/saved-community-posts'),
+              ),
+              _buildLibraryListTile(
+                icon: Icons.comment_outlined,
+                title: 'Saved comments',
+                onTap: () => Get.toNamed('/saved-comments'),
               ),
               _buildLibraryListTile(
                 icon: Icons.content_cut_rounded,
@@ -572,11 +588,12 @@ class LibraryScreenState extends State<LibraryScreen>
                 title: 'Get Premium',
                 onTap: () => Get.toNamed('/premium'),
               ),
-              _buildLibraryListTile(
-                icon: Icons.add_circle_outline,
-                title: 'Create Channel to upload videos',
-                onTap: () => Get.toNamed('/channelscreen'),
-              ),
+              if (!hasChannel)
+                _buildLibraryListTile(
+                  icon: Icons.add_circle_outline,
+                  title: 'Create Channel to upload videos',
+                  onTap: () => Get.toNamed('/channelscreen'),
+                ),
             ]);
 
             return SliverList(
@@ -1105,12 +1122,23 @@ class LibraryScreenState extends State<LibraryScreen>
                 );
               }
 
-              final docs = snapshot.data!.docs;
+              final playlists = snapshot.data!.docs
+                  .map(PlaylistModel.fromDocumentSnapshot)
+                  .where((p) => p.thumbnailUrl.trim().isNotEmpty)
+                  .toList();
+
+              if (playlists.isEmpty) {
+                return const Text(
+                  'No playlists yet',
+                  style: TextStyle(color: secondaryText, fontSize: 13),
+                );
+              }
+
               return ListView.builder(
                 padding: EdgeInsets.zero,
-                itemCount: docs.length,
+                itemCount: playlists.length,
                 itemBuilder: (context, index) {
-                  final playlist = PlaylistModel.fromDocumentSnapshot(docs[index]);
+                  final playlist = playlists[index];
                   return _buildSidebarPlaylistTile(playlist);
                 },
               );

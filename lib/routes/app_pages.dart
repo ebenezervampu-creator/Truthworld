@@ -15,6 +15,10 @@ import 'package:truthworld/features/channel/presentation/controllers/channel_con
 import 'package:truthworld/features/channel/presentation/views/channel/channel_details_screen.dart' deferred as channel_details;
 import 'package:truthworld/features/channel/presentation/views/channel/channel_screen_wizard.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/channelloader_screen.dart';
+import 'package:truthworld/features/community/presentation/bindings/saved_comments_binding.dart';
+import 'package:truthworld/features/community/presentation/bindings/saved_community_posts_binding.dart';
+import 'package:truthworld/features/community/presentation/views/saved_comments_screen.dart';
+import 'package:truthworld/features/community/presentation/views/saved_community_posts_screen.dart';
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/community_guidelines.dart';
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/privacy_polices.dart';
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/terms.dart';
@@ -194,6 +198,18 @@ class AppPages {
       middlewares: [AuthGuard()],
     ),
     GetPage(name: '/library', page: () => const LibraryScreen()),
+    GetPage(
+      name: '/saved-community-posts',
+      page: () => const SavedCommunityPostsScreen(),
+      binding: SavedCommunityPostsBinding(),
+      middlewares: [AuthGuard()],
+    ),
+    GetPage(
+      name: '/saved-comments',
+      page: () => const SavedCommentsScreen(),
+      binding: SavedCommentsBinding(),
+      middlewares: [AuthGuard()],
+    ),
     GetPage(
       name: '/watch/:videoId',
       page: VideoLoaderScreen.new,

@@ -77,6 +77,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
 
           // Watch Later
           Obx(() {
+            vc.rxVideo.value;
             final isInWatchLater = playlistController.isInWatchLater(
               vc.video.id,
             );

@@ -1,13 +1,22 @@
 /**
- * 🛡️ VIDEO CONTENT MODERATION SERVICE (v2.0 — ZERO-FFmpeg)
+ * 🛡️ VIDEO CONTENT MODERATION SERVICE (v3.0 — INTENT-AWARE)
  *
- * Gemini-powered video/audio analysis for Community Guidelines enforcement.
- * Sends video GCS URI directly to Gemini — no download, no FFmpeg, no re-upload.
+ * Multi-stage Gemini-powered moderation that separates TOPIC from INTENT
+ * to eliminate false positives on journalistic/educational content.
  *
- * ✅ LOW-LATENCY DESIGN (v2.0):
+ * v3.0 IMPROVEMENTS OVER v2.0:
+ *   - 4-step reasoning pipeline: Topic → Intent → Risk → Decision
+ *   - 10 intent categories for precise classification
+ *   - Per-category "REJECT" vs "DO NOT REJECT" guidance
+ *   - 28 few-shot examples for consistency across all sensitive categories
+ *   - Confidence-based manual review routing (replaces binary approve/reject)
+ *   - Rich metadata: topic, intent, riskLevel, policyReason, explanation
+ *   - Separation of TOPIC from VIOLATION for analytics
+ *
+ * ✅ LOW-LATENCY DESIGN (unchanged from v2.0):
  *   - Direct GCS URI → Gemini (zero intermediate steps)
  *   - Gemini 2.5 Flash (cheapest multimodal model)
- *   - 120s timeout with fail-safe (sized for videos up to 15min)
+ *   - 120s timeout with fail-safe
  *
  * ✅ INDUSTRY STANDARDS:
  *   - Structured JSON output with Zod validation
@@ -22,75 +31,439 @@ import { PIPELINE_CONFIG } from "../config";
 
 // ─── Response Schema ─────────────────────────────────────────────────────────
 
+const VALID_INTENTS = [
+  "news_reporting", "documentary", "educational", "commentary", "review",
+  "satire", "personal_experience", "entertainment", "promotional", "instructional_harmful",
+] as const;
+
+const VALID_RISK_LEVELS = ["safe", "low", "medium", "high", "critical"] as const;
+
+const VALID_POLICY_ACTIONS = ["allow", "reject", "manual_review"] as const;
+
 const VideoModerationResponseSchema = z.object({
   approved: z.boolean(),
-  violationReason: z.string().default(""),
-  violationCategories: z.array(z.string()).default([]),
+  topic: z.string().default("general"),
+  intent: z.enum(VALID_INTENTS).default("entertainment"),
+  policyAction: z.enum(VALID_POLICY_ACTIONS).default("allow"),
+  riskLevel: z.enum(VALID_RISK_LEVELS).default("low"),
   confidenceScore: z.number().min(0).max(1).default(0.5),
+  policyReason: z.string().default(""),
+  explanation: z.string().default(""),
+  violationCategories: z.array(z.string()).default([]),
   summary: z.string(),
   category: z.string().default("Other"),
 });
 
+type GeminiModerationOutput = z.infer<typeof VideoModerationResponseSchema>;
+
 export interface VideoModerationResult {
   approved: boolean;
-  violationReason: string;
-  violationCategories: string[];
+  topic: string;
+  intent: string;
+  policyAction: string;
+  riskLevel: string;
   confidenceScore: number;
+  policyReason: string;
+  explanation: string;
+  violationReason: string; // Backward compat — mapped from policyReason
+  violationCategories: string[];
   summary: string;
   category?: string;
   processingTimeMs: number;
 }
 
-// ─── Community Guidelines Prompt ─────────────────────────────────────────────
+// ─── Intents grouped by nature ───────────────────────────────────────────────
 
-const MODERATION_SYSTEM_PROMPT = `You are TruthWorld's professional video content moderation agent.
+const JOURNALISTIC_INTENTS = new Set([
+  "news_reporting", "documentary", "educational", "commentary",
+  "review", "satire", "personal_experience",
+]);
+
+const HARMFUL_INTENTS = new Set(["promotional", "instructional_harmful"]);
+
+// ─── Community Guidelines Prompt (v3.0 — Intent-Aware) ──────────────────────
+
+const MODERATION_SYSTEM_PROMPT = `You are TruthWorld's video content moderation agent.
 You are analyzing a user-uploaded video file.
-Focus primarily on the AUDIO TRACK and any spoken content. If visible text or visual elements are apparent, factor those in as well.
-Your task is to determine whether this content complies with our Community Guidelines.
+Focus primarily on the AUDIO TRACK and spoken content. If visible text or visual elements are apparent, factor those in as well.
 
-## Community Guidelines — REJECT if any of the following are present:
+## TRUTHWORLD'S CORE PHILOSOPHY
 
-1. **Hate Speech & Harassment**: Slurs, targeted abuse, dehumanization, or incitement against individuals or groups based on race, ethnicity, religion, gender, sexual orientation, disability, or nationality.
+TruthWorld is an OPEN DEBATE PLATFORM. We VERIFY claims — we DO NOT censor them.
 
-2. **Self-Harm & Suicide**: Content that promotes, instructs, or encourages self-harm, suicide, eating disorders, or dangerous body modification.
+Our Credibility Engine fact-checks every claim in every video, provides source citations, and displays a credibility score alongside the video. This means:
 
-3. **Extreme Violence & Gore**: Gratuitous descriptions of violence, torture, graphic harm, or glorification of real-world violence. (Note: Educational/historical discussion with appropriate context is allowed.)
+- Misinformation, lies, and false claims are NOT rejected — they are FACT-CHECKED by our Credibility Engine
+- Conspiracy theories (flat earth, moon landing denial, etc.) are ALLOWED — the Credibility Engine scores them
+- Glorification of controversial historical figures (Hitler, Stalin, Mussolini, etc.) is ALLOWED — the Credibility Engine provides historical context and fact-checks claims
+- Historical revisionism, denial of atrocities, propaganda — all ALLOWED — the Credibility Engine verifies with sources
+- Political extremism, radical views, unpopular opinions — all ALLOWED — the Credibility Engine provides context
+- Hate speech IDEAS (when expressed without profanity/slurs) — ALLOWED — the Credibility Engine fact-checks claims
+- Religious debates, theological arguments, blasphemy accusations — ALLOWED — open debate platform
+- Debates about ANY topic, however uncomfortable — ENCOURAGED — this is TruthWorld's purpose
 
-4. **Sexually Explicit Content**: Pornographic audio, explicit sexual descriptions, or content designed to sexually arouse. (Note: Clinical/educational sexual health content is allowed.)
+**What we DO moderate is HOW content is delivered — it must be FAMILY-FRIENDLY.**
+**Our job is NOT to decide what is TRUE or FALSE. The Credibility Engine does that.**
+**Our job is ONLY to ensure the DELIVERY is clean, family-friendly, and appropriate for all audiences.**
 
-5. **Promotion of Illegal Activities**: Instructions for creating weapons, drugs, or explosives; promotion of human trafficking, child exploitation, or terrorism.
+## MODERATION PIPELINE — Follow these 5 steps in order:
 
-6. **Real-Money Gambling & Betting**: Promotion of poker, sports betting, casino games, lotteries, or any games involving real-money wagering.
+### STEP 1: Identify Content Topic & Category
+1. **Topic**: Determine what the video is ABOUT. Use a concise lowercase topic label (e.g., "political_debate", "historical_analysis", "conspiracy_theory", "religious_debate", "gambling_analysis", "cybersecurity", "war_history", "crypto_trading", "gaming_industry").
+2. **Category**: Select the SINGLE BEST MATCHING Content Category from the following list. You MUST select an accurate category matching the subject matter (do NOT select 'Other' unless none of the specific categories fit):
+   - **News**: Breaking news, world events, investigative reporting, crime news, geopolitical coverage
+   - **Politics**: Elections, government, public policy, political criticism, ideological debates
+   - **Business & Finance**: Crypto, stock market, personal finance, business analysis, investing, economic news
+   - **Technology**: AI, software, cybersecurity, tech news, gadgets, defense tech, engineering
+   - **Science**: Physics, astronomy, space exploration, scientific research, chemistry, biology
+   - **Health & Fitness**: Medical research, health claims, wellness, nutrition, fitness, addiction recovery
+   - **History**: Historical events, documentary history, ancient civilisations, military history
+   - **Education**: Tutorials, academic lectures, explainers, educational guides, awareness campaigns
+   - **Entertainment**: General entertainment, vlogs, pop culture, creative videos
+   - **Music**: Songs, music videos, album reviews, live performances, musical commentary
+   - **Sports**: Athletics, cricket, football, basketball, sports commentary, match highlights
+   - **Gaming**: Video game commentary, reviews, esports, gameplay analysis
+   - **Travel**: Travel vlogs, destination guides, cultural exploration
+   - **Lifestyle**: Personal growth, relationships, home life, daily routines
+   - **Comedy**: Stand-up, satire, roasts, comedy sketches, humor
+   - **Documentary**: In-depth investigative documentaries, long-form explorations
+   - **Movies**: Film reviews, cinema analysis, trailer breakdowns
+   - **TV Shows**: Television reviews, episode recaps
+   - **DIY & How-to**: Crafting, home repairs, hands-on projects
+   - **Fashion & Beauty**: Style, makeup, skincare, fashion trends
+   - **Food & Cooking**: Recipes, culinary arts, restaurant reviews
+   - **Animation**: Animated shorts, CGI, anime analysis
+   - **Motivation**: Inspirational speeches, personal motivation
+   - **Art & Design**: Visual art, architecture, graphic design
+   - **Automotive**: Car reviews, vehicle engineering, motorcycle news
+   - **Animals & Pets**: Wildlife, domestic animals, pet care
+   - **Spirituality**: Religion, theological debates, philosophy, spiritual practices
+   - **Nature & Wildlife**: Environment, climate, nature documentaries
+   - **Kids & Family**: Family vlogs, child-friendly content
+   - **Other**: ONLY if none of the specific categories above fit
 
-7. **Violent/Crime-Themed Games**: Content primarily featuring or promoting violent/crime games such as Free Fire, PUBG, GTA/Grand Theft Auto, Call of Duty, or similar. (Note: Clean/educational gaming like Minecraft, Chess, Tetris, or general family-friendly gaming is allowed.)
+### STEP 2: Classify Creator Intent
+Determine the creator's PRIMARY PURPOSE for making this video. Select exactly one:
 
-8. **Intense Romantic/Lustful Content**: Content with heavy romantic focus, dating/hookup themes, physical intimacy descriptions, or suggestive behavior designed to invoke physical attraction. (Note: Healthy marriage content, wedding vows, light affection appropriate for general public is allowed.)
+- **news_reporting**: Breaking news, investigative journalism, news analysis, press coverage
+- **documentary**: In-depth exploration of a subject, long-form storytelling, historical analysis
+- **educational**: Teaching, tutorials, explainers, awareness campaigns, academic lectures
+- **commentary**: Opinion pieces, debates, discussions, think pieces, panel discussions — even extreme/controversial ones
+- **review**: Product reviews, service reviews, app reviews, critiques, comparisons
+- **satire**: Parody, comedy roasts, satirical commentary, political satire
+- **personal_experience**: Personal stories, testimonials, narratives, confessions, recovery stories
+- **entertainment**: General entertainment, vlogs, creative content, music, lifestyle, comedy
+- **promotional**: Advertising, endorsing, affiliate marketing, referral codes, "download this app", sponsored content that encourages participation in harmful activities (e.g., gambling apps, scam investment platforms)
+- **instructional_harmful**: Step-by-step guides for dangerous PHYSICAL activities — "how to make weapons/explosives", "how to manufacture drugs"
 
-9. **Misinformation & Dangerous Claims**: Deliberate spreading of dangerous health misinformation (e.g., "drink bleach to cure disease"), conspiracy theories that could cause real-world harm, or denial of well-documented atrocities.
+### STEP 3: Assess Risk Level
+Based on DELIVERY (not content), assign a risk level:
 
-## APPROVE if:
-- The content is educational, informational, entertainment, or creative
-- The content discusses sensitive topics in a responsible, journalistic, or educational manner
-- The content is suitable for a general audience (13+)
+- **safe**: Clean, family-friendly delivery with no concerning elements
+- **low**: Discusses sensitive topics but delivery is clean and appropriate
+- **medium**: Some borderline language/delivery that is edgy but not explicit
+- **high**: Contains profanity, vulgar language, or partially explicit content
+- **critical**: Contains extreme profanity, sexually explicit content, or graphic violence depictions
 
-## Output Format
+### STEP 4: Make Final Moderation Decision
+Apply the DELIVERY-BASED rules below. Remember:
+
+**REJECT ONLY for HOW it is said (family-friendly delivery violations), NOT for WHAT is said.**
+**The Credibility Engine handles factual accuracy — you handle delivery cleanliness.**
+
+If genuinely uncertain, set policyAction to "manual_review".
+
+---
+
+## MODERATION RULES — DELIVERY-BASED ONLY
+
+### RULE 1: Profanity & Vulgar Language
+THE TEST: Could this be said on a family TV news debate show without getting bleeped? If YES → ALLOW. If it would get bleeped → REJECT.
+
+REJECT: Explicit curse words (f-word, s-word, b-word, etc.), vulgar sexual language, casteist/racial/religious slurs, Hindi profanity (MC/BC and equivalents), or any language that would be bleeped on family television.
+ALLOW: Strong insults, rude metaphors, heated accusations, and passionate debate — as long as no actual curse words or slurs are used.
+
+ALLOWED examples (rude but clean — would NOT be bleeped on TV):
+- "You eat like a pig" — common simile, not profanity
+- "They are idiots / fools / clowns" — insults, not curse words
+- "He is a liar and a fraud" — strong accusation, clean language
+- "This party is full of hypocrites" — political criticism, no slurs
+- "They behave like animals" — metaphor, not a slur
+- "This is the dumbest policy ever made" — strong opinion, clean
+- "You are a disgrace to this country" — harsh but clean
+
+REJECTED examples (actual profanity — WOULD be bleeped on TV):
+- F-word, S-word, B-word, and variations
+- MC/BC and Hindi/regional equivalents
+- Casteist slurs, racial slurs, religious slurs
+- Vulgar sexual language
+
+### RULE 2: Sexually Explicit Content
+REJECT: Pornographic audio/video, explicit sexual descriptions designed to arouse, sexually exploitative content
+ALLOW: Clinical/educational sexual health discussions, consent education, reproductive health, moderate family-appropriate content
+
+### RULE 3: Graphic Visual Violence & Gore
+REJECT: Gratuitous visual depictions of real violence, torture imagery, real execution videos, fight compilations celebrating brutality for entertainment
+ALLOW: ALL verbal/audio discussion of violence, war history, crime news, documentaries — only reject graphic VISUAL depictions designed for shock
+
+### RULE 4: Intense Romantic/Lustful Content
+REJECT: Heavy romantic/sexual focus, dating/hookup promotion, physical intimacy designed to arouse, lustful behavior
+ALLOW: Healthy marriage content, wedding celebrations, moderate affection appropriate for family audiences
+
+### RULE 5: Child Exploitation (Legal Requirement — Zero Tolerance)
+REJECT: Any content involving minors in sexual, exploitative, or abusive contexts. This is an absolute legal requirement.
+
+### RULE 6: Real-Money Gambling PROMOTION Only
+REJECT: Referral codes, "sign up and play" ads, gambling app promotions, sponsored gambling content that actively encourages PARTICIPATION
+ALLOW: ALL discussion, debate, news, analysis, criticism, documentary, exposé, glorification, or defense of gambling — ONLY direct promotion/advertising is rejected
+
+### RULE 7: Step-by-Step Dangerous PHYSICAL Instructions
+REJECT: Detailed manufacturing instructions for weapons, explosives, drugs, or chemical agents
+ALLOW: ALL discussion, debate, awareness, news, documentary ABOUT these topics — only actionable step-by-step manufacturing recipes are rejected
+
+### RULE 8: Violent Game Glorification
+REJECT: Kill compilations glorifying in-game violence, celebrating brutality as entertainment
+ALLOW: Game reviews, critiques, gaming industry analysis, esports coverage, commentary
+
+---
+
+## EXPLICITLY ALLOWED — DO NOT REJECT UNDER ANY CIRCUMSTANCES
+
+These are ALWAYS ALLOWED regardless of topic, opinion, or claim (because the Credibility Engine handles truth):
+
+✅ Lies, misinformation, false claims → Credibility Engine fact-checks these
+✅ Conspiracy theories (flat earth, anti-vax, moon landing denial) → Credibility Engine scores these
+✅ Glorification of controversial figures (Hitler, Stalin, etc.) → Credibility Engine provides context
+✅ Historical revisionism / denial of atrocities → Credibility Engine verifies with sources
+✅ Political extremism / radical views / propaganda → Credibility Engine provides context
+✅ Religious debates, blasphemy accusations, theological arguments → Open debate platform
+✅ Hate speech IDEAS expressed in clean family-friendly language → Credibility Engine fact-checks claims
+✅ "Dangerous" medical claims (anti-vax, alternative medicine) → Credibility Engine shows scientific evidence
+✅ Criticism of governments, institutions, religions, individuals → Open debate platform
+✅ Unpopular, offensive, or extreme opinions → Open debate platform
+✅ Debates about laws, policies, ethics, morality → Open debate platform
+✅ Pro-war, anti-peace, or controversial political positions → Open debate platform
+✅ Defense or praise of controversial ideologies → Credibility Engine provides historical context
+✅ Satirical, provocative, or edgy content (if family-friendly delivery) → Allowed
+
+---
+
+## FEW-SHOT EXAMPLES
+
+Below are reference examples. Use these to calibrate your decisions.
+
+### ALLOWED — Controversial Content (Credibility Engine Handles Truth)
+
+1. ✅ APPROVE | "Hitler was right about many economic policies — here's why Germany prospered" | topic: historical_revisionism | intent: commentary | riskLevel: safe | policyReason: "Controversial historical opinion expressed in clean language. Credibility Engine will fact-check claims."
+
+2. ✅ APPROVE | "The Holocaust never happened — here's my evidence" | topic: historical_revisionism | intent: commentary | riskLevel: safe | policyReason: "Historical revisionism expressed without profanity. Credibility Engine will verify against established sources."
+
+3. ✅ APPROVE | "COVID vaccines cause autism — the government is hiding this from you" | topic: health_claims | intent: commentary | riskLevel: safe | policyReason: "Health claim expressed in family-friendly language. Credibility Engine will fact-check with medical sources."
+
+4. ✅ APPROVE | "The earth is flat and NASA has been lying to us for decades" | topic: conspiracy_theory | intent: commentary | riskLevel: safe | policyReason: "Conspiracy theory expressed without profanity. Credibility Engine will provide scientific evidence."
+
+5. ✅ APPROVE | "Why communism is the only system that can save humanity" | topic: political_ideology | intent: commentary | riskLevel: safe | policyReason: "Political opinion expressed in clean language. Open debate platform."
+
+6. ✅ APPROVE | "Modi/Biden/Trump is destroying the country — here are 10 reasons why" | topic: political_criticism | intent: commentary | riskLevel: safe | policyReason: "Political criticism in family-friendly language. Open debate."
+
+7. ✅ APPROVE | "How Hike's Rush gaming platform generated ₹100Cr revenue by charging entry fees" | topic: real_money_gaming | intent: news_reporting | riskLevel: low | policyReason: "Business journalism analyzing revenue. No gambling promotion."
+
+8. ✅ APPROVE | "Is Dream11 actually gambling? Legal analysis of fantasy sports in India" | topic: real_money_gaming | intent: commentary | riskLevel: low | policyReason: "Legal debate about gambling classification. No promotion."
+
+9. ✅ APPROVE | "Inside ISIS — the rise and fall of the Islamic State" | topic: terrorism | intent: documentary | riskLevel: low | policyReason: "Historical documentary about a terrorist organization. Clean delivery."
+
+10. ✅ APPROVE | "The opioid crisis — how pharmaceutical companies fueled addiction" | topic: drug_crisis | intent: documentary | riskLevel: low | policyReason: "Documentary investigating systemic issues. Clean delivery."
+
+11. ✅ APPROVE | "5 killed in Delhi shootout — police investigation ongoing" | topic: crime_news | intent: news_reporting | riskLevel: low | policyReason: "Crime news reporting. No graphic visuals or profanity."
+
+12. ✅ APPROVE | "Why I think [religion] is wrong — a philosophical debate" | topic: religious_debate | intent: commentary | riskLevel: safe | policyReason: "Religious/philosophical debate in clean language. Open platform."
+
+13. ✅ APPROVE | "How phishing scams work — protecting yourself from email fraud" | topic: cybersecurity | intent: educational | riskLevel: safe | policyReason: "Cybersecurity awareness education."
+
+14. ✅ APPROVE | "My 5-year journey through alcohol addiction and recovery" | topic: substance_abuse | intent: personal_experience | riskLevel: low | policyReason: "Personal recovery story. Clean delivery."
+
+15. ✅ APPROVE | "India's Tejas fighter jet — engineering marvel of indigenous defense" | topic: military_technology | intent: educational | riskLevel: safe | policyReason: "Educational content about defense technology."
+
+16. ✅ APPROVE | "The Blackout Challenge is killing teenagers — what parents need to know" | topic: dangerous_challenges | intent: educational | riskLevel: low | policyReason: "Parental safety awareness. Clean delivery."
+
+17. ✅ APPROVE | "How crypto pump-and-dump scams work — investor warning" | topic: financial_fraud | intent: educational | riskLevel: low | policyReason: "Consumer protection education."
+
+18. ✅ APPROVE | "The Nazi party's rise to power — a complete historical analysis" | topic: nazism | intent: documentary | riskLevel: low | policyReason: "Historical analysis expressed in clean language. Credibility Engine provides context."
+
+### REJECTED — Delivery Violations (HOW It's Said)
+
+19. ❌ REJECT | "Those f***ing [slur] are all worthless and should die" | topic: hate_speech | intent: commentary | riskLevel: critical | policyReason: "Contains explicit profanity, slurs, and vulgar language. Not family-friendly delivery."
+
+20. ❌ REJECT | Video with extensive profanity and curse words throughout | topic: any | intent: any | riskLevel: high | policyReason: "Excessive profanity throughout the video. Not family-friendly delivery."
+
+21. ❌ REJECT | Sexually explicit audio/video content | topic: sexual_content | intent: entertainment | riskLevel: critical | policyReason: "Sexually explicit content. Not family-friendly."
+
+22. ❌ REJECT | "Hot singles in your area — download this hookup app now" | topic: dating_hookups | intent: promotional | riskLevel: high | policyReason: "Promotes hookup culture with sexually suggestive content."
+
+23. ❌ REJECT | Graphic real violence / execution footage / gore compilation | topic: graphic_violence | intent: entertainment | riskLevel: critical | policyReason: "Gratuitous visual depictions of real violence for entertainment."
+
+### REJECTED — Promotion & Instructions
+
+24. ❌ REJECT | "Download Rush app now! Use code RUSH100 for ₹100 bonus — start winning!" | topic: real_money_gaming | intent: promotional | riskLevel: critical | policyReason: "Actively promotes gambling app with referral code. This is advertising, not debate."
+
+25. ❌ REJECT | "Advanced poker strategy — how to consistently win real money online" | topic: real_money_gaming | intent: instructional_harmful | riskLevel: high | policyReason: "Instructional content facilitating active participation in real-money gambling."
+
+26. ❌ REJECT | "3D print a working firearm at home — STL files in description" | topic: weapons_manufacturing | intent: instructional_harmful | riskLevel: critical | policyReason: "Step-by-step weapon manufacturing instructions."
+
+27. ❌ REJECT | "How to grow high-potency marijuana at home — complete guide" | topic: drug_manufacturing | intent: instructional_harmful | riskLevel: critical | policyReason: "Step-by-step drug cultivation instructions."
+
+28. ❌ REJECT | "Top 10 most brutal kills in GTA 5 — so satisfying!" | topic: violent_gaming | intent: entertainment | riskLevel: high | policyReason: "Glorifies in-game violence, celebrating brutality as entertainment."
+
+---
+
+## REJECTION EXPLANATION REQUIREMENT
+
+When rejecting, your policyReason MUST describe the DELIVERY VIOLATION, not the topic.
+
+✅ GOOD: "Contains excessive profanity and vulgar slurs — not family-friendly delivery."
+❌ BAD: "The video discusses hate speech."
+
+✅ GOOD: "Actively promotes a gambling app with a referral code for real-money wagering."
+❌ BAD: "The video talks about gambling."
+
+When approving controversial content, explain that the Credibility Engine handles factual accuracy.
+
+---
+
+## OUTPUT FORMAT
 
 You MUST return a JSON object matching this exact schema:
 {
   "approved": boolean,
-  "violationReason": "Clear explanation if rejected, empty string if approved",
-  "violationCategories": ["category1", "category2"],
-  "confidenceScore": 0.0 to 1.0 (how confident you are in your decision),
+  "topic": "concise_topic_label",
+  "intent": "one of: news_reporting, documentary, educational, commentary, review, satire, personal_experience, entertainment, promotional, instructional_harmful",
+  "policyAction": "allow | reject | manual_review",
+  "riskLevel": "safe | low | medium | high | critical",
+  "confidenceScore": 0.0 to 1.0,
+  "policyReason": "Delivery-focused explanation of the decision",
+  "explanation": "One-sentence summary of your reasoning chain",
+  "violationCategories": ["category1"] or [],
   "summary": "Concise 2-3 sentence summary of the video content for users to read",
-  "category": "Select one relevant category for this video from the valid list below."
+  "category": "One category from the valid list below"
 }
 
-Valid violation categories: "hate_speech", "self_harm", "violence", "sexual_content", "illegal_activity", "gambling", "violent_games", "romantic_content", "misinformation"
+Valid violation categories: "profanity", "sexual_content", "graphic_violence", "romantic_content", "child_exploitation", "gambling_promotion", "dangerous_instructions", "violent_game_glorification"
 
-Valid categories (must match casing exactly, default is 'Other'):
+Valid content categories (must match casing exactly, default is 'Other'):
 'Education', 'Entertainment', 'Music', 'News', 'Sports', 'Gaming', 'Technology', 'Science', 'Travel', 'Lifestyle', 'Comedy', 'Documentary', 'Movies', 'TV Shows', 'Vlogs', 'DIY & How-to', 'Health & Fitness', 'Fashion & Beauty', 'Food & Cooking', 'Business & Finance', 'Animation', 'Short Films', 'Motivation', 'History', 'Art & Design', 'Automotive', 'Animals & Pets', 'Spirituality', 'Nature & Wildlife', 'Kids & Family', 'Other'
 
-Be fair and balanced. Do NOT reject content simply because it discusses controversial topics — only reject if it actively promotes, glorifies, or instructs harmful behavior.`;
+Remember: TruthWorld VERIFIES truth through its Credibility Engine. Your ONLY job is ensuring family-friendly DELIVERY. Reject for HOW it's said, NOT for WHAT is said.`;
+
+// ─── Content Category Normalization ──────────────────────────────────────────
+
+export const VALID_CONTENT_CATEGORIES = [
+  "News",
+  "Politics",
+  "Business & Finance",
+  "Technology",
+  "Science",
+  "Health & Fitness",
+  "History",
+  "Education",
+  "Entertainment",
+  "Music",
+  "Sports",
+  "Gaming",
+  "Travel",
+  "Lifestyle",
+  "Comedy",
+  "Documentary",
+  "Movies",
+  "TV Shows",
+  "Vlogs",
+  "DIY & How-to",
+  "Fashion & Beauty",
+  "Food & Cooking",
+  "Animation",
+  "Short Films",
+  "Motivation",
+  "Art & Design",
+  "Automotive",
+  "Animals & Pets",
+  "Spirituality",
+  "Nature & Wildlife",
+  "Kids & Family",
+  "Other",
+] as const;
+
+export function normalizeContentCategory(rawCategory?: string, topic?: string, intent?: string): string {
+  if (rawCategory && rawCategory.trim().length > 0) {
+    const cleanRaw = rawCategory.trim();
+    // Direct case-insensitive match against valid content categories
+    const exactMatch = VALID_CONTENT_CATEGORIES.find((c) => c.toLowerCase() === cleanRaw.toLowerCase());
+    if (exactMatch && exactMatch !== "Other") {
+      return exactMatch;
+    }
+  }
+
+  // Fallback: Infer appropriate category from topic and intent keywords if missing, invalid, or "Other"
+  const topicStr = (topic || "").toLowerCase();
+  const intentStr = (intent || "").toLowerCase();
+  const rawStr = (rawCategory || "").toLowerCase();
+  const combined = `${topicStr} ${intentStr} ${rawStr}`.toLowerCase();
+
+  if (combined.match(/\b(politic|political|election|government|parliament|biden|trump|modi|minister|policy|lawmaker|senate|democracy)\b/)) {
+    return "Politics";
+  }
+  if (combined.match(/\b(news|journalism|breaking|report|war|conflict|strike|shootout|crime|investigation|press|geopolitics)\b/)) {
+    return "News";
+  }
+  if (combined.match(/\b(finance|financial|crypto|stocks|investing|money|market|business|economy|trading|bank|bitcoin|financial_fraud|real_money_gaming)\b/)) {
+    return "Business & Finance";
+  }
+  if (combined.match(/\b(health|medical|vaccine|disease|covid|fitness|doctor|wellness|mental|hospital|substance_abuse|addiction|drug_crisis)\b/)) {
+    return "Health & Fitness";
+  }
+  if (combined.match(/\b(tech|technology|cybersecurity|ai|artificial_intelligence|software|gadget|computer|engineering|defense|military_technology)\b/)) {
+    return "Technology";
+  }
+  if (combined.match(/\b(science|astronomy|physics|chemistry|biology|nasa|space|scientific|research|conspiracy_theory)\b/)) {
+    return "Science";
+  }
+  if (combined.match(/\b(history|historical|ancient|archaeology|nazism|holocaust|hitler|stalin|war_history|world_war)\b/)) {
+    return "History";
+  }
+  if (combined.match(/\b(religion|religious|faith|god|theology|spiritual|spirituality|blasphemy|church|temple|islam|hindu|christian|religious_debate)\b/)) {
+    return "Spirituality";
+  }
+  if (combined.match(/\b(game|gaming|gta|esports|playstation|xbox|nintendo|steam|gamer|violent_gaming)\b/)) {
+    return "Gaming";
+  }
+  if (combined.match(/\b(movie|cinema|film|actor|actress|hollywood|bollywood|tv_show|series|episode)\b/)) {
+    return "Movies";
+  }
+  if (combined.match(/\b(comedy|satire|roast|parody|humor|joke|prank)\b/)) {
+    return "Comedy";
+  }
+  if (combined.match(/\b(education|educational|tutorial|how_to|how-to|lecture|academic|explainer|course|learning)\b/)) {
+    return "Education";
+  }
+  if (intentStr === "documentary" || combined.includes("documentary")) {
+    return "Documentary";
+  }
+  if (combined.match(/\b(music|song|album|singing|band|concert|artist|track)\b/)) {
+    return "Music";
+  }
+  if (combined.match(/\b(food|cooking|recipe|chef|dish|cuisine|baking|restaurant)\b/)) {
+    return "Food & Cooking";
+  }
+  if (combined.match(/\b(sport|sports|cricket|football|soccer|basketball|tennis|olympics|match)\b/)) {
+    return "Sports";
+  }
+
+  // If rawCategory was valid (even if "Other"), return standard casing
+  if (rawCategory && rawCategory.trim().length > 0) {
+    const matched = VALID_CONTENT_CATEGORIES.find((c) => c.toLowerCase() === rawCategory.trim().toLowerCase());
+    if (matched) return matched;
+  }
+
+  return "Other";
+}
 
 // ─── Service Implementation ──────────────────────────────────────────────────
 
@@ -107,12 +480,12 @@ export class VideoModerationService {
   /**
    * Moderate a video by analyzing its content via GCS URI.
    *
-   * v2.0: Accepts video files directly — Gemini reads from GCS natively.
-   * No download, no FFmpeg, no re-upload needed.
+   * v3.0: 5-step intent-aware pipeline with manual review routing & category classification.
+   * Accepts video files directly — Gemini reads from GCS natively.
    *
    * @param gcsUri - GCS URI of the video or audio file (gs://bucket/path)
    * @param mimeType - MIME type of the file (e.g., "video/mp4", "audio/mpeg")
-   * @returns Moderation result with approve/reject decision
+   * @returns Moderation result with approve/reject/manual_review decision
    */
   async moderate(gcsUri: string, mimeType: string = "video/mp4"): Promise<VideoModerationResult> {
     const t0 = Date.now();
@@ -147,7 +520,7 @@ export class VideoModerationService {
                     },
                   },
                   {
-                    text: "Analyze this video content (focus on audio/speech) and determine if it complies with our Community Guidelines. Return your moderation decision as JSON.",
+                    text: "Analyze this video content following the 5-step moderation pipeline (Topic & Category → Intent → Risk → Decision). Focus on audio/speech. Select an accurate content category from the allowed list. Return your analysis as JSON.",
                   },
                 ],
               },
@@ -176,21 +549,40 @@ export class VideoModerationService {
           throw new Error("Moderation response schema mismatch.");
         }
 
+        // Normalize content category from raw output or infer from topic/intent
+        const finalCategory = normalizeContentCategory(parsed.data.category, parsed.data.topic, parsed.data.intent);
+
+        // ─── POST-PROCESSING: Apply review policy matrix ─────────────────
+        const reviewDecision = this.applyReviewPolicy(parsed.data);
+
         const processingTimeMs = Date.now() - t0;
         console.log("[VideoModeration] Completed", {
-          approved: parsed.data.approved,
+          topic: parsed.data.topic,
+          intent: parsed.data.intent,
+          category: finalCategory,
+          riskLevel: parsed.data.riskLevel,
+          geminiApproved: parsed.data.approved,
+          geminiPolicyAction: parsed.data.policyAction,
+          finalApproved: reviewDecision.approved,
+          finalPolicyAction: reviewDecision.policyAction,
           confidence: parsed.data.confidenceScore,
           categories: parsed.data.violationCategories,
           durationMs: processingTimeMs,
         });
 
         return {
-          approved: parsed.data.approved,
-          violationReason: parsed.data.violationReason,
-          violationCategories: parsed.data.violationCategories,
+          approved: reviewDecision.approved,
+          topic: parsed.data.topic,
+          intent: parsed.data.intent,
+          policyAction: reviewDecision.policyAction,
+          riskLevel: parsed.data.riskLevel,
           confidenceScore: parsed.data.confidenceScore,
+          policyReason: parsed.data.policyReason,
+          explanation: parsed.data.explanation,
+          violationReason: parsed.data.policyReason, // Backward compat
+          violationCategories: parsed.data.violationCategories,
           summary: parsed.data.summary || "Summary unavailable.",
-          category: parsed.data.category || "Other",
+          category: finalCategory,
           processingTimeMs,
         };
       } catch (error) {
@@ -205,9 +597,15 @@ export class VideoModerationService {
           console.warn(`[VideoModeration] Gemini timed out after ${processingTimeMs}ms — passing through as approved (async review queued)`);
           return {
             approved: true,
+            topic: "unknown",
+            intent: "entertainment",
+            policyAction: "allow",
+            riskLevel: "low",
+            confidenceScore: 0,
+            policyReason: "",
+            explanation: "Moderation timed out — video approved pending async review.",
             violationReason: "",
             violationCategories: ["timeout_passthrough"],
-            confidenceScore: 0,
             summary: "Moderation timed out — video approved pending async review.",
             category: "Other",
             processingTimeMs,
@@ -235,9 +633,15 @@ export class VideoModerationService {
           console.warn(`[VideoModeration] All ${MAX_RETRIES} retries exhausted — passing through as approved`);
           return {
             approved: true,
+            topic: "unknown",
+            intent: "entertainment",
+            policyAction: "allow",
+            riskLevel: "low",
+            confidenceScore: 0,
+            policyReason: "",
+            explanation: "Moderation could not complete — video approved pending async review.",
             violationReason: "",
             violationCategories: ["retry_exhausted_passthrough"],
-            confidenceScore: 0,
             summary: "Moderation could not complete — video approved pending async review.",
             category: "Other",
             processingTimeMs: Date.now() - t0,
@@ -249,6 +653,77 @@ export class VideoModerationService {
     }
 
     throw lastError || new Error("Moderation failed after maximum retries.");
+  }
+
+  /**
+   * Apply confidence/intent-based review policy to Gemini's raw output.
+   *
+   * This post-processing layer catches false positives by routing uncertain
+   * rejections to manual review instead of auto-rejecting.
+   *
+   * Decision matrix:
+   * ┌─────────────────────────┬──────────────────┬────────────────┐
+   * │ Intent                  │ Confidence       │ Action         │
+   * ├─────────────────────────┼──────────────────┼────────────────┤
+   * │ Journalistic/Educational│ < 0.75           │ Manual Review  │
+   * │ Promotional             │ ≥ 0.80           │ Auto Reject    │
+   * │ Instructional Harmful   │ ≥ 0.80           │ Auto Reject    │
+   * │ Any                     │ 0.50–0.80 mixed  │ Manual Review  │
+   * │ Any (approved)          │ any              │ Allow          │
+   * └─────────────────────────┴──────────────────┴────────────────┘
+   */
+  private applyReviewPolicy(raw: GeminiModerationOutput): { approved: boolean; policyAction: string } {
+    // ─── If Gemini itself is uncertain, respect that ───────────────────
+    if (raw.policyAction === "manual_review") {
+      console.log("[VideoModeration] Gemini flagged for manual review", {
+        topic: raw.topic,
+        intent: raw.intent,
+        confidence: raw.confidenceScore,
+      });
+      return { approved: false, policyAction: "manual_review" };
+    }
+
+    // ─── CASE 1: Gemini says REJECT ───────────────────────────────────
+    if (!raw.approved || raw.policyAction === "reject") {
+
+      // High-confidence rejection on harmful intent → auto-reject
+      if (HARMFUL_INTENTS.has(raw.intent) && raw.confidenceScore >= 0.80) {
+        return { approved: false, policyAction: "reject" };
+      }
+
+      // Rejection but journalistic/educational intent → likely false positive → manual review
+      if (JOURNALISTIC_INTENTS.has(raw.intent)) {
+        console.log("[VideoModeration] Override: journalistic intent detected on rejection → manual_review", {
+          topic: raw.topic,
+          intent: raw.intent,
+          confidence: raw.confidenceScore,
+        });
+        return { approved: false, policyAction: "manual_review" };
+      }
+
+      // Low confidence rejection (< 0.75) → manual review
+      if (raw.confidenceScore < 0.75) {
+        console.log("[VideoModeration] Override: low confidence rejection → manual_review", {
+          confidence: raw.confidenceScore,
+        });
+        return { approved: false, policyAction: "manual_review" };
+      }
+
+      // Entertainment intent with medium confidence (0.50–0.80) → manual review
+      if (raw.intent === "entertainment" && raw.confidenceScore < 0.80) {
+        console.log("[VideoModeration] Override: entertainment intent with medium confidence → manual_review", {
+          confidence: raw.confidenceScore,
+        });
+        return { approved: false, policyAction: "manual_review" };
+      }
+
+      // Default: trust the rejection
+      return { approved: false, policyAction: "reject" };
+    }
+
+    // ─── CASE 2: Gemini says APPROVE ──────────────────────────────────
+    // Trust approvals — the prompt is designed to be permissive on journalistic content
+    return { approved: true, policyAction: "allow" };
   }
 }
 

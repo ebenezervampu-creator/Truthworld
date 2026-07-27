@@ -84,8 +84,10 @@ abstract class BaseController extends GetxController {
   }
 
   void setViewState(ViewState state) {
-    debugPrint('🔄 [ViewState Transition] $runtimeType: ${rxState.value.name} -> ${state.name}');
-    rxState.value = state;
+    if (rxState.value != state) {
+      debugPrint('🔄 [ViewState Transition] $runtimeType: ${rxState.value.name} -> ${state.name}');
+      rxState.value = state;
+    }
   }
 
   void setError(String message) {
@@ -102,6 +104,7 @@ abstract class BaseController extends GetxController {
   bool get hasMore => _hasMore.value;
 
   final RxList<dynamic> items = <dynamic>[].obs;
+  bool get isItemsEmpty => items.isEmpty;
 
   void resetPagination() {
     _page.value = 1;
@@ -174,7 +177,7 @@ abstract class BaseController extends GetxController {
     bool showLoading = true,
   }) async {
     try {
-      if (showLoading && items.isEmpty) setViewState(ViewState.loading);
+      if (showLoading && isItemsEmpty) setViewState(ViewState.loading);
       final result = await task();
       result.when(
         success: (data) {
@@ -204,10 +207,10 @@ abstract class BaseController extends GetxController {
     String? loadingMessage,
   }) async {
     try {
-      if (showLoading && items.isEmpty) setViewState(ViewState.loading);
+      if (showLoading && isItemsEmpty) setViewState(ViewState.loading);
       await task();
       if (state == ViewState.loading) setViewState(ViewState.success);
-      if (items.isEmpty && state != ViewState.error && state != ViewState.cancelled) {
+      if (isItemsEmpty && state != ViewState.error && state != ViewState.cancelled) {
         setViewState(ViewState.empty);
       }
     } on OperationCancelledException catch (e) {

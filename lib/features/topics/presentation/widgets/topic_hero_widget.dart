@@ -18,11 +18,13 @@ class TopicHeroWidget extends StatefulWidget {
     required this.isDesktop, required this.isTablet, super.key,
     this.topic,
     this.onCommunityTap,
+    this.onCommentsTap,
   });
   final Topic? topic;
   final bool isDesktop;
   final bool isTablet;
   final VoidCallback? onCommunityTap;
+  final VoidCallback? onCommentsTap;
 
   @override
   State<TopicHeroWidget> createState() => _TopicHeroWidgetState();
@@ -147,7 +149,7 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
 
               const SizedBox(height: 16),
 
-              // 3. Community Icon + Text + Videos Count + Follow/Following & Bell Settings Row
+              // 3. Videos Count Chip + Comments Chip + Follow/Following & Bell Settings Row
               _buildCommunityAndActionsRow(context, topic),
 
               const SizedBox(height: 16),
@@ -222,21 +224,21 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
     );
   }
 
-  /// Community Row with Community Icon/Text, Video count, Follow/Following & Bell dropdown
+  /// Actions Row with Videos Count Chip, Comments Chip (tappable), Follow/Following & Bell dropdown
   Widget _buildCommunityAndActionsRow(BuildContext context, Topic topic) {
     final followingController = Get.put(FollowingTopicsController());
 
     return Obx(() {
       final isFollowed = followingController.isTopicFollowed(topic.id);
       final currentBellSetting = followingController.topicNotificationSettings[topic.id] ?? 'all';
+      final commentsHandler = widget.onCommentsTap ?? widget.onCommunityTap;
 
-      return Row(
-        children: [
-          // Community Icon & Text
-          InkWell(
-            onTap: widget.onCommunityTap,
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            // Chip 1: Videos Count Chip
+            Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: AppColors.bgSurfaceContainerHighest.withValues(alpha: 0.6),
@@ -249,51 +251,70 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(
-                    Icons.groups_rounded,
-                    size: 20,
+                    Icons.video_collection_outlined,
+                    size: 18,
                     color: AppColors.brand,
                   ),
                   const SizedBox(width: 6),
-                  const Text(
-                    'Community',
-                    style: TextStyle(
+                  Text(
+                    '${topic.videoCount} ${topic.videoCount == 1 ? 'Video' : 'Videos'}',
+                    style: const TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  // Video Count Badge in Community button
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: AppColors.brand.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '${topic.videoCount} vids',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.brand,
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
-          ),
 
-          const Spacer(),
+            const SizedBox(width: 8),
 
-          // Follow / Following Button
-          AnimatedFollowTopicButton(
-            isFollowed: isFollowed,
-            onPressed: () => followingController.toggleFollowTopic(topic),
-          ),
+            // Chip 2: Comments Chip (Tappable to scroll to comments)
+            InkWell(
+              onTap: commentsHandler,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.bgSurfaceContainerHighest.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppColors.bgDivider.withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      size: 18,
+                      color: AppColors.brand,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${topic.commentCount} ${topic.commentCount == 1 ? 'Comment' : 'Comments'}',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
 
-          // Bell Icon Notification Option (when Following)
-          if (isFollowed) ...[
+            const SizedBox(width: 12),
+
+            // Follow / Following Button
+            AnimatedFollowTopicButton(
+              isFollowed: isFollowed,
+              onPressed: () => followingController.toggleFollowTopic(topic),
+            ),
+
+            // Bell Icon Notification Option (when Following)
+            if (isFollowed) ...[
             const SizedBox(width: 8),
             Container(
               height: 36,
@@ -317,9 +338,10 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
             ),
           ],
         ],
-      );
-    });
-  }
+      ),
+    );
+  });
+}
 
   IconData _getBellIcon(String setting) {
     switch (setting) {

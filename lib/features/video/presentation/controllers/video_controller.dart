@@ -50,6 +50,7 @@ import 'package:video_player/video_player.dart';
 class VideoController extends BaseController with GetTickerProviderStateMixin {
   final Rx<Video> _video = Video.empty().obs;
   Video get video => _video.value;
+  Rx<Video> get rxVideo => _video;
 
   final RxList<LanguageRequest> languageRequests = <LanguageRequest>[].obs;
   final RxBool isLoadingLanguageRequests = false.obs;
@@ -84,6 +85,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   final RxBool isLiked = false.obs;
   final RxBool isDisliked = false.obs;
   final RxBool isExpanded = false.obs;
+  final RxBool isTranscriptVisible = false.obs;
   final RxBool rxIsLoading = true.obs;
   RxBool get isLoadingRx => rxIsLoading;
   @override
@@ -859,7 +861,12 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
   void videoListener() {
     if (_videoPlayerController == null) return;
-    final value = _videoPlayerController!.value;
+    final VideoPlayerValue value;
+    try {
+      value = _videoPlayerController!.value;
+    } catch (_) {
+      return;
+    }
 
     // --- Clip Looping Logic ---
     if (activeClip.value != null) {
@@ -1982,12 +1989,18 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       _chewieController!.addListener(_onChewieEvent);
 
       // Warm handoff: dispose old ones now that new ones are ready
-      if (isAuto && oldVpc != null) {
-        oldVpc.removeListener(_videoErrorListener);
-        oldVpc.removeListener(videoListener);
-        oldCc?.removeListener(_onChewieEvent);
-        oldCc?.dispose();
-        oldVpc.dispose();
+      if (oldVpc != null && oldVpc != newVpc) {
+        try {
+          oldVpc.removeListener(_videoErrorListener);
+          oldVpc.removeListener(videoListener);
+        } catch (_) {}
+        try {
+          oldCc?.removeListener(_onChewieEvent);
+          oldCc?.dispose();
+        } catch (_) {}
+        try {
+          oldVpc.dispose();
+        } catch (_) {}
       }
 
       debugPrint(
@@ -2006,39 +2019,43 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   bool _isRecoveringFromFormatError = false;
 
   void _videoErrorListener() {
-    if (_videoPlayerController?.value.hasError ?? false) {
-      final error = _videoPlayerController?.value.errorDescription ?? '';
-      debugPrint('[VideoController] ❌ Video error: $error');
-      
-      // If we are currently offline, don't show a fatal error yet, 
-      // just wait for connectivity listener to trigger recovery.
-      if (!Get.find<ConnectivityService>().isConnected) {
-        debugPrint('[VideoController] ⏳ Offline during playback. Waiting for network...');
-        return; 
-      }
+    try {
+      if (_videoPlayerController?.value.hasError ?? false) {
+        final error = _videoPlayerController?.value.errorDescription ?? '';
+        debugPrint('[VideoController] ❌ Video error: $error');
+        
+        // If we are currently offline, don't show a fatal error yet, 
+        // just wait for connectivity listener to trigger recovery.
+        if (!Get.find<ConnectivityService>().isConnected) {
+          debugPrint('[VideoController] ⏳ Offline during playback. Waiting for network...');
+          return; 
+        }
 
-      // Ignore transient web race condition: play() interrupted because the
-      // <video> element was removed from the DOM during re-initialization.
-      // This is not a real playback failure and resolves itself.
-      if (error.contains('removed from the document') ||
-          error.contains('play() request was interrupted')) {
-        debugPrint('[VideoController] ℹ️ Ignoring transient play() interruption (DOM lifecycle)');
-        return;
-      }
+        // Ignore transient web race condition: play() interrupted because the
+        // <video> element was removed from the DOM during re-initialization.
+        // This is not a real playback failure and resolves itself.
+        if (error.contains('removed from the document') ||
+            error.contains('play() request was interrupted')) {
+          debugPrint('[VideoController] ℹ️ Ignoring transient play() interruption (DOM lifecycle)');
+          return;
+        }
 
-      // If this is a format/source error and we haven't already tried recovery,
-      // attempt to fall back to a transcoded MP4 resolution.
-      if (!_isRecoveringFromFormatError &&
-          (error.contains('MEDIA_ERR_SRC_NOT_SUPPORTED') ||
-           error.contains('Format error') ||
-           error.contains('format not supported'))) {
-        debugPrint('[VideoController] 🔄 Format error detected — attempting MP4 fallback...');
-        _attemptFormatFallback();
-        return;
-      }
+        // If this is a format/source error and we haven't already tried recovery,
+        // attempt to fall back to a transcoded MP4 resolution.
+        if (!_isRecoveringFromFormatError &&
+            (error.contains('MEDIA_ERR_SRC_NOT_SUPPORTED') ||
+             error.contains('Format error') ||
+             error.contains('format not supported'))) {
+          debugPrint('[VideoController] 🔄 Format error detected — attempting MP4 fallback...');
+          _attemptFormatFallback();
+          return;
+        }
 
-      videoError.value = true;
-      rxErrorMessage.value = error.isNotEmpty ? error : 'Unknown playback error';
+        videoError.value = true;
+        rxErrorMessage.value = error.isNotEmpty ? error : 'Unknown playback error';
+      }
+    } catch (e) {
+      debugPrint('[VideoController] Error in _videoErrorListener: $e');
     }
   }
 
@@ -2125,30 +2142,60 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   void disposePlayer() {
     _videoSubscription?.cancel();
     _languageRequestsSubscription?.cancel();
-    _chewieController?.removeListener(_onChewieEvent);
-    _videoPlayerController?.removeListener(_videoErrorListener);
-    _videoPlayerController?.removeListener(videoListener);
-    _chewieController?.dispose();
-    _videoPlayerController?.dispose();
+    try {
+      _chewieController?.removeListener(_onChewieEvent);
+    } catch (_) {}
+    try {
+      _videoPlayerController?.removeListener(_videoErrorListener);
+      _videoPlayerController?.removeListener(videoListener);
+    } catch (_) {}
+    try {
+      _chewieController?.dispose();
+    } catch (_) {}
     _chewieController = null;
+    try {
+      _videoPlayerController?.dispose();
+    } catch (_) {}
     _videoPlayerController = null;
   }
 
   ChewieController? get chewieController {
     if (_chewieController == null) return null;
-    // Safety check for web/disposed objects
-    try {
-      // Accessing a property to trigger an error if disposed
-      // but in Flutter/GetX we usually just check null.
-      // Chewie doesn't have a public isDisposed but the underlying
-      // videoPlayerController might.
-      return _chewieController;
-    } catch (_) {
-      return null;
-    }
+    return _chewieController;
   }
 
   VideoPlayerController? get videoPlayerController => _videoPlayerController;
+
+  bool get isVpcInitialized {
+    final vpc = _videoPlayerController;
+    if (vpc == null) return false;
+    try {
+      return vpc.value.isInitialized;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool get isVpcPlaying {
+    final vpc = _videoPlayerController;
+    if (vpc == null) return false;
+    try {
+      return vpc.value.isPlaying;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  double get vpcAspectRatio {
+    final vpc = _videoPlayerController;
+    if (vpc == null) return 16 / 9;
+    try {
+      final ratio = vpc.value.aspectRatio;
+      return (ratio.isFinite && ratio > 0) ? ratio : 16 / 9;
+    } catch (_) {
+      return 16 / 9;
+    }
+  }
 
   @override
   void onClose() {
@@ -2156,18 +2203,22 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     final isGoingToWatch = currentRoute.contains('watch') || currentRoute.contains('videoscreen');
     
     final shouldStartMiniplayer = !isGoingToWatch && 
-        _videoPlayerController != null && 
-        _videoPlayerController!.value.isInitialized &&
+        isVpcInitialized &&
         Get.isRegistered<MiniplayerController>(tag: 'miniplayer');
 
-    if (_videoPlayerController != null && _videoPlayerController!.value.isInitialized) {
-      final totalDuration = _videoPlayerController!.value.duration.inSeconds;
-      final watchSeconds = _watchStopwatch.elapsed.inSeconds;
-      _syncWatchHistory(watchSeconds, totalDuration);
+    if (isVpcInitialized) {
+      try {
+        final totalDuration = _videoPlayerController!.value.duration.inSeconds;
+        final watchSeconds = _watchStopwatch.elapsed.inSeconds;
+        _syncWatchHistory(watchSeconds, totalDuration);
+      } catch (_) {}
     }
 
     if (shouldStartMiniplayer) {
-      final pos = _videoPlayerController!.value.position;
+      var pos = Duration.zero;
+      try {
+        pos = _videoPlayerController!.value.position;
+      } catch (_) {}
       final videoToPlay = video;
       final selectedResUrl = currentResolution.value?.url;
 
@@ -2178,13 +2229,17 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       } catch (_) {}
 
       // Remove listeners so they don't fire when player is in miniplayer
-      _videoPlayerController!.removeListener(_videoErrorListener);
-      _videoPlayerController!.removeListener(videoListener);
+      try {
+        _videoPlayerController!.removeListener(_videoErrorListener);
+        _videoPlayerController!.removeListener(videoListener);
+      } catch (_) {}
 
       // Detach the ChewieController from the VPC BEFORE disposing it.
       // This prevents Chewie's internal dispose from touching the VPC.
-      _chewieController?.removeListener(_onChewieEvent);
-      _chewieController?.dispose();
+      try {
+        _chewieController?.removeListener(_onChewieEvent);
+        _chewieController?.dispose();
+      } catch (_) {}
       _chewieController = null;
 
       // Pause all other TowerPlayerController instances to kill any
@@ -2192,7 +2247,9 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       TowerPlayerController.pauseAllActivePlayers();
 
       // Hand off the player controller to the miniplayer
-      VideoPlaybackHandoff.registerActiveController(video.id, _videoPlayerController!);
+      if (_videoPlayerController != null) {
+        VideoPlaybackHandoff.registerActiveController(video.id, _videoPlayerController!);
+      }
       
       // Prevent disposePlayer() from destroying the video player controller!
       _videoPlayerController = null;
@@ -2211,14 +2268,18 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       });
     }
 
-    mobileTabController.dispose();
-    desktopTabController.dispose();
-    scrollController.dispose();
+    try {
+      mobileTabController.dispose();
+      desktopTabController.dispose();
+      scrollController.dispose();
+    } catch (_) {}
     disposePlayer();
     _connectivitySubscription?.cancel();
     _languageRequestsSubscription?.cancel();
     if (_offlineBlobUrl != null) {
-      html.Url.revokeObjectUrl(_offlineBlobUrl!);
+      try {
+        html.Url.revokeObjectUrl(_offlineBlobUrl!);
+      } catch (_) {}
     }
     _watchStopwatch.stop();
     super.onClose();

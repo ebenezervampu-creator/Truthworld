@@ -74,6 +74,7 @@ class PlaylistController extends GetxController {
     } else {
       selectedVideoIds.add(videoId);
     }
+    selectedVideoIds.refresh();
   }
 
   void refreshPlaylistsTick() => refreshTick.value++;
@@ -101,7 +102,9 @@ class PlaylistController extends GetxController {
           name == 'watch_later' ||
           name.contains('watch later');
 
-      return !isWatchLater && name.isNotEmpty;
+      final hasThumbnail = p.thumbnailUrl.trim().isNotEmpty;
+
+      return !isWatchLater && name.isNotEmpty && hasThumbnail;
     });
 
     logger.debug(
@@ -371,21 +374,40 @@ class PlaylistController extends GetxController {
 
   Future<List<String>> fetchPlaylistVideoIds(
     String playlistId,
-    bool isPublic,
-  ) async {
+    bool isPublic, {
+    String? ownerId,
+  }) async {
     try {
       if (playlistId == 'watchlater') {
         return watchLaterVideoIds;
       }
+      final targetUser =
+          (ownerId != null && ownerId.isNotEmpty) ? ownerId : user;
       final ref = isPublic
           ? _firestore.collection('public_playlists').doc(playlistId)
           : _firestore
                 .collection('users')
-                .doc(user)
+                .doc(targetUser)
                 .collection('playlists')
                 .doc(playlistId);
 
-      final snapshot = await ref.collection('items').orderBy('addedAt').get();
+      QuerySnapshot snapshot;
+      try {
+        snapshot = await ref.collection('items').orderBy('addedAt').get();
+      } catch (_) {
+        snapshot = await ref.collection('items').get();
+      }
+
+      if (snapshot.docs.isEmpty) {
+        final doc = await ref.get();
+        if (doc.exists && doc.data() != null) {
+          final rawIds = doc.data()!['videoIds'];
+          if (rawIds is List) {
+            return List<String>.from(rawIds);
+          }
+        }
+      }
+
       return snapshot.docs.map((doc) => doc.id).toList();
     } catch (e) {
       logger.debug('❌ Error fetching playlist video IDs: $e');
@@ -1073,7 +1095,7 @@ class PlaylistController extends GetxController {
                     return null;
                   }
                 })
-                .where((p) => p != null)
+                .where((p) => p != null && p.thumbnailUrl.trim().isNotEmpty)
                 .cast<PlaylistModel>()
                 .toList();
 
@@ -1114,7 +1136,7 @@ class PlaylistController extends GetxController {
               return null;
             }
           })
-          .where((p) => p != null)
+          .where((p) => p != null && p.thumbnailUrl.trim().isNotEmpty)
           .cast<PlaylistModel>()
           .toList();
 

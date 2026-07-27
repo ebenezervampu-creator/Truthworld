@@ -516,7 +516,7 @@ export interface CredibilityResult {
 export interface FactCheckDocument {
   videoId: string;
   userId: string;
-  honestRating: number;
+  honestRating: number | null; // v12.0: Nullable after scoring removal
   factCheck: {
     totalClaims: number;
     evaluatedClaims: number;

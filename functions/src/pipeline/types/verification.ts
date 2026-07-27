@@ -23,6 +23,7 @@ export enum EvidenceLevel {
 
 export type SourceTier = 'A' | 'B' | 'C' | 'D' | 'E';
 export type VerificationMethod = 'grounded' | 'deterministic' | 'cache_hit' | 'llm_training' | 'not_verified';
+export type SourceCategory = 'book' | 'journal' | 'newspaper' | 'website' | 'government' | 'scripture' | 'legal' | 'encyclopedia' | 'academic_press' | 'archive';
 
 export interface RichSource {
   title: string;
@@ -33,6 +34,20 @@ export interface RichSource {
   publishedAt?: string;
   tier: SourceTier;
   snippet?: string;
+  author?: string;
+  sourceType?: SourceCategory;
+  bookTitle?: string;
+  chapter?: string;
+  pageNumbers?: string;
+  volume?: string;
+  edition?: string;
+  isbn?: string;
+  doi?: string;
+  journalName?: string;
+  sectionAnchor?: string;
+  directUrl?: string;
+  yearPublished?: number;
+  accessDate?: string;
   lastPublished?: string;
   lastVerified?: string;
   retrievalMethod?: string;
@@ -176,6 +191,16 @@ const GeminiSourceSchema = z.object({
   url: z.string().optional().default(''),
   snippet: z.string().optional().default(''),
   publishedAt: z.string().optional(),
+  sourceType: z.string().optional(),
+  author: z.string().optional(),
+  bookTitle: z.string().optional(),
+  chapter: z.string().optional(),
+  pageNumbers: z.string().optional(),
+  volume: z.string().optional(),
+  journalName: z.string().optional(),
+  yearPublished: z.number().optional(),
+  isbn: z.string().optional(),
+  doi: z.string().optional(),
 });
 
 export const GeminiVerificationSchema = z.object({

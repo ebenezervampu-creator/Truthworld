@@ -20,6 +20,7 @@ class MainControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Obx(() {
+      ctrl.isFullScreen.value;
       final playerHeight = MediaQuery.of(context).size.height;
       final videoAspectRatio = ctrl.vv.isInitialized
           ? ctrl.vv.aspectRatio
@@ -247,6 +248,17 @@ class PlayerTopBar extends StatelessWidget {
             Obx(() {
               final isSubbed = channelCtrl!.isSubscribed.value;
               final notificationsEnabled = channelCtrl.notificationsEnabled.value;
+              final notificationOption = channelCtrl.notificationOption.value;
+
+              IconData bellIcon;
+              if (!notificationsEnabled || notificationOption == 'none') {
+                bellIcon = Icons.notifications_off;
+              } else if (notificationOption == 'personalized') {
+                bellIcon = Icons.notifications_outlined;
+              } else {
+                bellIcon = Icons.notifications_active;
+              }
+
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -286,7 +298,7 @@ class PlayerTopBar extends StatelessWidget {
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          notificationsEnabled ? Icons.notifications_active : Icons.notifications_off,
+                          bellIcon,
                           color: AppColors.textPrimary,
                           size: 18,
                         ),
@@ -334,7 +346,12 @@ class PlayerTopBar extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Obx(() {
-              final isAll = channelCtrl.notificationsEnabled.value;
+              final option = channelCtrl.notificationOption.value;
+              final notificationsEnabled = channelCtrl.notificationsEnabled.value;
+              final isAll = notificationsEnabled && option == 'all';
+              final isPersonalized = notificationsEnabled && option == 'personalized';
+              final isNone = !notificationsEnabled || option == 'none';
+
               return Column(
                 children: [
                   ListTile(
@@ -343,34 +360,64 @@ class PlayerTopBar extends StatelessWidget {
                       color: isAll ? PT.primary : AppColors.textPrimary,
                     ),
                     title: Text(
-                      'All notifications',
+                      'All',
                       style: TextStyle(
                         color: isAll ? PT.primary : AppColors.textPrimary,
                         fontWeight: isAll ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
+                    subtitle: const Text(
+                      "You'll get all notifications",
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
                     trailing: isAll ? const Icon(Icons.check, color: PT.primary) : null,
                     onTap: () {
                       Navigator.pop(context);
-                      channelCtrl.updateNotificationPreference(channelId, true);
+                      channelCtrl.updateNotificationPreference(channelId, 'all');
                     },
                   ),
                   ListTile(
                     leading: Icon(
-                      Icons.notifications_off,
-                      color: !isAll ? PT.primary : AppColors.textPrimary,
+                      Icons.notifications_outlined,
+                      color: isPersonalized ? PT.primary : AppColors.textPrimary,
+                    ),
+                    title: Text(
+                      'Personalized',
+                      style: TextStyle(
+                        color: isPersonalized ? PT.primary : AppColors.textPrimary,
+                        fontWeight: isPersonalized ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      "You'll get personalized notifications",
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                    trailing: isPersonalized ? const Icon(Icons.check, color: PT.primary) : null,
+                    onTap: () {
+                      Navigator.pop(context);
+                      channelCtrl.updateNotificationPreference(channelId, 'personalized');
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(
+                      Icons.notifications_off_outlined,
+                      color: isNone ? PT.primary : AppColors.textPrimary,
                     ),
                     title: Text(
                       'None',
                       style: TextStyle(
-                        color: !isAll ? PT.primary : AppColors.textPrimary,
-                        fontWeight: !isAll ? FontWeight.bold : FontWeight.normal,
+                        color: isNone ? PT.primary : AppColors.textPrimary,
+                        fontWeight: isNone ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
-                    trailing: !isAll ? const Icon(Icons.check, color: PT.primary) : null,
+                    subtitle: const Text(
+                      'Turn off all notifications',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                    trailing: isNone ? const Icon(Icons.check, color: PT.primary) : null,
                     onTap: () {
                       Navigator.pop(context);
-                      channelCtrl.updateNotificationPreference(channelId, false);
+                      channelCtrl.updateNotificationPreference(channelId, 'none');
                     },
                   ),
                 ],
@@ -415,7 +462,7 @@ class CenterRow extends StatelessWidget {
             ),
             SizedBox(width: spacing),
             CenterBtn(
-              icon: ctrl.vv.isPlaying
+              icon: ctrl.isPlaying.value
                   ? Icons.pause_rounded
                   : Icons.play_arrow_rounded,
               onTap: ctrl.togglePlayPause,
@@ -536,29 +583,35 @@ class ControlRow extends StatelessWidget {
         if (!isNarrow && !isMedium) ...[
           Obx(
             () => IconBtn(
-              icon: ctrl.vv.isPlaying
+              icon: ctrl.isPlaying.value
                   ? Icons.pause_rounded
                   : Icons.play_arrow_rounded,
               onTap: ctrl.togglePlayPause,
             ),
           ),
           Obx(
-            () => Opacity(
-              opacity: ctrl.hasPreviousVideo ? 1.0 : 0.3,
-              child: IconBtn(
-                icon: Icons.skip_previous_rounded,
-                onTap: ctrl.hasPreviousVideo ? ctrl.playPrevious : null,
-              ),
-            ),
+            () {
+              ctrl.isAudioOnly.value;
+              return Opacity(
+                opacity: ctrl.hasPreviousVideo ? 1.0 : 0.3,
+                child: IconBtn(
+                  icon: Icons.skip_previous_rounded,
+                  onTap: ctrl.hasPreviousVideo ? ctrl.playPrevious : null,
+                ),
+              );
+            },
           ),
           Obx(
-            () => Opacity(
-              opacity: ctrl.hasNextVideo ? 1.0 : 0.3,
-              child: IconBtn(
-                icon: Icons.skip_next_rounded,
-                onTap: ctrl.hasNextVideo ? ctrl.playNext : null,
-              ),
-            ),
+            () {
+              ctrl.isAudioOnly.value;
+              return Opacity(
+                opacity: ctrl.hasNextVideo ? 1.0 : 0.3,
+                child: IconBtn(
+                  icon: Icons.skip_next_rounded,
+                  onTap: ctrl.hasNextVideo ? ctrl.playNext : null,
+                ),
+              );
+            },
           ),
           VolumeControl(ctrl: ctrl),
         ] else if (isMedium) ...[

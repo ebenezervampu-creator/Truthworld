@@ -76,6 +76,16 @@ class DashboardController extends GetxController {
   String get formattedWatchTime => WatchTimeFormatter.format(totalWatchTimeSeconds.value);
   String get formattedWatchTimeCompact => WatchTimeFormatter.format(totalWatchTimeSeconds.value, compact: true);
 
+  /// Returns watch hours for a specific video
+  double getVideoWatchHours(Video video) {
+    return video.totalWatchTimeSeconds / 3600.0;
+  }
+
+  /// Checks if a specific video has reached 10 hours watch time for cash withdrawal
+  bool isVideoWithdrawalEligible(Video video) {
+    return getVideoWatchHours(video) >= 10.0;
+  }
+
   StreamSubscription? _statsSubscription;
   StreamSubscription? _videosSubscription;
   StreamSubscription? _analyticsSubscription;
@@ -320,8 +330,54 @@ class _DashboardScreenState extends State<DashboardScreen>
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _searchController = TextEditingController();
 
-  // Get channel from arguments
-  dynamic get channel => Get.arguments?['channel'];
+  // Get channel from arguments, controller, or AuthService
+  dynamic get channel {
+    final args = Get.arguments;
+    if (args is Map && args['channel'] != null) {
+      return args['channel'];
+    }
+    if (Get.isRegistered<DashboardController>() && controller.currentChannel.value != null) {
+      return controller.currentChannel.value;
+    }
+    if (AuthService.to.userChannel != null) {
+      return AuthService.to.userChannel;
+    }
+    return null;
+  }
+
+  String _getChannelId(dynamic ch) {
+    if (ch == null) return '';
+    if (ch is Channel) return ch.id;
+    if (ch is Map) return (ch['id'] ?? '').toString();
+    if (ch is DocumentSnapshot) return ch.id;
+    return '';
+  }
+
+  String _getOwnerId(dynamic ch) {
+    if (ch == null) return '';
+    if (ch is Channel) return ch.ownerId;
+    if (ch is Map) return (ch['ownerId'] ?? '').toString();
+    if (ch is DocumentSnapshot) {
+      final data = ch.data() as Map<String, dynamic>?;
+      return (data?['ownerId'] ?? '').toString();
+    }
+    return '';
+  }
+
+  String _getChannelName(dynamic ch) {
+    if (ch == null) return 'Unknown Channel';
+    if (ch is Channel) return ch.name.isNotEmpty ? ch.name : 'Unknown Channel';
+    if (ch is Map) {
+      final val = ch['channelName'] ?? ch['name'];
+      return (val != null && val.toString().isNotEmpty) ? val.toString() : 'Unknown Channel';
+    }
+    if (ch is DocumentSnapshot) {
+      final data = ch.data() as Map<String, dynamic>?;
+      final val = data?['channelName'] ?? data?['name'];
+      return (val != null && val.toString().isNotEmpty) ? val.toString() : 'Unknown Channel';
+    }
+    return 'Unknown Channel';
+  }
 
   final RxBool isSelectingDefault = false.obs;
 
@@ -329,68 +385,86 @@ class _DashboardScreenState extends State<DashboardScreen>
   void initState() {
     super.initState();
     _initializeAnimations(); // Initialize early to avoid LateInitializationError in dispose
-
-    final channelData = channel;
-    if (channelData == null) {
-      isSelectingDefault.value = true;
-      _selectDefaultChannel();
-    } else {
-      isSelectingDefault.value = false;
-      var channelId = '';
-      if (channelData is Map<String, dynamic> &&
-          channelData.containsKey('id')) {
-        channelId = channelData['id'];
-      } else if (channelData is DocumentSnapshot) {
-        channelId = channelData.id;
-      }
-      controller = Get.put(DashboardController(channelId: channelId));
-      final tabIndex = Get.arguments?['tab'] as int?;
-      if (tabIndex != null) {
-        controller.selectedIndex.value = tabIndex;
-      }
-      // Ensure VideoManagementController is available for ContentScreen/Get.find
-      if (!Get.isRegistered<VideoManagementController>()) {
-        Get.put(VideoManagementController());
-      }
-      _startAnimations();
-    }
+    unawaited(_resolveChannelAndInit());
   }
 
-  Future<void> _selectDefaultChannel() async {
+  Future<void> _resolveChannelAndInit() async {
+    isSelectingDefault.value = true;
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
-        // Not authenticated -> Trigger sign-in immediately
+        isSelectingDefault.value = false;
         await _handleGoogleSignIn();
         return;
       }
 
-      final snapshot = await FirebaseFirestore.instance
-          .collection('channels')
-          .where('ownerId', isEqualTo: user.uid)
-          .get();
-      if (snapshot.docs.isNotEmpty) {
-        final firstChannel = snapshot.docs.first;
-        final channelMap = {'id': firstChannel.id, ...firstChannel.data()};
-        final tabIndex = Get.arguments?['tab'] as int?;
-        final args = <String, dynamic>{
-          'channel': channelMap,
-        };
-        if (tabIndex != null) {
-          args['tab'] = tabIndex;
-        }
-        Get.offAndToNamed('/studio', arguments: args);
-      } else {
-        isSelectingDefault.value = false;
-        // User has no channel -> Navigate to ChannelScreen to create one!
-        Get.offAllNamed('/channelscreen');
+      dynamic resolvedChannel = channel;
+
+      // 1. If channel not in args, check AuthService.to.userChannel
+      if (resolvedChannel == null && AuthService.to.userChannel != null) {
+        resolvedChannel = AuthService.to.userChannel;
       }
-    } catch (e) {
-      isSelectingDefault.value = false;
-      controller = Get.put(DashboardController(channelId: ''));
+
+      // 2. If still null, try querying Firestore directly by ownerId
+      if (resolvedChannel == null) {
+        try {
+          final snapshot = await FirebaseFirestore.instance
+              .collection('channels')
+              .where('ownerId', isEqualTo: user.uid)
+              .get();
+          if (snapshot.docs.isNotEmpty) {
+            final firstChannel = snapshot.docs.first;
+            resolvedChannel = {'id': firstChannel.id, ...firstChannel.data()};
+          }
+        } on Object catch (e) {
+          debugPrint('Error fetching channel for studio: $e');
+        }
+      }
+
+      // 3. If user has NO channel, redirect to channel creation screen!
+      if (resolvedChannel == null && !AuthService.to.hasChannel.value) {
+        isSelectingDefault.value = false;
+        await Get.offAllNamed<dynamic>('/channelscreen');
+        return;
+      }
+
+      // 4. Initialize DashboardController with resolved channelId
+      final channelId = _getChannelId(resolvedChannel);
+      if (!Get.isRegistered<DashboardController>()) {
+        controller = Get.put(DashboardController(channelId: channelId));
+      } else {
+        controller = Get.find<DashboardController>();
+        if (controller.channelId != channelId && channelId.isNotEmpty) {
+          unawaited(Get.delete<DashboardController>());
+          controller = Get.put(DashboardController(channelId: channelId));
+        }
+      }
+
+      if (resolvedChannel is Channel) {
+        controller.currentChannel.value = resolvedChannel;
+      }
+
+      final args = Get.arguments;
+      final tabIndex = args is Map ? args['tab'] as int? : null;
+      if (tabIndex != null) {
+        controller.selectedIndex.value = tabIndex;
+      }
+
       if (!Get.isRegistered<VideoManagementController>()) {
         Get.put(VideoManagementController());
       }
+    } on Object catch (e) {
+      debugPrint('Error in _resolveChannelAndInit: $e');
+      if (!Get.isRegistered<DashboardController>()) {
+        controller = Get.put(DashboardController(channelId: ''));
+      } else {
+        controller = Get.find<DashboardController>();
+      }
+      if (!Get.isRegistered<VideoManagementController>()) {
+        Get.put(VideoManagementController());
+      }
+    } finally {
+      isSelectingDefault.value = false;
       _startAnimations();
     }
   }
@@ -636,9 +710,9 @@ class _DashboardScreenState extends State<DashboardScreen>
         // Notifications
         _buildActionButton(
           icon: Icons.notifications_none_rounded,
-          onPressed: () => Get.toNamed('/notifications'),
+          onPressed: () => controller.setSelectedIndex(16),
           isDarkMode: isDarkMode,
-          tooltip: 'Notifications',
+          tooltip: 'Creator Intelligence',
         ),
 
         SizedBox(width: isMobile ? 4 : 8),
@@ -987,7 +1061,7 @@ class _DashboardScreenState extends State<DashboardScreen>
           margin: const EdgeInsets.all(16),
           borderRadius: 8,
         );
-        await _selectDefaultChannel();
+        await _resolveChannelAndInit();
       } else {
         isSelectingDefault.value = false;
       }
@@ -1204,13 +1278,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         'action': 'select',
         'target': 15,
       },
-      {
-        'icon': Icons.insights_rounded,
-        'label': 'Creator Intelligence',
-        'color': const Color(0xFF9B30FF),
-        'action': 'select',
-        'target': 16,
-      },
     ];
 
     return ListView.builder(
@@ -1415,7 +1482,9 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildMainContent(bool isDarkMode) {
-    if (channel == null) {
+    final currentChannel = channel;
+    final channelId = _getChannelId(currentChannel);
+    if (channelId.isEmpty) {
       return _buildNoChannelSelected(isDarkMode);
     }
 
@@ -1430,167 +1499,67 @@ class _DashboardScreenState extends State<DashboardScreen>
               case 1:
                 return _buildDashboardContent(isDarkMode);
               case 2:
-                final currentChannel = channel;
-                if (currentChannel != null) {
-                  final channelId =
-                      (currentChannel is Map
-                              ? currentChannel['id']
-                              : (currentChannel as DocumentSnapshot).id)
-                          as String;
-                  return ContentScreen(
-                    channelId: channelId,
-                    isDarkMode: isDarkMode,
-                    searchQuery: controller.searchQuery.value,
-                  );
-                }
-                return _buildNoChannelSelected(isDarkMode);
+                return ContentScreen(
+                  channelId: channelId,
+                  isDarkMode: isDarkMode,
+                  searchQuery: controller.searchQuery.value,
+                );
               case 3:
-                final currentChannel = channel;
-                if (currentChannel != null) {
-                  final channelId = (currentChannel is Map
-                          ? currentChannel['id']
-                          : (currentChannel as DocumentSnapshot).id)
-                      as String;
-                  return AnalyticsScreen(
-                    isDarkMode: isDarkMode,
-                    channelId: channelId,
-                  );
-                }
-                return _buildNoChannelSelected(isDarkMode);
+                return AnalyticsScreen(
+                  isDarkMode: isDarkMode,
+                  channelId: channelId,
+                );
               case 4:
                 return const DashboardCommentsPage();
               case 5:
                 return MonetizationScreen(isDarkMode: isDarkMode);
               case 6:
-                final currentChannel = channel;
-                if (currentChannel != null) {
-                  final channelId = currentChannel is Map
-                      ? (currentChannel['id'] ?? '') as String
-                      : (currentChannel as DocumentSnapshot).id;
-                  final ownerId = currentChannel is Map
-                      ? (currentChannel['ownerId'] ?? '') as String
-                      : ((currentChannel as DocumentSnapshot).data()
-                              as Map<String, dynamic>?)?['ownerId'] as String? ??
-                          '';
-                  return ChannelCustomizationPage(
-                    channelId: channelId,
-                    ownerId: ownerId,
-                  );
-                }
-                return _buildNoChannelSelected(isDarkMode);
+                final ownerId = _getOwnerId(currentChannel);
+                return ChannelCustomizationPage(
+                  channelId: channelId,
+                  ownerId: ownerId,
+                );
               case 7:
-                final currentChannel = channel;
-                if (currentChannel != null) {
-                  final channelId =
-                      (currentChannel is Map
-                              ? currentChannel['id']
-                              : (currentChannel as DocumentSnapshot).id)
-                          as String;
-                  return AudioTracksPage(
-                    channelId: channelId,
-                    isDarkMode: isDarkMode,
-                  );
-                }
-                return _buildNoChannelSelected(isDarkMode);
+                return AudioTracksPage(
+                  channelId: channelId,
+                  isDarkMode: isDarkMode,
+                );
               case 8:
                 return const StudioSettingsPage();
               case 9:
-                final currentChannel = channel;
-                if (currentChannel != null) {
-                  final channelId = (currentChannel is Map
-                          ? currentChannel['id']
-                          : (currentChannel as DocumentSnapshot).id)
-                      as String;
-                  return CopyrightScreen(channelId: channelId);
-                }
-                return _buildNoChannelSelected(isDarkMode);
+                return CopyrightScreen(channelId: channelId);
               case 10:
-                final currentChannel = channel;
-                if (currentChannel != null) {
-                  final channelId =
-                      (currentChannel is Map
-                              ? currentChannel['id']
-                              : (currentChannel as DocumentSnapshot).id)
-                          as String;
-                  return SubtitlesPage(
-                    channelId: channelId,
-                    isDarkMode: isDarkMode,
-                  );
-                }
-                return _buildNoChannelSelected(isDarkMode);
+                return SubtitlesPage(
+                  channelId: channelId,
+                  isDarkMode: isDarkMode,
+                );
               case 12:
-                final currentChannel = channel;
-                if (currentChannel != null) {
-                  final channelId =
-                      (currentChannel is Map
-                              ? currentChannel['id']
-                              : (currentChannel as DocumentSnapshot).id)
-                          as String;
-                  return AudiencePage(
-                    channelId: channelId,
-                    isDarkMode: isDarkMode,
-                  );
-                }
-                return _buildNoChannelSelected(isDarkMode);
+                return AudiencePage(
+                  channelId: channelId,
+                  isDarkMode: isDarkMode,
+                );
               case 13:
-                final currentChannel = channel;
-                if (currentChannel != null) {
-                  final channelId = (currentChannel is Map
-                          ? currentChannel['id']
-                          : (currentChannel as DocumentSnapshot).id)
-                      as String;
-                  if (!Get.isRegistered<VideoRatingController>()) {
-                    Get.put(VideoRatingController(channelId: channelId));
-                  }
-                  return const VideoRatingPage();
+                if (!Get.isRegistered<VideoRatingController>()) {
+                  Get.put(VideoRatingController(channelId: channelId));
                 }
-                return _buildNoChannelSelected(isDarkMode);
+                return const VideoRatingPage();
               case 14:
-                final currentChannel = channel;
-                if (currentChannel != null) {
-                  final channelId =
-                      (currentChannel is Map
-                              ? currentChannel['id']
-                              : (currentChannel as DocumentSnapshot).id)
-                          as String;
-                  return TopicManagementScreen(
-                    channelId: channelId,
-                    isDarkMode: isDarkMode,
-                    searchQuery: controller.searchQuery.value,
-                  );
-                }
-                return _buildNoChannelSelected(isDarkMode);
+                return TopicManagementScreen(
+                  channelId: channelId,
+                  isDarkMode: isDarkMode,
+                  searchQuery: controller.searchQuery.value,
+                );
               case 15:
-                final currentChannel = channel;
-                if (currentChannel != null) {
-                  final channelId =
-                      (currentChannel is Map
-                              ? currentChannel['id']
-                              : (currentChannel as DocumentSnapshot).id)
-                          as String;
-                  return TruthVerificationDashboardPage(
-                    channelId: channelId,
-                    isDarkMode: isDarkMode,
-                  );
-                }
-                return _buildNoChannelSelected(isDarkMode);
+                return TruthVerificationDashboardPage(
+                  channelId: channelId,
+                  isDarkMode: isDarkMode,
+                );
               case 16:
-                final currentChannel = channel;
-                if (currentChannel != null) {
-                  final channelId = currentChannel is Map
-                      ? (currentChannel['id'] ?? '') as String
-                      : (currentChannel as DocumentSnapshot).id;
-                  final ownerId = currentChannel is Map
-                      ? (currentChannel['ownerId'] ?? '') as String
-                      : ((currentChannel as DocumentSnapshot).data()
-                              as Map<String, dynamic>?)?['ownerId'] as String? ??
-                          '';
-                  return CreatorIntelligencePage(
-                    channelId: channelId,
-                    creatorId: ownerId,
-                  );
-                }
-                return _buildNoChannelSelected(isDarkMode);
+                final ownerId = _getOwnerId(currentChannel);
+                return CreatorIntelligencePage(
+                  channelId: channelId,
+                  creatorId: ownerId,
+                );
               default:
                 return _buildDashboardContent(isDarkMode);
             }
@@ -1617,29 +1586,46 @@ class _DashboardScreenState extends State<DashboardScreen>
               ),
               borderRadius: BorderRadius.circular(isMobile ? 60 : 80),
             ),
-            child: Icon(
-              Icons.info_outline_rounded,
-              size: isMobile ? 60 : 80,
-              color: const Color(0xFF6366F1),
+            child: const Icon(
+              Icons.video_library_rounded,
+              size: 60,
+              color: Color(0xFF6366F1),
             ),
           ),
-          SizedBox(height: isMobile ? 24 : 32),
+          const SizedBox(height: 24),
           Text(
-            'No Channel Selected',
+            'Channel Required',
             style: TextStyle(
-              fontSize: isMobile ? 24 : 32,
+              fontSize: isMobile ? 22 : 28,
               fontWeight: FontWeight.bold,
-              color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 12),
-          Text(
-            'Please select a channel from the menu to continue.',
-            style: TextStyle(
-              fontSize: isMobile ? 14 : 16,
-              color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              'You need a channel to access Creator Studio.',
+              style: TextStyle(
+                fontSize: isMobile ? 14 : 16,
+                color: AppColors.textSecondary,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton.icon(
+            onPressed: () => Get.offAllNamed<dynamic>('/channelscreen'),
+            icon: const Icon(Icons.add_circle_outline),
+            label: const Text('Create Channel'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF6366F1),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
           ),
         ],
       ),
@@ -2038,11 +2024,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                     const Icon(Icons.verified_rounded, color: AppColors.textPrimary, size: 16),
                     const SizedBox(width: 8),
                     Text(
-                      (channel is Map
-                              ? (channel['channelName'] ?? channel['name'])
-                              : (channel as DocumentSnapshot)['name'] ??
-                                  (channel as DocumentSnapshot)['channelName']) ??
-                          'Unknown Channel',
+                      _getChannelName(channel),
                       style: const TextStyle(
                         color: AppColors.textPrimary,
                         fontWeight: FontWeight.w500,
@@ -2302,12 +2284,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                       onTap: () {
                         final channelData = channel;
                         if (channelData != null) {
-                          final channelId = (channelData is Map
-                              ? channelData['id']
-                              : (channelData as DocumentSnapshot).id) as String;
-                          final channelName = (channelData is Map
-                              ? channelData['channelName']
-                              : (channelData as DocumentSnapshot)['channelName']) as String? ?? 'My Channel';
+                          final channelId = _getChannelId(channelData);
+                          final channelName = _getChannelName(channelData);
                           
                           Get.to(() => const ViewsPage(), arguments: {
                             'channelId': channelId,
@@ -2328,12 +2306,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                       onTap: () {
                         final channelData = channel;
                         if (channelData != null) {
-                          final channelId = (channelData is Map
-                              ? channelData['id']
-                              : (channelData as DocumentSnapshot).id) as String;
-                          final channelName = (channelData is Map
-                              ? channelData['channelName']
-                              : (channelData as DocumentSnapshot)['channelName']) as String? ?? 'My Channel';
+                          final channelId = _getChannelId(channelData);
+                          final channelName = _getChannelName(channelData);
                           
                           Get.to(() => const WatchTimePage(), arguments: {
                             'channelId': channelId,
@@ -2354,12 +2328,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                       onTap: () {
                         final channelData = channel;
                         if (channelData != null) {
-                          final channelId = (channelData is Map
-                              ? channelData['id']
-                              : (channelData as DocumentSnapshot).id) as String;
-                          final channelName = (channelData is Map
-                              ? channelData['channelName']
-                              : (channelData as DocumentSnapshot)['channelName']) as String? ?? 'My Channel';
+                          final channelId = _getChannelId(channelData);
+                          final channelName = _getChannelName(channelData);
                           
                           Get.to(() => const SubscribersPage(), arguments: {
                             'channelId': channelId,
@@ -2400,12 +2370,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                     onTap: () {
                       final channelData = channel;
                       if (channelData != null) {
-                        final channelId = (channelData is Map
-                            ? channelData['id']
-                            : (channelData as DocumentSnapshot).id) as String;
-                        final channelName = (channelData is Map
-                            ? channelData['channelName']
-                            : (channelData as DocumentSnapshot)['channelName']) as String? ?? 'My Channel';
+                        final channelId = _getChannelId(channelData);
+                        final channelName = _getChannelName(channelData);
                         
                         Get.to(() => const ViewsPage(), arguments: {
                           'channelId': channelId,
@@ -2425,12 +2391,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                     onTap: () {
                       final channelData = channel;
                       if (channelData != null) {
-                        final channelId = (channelData is Map
-                            ? channelData['id']
-                            : (channelData as DocumentSnapshot).id) as String;
-                        final channelName = (channelData is Map
-                            ? channelData['channelName']
-                            : (channelData as DocumentSnapshot)['channelName']) as String? ?? 'My Channel';
+                        final channelId = _getChannelId(channelData);
+                        final channelName = _getChannelName(channelData);
                         
                         Get.to(() => const WatchTimePage(), arguments: {
                           'channelId': channelId,
@@ -2450,12 +2412,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                     onTap: () {
                       final channelData = channel;
                       if (channelData != null) {
-                        final channelId = (channelData is Map
-                            ? channelData['id']
-                            : (channelData as DocumentSnapshot).id) as String;
-                        final channelName = (channelData is Map
-                            ? channelData['channelName']
-                            : (channelData as DocumentSnapshot)['channelName']) as String? ?? 'My Channel';
+                        final channelId = _getChannelId(channelData);
+                        final channelName = _getChannelName(channelData);
                         
                         Get.to(() => const SubscribersPage(), arguments: {
                           'channelId': channelId,

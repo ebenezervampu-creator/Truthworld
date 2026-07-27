@@ -212,6 +212,10 @@ export const trackWatchEvent = onRequest(
         watchPercentage: Math.min(1.0, position / duration),
         issubscriber: body.issubscriber === true || body.issubscriber === "true",
         isNotsubscriber: body.isNotsubscriber === true || body.isNotsubscriber === "true",
+        state: geo.state,
+        city: geo.city,
+        country: geo.country,
+        areaType: geo.areaType,
         lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
 
@@ -328,6 +332,9 @@ export const aggregateWatchStats = onSchedule(
           userId: e.userId,
           videoId: e.videoId,
           state: e.state ?? "Unknown",
+          city: e.city ?? "Unknown",
+          country: e.country ?? "IN",
+          areaType: e.areaType ?? "unknown",
           maxPosition: 0,
           duration: e.duration,
           deltaSeconds: 0,
@@ -443,6 +450,11 @@ export const aggregateWatchStats = onSchedule(
           duration: s.duration,
           Subscribers: 0,
           newSubscribers: 0,
+          stateTraffic: new Map(),
+          cityTraffic: new Map(),
+          countryTraffic: new Map(),
+          urbanViewers: 0,
+          ruralViewers: 0,
         });
       }
 
@@ -452,6 +464,15 @@ export const aggregateWatchStats = onSchedule(
       v.users.add(s.userId);
       if (s.issubscriber) v.Subscribers += 1;
       if (s.isNewsubscriber) v.newSubscribers += 1;
+
+      // Accumulate geographic breakdowns
+      v.stateTraffic.set(s.state, (v.stateTraffic.get(s.state) || 0) + 1);
+      if (s.city && s.city !== "Unknown") {
+        v.cityTraffic.set(s.city, (v.cityTraffic.get(s.city) || 0) + 1);
+      }
+      v.countryTraffic.set(s.country, (v.countryTraffic.get(s.country) || 0) + 1);
+      if (s.areaType === "urban") v.urbanViewers += 1;
+      else if (s.areaType === "rural") v.ruralViewers += 1;
 
       const pct = s.duration > 0 ? (s.maxPosition / s.duration) * 100 : 0;
 
@@ -510,6 +531,14 @@ export const aggregateWatchStats = onSchedule(
         acc.views > 0 ? Math.round((count / acc.views) * 100) : 0
       );
 
+      // Convert geo Maps to plain objects for Firestore
+      const stateTrafficObj: Record<string, number> = {};
+      acc.stateTraffic.forEach((count, key) => { stateTrafficObj[key] = count; });
+      const cityTrafficObj: Record<string, number> = {};
+      acc.cityTraffic.forEach((count, key) => { cityTrafficObj[key] = count; });
+      const countryTrafficObj: Record<string, number> = {};
+      acc.countryTraffic.forEach((count, key) => { countryTrafficObj[key] = count; });
+
       const statsDoc: VideoStats = {
         totalViews: acc.views,
         uniqueUsers: acc.users.size,
@@ -525,7 +554,14 @@ export const aggregateWatchStats = onSchedule(
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
 
-      await addOp(db.collection("video_stats").doc(vid), statsDoc);
+      await addOp(db.collection("video_stats").doc(vid), {
+        ...statsDoc,
+        stateTraffic: stateTrafficObj,
+        cityTraffic: cityTrafficObj,
+        countryTraffic: countryTrafficObj,
+        urbanViewers: acc.urbanViewers,
+        ruralViewers: acc.ruralViewers,
+      });
     }
 
     // Write video_state_stats

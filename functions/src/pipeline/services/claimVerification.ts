@@ -21,6 +21,7 @@ import { withAiRetry } from "../utils/ai-utils";
 import { logger } from "../utils/logger";
 import { sourceTrustService } from "./sourceTrustService";
 import { tier0KnowledgeService } from "./tier0Knowledge";
+import { claimCacheService } from "./claimCacheService";
 
 /**
  * v10.6: Dynamic batch timeout calculation.
@@ -410,19 +411,25 @@ PROTOCOL:
 6. KNOWLEDGE FALLBACK: If search yields no results, evaluate the claim using your internal knowledge. If it is widely accepted as true (e.g. animal trivia, science facts), label it MOSTLY TRUE or LIMITED SUPPORT.
 7. EVIDENCE LEVELS: STRONG | MODERATE | WEAK | NONE | CONTRADICTED. Use NONE for INCONCLUSIVE.
 8. ANTI-HALLUCINATION: Never invent sources. If evidence is truly missing and your internal knowledge is low-confidence, use INCONCLUSIVE.
-9. SOURCE ATTRIBUTION (CRITICAL): For EVERY claim, you MUST provide at least 2-3 real, authoritative sources in the "sources" array. Each source must have a real title, a real URL, and a snippet of evidence.
-   - IMPORTANT: To prevent JSON formatting errors and repetition loops, do NOT copy long Google redirect URLs (containing 'vertexaisearch.cloud.google.com/grounding-api-redirect/...') into the 'url' field. Instead, write ONLY the base domain name (e.g. "wikipedia.org", "timesofindia.indiatimes.com").
-   - Keep the 'snippet' extremely short (maximum 1 sentence, under 120 characters).
-   - Academic, scholarly, and established historical references are the highest priority.
-   - Primary scriptures/texts (e.g. Bible, Quran) are acceptable to cite scriptural/theological claims.
-   - Wikipedia is acceptable for general background, but do NOT rank it above established academic/scholarly references.
-   - GotQuestions and other denominational apologetics/polemical sites are NOT general authoritative sources for evidence; do not treat them as high-tier sources.
-   Prioritize:
-   - Tier A: Peer-reviewed journals, academic history books/presses, government (.gov), international bodies (.int).
-   - Tier B: Gold standard news (reuters.com, apnews.com, bbc.com, bloomberg.com) and established scholarly encyclopedias.
-   - Tier C: General encyclopedic sources (wikipedia.org, britannica.com).
-   - Tier D: Primary scriptures/religious texts (only for religious claims/internal context).
-   DO NOT use only one source. Aim for source diversity across different domains.
+9. SOURCE ATTRIBUTION (CRITICAL): For EVERY claim, you MUST provide at least 2-3 real, authoritative sources in the "sources" array.
+   Each source must include PRECISE citation details so users can locate the exact evidence:
+   - "title": The exact document/page/article title.
+   - "url": A DIRECT URL that opens the exact page or section. Include section anchors (e.g. "#Ideology") where applicable.
+   - "snippet": The EXACT quote or key evidence excerpt (max 1 sentence, under 150 characters).
+   - "sourceType": One of: "book", "journal", "newspaper", "website", "government", "scripture", "legal", "encyclopedia", "academic_press", "archive".
+   - "author": Author or editor name(s) if known (e.g. "Dhananjay Keer", "Dr. B.R. Ambedkar", "Vaibhav Purandare").
+   - "bookTitle": For books — the full book title (e.g. "Savarkar and His Times", "The Essential Writings of Ambedkar").
+   - "chapter": Chapter name or number if applicable (e.g. "Chapter 14: Atheism & Rationalism").
+   - "pageNumbers": Exact page range or page number (e.g. "pp. 287-290", "p. 42").
+   - "volume": Volume and issue for academic journals (e.g. "Vol. 40, No. 2").
+   - "journalName": Name of the academic journal (e.g. "Modern Asian Studies").
+   - "yearPublished": Year of publication as a number (e.g. 2006, 1950).
+   - "isbn": ISBN if known (for books).
+   - "doi": DOI link or identifier if known (for journals).
+
+   EXAMPLES of precise sources:
+   {"title": "Savarkar and His Times", "sourceType": "book", "author": "Dhananjay Keer", "bookTitle": "Savarkar and His Times", "yearPublished": 1950, "chapter": "Chapter 14", "pageNumbers": "pp. 287-290", "url": "https://archive.org/details/savarkarandhistimes", "snippet": "Savarkar declared himself an atheist rationalist who opposed religious dogmas."}
+   {"title": "Modern Asian Studies — Savarkar's Hindutva", "sourceType": "journal", "author": "Vinayak Chaturvedi", "journalName": "Modern Asian Studies", "volume": "Vol. 40, No. 2", "yearPublished": 2006, "doi": "10.1017/S0026749X06001983", "pageNumbers": "pp. 403-436", "url": "https://doi.org/10.1017/S0026749X06001983", "snippet": "Savarkar's rationalism was central to his political ideology."}
 10. TIMELESS CLAIMS: For timeless historical, religious, or supernatural claims, you may output "Timeless" in the "freshness" field, and set the rating accordingly without penalizing for lack of recent news.
 ${tier0Injection}
 ### BATCH TO VERIFY:
@@ -484,6 +491,16 @@ RETURN JSON:
           "title": "Source Name",
           "url": "https://real-source-url.com/path",
           "snippet": "Key evidence excerpt from this source",
+          "sourceType": "book|journal|newspaper|website|government|scripture|legal|encyclopedia|academic_press|archive",
+          "author": "Author Name (if known)",
+          "bookTitle": "Full Book Title (for books)",
+          "chapter": "Chapter name/number (if applicable)",
+          "pageNumbers": "pp. X-Y or p. X (if known)",
+          "volume": "Vol. X, No. Y (for journals)",
+          "journalName": "Journal Name (for academic journals)",
+          "yearPublished": 2006,
+          "isbn": "ISBN (if known, for books)",
+          "doi": "DOI (if known, for journals)",
           "publishedAt": "YYYY-MM-DD or approx date if known"
         }
       ]
@@ -658,6 +675,17 @@ RETURN JSON:
                     type: validated.isSecondary ? 'secondary' : 'primary',
                     tier: validated.tier || this.getSourceTier(src.url, domainContext),
                     snippet: src.snippet || '',
+                    sourceType: src.sourceType || 'website',
+                    author: src.author,
+                    bookTitle: src.bookTitle,
+                    chapter: src.chapter,
+                    pageNumbers: src.pageNumbers,
+                    volume: src.volume,
+                    journalName: src.journalName,
+                    yearPublished: src.yearPublished,
+                    isbn: src.isbn,
+                    doi: src.doi,
+                    directUrl: src.url,
                     retrievalMethod: 'google_grounding',
                     retrievalProvider: validated.retrievalProvider || 'Direct',
                     lastVerified: new Date().toISOString(),
@@ -862,6 +890,44 @@ RETURN JSON:
       });
       claimsToVerify = uniqueClaims;
       console.log(`[ClaimVerification] Deduplication: ${filteredClaims.length} input claims -> ${uniqueClaims.length} unique claims`);
+    }
+
+    // Step 0: Persistent Claim Cache check — bypass Gemini if verified claim & sources exist
+    const cachedClaims: VerifiedClaim[] = [];
+    if (!isRetryPass) {
+      const cachedMap = await claimCacheService.getBatch(claimsToVerify.map(c => c.text));
+      const uncachedClaims: FilteredClaim[] = [];
+
+      claimsToVerify.forEach(claim => {
+        const cached = cachedMap.get(claim.text);
+        if (cached && cached.status) {
+          cachedClaims.push({
+            ...claim,
+            status: cached.status,
+            reasoning: cached.reasoning || "Verified via institutional claim cache.",
+            verificationConfidence: cached.verificationConfidence || 0.9,
+            richSources: cached.richSources || [],
+            sources: (cached.richSources || []).map(s => s.url),
+            displayLabel: cached.displayLabel,
+            evidenceLevel: cached.evidenceLevel || EvidenceLevel.STRONG,
+            evidenceDetails: cached.evidenceDetails,
+            consensusDetails: cached.consensusDetails,
+            classificationConfidence: cached.classificationConfidence,
+            historicalEvidenceConfidence: cached.historicalEvidenceConfidence,
+            isGrounded: true,
+            verificationMethod: 'cache_hit',
+            importance: claim.importance || 0.5
+          } as VerifiedClaim);
+        } else {
+          uncachedClaims.push(claim);
+        }
+      });
+
+      if (cachedClaims.length > 0) {
+        logger.info(`[ClaimCache] Hit persistent cache for ${cachedClaims.length}/${claimsToVerify.length} claims (bypassing Gemini for these)`);
+      }
+
+      claimsToVerify = uncachedClaims;
     }
 
     console.log(
@@ -1266,7 +1332,15 @@ RETURN JSON:
       }
     }
 
-    console.log(`\u2705 Verified ${finalClaims.length} claims (${isRetryPass ? 'retry' : 'parallel'} mode)`);
+    // Save newly verified claims (not retrieved from cache) to persistent claim cache
+    if (!isRetryPass) {
+      const newlyVerified = finalClaims.filter(c => c.verificationMethod !== 'cache_hit' && c.status !== 'verification_timeout' && c.status !== 'unverified');
+      if (newlyVerified.length > 0) {
+        await claimCacheService.setBatch(newlyVerified);
+      }
+    }
+
+    console.log(`✅ Verified ${finalClaims.length} claims (${isRetryPass ? 'retry' : 'parallel'} mode)`);
     return { claims: finalClaims, batchStats: { completed, timedOut } };
   }
 

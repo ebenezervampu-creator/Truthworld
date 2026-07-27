@@ -14,6 +14,8 @@ enum VideoStatus {
   deleted,
   private,
   scheduled,
+  rejected, // Failed moderation — content violates guidelines
+  pending_review, // Awaiting manual admin review (ambiguous moderation)
 }
 
 class VideoResolutionV2 {

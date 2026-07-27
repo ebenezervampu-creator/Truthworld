@@ -16,6 +16,7 @@ import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/topics/presentation/widgets/create_topic_dialog.dart';
 import 'package:truthworld/features/video/presentation/controllers/upload_controller.dart';
 import 'package:truthworld/features/video/presentation/views/upload/ai_features_selector.dart';
 import 'package:truthworld/features/video/presentation/views/upload/models/upload_type.dart';
@@ -208,6 +209,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       // For web/desktop/tablet: use horizontal split layout with fixed sections
       if (!device.isMobile) {
         final tokens = context.layoutTokens;
+        final isCommunity = widget.uploadType == UploadType.communityPost;
         return Row(
           children: [
             // Left sidebar - fixed width
@@ -225,8 +227,10 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                 child: Column(
                   children: [
                     _buildCompactAppBar(true),
-                    const SizedBox(height: 20),
-                    _buildVerticalStepper(true),
+                    if (!isCommunity) ...[
+                      const SizedBox(height: 20),
+                      _buildVerticalStepper(true),
+                    ],
                   ],
                 ),
               ),
@@ -245,7 +249,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
       return Column(
         children: [
           _buildEnhancedAppBar(),
-          _buildProgressIndicator(true),
+          if (widget.uploadType != UploadType.communityPost) _buildProgressIndicator(true),
           Expanded(
             child: Container(
               constraints: BoxConstraints(maxWidth: context.layoutTokens.contentMaxWidth),
@@ -385,6 +389,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
   }
 
   Widget _buildEnhancedAppBar() {
+    final isCommunity = widget.uploadType == UploadType.communityPost;
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: responsivePadding,
@@ -414,23 +419,25 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         gradient: context.gradients.primary,
                         borderRadius: context.radius.md,
                       ),
-                      child: const Icon(
-                        Icons.cloud_upload_rounded,
+                      child: Icon(
+                        isCommunity ? Icons.campaign_rounded : Icons.cloud_upload_rounded,
                         size: 20,
                         color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'Upload Content',
+                      isCommunity ? 'Community Post' : 'Upload Content',
                       style: context.themeTypography.headline.copyWith(
                         color: context.colors.textPrimary,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                _buildChannelSelector(true),
+                if (!isCommunity) ...[
+                  const SizedBox(height: 16),
+                  _buildChannelSelector(true),
+                ],
               ],
             ),
           ),
@@ -514,6 +521,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
   // ========== WEB-OPTIMIZED COMPONENTS ==========
 
   Widget _buildCompactAppBar(bool isDark) {
+    final isCommunity = widget.uploadType == UploadType.communityPost;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -533,15 +541,15 @@ class _CreateContentScreenState extends State<CreateContentScreen>
               ),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(
-              Icons.cloud_upload_rounded,
+            child: Icon(
+              isCommunity ? Icons.campaign_rounded : Icons.cloud_upload_rounded,
               size: 28,
               color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 12),
           Text(
-            'Upload',
+            isCommunity ? 'Community Post' : 'Upload',
             style: context.themeTypography.headline.copyWith(
               color: isDark ? AppColors.textPrimary : const Color(0xFF0F172A),
             ),
@@ -2926,19 +2934,9 @@ class _CreateContentScreenState extends State<CreateContentScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildStepHeader(
-              isDark: isDark,
-              title: 'Create Community Post',
-              subtitle: 'Share updates and engage with your audience',
-              icon: Icons.campaign_rounded,
-              color: const Color(0xFFF59E0B),
-            ),
-            const SizedBox(height: 24),
             _buildCommunityMediaSection(isDark),
             const SizedBox(height: 24),
             _buildCommunityDetailsSection(isDark),
-            const SizedBox(height: 24),
-            _buildChannelSelectionSection(isDark),
             const SizedBox(height: 32),
             _buildCommunityPublishSection(isDark),
           ],
@@ -4729,310 +4727,55 @@ class _CreateContentScreenState extends State<CreateContentScreen>
 
 
 
-  void _showCreateTopicModal(bool isDark) {
-    final titleController = TextEditingController();
-    final handleController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final categoryController = TextEditingController(text: _uploadController.videoCategories.isNotEmpty ? _uploadController.videoCategories.first : 'Music');
-    final accessCodeController = TextEditingController();
-    
-    final selectedVisibility = TopicVisibilityType.public.obs;
-    final obscureAccessCode = true.obs;
-    
-    final thumbnailSource = 'video'.obs;
-    final customImageBytes = Rx<Uint8List?>(null);
-    final customImageName = ''.obs;
+    void _showCreateTopicModal(bool isDark) {
+    final currentChannelId = _uploadController.selectedChannel.value?.id ?? '';
+    CreateTopicDialog.show(
+      context: context,
+      isDarkMode: isDark,
+      channelVideosFuture: currentChannelId.isNotEmpty
+          ? FirebaseFirestore.instance
+              .collection('videos')
+              .where('channelId', isEqualTo: currentChannelId)
+              .get()
+              .then((snap) => snap.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList())
+          : Future.value([]),
+      onCreateTopicSubmitted: (createCtrl) async {
+        final title = createCtrl.titleController.text.trim();
+        var rawHandle = createCtrl.handleController.text.trim();
+        if (rawHandle.startsWith('T/') || rawHandle.startsWith('t/')) {
+          rawHandle = rawHandle.substring(2);
+        }
+        final cleanHandle = rawHandle.replaceAll(RegExp('[^a-zA-Z0-9_-]'), '-').replaceAll(RegExp('-+'), '-');
+        final finalHandle = 'T/$cleanHandle';
+        final finalHandleLowercase = finalHandle.toLowerCase();
 
-    final formKey = GlobalKey<FormState>();
+        // Check handle uniqueness in Firestore
+        final existingHandle = await FirebaseFirestore.instance
+            .collection('topics')
+            .where('handleLowercase', isEqualTo: finalHandleLowercase)
+            .limit(1)
+            .get();
 
-    Get.dialog(
-      Obx(() {
-        return AlertDialog(
-          backgroundColor: AppColors.bgSurface,
-          title: Text(
-            'Create New Topic',
-            style: AppTextStyles.titleMedium.copyWith(
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          content: SingleChildScrollView(
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  TextFormField(
-                    controller: titleController,
-                    style: TextStyle(color: isDark ? AppColors.textPrimary : AppColors.bgPage),
-                    decoration: const InputDecoration(
-                      labelText: 'Topic Title',
-                      hintText: 'Enter topic title',
-                    ),
-                    validator: (val) {
-                      if (val == null || val.trim().isEmpty) {
-                        return 'Title is required';
-                      }
-                      if (val.trim().length < 3) {
-                        return 'Title must be at least 3 characters';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: handleController,
-                    style: TextStyle(color: isDark ? AppColors.textPrimary : AppColors.bgPage),
-                    decoration: const InputDecoration(
-                      labelText: 'Topic Handle',
-                      hintText: 'e.g. war',
-                      prefixText: 'T/',
-                      prefixStyle: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    validator: (val) {
-                      if (val == null || val.trim().isEmpty) {
-                        return 'Handle is required';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: descriptionController,
-                    style: TextStyle(color: isDark ? AppColors.textPrimary : AppColors.bgPage),
-                    decoration: const InputDecoration(
-                      labelText: 'Description',
-                      hintText: 'Enter topic description',
-                    ),
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  DropdownButtonFormField<String>(
-                    initialValue: categoryController.text,
-                    dropdownColor: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
-                    style: TextStyle(color: isDark ? AppColors.textPrimary : AppColors.bgPage),
-                    decoration: const InputDecoration(
-                      labelText: 'Category',
-                    ),
-                    items: _uploadController.videoCategories.map((cat) {
-                      return DropdownMenuItem<String>(
-                        value: cat,
-                        child: Text(cat),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        categoryController.text = val;
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 16),
+        if (existingHandle.docs.isNotEmpty) {
+          Get.snackbar('Error', 'Topic handle is already taken. Please choose a different one.');
+          throw Exception('Handle already taken');
+        }
 
-                  Text(
-                    'Visibility',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? AppColors.textSecondary : AppColors.bgPage,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<TopicVisibilityType>(
-                    initialValue: selectedVisibility.value,
-                    dropdownColor: isDark ? const Color(0xFF161B22) : AppColors.textPrimary,
-                    style: TextStyle(color: isDark ? AppColors.textPrimary : AppColors.bgPage),
-                    items: const [
-                      DropdownMenuItem(
-                        value: TopicVisibilityType.public,
-                        child: Text('Public (Anyone can contribute)'),
-                      ),
-                      DropdownMenuItem(
-                        value: TopicVisibilityType.private,
-                        child: Text('Private (Passcode required for others)'),
-                      ),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) {
-                        selectedVisibility.value = val;
-                      }
-                    },
-                  ),
+        _uploadController.newTopicData.value = {
+          'title': title,
+          'handle': finalHandle,
+          'description': createCtrl.descriptionController.text.trim(),
+          'category': createCtrl.categoryController.text,
+          'visibilityType': createCtrl.selectedVisibility.value,
+          'accessCode': createCtrl.accessCodeController.text.trim(),
+          'thumbnailSource': createCtrl.thumbnailSource.value,
+          'customThumbnailBytes': createCtrl.pickedCustomImageBytes.value,
+          'customThumbnailName': createCtrl.pickedCustomImageName.value,
+        };
 
-                  if (selectedVisibility.value == TopicVisibilityType.private) ...[
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: accessCodeController,
-                      obscureText: obscureAccessCode.value,
-                      style: TextStyle(color: isDark ? AppColors.textPrimary : AppColors.bgPage),
-                      decoration: InputDecoration(
-                        labelText: 'Passcode',
-                        hintText: 'Enter passcode',
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            obscureAccessCode.value
-                                ? Icons.visibility_off
-                                : Icons.visibility,
-                          ),
-                          onPressed: obscureAccessCode.toggle,
-                        ),
-                      ),
-                      validator: (val) {
-                        if (selectedVisibility.value == TopicVisibilityType.private) {
-                          if (val == null || val.trim().isEmpty) {
-                            return 'Passcode is required for private visibility';
-                          }
-                          if (val.trim().length < 4) {
-                            return 'Passcode must be at least 4 characters';
-                          }
-                        }
-                        return null;
-                      },
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-
-                  Text(
-                    'Topic Thumbnail',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: isDark ? AppColors.textSecondary : AppColors.bgPage,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: RadioListTile<String>(
-                          value: 'video',
-                          // ignore: deprecated_member_use
-                          groupValue: thumbnailSource.value,
-                          title: const Text('Use Video Thumbnail', style: TextStyle(fontSize: 11)),
-                          contentPadding: EdgeInsets.zero,
-                          // ignore: deprecated_member_use
-                          onChanged: (val) {
-                            if (val != null) thumbnailSource.value = val;
-                          },
-                        ),
-                      ),
-                      Expanded(
-                        child: RadioListTile<String>(
-                          value: 'custom',
-                          // ignore: deprecated_member_use
-                          groupValue: thumbnailSource.value,
-                          title: const Text('Upload Custom', style: TextStyle(fontSize: 11)),
-                          contentPadding: EdgeInsets.zero,
-                          // ignore: deprecated_member_use
-                          onChanged: (val) {
-                            if (val != null) thumbnailSource.value = val;
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  if (thumbnailSource.value == 'custom') ...[
-                    const SizedBox(height: 8),
-                    Center(
-                      child: OutlinedButton.icon(
-                        onPressed: () async {
-                          final result = await FilePicker.pickFiles(
-                            type: FileType.image,
-                            withData: true,
-                          );
-                          if (result != null && result.files.isNotEmpty) {
-                            final file = result.files.first;
-                            customImageBytes.value = file.bytes;
-                            customImageName.value = file.name;
-                          }
-                        },
-                        icon: const Icon(Icons.image),
-                        label: Text(customImageBytes.value == null
-                            ? 'Select Custom Image'
-                            : 'Image: ${customImageName.value}'),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                _uploadController.selectTopic('');
-                Get.back();
-              },
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (formKey.currentState!.validate()) {
-                  final handleVal = handleController.text.trim();
-                  if (handleVal.isEmpty) {
-                    Get.snackbar('Error', 'Topic handle is required');
-                    return;
-                  }
-                  
-                  // Clean handle
-                  var cleanHandle = handleVal;
-                  if (cleanHandle.startsWith('T/')) {
-                    cleanHandle = cleanHandle.substring(2);
-                  }
-                  if (cleanHandle.startsWith('t/')) {
-                    cleanHandle = cleanHandle.substring(2);
-                  }
-                  cleanHandle = cleanHandle
-                      .replaceAll(RegExp('[^a-zA-Z0-9_-]'), '-')
-                      .replaceAll(RegExp('-+'), '-');
-                  if (cleanHandle.isEmpty) {
-                    Get.snackbar('Error', 'Topic handle must contain alphanumeric characters');
-                    return;
-                  }
-                  final finalHandle = 'T/$cleanHandle';
-                  final finalHandleLowercase = finalHandle.toLowerCase();
-
-                  // Check handle uniqueness in Firestore
-                  final existingHandle = await FirebaseFirestore.instance
-                      .collection('topics')
-                      .where('handleLowercase', isEqualTo: finalHandleLowercase)
-                      .limit(1)
-                      .get();
-
-                  if (existingHandle.docs.isNotEmpty) {
-                    Get.snackbar('Error', 'Topic handle is already taken. Please choose a different one.');
-                    return;
-                  }
-
-                  if (thumbnailSource.value == 'custom' && customImageBytes.value == null) {
-                    Get.snackbar('Error', 'Please select a custom thumbnail image');
-                    return;
-                  }
-                  
-                  _uploadController.newTopicData.value = {
-                    'title': titleController.text.trim(),
-                    'handle': finalHandle,
-                    'description': descriptionController.text.trim(),
-                    'category': categoryController.text,
-                    'visibilityType': selectedVisibility.value,
-                    'accessCode': accessCodeController.text.trim(),
-                    'thumbnailSource': thumbnailSource.value,
-                    'customThumbnailBytes': customImageBytes.value,
-                    'customThumbnailName': customImageName.value,
-                  };
-                  
-                  _uploadController.selectedTopicId.value = 'new_topic_draft';
-                  Get.back();
-                  Get.snackbar('Success', 'Topic draft created! It will be published along with your video.');
-                }
-              },
-              child: const Text('Use Topic'),
-            ),
-          ],
-        );
-      }),
+        _uploadController.selectedTopicId.value = 'new_topic_draft';
+        Get.snackbar('Success', 'Topic draft created! It will be published along with your video.');
+      },
     );
   }
 

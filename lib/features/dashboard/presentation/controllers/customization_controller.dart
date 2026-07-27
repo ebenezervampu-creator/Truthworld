@@ -7,10 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/dashboard_screen.dart';
-import 'package:truthworld/theme/app_theme.dart';
+import 'package:truthworld/theme/app_colors.dart';
 
 class CustomizationController extends GetxController {
-
   CustomizationController({required this.channelId, required this.ownerId});
   final String channelId;
   final String ownerId;
@@ -20,7 +19,7 @@ class CustomizationController extends GetxController {
 
   final RxString status = 'active'.obs;
   final RxString moderationReason = ''.obs;
-  StreamSubscription<DocumentSnapshot>? _channelSub;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _channelSub;
 
   // Image Verification Statuses (Reactive)
   final RxString avatarStatus = 'APPROVED'.obs;
@@ -71,17 +70,31 @@ class CustomizationController extends GetxController {
   }
 
   void _listenToChannelChanges() {
-    _channelSub = _firestore.collection('channels').doc(channelId).snapshots().listen((snapshot) {
+    _channelSub = _firestore
+        .collection('channels')
+        .doc(channelId)
+        .snapshots()
+        .listen((snapshot) {
       if (snapshot.exists) {
         final data = snapshot.data()!;
-        status.value = data['status'] ?? 'active';
-        moderationReason.value = data['moderationReason'] ?? '';
-        avatarStatus.value = data['avatarStatus'] ?? 'APPROVED';
-        bannerStatus.value = data['bannerStatus'] ?? 'APPROVED';
-        avatarStatusReason.value = data['avatarStatusReason'] ?? '';
-        bannerStatusReason.value = data['bannerStatusReason'] ?? '';
-        avatarFileId.value = data['avatarFileId'] ?? '';
-        bannerFileId.value = data['bannerFileId'] ?? '';
+        status.value = (data['status'] as String?) ?? 'active';
+        moderationReason.value = (data['moderationReason'] as String?) ?? '';
+        avatarStatus.value = (data['avatarStatus'] as String?) ?? 'APPROVED';
+        bannerStatus.value = (data['bannerStatus'] as String?) ?? 'APPROVED';
+        avatarStatusReason.value = (data['avatarStatusReason'] as String?) ?? '';
+        bannerStatusReason.value = (data['bannerStatusReason'] as String?) ?? '';
+        avatarFileId.value = (data['avatarFileId'] as String?) ?? '';
+        bannerFileId.value = (data['bannerFileId'] as String?) ?? '';
+
+        final bUrl = (data['bannerImageUrl'] as String?) ??
+            (data['bannerUrl'] as String?) ??
+            (data['banner'] as String?) ??
+            (data['bannerPicUrl'] as String?) ??
+            '';
+        if (bUrl.isNotEmpty) bannerUrl.value = bUrl;
+
+        final aUrl = (data['avatarUrl'] as String?) ?? (data['photoUrl'] as String?) ?? '';
+        if (aUrl.isNotEmpty) avatarUrl.value = aUrl;
       }
     });
   }
@@ -110,41 +123,50 @@ class CustomizationController extends GetxController {
 
       if (doc.exists) {
         final data = doc.data()!;
-        channelNameController.text = data['channelName'] ?? '';
-        descriptionController.text = data['description'] ?? '';
-        customUrlController.text = data['customUrl'] ?? '';
-        contactEmailController.text = data['contactEmail'] ?? '';
-        websiteUrlController.text = data['websiteUrl'] ?? '';
-        categoryController.text = data['category'] ?? '';
-        languageController.text = data['language'] ?? 'en';
-        avatarUrl.value = data['avatarUrl'] ?? '';
-        bannerUrl.value = data['bannerImageUrl'] ?? '';
-        avatarStatus.value = data['avatarStatus'] ?? 'APPROVED';
-        bannerStatus.value = data['bannerStatus'] ?? 'APPROVED';
-        avatarStatusReason.value = data['avatarStatusReason'] ?? '';
-        bannerStatusReason.value = data['bannerStatusReason'] ?? '';
-        avatarFileId.value = data['avatarFileId'] ?? '';
-        bannerFileId.value = data['bannerFileId'] ?? '';
-        isPublic.value = data['isPublic'] ?? true;
-        allowComments.value = data['allowComments'] ?? true;
-        allowSubscriptions.value = data['allowSubscriptions'] ?? true;
-        showSubscriberCount.value = data['showSubscriberCount'] ?? true;
+        channelNameController.text = (data['channelName'] as String?) ?? (data['name'] as String?) ?? '';
+        descriptionController.text = (data['description'] as String?) ?? '';
+        customUrlController.text = (data['customUrl'] as String?) ?? (data['handle'] as String?) ?? '';
+        contactEmailController.text = (data['contactEmail'] as String?) ?? '';
+        websiteUrlController.text = (data['websiteUrl'] as String?) ?? '';
+        categoryController.text = (data['category'] as String?) ?? '';
+        languageController.text = (data['language'] as String?) ?? 'en';
+        
+        avatarUrl.value = (data['avatarUrl'] as String?) ?? (data['photoUrl'] as String?) ?? '';
+        bannerUrl.value = (data['bannerImageUrl'] as String?) ??
+            (data['bannerUrl'] as String?) ??
+            (data['banner'] as String?) ??
+            (data['bannerPicUrl'] as String?) ??
+            '';
+
+        avatarStatus.value = (data['avatarStatus'] as String?) ?? 'APPROVED';
+        bannerStatus.value = (data['bannerStatus'] as String?) ?? 'APPROVED';
+        avatarStatusReason.value = (data['avatarStatusReason'] as String?) ?? '';
+        bannerStatusReason.value = (data['bannerStatusReason'] as String?) ?? '';
+        avatarFileId.value = (data['avatarFileId'] as String?) ?? '';
+        bannerFileId.value = (data['bannerFileId'] as String?) ?? '';
+        isPublic.value = (data['isPublic'] as bool?) ?? true;
+        allowComments.value = (data['allowComments'] as bool?) ?? true;
+        allowSubscriptions.value = (data['allowSubscriptions'] as bool?) ?? true;
+        showSubscriberCount.value = (data['showSubscriberCount'] as bool?) ?? true;
 
         final tags = data['tags'] as List<dynamic>?;
         tagsController.text = tags?.join(', ') ?? '';
 
         final socialLinks = data['socialLinks'] as Map<String, dynamic>?;
         if (socialLinks != null) {
-          twitterController.text = socialLinks['twitter'] ?? '';
-          instagramController.text = socialLinks['instagram'] ?? '';
-          facebookController.text = socialLinks['facebook'] ?? '';
+          twitterController.text = (socialLinks['twitter'] as String?) ?? '';
+          instagramController.text = (socialLinks['instagram'] as String?) ?? '';
+          facebookController.text = (socialLinks['facebook'] as String?) ?? '';
         }
       }
     } catch (e) {
-      Get.snackbar('Error', 'Failed to load channel data: $e', 
+      Get.snackbar(
+        'Error',
+        'Failed to load channel data: $e',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary);
+        colorText: AppColors.textPrimary,
+      );
     } finally {
       isLoading.value = false;
     }
@@ -203,10 +225,13 @@ class CustomizationController extends GetxController {
         }
       }
     } catch (e) {
-      Get.snackbar('Error', 'Failed to pick image: $e',
+      Get.snackbar(
+        'Error',
+        'Failed to pick image: $e',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary);
+        colorText: AppColors.textPrimary,
+      );
     }
   }
 
@@ -272,8 +297,11 @@ class CustomizationController extends GetxController {
         'handle': customUrlController.text.isNotEmpty ? customUrlController.text : null,
         'handleLowercase': customUrlController.text.isNotEmpty ? customUrlController.text.toLowerCase() : null,
         'avatarUrl': updatedAvatarUrl,
+        'photoUrl': updatedAvatarUrl,
         'bannerUrl': updatedBannerUrl,
         'bannerImageUrl': updatedBannerUrl,
+        'banner': updatedBannerUrl,
+        'bannerPicUrl': updatedBannerUrl,
         'isPublic': isPublic.value,
         'allowComments': allowComments.value,
         'allowSubscriptions': allowSubscriptions.value,
@@ -309,10 +337,13 @@ class CustomizationController extends GetxController {
       newAvatarBytes.value = null;
       newBannerBytes.value = null;
 
-      Get.snackbar('Success', 'Channel updated successfully!',
+      Get.snackbar(
+        'Success',
+        'Channel updated successfully!',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: AppColors.success,
-        colorText: AppColors.textPrimary);
+        colorText: AppColors.textPrimary,
+      );
 
       // Redirect to the Dashboard tab (tab index 1)
       try {
@@ -320,17 +351,15 @@ class CustomizationController extends GetxController {
         dashboardController.selectedIndex.value = 1;
       } catch (_) {}
     } catch (e) {
-      Get.snackbar('Error', 'Failed to save changes: $e',
+      Get.snackbar(
+        'Error',
+        'Failed to save changes: $e',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: AppColors.error,
-        colorText: AppColors.textPrimary);
+        colorText: AppColors.textPrimary,
+      );
     } finally {
       isSaving.value = false;
     }
   }
 }
-
-
-
-
-

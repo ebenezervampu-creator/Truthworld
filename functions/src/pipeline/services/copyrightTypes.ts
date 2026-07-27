@@ -342,3 +342,35 @@ export interface DetectionResult {
   };
   totalDurationMs: number;
 }
+
+export type CopyrightOwnerAction = 'YELLOW_STRIKE' | 'REDIRECT_MONETIZATION' | 'NO_OBJECTION';
+
+export interface CopyrightOwnerNotification {
+  notificationId: string;
+  matchId: string;
+  assetId: string;
+  originalOwnerId: string;
+  copiedVideoId: string;
+  copiedUserId: string;
+  copiedChannelId: string;
+  videoTitle: string;
+  thumbnailUrl: string;
+  matchedSegments: SegmentMatch[];
+  similarityScore: number;
+  status: 'pending_owner_action' | 'action_taken' | 'expired';
+  selectedAction?: CopyrightOwnerAction;
+  actionTakenAt?: number;
+  createdAt: number;
+}
+
+export interface ChannelStrike {
+  strikeId: string;
+  channelId: string;
+  userId: string;
+  videoId: string;
+  strikeType: 'yellow_copyright';
+  reason: string;
+  assetId: string;
+  issuedAt: number;
+  expiresAt: number; // 90 days TTL
+}

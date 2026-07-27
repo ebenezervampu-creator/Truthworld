@@ -12,11 +12,9 @@ class CopyrightScreen extends StatelessWidget {
 
   Stream<QuerySnapshot> _notices(String activeChannelId) {
     if (activeChannelId.isEmpty) return const Stream.empty();
-    // Industry Standard: Query by channelId and ensure descending order by date
     return FirebaseFirestore.instance
         .collection('copyright_claims')
         .where('channelId', isEqualTo: activeChannelId)
-        .orderBy('date', descending: true)
         .snapshots();
   }
 
@@ -36,16 +34,23 @@ class CopyrightScreen extends StatelessWidget {
     final activeChannelId = channelId ?? user?.uid ?? '';
 
     return Scaffold(
-      backgroundColor: isDarkMode ? const Color(0xFF0F0F0F) : const Color(0xFFF9F9F9),
+      backgroundColor: isDarkMode ? AppColors.bgPage : AppColors.textSecondary,
       appBar: AppBar(
-        title: const Text(
+        title: Text(
           'Channel copyright',
-          style: TextStyle(fontWeight: FontWeight.w700),
+          style: AppTextStyles.pageTitle.copyWith(
+            fontSize: 20,
+            color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+          ),
         ),
         backgroundColor: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
         elevation: 0,
+        iconTheme: IconThemeData(color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage),
         actions: [
-          IconButton(icon: const Icon(Icons.help_outline), onPressed: () {}),
+          IconButton(
+            icon: Icon(Icons.help_outline, color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage),
+            onPressed: () {},
+          ),
         ],
       ),
       body: Obx(() {
@@ -54,15 +59,22 @@ class CopyrightScreen extends StatelessWidget {
           stream: _notices(activeChannelId),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const Center(child: CircularProgressIndicator(color: AppColors.brand));
             }
 
             if (snapshot.hasError) {
-              return _buildErrorState(snapshot.error.toString());
+              return _buildErrorState(snapshot.error.toString(), isDarkMode);
             }
 
-            final docs = snapshot.data?.docs ?? [];
-            
+            final docs = (snapshot.data?.docs ?? []).toList()
+              ..sort((a, b) {
+                final aData = a.data() as Map<String, dynamic>? ?? {};
+                final bData = b.data() as Map<String, dynamic>? ?? {};
+                final aDate = aData['date'] as Timestamp? ?? aData['createdAt'] as Timestamp? ?? Timestamp.now();
+                final bDate = bData['date'] as Timestamp? ?? bData['createdAt'] as Timestamp? ?? Timestamp.now();
+                return bDate.compareTo(aDate);
+              });
+
             return CustomScrollView(
               slivers: [
                 // Summary Section
@@ -73,7 +85,7 @@ class CopyrightScreen extends StatelessWidget {
                 if (docs.isEmpty)
                   SliverFillRemaining(
                     hasScrollBody: false,
-                    child: _buildEmptyState(),
+                    child: _buildEmptyState(isDarkMode),
                   )
                 else
                   SliverPadding(
@@ -88,7 +100,7 @@ class CopyrightScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                
+
                 const SliverToBoxAdapter(child: SizedBox(height: 32)),
               ],
             );
@@ -106,7 +118,7 @@ class CopyrightScreen extends StatelessWidget {
         color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
         border: Border(
           bottom: BorderSide(
-            color: isDarkMode ? AppColors.bgDivider : Colors.black12,
+            color: isDarkMode ? AppColors.bgDivider : AppColors.textSecondary,
           ),
         ),
       ),
@@ -118,7 +130,9 @@ class CopyrightScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: totalClaims > 0 ? AppColors.error.withValues(alpha: 0.1) : AppColors.success.withValues(alpha: 0.1),
+                  color: totalClaims > 0
+                      ? AppColors.error.withValues(alpha: 0.1)
+                      : AppColors.success.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
@@ -134,20 +148,19 @@ class CopyrightScreen extends StatelessWidget {
                   children: [
                     Text(
                       totalClaims > 0 ? '$totalClaims Copyright claims' : 'No copyright strikes',
-                      style: TextStyle(
+                      style: AppTextStyles.headlineSmall.copyWith(
                         fontSize: 20,
-                        fontWeight: FontWeight.bold,
                         color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      totalClaims > 0 
-                        ? 'Review details to see how these affect your channel.' 
-                        : 'Your channel is in good standing.',
-                      style: TextStyle(
+                      totalClaims > 0
+                          ? 'Review details to see how these affect your channel.'
+                          : 'Your channel is in good standing.',
+                      style: AppTextStyles.bodyMedium.copyWith(
                         fontSize: 14,
-                        color: isDarkMode ? AppColors.textSecondary : AppColors.bgPage54,
+                        color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
                       ),
                     ),
                   ],
@@ -157,7 +170,7 @@ class CopyrightScreen extends StatelessWidget {
           ),
           if (totalClaims > 0) ...[
             const SizedBox(height: 24),
-            const Divider(height: 1),
+            const Divider(height: 1, color: AppColors.bgDivider),
             const SizedBox(height: 16),
             _buildStatusItem(
               Icons.visibility_outlined,
@@ -181,19 +194,19 @@ class CopyrightScreen extends StatelessWidget {
   Widget _buildStatusItem(IconData icon, String title, String subtitle, bool isDarkMode) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: isDarkMode ? AppColors.textSecondary : Colors.black45),
+        Icon(icon, size: 20, color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary),
         const SizedBox(width: 12),
         Text(
           '$title: ',
-          style: TextStyle(
-            fontWeight: FontWeight.w500,
+          style: AppTextStyles.labelMedium.copyWith(
+            fontWeight: FontWeight.w600,
             color: isDarkMode ? AppColors.textSecondary : AppColors.bgPage,
           ),
         ),
         Text(
           subtitle,
-          style: TextStyle(
-            color: isDarkMode ? AppColors.textTertiary : Colors.black45,
+          style: AppTextStyles.bodySmall.copyWith(
+            color: isDarkMode ? AppColors.textTertiary : AppColors.textSecondary,
           ),
         ),
       ],
@@ -201,11 +214,11 @@ class CopyrightScreen extends StatelessWidget {
   }
 
   Widget _buildClaimCard(Map<String, dynamic> data, bool isDarkMode) {
-    final videoTitle = data['videoTitle'] ?? data['channelName'] ?? data['name'] ?? 'Unknown Content';
-    final claimType = data['noticeType'] ?? 'Copyright Notice';
-    final claimant = data['claimant'] ?? data['owner'] ?? 'Rights Holder';
-    final impact = data['impact'] ?? (data['actionRequired'] == true ? 'Action Required' : 'No Impact');
-    final date = _formatDate(data['date']);
+    final videoTitle = (data['videoTitle'] ?? data['channelName'] ?? data['name'] ?? 'Unknown Content').toString();
+    final claimType = (data['noticeType'] ?? 'Copyright Notice').toString();
+    final claimant = (data['claimant'] ?? data['owner'] ?? 'Rights Holder').toString();
+    final impact = (data['impact'] ?? (data['actionRequired'] == true ? 'Action Required' : 'No Impact')).toString();
+    final date = _formatDate(data['date'] ?? data['createdAt']);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -213,7 +226,7 @@ class CopyrightScreen extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: isDarkMode ? AppColors.bgDivider : Colors.black12,
+          color: isDarkMode ? AppColors.bgDivider : AppColors.textSecondary.withValues(alpha: 0.2),
         ),
       ),
       color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
@@ -235,9 +248,9 @@ class CopyrightScreen extends StatelessWidget {
                       color: isDarkMode
                           ? AppColors.textPrimary.withValues(alpha: 0.05)
                           : AppColors.bgPage.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Icon(Icons.video_library_outlined, size: 20),
+                    child: const Icon(Icons.video_library_outlined, size: 20, color: AppColors.brand),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -248,18 +261,19 @@ class CopyrightScreen extends StatelessWidget {
                           videoTitle,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: AppTextStyles.titleMedium.copyWith(
                             fontWeight: FontWeight.bold,
                             fontSize: 15,
+                            color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           claimType,
-                          style: const TextStyle(
+                          style: AppTextStyles.labelMedium.copyWith(
                             fontSize: 13,
                             color: AppColors.error,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
@@ -269,7 +283,7 @@ class CopyrightScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              const Divider(height: 1),
+              const Divider(height: 1, color: AppColors.bgDivider),
               const SizedBox(height: 12),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -292,9 +306,9 @@ class CopyrightScreen extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
+          style: AppTextStyles.caption.copyWith(
             fontSize: 11,
-            color: isDarkMode ? AppColors.textTertiary : Colors.black38,
+            color: isDarkMode ? AppColors.textTertiary : AppColors.textSecondary,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -305,7 +319,7 @@ class CopyrightScreen extends StatelessWidget {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
+            style: AppTextStyles.bodySmall.copyWith(
               fontSize: 12,
               color: isDarkMode ? AppColors.textSecondary : AppColors.bgPage,
             ),
@@ -316,7 +330,7 @@ class CopyrightScreen extends StatelessWidget {
   }
 
   void _showClaimDetailsBottomSheet(Map<String, dynamic> data, bool isDarkMode) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: Get.context!,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
@@ -324,35 +338,47 @@ class CopyrightScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(bool isDarkMode) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.check_circle_outline,
-            size: 80,
-            color: AppColors.success.withValues(alpha: 0.5),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Channel content is claim-free',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.check_circle_outline,
+              size: 80,
+              color: AppColors.success.withValues(alpha: 0.6),
             ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Keep up the great work creating original content!',
-            style: TextStyle(color: AppColors.textSecondary),
-          ),
-        ],
+            const SizedBox(height: 16),
+            Text(
+              'Channel content is claim-free',
+              style: AppTextStyles.pageTitle.copyWith(
+                fontSize: 18,
+                color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Keep up the great work creating original content!',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.bodyMedium.copyWith(
+                fontSize: 14,
+                color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildErrorState(String error) {
+  Widget _buildErrorState(String error, bool isDarkMode) {
+    final isPermissionDenied = error.contains('permission-denied');
+    final userMessage = isPermissionDenied
+        ? 'Permission restricted or security session updating. Click try again to refresh connection.'
+        : error;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -361,21 +387,36 @@ class CopyrightScreen extends StatelessWidget {
           children: [
             const Icon(Icons.error_outline, size: 48, color: AppColors.error),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Failed to load copyright data',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              style: AppTextStyles.titleLarge.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
-              error,
+              userMessage,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              style: AppTextStyles.bodySmall.copyWith(
+                color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                fontSize: 13,
+              ),
             ),
             const SizedBox(height: 24),
             ElevatedButton(
               onPressed: () => _retryTrigger.value++,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.brand),
-              child: const Text('Try Again'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.brand,
+                foregroundColor: AppColors.textPrimary,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: Text(
+                'Try Again',
+                style: AppTextStyles.buttonText.copyWith(color: AppColors.textPrimary),
+              ),
             ),
           ],
         ),
@@ -405,30 +446,30 @@ class _ClaimDetailsBottomSheet extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Claim details',
-                style: TextStyle(
+                style: AppTextStyles.headlineSmall.copyWith(
                   fontSize: 20,
-                  fontWeight: FontWeight.bold,
+                  color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.close),
+                icon: Icon(Icons.close, color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage),
                 onPressed: () => Navigator.pop(context),
               ),
             ],
           ),
           const SizedBox(height: 24),
-          _buildDetailRow('Video affected', data['videoTitle'] ?? 'Unknown'),
-          _buildDetailRow('Claim type', data['noticeType'] ?? 'Content ID'),
-          _buildDetailRow('Claimant', data['claimant'] ?? 'Rights Holder'),
-          _buildDetailRow('Policy', data['policy'] ?? 'Monetized by claimant'),
-          _buildDetailRow('Description', data['description'] ?? 'No additional details provided.'),
+          _buildDetailRow('Video affected', (data['videoTitle'] ?? 'Unknown').toString()),
+          _buildDetailRow('Claim type', (data['noticeType'] ?? 'Content ID').toString()),
+          _buildDetailRow('Claimant', (data['claimant'] ?? 'Rights Holder').toString()),
+          _buildDetailRow('Policy', (data['policy'] ?? 'Monetized by claimant').toString()),
+          _buildDetailRow('Description', (data['description'] ?? 'No additional details provided.').toString()),
           
           const SizedBox(height: 32),
-          const Text(
+          Text(
             'SELECT ACTION',
-            style: TextStyle(
+            style: AppTextStyles.labelMedium.copyWith(
               fontSize: 12,
               fontWeight: FontWeight.w900,
               color: AppColors.textSecondary,
@@ -454,15 +495,19 @@ class _ClaimDetailsBottomSheet extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(
+            style: AppTextStyles.caption.copyWith(
               fontSize: 13,
-              color: isDarkMode ? AppColors.textTertiary : Colors.black38,
+              color: isDarkMode ? AppColors.textTertiary : AppColors.textSecondary,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             value,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+            style: AppTextStyles.bodyMedium.copyWith(
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+              color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+            ),
           ),
         ],
       ),
@@ -474,7 +519,7 @@ class _ClaimDetailsBottomSheet extends StatelessWidget {
       leading: Icon(icon, color: isDestructive ? AppColors.error : AppColors.brand),
       title: Text(
         label,
-        style: TextStyle(
+        style: AppTextStyles.bodyMedium.copyWith(
           color: isDestructive ? AppColors.error : (isDarkMode ? AppColors.textPrimary : AppColors.bgPage),
           fontWeight: FontWeight.w500,
         ),

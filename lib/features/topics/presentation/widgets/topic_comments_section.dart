@@ -314,6 +314,53 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
     }
   }
 
+  Future<void> _toggleSaveTopicComment(Comment comment) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      Get.snackbar('Authentication Required', 'Please sign in to save comments.');
+      return;
+    }
+    final docRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('savedComments')
+        .doc(comment.id);
+
+    try {
+      final docSnap = await docRef.get();
+      if (docSnap.exists) {
+        await docRef.delete();
+        Get.snackbar('Removed', 'Comment removed from Saved Comments');
+      } else {
+        await docRef.set({
+          'text': comment.text,
+          'userName': comment.displayName,
+          'userImage': comment.avatarUrl,
+          'sourceType': 'topic',
+          'sourceId': widget.topicId,
+          'sourceTitle': 'Topic',
+          'savedAt': FieldValue.serverTimestamp(),
+        });
+
+        Get.snackbar(
+          'Saved',
+          'Comment saved to Saved Comments',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: AppColors.bgSurface,
+          colorText: AppColors.textPrimary,
+          margin: const EdgeInsets.all(16),
+          borderRadius: 12,
+          mainButton: TextButton(
+            onPressed: () => Get.toNamed('/saved-comments'),
+            child: const Text('VIEW', style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold)),
+          ),
+        );
+      }
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to save comment: $e');
+    }
+  }
+
   void _showCommentOptions(BuildContext context, Comment comment, TopicInteractionController controller) {
     final user = FirebaseAuth.instance.currentUser;
     final isOwner = user != null && user.uid == comment.userId;
@@ -329,6 +376,14 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ListTile(
+                leading: const Icon(Icons.bookmark_outline_rounded, color: AppColors.textPrimary),
+                title: const Text('Save comment', style: TextStyle(color: AppColors.textPrimary)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _toggleSaveTopicComment(comment);
+                },
+              ),
               if (isOwner)
                 ListTile(
                   leading: const Icon(Icons.delete, color: AppColors.error),
@@ -396,16 +451,20 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
                     children: [
                       Row(
                         children: [
-                          GestureDetector(
-                            onTap: () => widget.onNavigateToChannel(comment.channelId),
-                            child: MouseRegion(
-                              cursor: SystemMouseCursors.click,
-                              child: Text(
-                                formattedUserName,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  color: AppColors.textPrimary,
+                          Flexible(
+                            child: GestureDetector(
+                              onTap: () => widget.onNavigateToChannel(comment.channelId),
+                              child: MouseRegion(
+                                cursor: SystemMouseCursors.click,
+                                child: Text(
+                                  formattedUserName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: AppColors.textPrimary,
+                                  ),
                                 ),
                               ),
                             ),
@@ -863,16 +922,20 @@ class TopicReplyItemWidget extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      GestureDetector(
-                        onTap: () => onNavigateToChannel(reply.channelId),
-                        child: MouseRegion(
-                          cursor: SystemMouseCursors.click,
-                          child: Text(
-                            formattedUserName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                              color: AppColors.textPrimary,
+                      Flexible(
+                        child: GestureDetector(
+                          onTap: () => onNavigateToChannel(reply.channelId),
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: Text(
+                              formattedUserName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                color: AppColors.textPrimary,
+                              ),
                             ),
                           ),
                         ),

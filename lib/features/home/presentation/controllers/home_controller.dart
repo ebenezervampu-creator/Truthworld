@@ -139,6 +139,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   final bottomNavSelectedIndex = 0.obs;
   final selectedCategory = 'All'.obs;
   final activeFilterBar = 'All'.obs;
+  final availableCategories = <String>['All'].obs;
 
   // Special page data
   final selectedPlaylist = Rxn<dynamic>(); // Stores playlist data for detail view
@@ -480,11 +481,30 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   /// Initialize tab controller with categories
   void _initializeTabController() {
     tabController = TabController(
-      length: categories.length,
+      length: availableCategories.length,
       vsync: this,
     );
 
     tabController.addListener(_onTabChanged);
+  }
+
+  /// Reinitialize TabController when availableCategories updates
+  void _reinitializeTabController() {
+    try {
+      final newLength = availableCategories.length;
+      if (tabController.length != newLength) {
+        final currentIndex = tabController.index.clamp(0, newLength > 0 ? newLength - 1 : 0);
+        tabController.dispose();
+        tabController = TabController(
+          length: newLength,
+          initialIndex: currentIndex,
+          vsync: this,
+        );
+        tabController.addListener(_onTabChanged);
+      }
+    } catch (e) {
+      debugPrint('HomeController: Error reinitializing TabController: $e');
+    }
   }
 
   /// Bind scroll listener for infinite scroll
@@ -499,6 +519,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     fetchInitialVideos();
     fetchCarouselVideos();
     fetchFeaturedTopics();
+    fetchAvailableCategories();
   }
 
   /// Load videos from local storage using FeedCacheManager with TTL and VideoSanitizer
@@ -716,6 +737,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
         communityPosts.clear();
       }
       mixHomeFeed();
+      fetchAvailableCategories();
 
       clearError();
     } catch (e) {
@@ -978,15 +1000,15 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   void _onTabChanged() {
     if (tabController.indexIsChanging) {
       final categoryIndex = tabController.index;
-      if (categoryIndex >= 0 && categoryIndex < categories.length) {
-        selectCategory(categories[categoryIndex]);
+      if (categoryIndex >= 0 && categoryIndex < availableCategories.length) {
+        selectCategory(availableCategories[categoryIndex]);
       }
     }
   }
 
   /// Change tab by index
   void onTabChanged(int index) {
-    if (index >= 0 && index < categories.length) {
+    if (index >= 0 && index < availableCategories.length) {
       tabController.animateTo(index);
     }
   }
@@ -999,20 +1021,6 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
   /// Handle bottom navigation tap
   Future<void> onBottomNavItemTapped(int index) async {
-    if (index == 3 && !isAuthenticated) {
-      await signInWithGoogle();
-      if (isAuthenticated) {
-        bottomNavSelectedIndex.value = 0;
-        sideNavSelectedIndex.value = indexHome;
-        final isAtHome =
-            Get.currentRoute == '/' || Get.currentRoute == '/home';
-        if (!isAtHome) {
-          Get.offAllNamed('/');
-        }
-      }
-      return;
-    }
-
     bottomNavSelectedIndex.value = index;
     _triggerSelectionAnimation();
 
@@ -1023,7 +1031,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
       case 0:
         sideNavSelectedIndex.value = indexHome;
         if (!isAtHome) {
-          Get.offAllNamed('/');
+          Get.offAllNamed<dynamic>('/');
         } else if (scrollController.hasClients) {
           scrollController.animateTo(
             0,
@@ -1034,25 +1042,17 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
       case 1:
         sideNavSelectedIndex.value = indexExploreTopics;
         if (!isAtHome) {
-          Get.offAllNamed('/');
+          Get.offAllNamed<dynamic>('/');
         }
       case 2:
-        if (!isAuthenticated) {
-          showSignInSnackbar();
-          return;
-        }
         sideNavSelectedIndex.value = indexSubscriptions;
         if (!isAtHome) {
-          Get.offAllNamed('/');
+          Get.offAllNamed<dynamic>('/');
         }
       case 3:
-        if (!isAuthenticated) {
-          showSignInSnackbar();
-          return;
-        }
         sideNavSelectedIndex.value = indexLibrary;
         if (!isAtHome) {
-          Get.offAllNamed('/');
+          Get.offAllNamed<dynamic>('/');
         }
     }
   }
@@ -1066,7 +1066,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     selectedCategory.value = category;
 
     // Sync tab controller
-    final categoryIndex = categories.indexOf(category);
+    final categoryIndex = availableCategories.indexOf(category);
     if (categoryIndex != -1) {
       tabController.animateTo(categoryIndex);
     }
@@ -1084,10 +1084,99 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
     // Load new category
     fetchInitialVideos();
     _triggerSelectionAnimation();
+  }
 
-    if (kDebugMode) {
-      debugPrint('HomeController: Selected category $category');
+  // ========================================================================
+  // CATEGORY FILTERING (AT LEAST 2 VIDEOS)
+  // ========================================================================
+
+  /// Match raw category string with standard category list or return Title Case
+  String _capitalizeCategory(String cat) {
+    if (cat.isEmpty) return cat;
+    final trimmed = cat.trim();
+    return categories.firstWhere(
+      (c) => c.toLowerCase() == trimmed.toLowerCase(),
+      orElse: () => trimmed[0].toUpperCase() + trimmed.substring(1),
+    );
+  }
+
+  /// Fetch category counts and filter to categories with at least 2 videos
+  Future<void> fetchAvailableCategories() async {
+    try {
+      final categoryCounts = <String, int>{};
+
+      // 1. Count categories from locally loaded/cached feed videos
+      for (final video in videos) {
+        final cat = video.category.trim();
+        if (cat.isNotEmpty && cat.toLowerCase() != 'all') {
+          final normalized = _capitalizeCategory(cat);
+          categoryCounts[normalized] = (categoryCounts[normalized] ?? 0) + 1;
+        }
+      }
+
+      // 2. Query Firestore videos collection for broader category stats
+      final snapshot = await _firestore
+          .collection('videos')
+          .where('status', isEqualTo: VideoVisibilityPolicy.publicStatus.name)
+          .limit(500)
+          .get();
+
+      final firestoreCounts = <String, int>{};
+      for (final doc in snapshot.docs) {
+        final rawCat = (doc.data()['category'] as String?)?.trim();
+        if (rawCat != null && rawCat.isNotEmpty && rawCat.toLowerCase() != 'all') {
+          final normalized = _capitalizeCategory(rawCat);
+          firestoreCounts[normalized] = (firestoreCounts[normalized] ?? 0) + 1;
+        }
+      }
+
+      final mergedCounts = firestoreCounts.isNotEmpty ? firestoreCounts : categoryCounts;
+
+      // Filter to categories that have AT LEAST 2 videos
+      final qualifyingCategories = <String>[];
+      for (final cat in categories) {
+        if ((mergedCounts[cat] ?? 0) >= 2) {
+          qualifyingCategories.add(cat);
+        }
+      }
+
+      mergedCounts.forEach((cat, count) {
+        if (count >= 2 && !qualifyingCategories.contains(cat) && cat != 'All') {
+          qualifyingCategories.add(cat);
+        }
+      });
+
+      availableCategories.assignAll(['All', ...qualifyingCategories]);
+      _reinitializeTabController();
+    } catch (e) {
+      debugPrint('HomeController: Error fetching category counts: $e');
+      _updateCategoriesFromLoadedVideos();
     }
+  }
+
+  void _updateCategoriesFromLoadedVideos() {
+    final categoryCounts = <String, int>{};
+    for (final video in videos) {
+      final cat = video.category.trim();
+      if (cat.isNotEmpty && cat.toLowerCase() != 'all') {
+        final normalized = _capitalizeCategory(cat);
+        categoryCounts[normalized] = (categoryCounts[normalized] ?? 0) + 1;
+      }
+    }
+    final qualifyingCategories = <String>[];
+    for (final cat in categories) {
+      if ((categoryCounts[cat] ?? 0) >= 2) {
+        qualifyingCategories.add(cat);
+      }
+    }
+    categoryCounts.forEach((cat, count) {
+      if (count >= 2 && !qualifyingCategories.contains(cat) && cat != 'All') {
+        qualifyingCategories.add(cat);
+      }
+    });
+
+    availableCategories.assignAll(['All', ...qualifyingCategories]);
+    _reinitializeTabController();
   }
 
   // ========================================================================
@@ -1177,6 +1266,9 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
   /// Check if main feed is loading
   RxBool get isLoadingFeed => isLoadingVideos;
+
+  @override
+  bool get isItemsEmpty => homeFeedItems.isEmpty && videos.isEmpty;
 
   /// Total video count in feed
   int get videoCount => videos.length;

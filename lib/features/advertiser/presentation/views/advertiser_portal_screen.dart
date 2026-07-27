@@ -1866,7 +1866,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
           .where((ad) => ad.userId == AuthService.to.uid)
           .toList();
 
-      var totalSpend = 0;
+      var totalSpend = 0.0;
       var totalImpressions = 0;
       var totalClicks = 0;
 
@@ -2042,7 +2042,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
           .where((ad) => ad.userId == AuthService.to.uid)
           .toList();
 
-      var totalSpend = 0;
+      var totalSpend = 0.0;
       var totalImpressions = 0;
       var totalClicks = 0;
 
@@ -2059,7 +2059,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
           ? (totalClicks / totalImpressions) * 100
           : 0.0;
 
-      var selectedMetricTotal = 0;
+      var selectedMetricTotal = 0.0;
       if (controller.selectedMetric.value == 'spend') {
         selectedMetricTotal = totalSpend;
       } else if (controller.selectedMetric.value == 'impressions') {
@@ -2628,7 +2628,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
       if (user == null) return const SizedBox.shrink();
 
       final imageUrl = AuthService.to.activePhotoUrl.isNotEmpty ? AuthService.to.activePhotoUrl : null;
-      final var displayName = AuthService.to.activeDisplayName.isNotEmpty ? AuthService.to.activeDisplayName : (user.displayName ?? 'U');
+      final displayName = AuthService.to.activeDisplayName.isNotEmpty ? AuthService.to.activeDisplayName : (user.displayName ?? 'U');
 
       final hasImage = imageUrl != null && imageUrl.isNotEmpty;
       final initials = displayName.trim().isNotEmpty

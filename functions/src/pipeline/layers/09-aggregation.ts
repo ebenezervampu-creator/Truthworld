@@ -404,10 +404,10 @@ export class AggregationLayer {
             (plan.languages ?? []).sort().join(",")
           ),
           outputs: {
-            trustScore: cred?.trustScore || 0,
-            videoRating: cred?.videoRating ?? (cred?.trustScore ? Number((cred.trustScore / 10).toFixed(1)) : 0),
-            trustLabel: cred?.trustLabel || "Low Reliability",
-            rating: cred?.trustScore || 0, // LEGACY
+            trustScore: null, // v12.0: Scoring removed
+            videoRating: 0,
+            trustLabel: null,
+            rating: 0, // LEGACY
             contentIntent: cred?.contentIntent ? {
               primaryIntent: cred.contentIntent.primaryIntent,
               confidence: cred.contentIntent.confidence,
@@ -417,8 +417,9 @@ export class AggregationLayer {
             summary: cred?.summary || "",
             conclusion: cred?.conclusion || null,
             viewerNote: cred?.viewerNote || "",
-            checkedClaimsRatio: cred?.factCheckStats?.checkedClaimsRatio || 0, // v5.0
+            checkedClaimsRatio: cred?.factCheckStats?.checkedClaimsRatio || 0,
             factCheckUrl: jobOutputs.factCheckUrl || null,
+            credibilityVerified: !!cred, // v12.0: Flag for recommendations
           }
         });
 
@@ -482,11 +483,12 @@ export class AggregationLayer {
 
           transaction.update(vRef, {
             status: finalStatus,
-            trustIndex: jobOutputs.trustScore || 0,
-            videoRating: jobOutputs.videoRating || 0,
+            trustIndex: null, // v12.0: Scoring removed
+            videoRating: 0,
             contentIntent: jobOutputs.contentIntent?.primaryIntent || null,
             factCheckUrl: directFactCheckUrl,
-            trustLabel: cred?.trustLabel || null,
+            trustLabel: null,
+            credibilityVerified: !!cred, // v12.0: Flag for recommendations
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 
@@ -502,20 +504,20 @@ export class AggregationLayer {
           // Write credibility data to videos/{videoId}/media/credibility
           const credRef = vRef.collection("media").doc("credibility");
           transaction.set(credRef, {
-            trustScore: jobOutputs.trustScore || cred?.trustScore || 0,
-            videoRating: jobOutputs.videoRating || 0,
-            trustLabel: cred?.trustLabel || null,
-            scoringFactors: cred?.factors || null,
-            deductions: cred?.deductions || [],
+            trustScore: null, // v12.0: Scoring removed
+            videoRating: 0,
+            trustLabel: null,
+            scoringFactors: null,
+            deductions: [],
             contextualFlags: cred?.contextualFlags || [],
-            honestyBreakdown: cred?.honestyBreakdown || null,
-            harmCapApplied: cred?.harmCapApplied || false,
-            harmCapReason: cred?.harmCapReason || null,
-            categoryWeightProfile: cred?.categoryWeightProfile || null,
+            honestyBreakdown: null,
+            harmCapApplied: false,
+            harmCapReason: null,
+            categoryWeightProfile: null,
             confidenceNotes: cred?.confidenceNotes || [],
             diagnostics: cred?.diagnostics || [],
-            intentToMisleadScore: cred?.intentToMisleadScore || 0,
-            hardeningMetadata: cred?.hardeningMetadata || null,
+            intentToMisleadScore: 0,
+            hardeningMetadata: null,
             factCheckStats: cred?.factCheckStats ? {
               totalClaims: cred.factCheckStats.totalClaims,
               correct: cred.factCheckStats.correct,
@@ -525,6 +527,7 @@ export class AggregationLayer {
             } : null,
             factCheckUrl: directFactCheckUrl,
             transcriptionUrl: directTranscriptUrl,
+            credibilityVerified: !!cred, // v12.0: Flag for recommendations
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           }, { merge: true });
 
@@ -536,18 +539,21 @@ export class AggregationLayer {
           }, { merge: true });
 
           // v8.1: Regulatory Audit Logging (DSA/India compliance)
-          if (cred?.hardeningMetadata) {
+          // v12.0: Audit logging preserved but without scores
+          if (cred) {
             const auditRef = db().collection("audit_trust_decisions").doc();
             transaction.set(auditRef, {
               videoId: vid,
               jobId: jobId,
               userId: userId,
-              hardening: cred.hardeningMetadata,
-              finalScore: cred.videoRating,
+              hardening: null, // v12.0: Scoring removed
+              finalScore: null,
               category: cred.videoCategory,
               effectiveCategory: cred.effectiveCategory,
+              credibilityVerified: true,
+              claimsAnalyzed: cred.factCheckStats?.totalClaims || 0,
               timestamp: admin.firestore.FieldValue.serverTimestamp(),
-              version: "v8.1-hardened-stable"
+              version: "v12.0-no-scoring"
             });
           }
         }
@@ -612,28 +618,28 @@ export class AggregationLayer {
           cred = JSON.parse(content.toString()) as CredibilityResult;
           
           const directFactCheckUrl = getDownloadUrl(jobOutputs.factCheckUrl);
-          updateData.trustIndex = cred.trustScore || 0;
-          updateData.videoRating = cred.videoRating || (cred.trustScore ? Number((cred.trustScore / 10).toFixed(1)) : 0);
-          updateData.trustLabel = cred.trustLabel || "Low Reliability";
+          updateData.trustIndex = null; // v12.0: Scoring removed
+          updateData.videoRating = 0;
+          updateData.trustLabel = null;
           updateData.factCheckUrl = directFactCheckUrl;
           updateData.summary = cred.summary || "";
           updateData.viewerNote = cred.viewerNote || "";
+          updateData.credibilityVerified = true; // v12.0: Flag for recommendations
           
           updateData["media.factCheckUrl"] = directFactCheckUrl;
           
-          // Full Epistemic Breakdown (v8.0+)
-          updateData.scoringFactors = cred.factors || null;
-          updateData.deductions = cred.deductions || [];
+          // v12.0: Scoring fields removed — nullified
+          updateData.scoringFactors = null;
+          updateData.deductions = [];
           updateData.contextualFlags = cred.contextualFlags || [];
-          updateData.honestyBreakdown = cred.honestyBreakdown || null;
-          updateData.harmCapApplied = cred.harmCapApplied || false;
-          updateData.harmCapReason = cred.harmCapReason || null;
+          updateData.honestyBreakdown = null;
+          updateData.harmCapApplied = false;
+          updateData.harmCapReason = null;
           updateData.videoCategory = cred.videoCategory || null;
-          updateData.categoryWeightProfile = cred.categoryWeightProfile || null;
+          updateData.categoryWeightProfile = null;
           
-          // v8.1: Hardened Trust
-          updateData.hardeningMetadata = cred.hardeningMetadata || null;
-          updateData.intentToMisleadScore = cred.intentToMisleadScore || 0;
+          updateData.hardeningMetadata = null;
+          updateData.intentToMisleadScore = 0;
           
           if (cred.factCheckStats) {
             updateData.factCheckStats = {

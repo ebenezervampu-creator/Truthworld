@@ -210,12 +210,20 @@ class _VideoFrame extends StatelessWidget {
           if (vpc == null || !controller.isVideoReady.value) {
             return const SizedBox.shrink();
           }
+          double w = 16;
+          double h = 9;
+          try {
+            w = vpc.value.size.width;
+            h = vpc.value.size.height;
+          } catch (_) {}
+          if (w <= 0) w = 16;
+          if (h <= 0) h = 9;
           return FittedBox(
             fit: BoxFit.cover,
             clipBehavior: Clip.hardEdge,
             child: SizedBox(
-              width: vpc.value.size.width,
-              height: vpc.value.size.height,
+              width: w,
+              height: h,
               child: MobileFriendlyVideoPlayer(
                 controller: vpc,
               ),

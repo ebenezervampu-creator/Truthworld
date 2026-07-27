@@ -360,6 +360,36 @@ service cloud.firestore {
       match /liked_clips/{clipId} {
         allow read, write: if isOwner(userId);
       }
+
+      // User Saved Community Posts subcollection
+      match /savedCommunityPosts/{postId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // User Saved Comments subcollection
+      match /savedComments/{commentId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // User Hidden Community Posts subcollection
+      match /hiddenCommunityPosts/{postId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // User Muted Community Channels subcollection
+      match /mutedCommunityChannels/{channelId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // User Reported Community Posts subcollection
+      match /reportedCommunityPosts/{postId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // User Subscriptions subcollection
+      match /subscriptions/{subscriptionId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // User Notifications Collection
@@ -463,8 +493,41 @@ service cloud.firestore {
 
       match /comments/{commentId} {
         allow read: if true;
-        allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
-        allow update, delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+        allow create: if isAuthenticated();
+        allow update, delete: if isAuthenticated() && 
+                                 (resource.data.userId == request.auth.uid || 
+                                  resource.data.channelId == request.auth.uid ||
+                                  resource.data.ownerId == request.auth.uid);
+
+        // Replies subcollection
+        match /replies/{replyId} {
+          allow read: if true;
+          allow create: if isAuthenticated();
+          allow update, delete: if isAuthenticated() && 
+                                   (resource.data.userId == request.auth.uid || 
+                                    resource.data.channelId == request.auth.uid ||
+                                    resource.data.ownerId == request.auth.uid);
+
+          match /likes/{userId} {
+            allow read: if true;
+            allow write: if isAuthenticated() && request.auth.uid == userId;
+          }
+
+          match /dislikes/{userId} {
+            allow read: if true;
+            allow write: if isAuthenticated() && request.auth.uid == userId;
+          }
+        }
+
+        match /likes/{userId} {
+          allow read: if true;
+          allow write: if isAuthenticated() && request.auth.uid == userId;
+        }
+
+        match /dislikes/{userId} {
+          allow read: if true;
+          allow write: if isAuthenticated() && request.auth.uid == userId;
+        }
       }
     }
 
@@ -619,31 +682,19 @@ service cloud.firestore {
 
     // Copyright Matches Collection
     match /copyright_matches/{matchId} {
-      allow read: if isAuthenticated() && (
-        resource.data.ownerId == request.auth.uid ||
-        resource.data.uploaderId == request.auth.uid ||
-        isAdmin()
-      );
+      allow read: if isAuthenticated();
       allow write: if false; // Only backend can write
     }
 
     // Copyright Claims Collection
     match /copyright_claims/{claimId} {
-      allow read: if isAuthenticated() && (
-        resource.data.claimantId == request.auth.uid ||
-        resource.data.respondentId == request.auth.uid ||
-        isAdmin()
-      );
+      allow read: if isAuthenticated();
       allow write: if false; // Only backend can write
     }
 
     // Copyright Appeals Collection
     match /copyright_appeals/{appealId} {
-      allow read: if isAuthenticated() && (
-        resource.data.claimantId == request.auth.uid ||
-        resource.data.respondentId == request.auth.uid ||
-        isAdmin()
-      );
+      allow read: if isAuthenticated();
       allow write: if false; // Only backend can write
     }
 
@@ -661,7 +712,10 @@ service cloud.firestore {
     // Reports Collection
     match /reports/{reportId} {
       allow read, update, delete: if isAdmin();
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && (
+        request.resource.data.userId == request.auth.uid ||
+        request.resource.data.reportedBy == request.auth.uid
+      );
     }
 
     // Admin Collections

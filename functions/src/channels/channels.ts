@@ -93,6 +93,16 @@ export const createChannel = onCall(
     const locale = data.locale || "en";
     const defaultPlatform = data.defaultPlatform || "youtube";
     const category = data.category || "other";
+    const rawCategories = data.categories || data.category;
+    let categoriesList: string[] = [];
+    if (Array.isArray(rawCategories)) {
+      categoriesList = rawCategories.map((c: any) => String(c).trim()).filter(Boolean);
+    } else if (typeof rawCategories === "string" && rawCategories.trim()) {
+      categoriesList = rawCategories.split(",").map((c) => c.trim()).filter(Boolean);
+    }
+    if (categoriesList.length === 0) {
+      categoriesList = [category];
+    }
 
     let name = displayName || "";
     let slug = handle || "";
@@ -167,10 +177,13 @@ export const createChannel = onCall(
           updatedAt: now,
           status: "underReview",
           moderationReason: "",
+          category: categoriesList.join(", "),
+          categories: categoriesList,
           profile: {
             photoUrl: avatarUrl || "",
             coverUrl: bannerUrl || "",
-            category: category || "other",
+            category: categoriesList[0] || "other",
+            categories: categoriesList,
             about: description || "",
             links: {},
           },

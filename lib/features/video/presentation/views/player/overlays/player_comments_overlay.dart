@@ -44,6 +44,7 @@ class CommentsOverlay extends StatelessWidget {
             ),
             Expanded(
               child: Obx(() {
+                ctrl.showCommentsPopup.value;
                 if (!hasCommentsCtrl) {
                   return const Center(
                     child: Text(

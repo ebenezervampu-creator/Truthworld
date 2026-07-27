@@ -1,14 +1,16 @@
 import 'dart:typed_data';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/customization_controller.dart';
-import 'package:truthworld/theme/app_theme.dart';
+import 'package:truthworld/theme/app_colors.dart';
 
 class ChannelCustomizationPage extends StatefulWidget {
-
   const ChannelCustomizationPage({
-    required this.channelId, required this.ownerId, super.key,
+    required this.channelId,
+    required this.ownerId,
+    super.key,
   });
   final String channelId;
   final String ownerId;
@@ -52,14 +54,20 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
         elevation: 0,
         title: const Text(
           'Channel Customization',
-          style: TextStyle(color: AppColors.textPrimary),
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
         ),
         iconTheme: const IconThemeData(color: AppColors.textPrimary),
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: AppTokens.colors.error,
-          labelColor: AppColors.textPrimary,
+          indicatorColor: AppColors.brand,
+          indicatorWeight: 3,
+          labelColor: AppColors.brand,
           unselectedLabelColor: AppColors.textSecondary,
+          labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
           tabs: const [
             Tab(text: 'Branding'),
             Tab(text: 'Basic Info'),
@@ -73,34 +81,45 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
               return const Padding(
                 padding: EdgeInsets.all(16),
                 child: SizedBox(
-                  width: 24,
-                  height: 24,
+                  width: 20,
+                  height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.error),
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
                   ),
                 ),
               );
             } else {
-              return TextButton.icon(
-                onPressed: () {
-                  if (_formKey.currentState!.validate()) {
-                    controller.saveChanges();
-                  }
-                },
-                icon: const Icon(Icons.save, color: AppColors.textPrimary),
-                label: const Text('Save', style: TextStyle(color: AppColors.textPrimary)),
+              return Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    if (_formKey.currentState!.validate()) {
+                      controller.saveChanges();
+                    }
+                  },
+                  icon: const Icon(Icons.save_rounded, size: 16),
+                  label: const Text('Save'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.brand,
+                    foregroundColor: AppColors.textPrimary,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                ),
               );
             }
           }),
-          const SizedBox(width: 8),
         ],
       ),
       body: Obx(() {
         if (controller.isLoading.value) {
           return const Center(
             child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.error),
+              valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
             ),
           );
         } else {
@@ -142,15 +161,17 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
     String subtitle;
 
     if (channelStatus == 'underReview') {
-      bannerColor = const Color(0xFF3B82F6); // Blue
+      bannerColor = AppColors.info;
       icon = Icons.sync_rounded;
       title = 'Branding Under Gemini AI Moderation';
-      subtitle = 'Gemini is checking your channel details (name, description, tags) against our community guidelines. This usually takes just a few seconds.';
+      subtitle =
+          'Gemini is checking your channel details (name, description, tags) against our community guidelines. This usually takes just a few seconds.';
     } else if (channelStatus == 'verificationRejected') {
-      bannerColor = const Color(0xFFEF4444); // Red
+      bannerColor = AppColors.error;
       icon = Icons.error_outline_rounded;
       title = 'Branding Verification Rejected by Gemini AI';
-      subtitle = 'We created channel according to community guidelines, then channel selected for manual verification. ${reason.isNotEmpty ? '\n\nGemini Response: $reason' : ''}';
+      subtitle =
+          'We created channel according to community guidelines, then channel selected for manual verification. ${reason.isNotEmpty ? '\n\nGemini Response: $reason' : ''}';
     } else {
       return const SizedBox.shrink();
     }
@@ -173,7 +194,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
               height: 20,
               child: CircularProgressIndicator(
                 strokeWidth: 2.5,
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.info),
               ),
             )
           else
@@ -189,7 +210,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                   style: TextStyle(
                     color: bannerColor,
                     fontSize: 15,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -216,9 +237,9 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionTitle('Channel Banner'),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           const Text(
-            'Recommended size: 2560 x 1440 pixels',
+            'Recommended size: 2560 x 1440 pixels (Displays across mobile, desktop & TV feeds)',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
           ),
           const SizedBox(height: 16),
@@ -227,6 +248,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                 newBytes: controller.newBannerBytes.value,
                 onTap: () => controller.pickImage(false),
                 height: 200,
+                label: 'Channel Banner',
               )),
           Obx(() => _buildImageStatusNotice(
                 status: controller.bannerStatus.value,
@@ -235,7 +257,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
               )),
           const SizedBox(height: 32),
           _buildSectionTitle('Channel Avatar'),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           const Text(
             'Recommended size: 800 x 800 pixels',
             style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
@@ -251,6 +273,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                       onTap: () => controller.pickImage(true),
                       height: 150,
                       isCircular: true,
+                      label: 'Channel Avatar',
                     )),
                 Obx(() => _buildImageStatusNotice(
                       status: controller.avatarStatus.value,
@@ -281,21 +304,26 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
     var isPending = false;
 
     if (status == 'PENDING') {
-      color = const Color(0xFF3B82F6); // Blue
+      color = AppColors.info;
       icon = Icons.sync_rounded;
       title = '${isBanner ? "Banner" : "Avatar"} Verification Pending';
-      subtitle = 'Google Vision AI is validating this image. Feel free to save changes; verification will complete in the background.';
+      subtitle =
+          'Google Vision AI is validating this image. Feel free to save changes; verification will complete in the background.';
       isPending = true;
     } else if (status == 'REJECTED') {
-      color = const Color(0xFFEF4444); // Red
+      color = AppColors.error;
       icon = Icons.error_outline_rounded;
       title = '${isBanner ? "Banner" : "Avatar"} Rejected';
-      subtitle = reason.isNotEmpty ? reason : 'This image does not comply with our safety and community guidelines. Please upload a different image.';
+      subtitle = reason.isNotEmpty
+          ? reason
+          : 'This image does not comply with our safety and community guidelines. Please upload a different image.';
     } else if (status == 'FLAGGED') {
-      color = const Color(0xFFF59E0B); // Amber
+      color = AppColors.warning;
       icon = Icons.warning_amber_rounded;
       title = '${isBanner ? "Banner" : "Avatar"} Review Needed';
-      subtitle = reason.isNotEmpty ? reason : 'This image has been flagged for manual review. You can upload a different image if you wish.';
+      subtitle = reason.isNotEmpty
+          ? reason
+          : 'This image has been flagged for manual review. You can upload a different image if you wish.';
     } else {
       return const SizedBox.shrink();
     }
@@ -317,7 +345,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
               height: 18,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF3B82F6)),
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.info),
               ),
             )
           else
@@ -349,10 +377,15 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                   const SizedBox(height: 8),
                   TextButton.icon(
                     onPressed: () => controller.bypassVerification(isBanner),
-                    icon: const Icon(Icons.check_circle_outline_rounded, size: 14, color: AppColors.textSecondary),
+                    icon: const Icon(Icons.check_circle_outline_rounded,
+                        size: 14, color: AppColors.textSecondary),
                     label: const Text(
                       'Bypass Verification (Local Dev/Test)',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 11, decoration: TextDecoration.underline),
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                        decoration: TextDecoration.underline,
+                      ),
                     ),
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,
@@ -392,11 +425,11 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
           const SizedBox(height: 24),
           _buildTextField(
             controller: controller.customUrlController,
-            label: 'Custom URL',
+            label: 'Custom URL / Handle',
             hint: 'yourchannel',
             prefix: const Text(
               '@',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
+              style: TextStyle(color: AppColors.brand, fontSize: 16, fontWeight: FontWeight.bold),
             ),
           ),
           const SizedBox(height: 24),
@@ -410,7 +443,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
             controller: controller.tagsController,
             label: 'Tags',
             hint: 'tag1, tag2, tag3',
-            helperText: 'Separate tags with commas',
+            helperText: 'Separate tags with commas to boost search discoverability',
           ),
         ],
       ),
@@ -450,23 +483,23 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
           const SizedBox(height: 16),
           _buildTextField(
             controller: controller.twitterController,
-            label: 'Twitter',
+            label: 'Twitter / X',
             hint: 'https://twitter.com/username',
-            prefixIcon: Icons.link,
+            prefixIcon: Icons.link_rounded,
           ),
           const SizedBox(height: 16),
           _buildTextField(
             controller: controller.instagramController,
             label: 'Instagram',
             hint: 'https://instagram.com/username',
-            prefixIcon: Icons.link,
+            prefixIcon: Icons.link_rounded,
           ),
           const SizedBox(height: 16),
           _buildTextField(
             controller: controller.facebookController,
             label: 'Facebook',
             hint: 'https://facebook.com/username',
-            prefixIcon: Icons.link,
+            prefixIcon: Icons.link_rounded,
           ),
         ],
       ),
@@ -480,14 +513,16 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionTitle('Visibility'),
+          const SizedBox(height: 12),
           Obx(() => _buildSwitchTile(
                 title: 'Public Channel',
-                subtitle: 'Allow anyone to view your channel',
+                subtitle: 'Allow anyone to view your channel and videos',
                 value: controller.isPublic.value,
                 onChanged: (val) => controller.isPublic.value = val,
               )),
           const SizedBox(height: 24),
           _buildSectionTitle('Interaction Settings'),
+          const SizedBox(height: 12),
           Obx(() => _buildSwitchTile(
                 title: 'Allow Comments',
                 subtitle: 'Let viewers comment on your videos',
@@ -512,13 +547,26 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
   }
 
   Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        color: AppColors.textPrimary,
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-      ),
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 18,
+          decoration: BoxDecoration(
+            color: AppColors.brand,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
     );
   }
 
@@ -538,31 +586,36 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
       maxLines: maxLines,
       keyboardType: keyboardType,
       validator: validator,
-      style: const TextStyle(color: AppColors.textPrimary),
+      style: const TextStyle(color: AppColors.textPrimary, fontSize: 14),
       decoration: InputDecoration(
         labelText: label,
         hintText: hint,
         helperText: helperText,
         prefix: prefix,
         prefixIcon: prefixIcon != null
-            ? Icon(prefixIcon, color: AppColors.textSecondary)
+            ? Icon(prefixIcon, color: AppColors.brand, size: 20)
             : null,
-        labelStyle: const TextStyle(color: AppColors.textSecondary),
-        hintStyle: const TextStyle(color: AppColors.textTertiary),
-        helperStyle: const TextStyle(color: AppColors.textSecondary),
+        labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),
+        helperStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
         filled: true,
         fillColor: AppColors.bgSurface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide.none,
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.bgDivider),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.bgDivider),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: AppTokens.colors.error, width: 2),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.brand, width: 2),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: BorderSide(color: AppTokens.colors.error),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: AppColors.error),
         ),
       ),
     );
@@ -573,6 +626,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
     required Uint8List? newBytes,
     required VoidCallback onTap,
     required double height,
+    required String label,
     bool isCircular = false,
   }) {
     Widget imageWidget;
@@ -580,25 +634,53 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
     if (newBytes != null) {
       imageWidget = Image.memory(newBytes, fit: BoxFit.cover);
     } else if (currentUrl.isNotEmpty) {
-      imageWidget = Image.network(
-        currentUrl,
+      imageWidget = CachedNetworkImage(
+        imageUrl: currentUrl,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => const ColoredBox(
+        placeholder: (context, url) => const Center(
+          child: CircularProgressIndicator(color: AppColors.brand, strokeWidth: 2),
+        ),
+        errorWidget: (context, url, error) => const ColoredBox(
           color: AppColors.bgSurface,
-          child: Icon(
-            Icons.broken_image,
-            size: 48,
-            color: AppColors.textTertiary,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.broken_image_rounded, size: 40, color: AppColors.textTertiary),
+              SizedBox(height: 6),
+              Text('Failed to load image', style: TextStyle(color: AppColors.textTertiary, fontSize: 11)),
+            ],
           ),
         ),
       );
     } else {
-      imageWidget = const ColoredBox(
+      imageWidget = ColoredBox(
         color: AppColors.bgSurface,
-        child: Icon(
-          Icons.add_photo_alternate,
-          size: 48,
-          color: AppColors.textTertiary,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isCircular ? Icons.account_circle_rounded : Icons.add_photo_alternate_rounded,
+              size: 48,
+              color: AppColors.brand,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Upload $label',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Tap to select image',
+              style: TextStyle(
+                color: AppColors.textTertiary,
+                fontSize: 11,
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -607,19 +689,28 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
       cursor: SystemMouseCursors.click,
       child: InkWell(
         onTap: onTap,
+        borderRadius: isCircular ? BorderRadius.circular(height / 2) : BorderRadius.circular(12),
         child: Container(
           height: height,
           width: isCircular ? height : double.infinity,
           decoration: BoxDecoration(
+            color: AppColors.bgSurface,
             borderRadius: isCircular
                 ? BorderRadius.circular(height / 2)
-                : BorderRadius.circular(8),
-            border: Border.all(color: AppColors.textDisabled, width: 2),
+                : BorderRadius.circular(12),
+            border: Border.all(color: AppColors.brand.withValues(alpha: 0.4), width: 2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
           clipBehavior: Clip.antiAlias,
           child: Stack(
             children: [
-              SizedBox.expand(child: imageWidget),
+              Positioned.fill(child: imageWidget),
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
@@ -628,7 +719,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        AppColors.bgPage.withValues(alpha: 0.3),
+                        AppColors.bgPage.withValues(alpha: 0.35),
                       ],
                     ),
                   ),
@@ -640,20 +731,20 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
                 child: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppTokens.colors.error,
-                    borderRadius: BorderRadius.circular(24),
+                    color: AppColors.brand,
+                    shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: AppColors.bgPage.withValues(alpha: 0.3),
-                        blurRadius: 8,
+                        color: Colors.black.withValues(alpha: 0.3),
+                        blurRadius: 6,
                         offset: const Offset(0, 2),
                       ),
                     ],
                   ),
                   child: const Icon(
-                    Icons.camera_alt,
+                    Icons.camera_alt_rounded,
                     color: AppColors.textPrimary,
-                    size: 20,
+                    size: 18,
                   ),
                 ),
               ),
@@ -674,25 +765,23 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: AppColors.bgSurface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.bgDivider),
       ),
       child: SwitchListTile(
-        title: Text(title, style: const TextStyle(color: AppColors.textPrimary)),
+        title: Text(
+          title,
+          style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
+        ),
         subtitle: Text(
           subtitle,
           style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
         ),
         value: value,
         onChanged: onChanged,
-        activeThumbColor: AppTokens.colors.error,
+        activeThumbColor: AppColors.brand,
+        activeTrackColor: AppColors.brand.withValues(alpha: 0.4),
       ),
     );
   }
 }
-
-
-
-
-
-
-

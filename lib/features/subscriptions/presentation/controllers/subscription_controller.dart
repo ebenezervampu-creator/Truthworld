@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
+import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/data/models/subscription_content.dart';
@@ -44,7 +45,7 @@ enum DateRangeFilter {
 
 class SubscriptionController extends GetxController {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  StreamSubscription? _connectivitySubscription;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   final RxList<SubscriptionContent> allContent = <SubscriptionContent>[].obs;
   final RxList<SubscriptionContent> filteredContent = <SubscriptionContent>[].obs;
@@ -76,12 +77,18 @@ class SubscriptionController extends GetxController {
     });
 
     // Setup connectivity listener for automatic recovery
-    _connectivitySubscription = Get.find<ConnectivityService>().onConnectivityChanged.listen((results) {
-      if (results.isNotEmpty && results.first != ConnectivityResult.none) {
-        debugPrint('[SubscriptionController] Network restored. Refreshing subscriptions...');
-        refresh();
+    try {
+      if (Get.isRegistered<ConnectivityService>()) {
+        _connectivitySubscription = Get.find<ConnectivityService>().onConnectivityChanged.listen((results) {
+          if (results.isNotEmpty && results.first != ConnectivityResult.none) {
+            debugPrint('[SubscriptionController] Network restored. Refreshing subscriptions...');
+            refresh();
+          }
+        });
       }
-    });
+    } on Object catch (e) {
+      debugPrint('[SubscriptionController] Connectivity listener setup skipped: $e');
+    }
   }
 
   @override
@@ -95,6 +102,7 @@ class SubscriptionController extends GetxController {
     if (currentUserId == null) {
       errorMessage.value = 'Please sign in to view subscriptions';
       hasError.value = true;
+      isLoading.value = false;
       return;
     }
 
@@ -107,7 +115,7 @@ class SubscriptionController extends GetxController {
       await loadSubscribedChannels();
       await loadAllContent();
       applyFilters();
-    } catch (e) {
+    } on Object catch (e) {
       hasError.value = true;
       errorMessage.value = e.toString().contains('permission')
           ? 'Permission denied. Please check your login status.'
@@ -118,21 +126,86 @@ class SubscriptionController extends GetxController {
     }
   }
 
+  /// Industry Standard: Multi-source subscription resolution with channel deduplication
   Future<void> loadSubscriptions() async {
-    if (currentUserId == null) {
+    final uid = currentUserId;
+    if (uid == null) {
       throw Exception('User not authenticated');
     }
 
     try {
-      final snapshot = await _firestore
-          .collection('subscriptions')
-          .where('userId', isEqualTo: currentUserId)
-          .get();
+      final subMap = <String, Subscription>{};
 
-      subscriptions.value = snapshot.docs
-          .map(Subscription.fromDocumentSnapshot)
-          .toList();
-    } catch (e) {
+      // 1. Primary: Root subscriptions collection
+      try {
+        final snapshot = await _firestore
+            .collection('subscriptions')
+            .where('userId', isEqualTo: uid)
+            .get();
+
+        for (final doc in snapshot.docs) {
+          final sub = Subscription.fromDocumentSnapshot(doc);
+          if (sub.channelId.isNotEmpty) {
+            subMap[sub.channelId] = sub;
+          }
+        }
+      } on Object catch (e) {
+        debugPrint('[SubscriptionController] Query primary subscriptions failed: $e');
+      }
+
+      // 2. Alternative: Subscriptions doc subcollection (subscriptions/{uid}/list)
+      try {
+        final snapshot = await _firestore
+            .collection('subscriptions')
+            .doc(uid)
+            .collection('list')
+            .get();
+
+        for (final doc in snapshot.docs) {
+          final data = doc.data();
+          final chId = data['channelId'] as String? ?? doc.id;
+          if (chId.isNotEmpty && !subMap.containsKey(chId)) {
+            subMap[chId] = Subscription(userId: uid, channelId: chId);
+          }
+        }
+      } on Object catch (_) {}
+
+      // 3. Alternative: userCache (userCache/{uid}/subscriptions)
+      try {
+        final snapshot = await _firestore
+            .collection('userCache')
+            .doc(uid)
+            .collection('subscriptions')
+            .get();
+
+        for (final doc in snapshot.docs) {
+          final data = doc.data();
+          final chId = data['channelId'] as String? ?? doc.id;
+          if (chId.isNotEmpty && !subMap.containsKey(chId)) {
+            subMap[chId] = Subscription(userId: uid, channelId: chId);
+          }
+        }
+      } on Object catch (_) {}
+
+      // 4. Alternative: users subcollection (users/{uid}/subscriptions)
+      try {
+        final snapshot = await _firestore
+            .collection('users')
+            .doc(uid)
+            .collection('subscriptions')
+            .get();
+
+        for (final doc in snapshot.docs) {
+          final data = doc.data();
+          final chId = data['channelId'] as String? ?? doc.id;
+          if (chId.isNotEmpty && !subMap.containsKey(chId)) {
+            subMap[chId] = Subscription(userId: uid, channelId: chId);
+          }
+        }
+      } on Object catch (_) {}
+
+      subscriptions.value = subMap.values.toList();
+    } on Object catch (e) {
       debugPrint('Error loading subscriptions: $e');
       throw Exception('Failed loading subscriptions: $e');
     }
@@ -146,27 +219,24 @@ class SubscriptionController extends GetxController {
     final channelIds = subscriptions.map((s) => s.channelId).toSet().toList();
     try {
       final channels = <Channel>[];
-      if (channelIds.length > 10) {
-        for (var i = 0; i < channelIds.length; i += 10) {
-          final batch = channelIds.sublist(
-            i,
-            i + 10 > channelIds.length ? channelIds.length : i + 10,
-          );
+      const batchSize = 10;
+      for (var i = 0; i < channelIds.length; i += batchSize) {
+        final batch = channelIds.sublist(
+          i,
+          i + batchSize > channelIds.length ? channelIds.length : i + batchSize,
+        );
+        try {
           final snapshot = await _firestore
               .collection('channels')
               .where(FieldPath.documentId, whereIn: batch)
               .get();
           channels.addAll(snapshot.docs.map(Channel.fromDocumentSnapshot));
+        } on Object catch (e) {
+          debugPrint('[SubscriptionController] Batch channel fetch failed for $batch: $e');
         }
-      } else {
-        final snapshot = await _firestore
-            .collection('channels')
-            .where(FieldPath.documentId, whereIn: channelIds)
-            .get();
-        channels.addAll(snapshot.docs.map(Channel.fromDocumentSnapshot));
       }
       subscribedChannels.value = channels;
-    } catch (e) {
+    } on Object catch (e) {
       debugPrint('Error loading subscribed channels: $e');
     }
   }
@@ -181,68 +251,100 @@ class SubscriptionController extends GetxController {
     final channelIds = subscriptions.map((s) => s.channelId).toSet().toList();
     
     try {
-      final contentList = <SubscriptionContent>[];
+      final contentMap = <String, SubscriptionContent>{};
       
       // Load videos
       try {
         final videos = await _loadVideos(channelIds);
-        contentList.addAll(videos.map(SubscriptionContent.fromVideo));
-      } catch (e) {
+        for (final v in videos) {
+          final content = SubscriptionContent.fromVideo(v);
+          contentMap[content.id] = content;
+        }
+      } on Object catch (e) {
         debugPrint('Error loading subscription videos: $e');
       }
       
       // Load playlists
       try {
         final playlists = await _loadPlaylists(channelIds);
-        contentList.addAll(playlists.map(SubscriptionContent.fromPlaylist));
-      } catch (e) {
+        for (final p in playlists) {
+          final content = SubscriptionContent.fromPlaylist(p);
+          contentMap[content.id] = content;
+        }
+      } on Object catch (e) {
         debugPrint('Error loading subscription playlists: $e');
       }
       
       // Load community posts
       try {
         final communityPosts = await _loadCommunityPosts(channelIds);
-        contentList.addAll(communityPosts.map(SubscriptionContent.fromCommunityPost));
-      } catch (e) {
+        for (final cp in communityPosts) {
+          final content = SubscriptionContent.fromCommunityPost(cp);
+          contentMap[content.id] = content;
+        }
+      } on Object catch (e) {
         debugPrint('Error loading subscription community posts: $e');
       }
       
+      final contentList = contentMap.values.toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
       allContent.value = contentList;
-    } catch (e) {
+    } on Object catch (e) {
       debugPrint('Error loading content: $e');
-      // Do not throw here so the page can show partial results or empty state
     } finally {
       isLoading.value = false;
     }
   }
 
+  /// Industry Standard Feed Aggregation: Index-resilient query + in-memory VideoVisibilityPolicy
   Future<List<Video>> _loadVideos(List<String> channelIds) async {
     final videos = <Video>[];
+    if (channelIds.isEmpty) return videos;
     
-    if (channelIds.length > 10) {
-      for (var i = 0; i < channelIds.length; i += 10) {
-        final batch = channelIds.sublist(
-          i,
-          i + 10 > channelIds.length ? channelIds.length : i + 10,
-        );
+    const batchSize = 10;
+    for (var i = 0; i < channelIds.length; i += batchSize) {
+      final batch = channelIds.sublist(
+        i,
+        i + batchSize > channelIds.length ? channelIds.length : i + batchSize,
+      );
+      
+      final docs = <DocumentSnapshot>[];
+
+      // Attempt 1: Fetch channel batch without fragile multi-field composite index constraints
+      try {
         final snapshot = await _firestore
             .collection('videos')
             .where('channelId', whereIn: batch)
-            .where('visibility', isEqualTo: 'Public')
-            .orderBy('uploadedAt', descending: true)
             .limit(50)
             .get();
-        videos.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));
+        docs.addAll(snapshot.docs);
+      } on Object catch (e) {
+        debugPrint('[SubscriptionController] Batch video query failed ($e). Falling back to per-channel query.');
+        for (final cid in batch) {
+          try {
+            final snap = await _firestore
+                .collection('videos')
+                .where('channelId', isEqualTo: cid)
+                .limit(20)
+                .get();
+            docs.addAll(snap.docs);
+          } on Object catch (err) {
+            debugPrint('[SubscriptionController] Per-channel video query failed for $cid: $err');
+          }
+        }
       }
-    } else {
-      final snapshot = await _firestore
-          .collection('videos')
-          .where('channelId', whereIn: channelIds)
-          .where('visibility', isEqualTo: 'Public')
-          .orderBy('uploadedAt', descending: true)
-          .limit(50)
-          .get();
-      videos.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));
+
+      for (final doc in docs) {
+        try {
+          final video = Video.fromDocumentSnapshot(doc);
+          if (VideoVisibilityPolicy.isVisibleForFeed(video)) {
+            videos.add(video);
+          }
+        } on Object catch (e) {
+          debugPrint('Error parsing video doc ${doc.id}: $e');
+        }
+      }
     }
     
     return videos;
@@ -250,31 +352,48 @@ class SubscriptionController extends GetxController {
 
   Future<List<PlaylistModel>> _loadPlaylists(List<String> channelIds) async {
     final playlists = <PlaylistModel>[];
+    if (channelIds.isEmpty) return playlists;
     
-    if (channelIds.length > 10) {
-      for (var i = 0; i < channelIds.length; i += 10) {
-        final batch = channelIds.sublist(
-          i,
-          i + 10 > channelIds.length ? channelIds.length : i + 10,
-        );
+    const batchSize = 10;
+    for (var i = 0; i < channelIds.length; i += batchSize) {
+      final batch = channelIds.sublist(
+        i,
+        i + batchSize > channelIds.length ? channelIds.length : i + batchSize,
+      );
+
+      final docs = <DocumentSnapshot>[];
+
+      try {
         final snapshot = await _firestore
             .collection('playlists')
             .where('channelId', whereIn: batch)
-            .where('visibility', isEqualTo: 'public')
-            .orderBy('createdAt', descending: true)
             .limit(30)
             .get();
-        playlists.addAll(snapshot.docs.map(PlaylistModel.fromDocumentSnapshot));
+        docs.addAll(snapshot.docs);
+      } on Object catch (e) {
+        debugPrint('[SubscriptionController] Batch playlist query failed: $e');
+        for (final cid in batch) {
+          try {
+            final snap = await _firestore
+                .collection('playlists')
+                .where('channelId', isEqualTo: cid)
+                .limit(10)
+                .get();
+            docs.addAll(snap.docs);
+          } on Object catch (_) {}
+        }
       }
-    } else {
-      final snapshot = await _firestore
-          .collection('playlists')
-          .where('channelId', whereIn: channelIds)
-          .where('visibility', isEqualTo: 'public')
-          .orderBy('createdAt', descending: true)
-          .limit(30)
-          .get();
-      playlists.addAll(snapshot.docs.map(PlaylistModel.fromDocumentSnapshot));
+
+      for (final doc in docs) {
+        try {
+          final playlist = PlaylistModel.fromDocumentSnapshot(doc);
+          if (playlist.isPublic) {
+            playlists.add(playlist);
+          }
+        } on Object catch (e) {
+          debugPrint('Error parsing playlist doc ${doc.id}: $e');
+        }
+      }
     }
     
     return playlists;
@@ -282,31 +401,51 @@ class SubscriptionController extends GetxController {
 
   Future<List<CommunityPostModel>> _loadCommunityPosts(List<String> channelIds) async {
     final posts = <CommunityPostModel>[];
+    if (channelIds.isEmpty) return posts;
     
-    if (channelIds.length > 10) {
-      for (var i = 0; i < channelIds.length; i += 10) {
-        final batch = channelIds.sublist(
-          i,
-          i + 10 > channelIds.length ? channelIds.length : i + 10,
-        );
+    const batchSize = 10;
+    for (var i = 0; i < channelIds.length; i += batchSize) {
+      final batch = channelIds.sublist(
+        i,
+        i + batchSize > channelIds.length ? channelIds.length : i + batchSize,
+      );
+
+      final docs = <DocumentSnapshot>[];
+
+      try {
         final snapshot = await _firestore
             .collection('Community')
             .where('channelId', whereIn: batch)
-            .where('visibility', isEqualTo: 'Public')
-            .orderBy('uploadedAt', descending: true)
             .limit(30)
             .get();
-        posts.addAll(snapshot.docs.map((doc) => CommunityPostModel.fromMap(doc.data())));
+        docs.addAll(snapshot.docs);
+      } on Object catch (e) {
+        debugPrint('[SubscriptionController] Batch community post query failed: $e');
+        for (final cid in batch) {
+          try {
+            final snap = await _firestore
+                .collection('Community')
+                .where('channelId', isEqualTo: cid)
+                .limit(10)
+                .get();
+            docs.addAll(snap.docs);
+          } on Object catch (_) {}
+        }
       }
-    } else {
-      final snapshot = await _firestore
-          .collection('Community')
-          .where('channelId', whereIn: channelIds)
-          .where('visibility', isEqualTo: 'Public')
-          .orderBy('uploadedAt', descending: true)
-          .limit(30)
-          .get();
-      posts.addAll(snapshot.docs.map((doc) => CommunityPostModel.fromMap(doc.data())));
+
+      for (final doc in docs) {
+        try {
+          final data = doc.data() as Map<String, dynamic>?;
+          if (data == null) continue;
+          final post = CommunityPostModel.fromMap(data);
+          final vis = (data['visibility'] as String? ?? 'public').toLowerCase();
+          if (vis == 'public') {
+            posts.add(post);
+          }
+        } on Object catch (e) {
+          debugPrint('Error parsing community post doc ${doc.id}: $e');
+        }
+      }
     }
     
     return posts;
@@ -464,15 +603,16 @@ class SubscriptionController extends GetxController {
       await _firestore.runTransaction((tx) async {
         final existing = await tx.get(subRef);
         if (existing.exists) return;
-        tx.set(subRef, {
-          'userId': currentUserId,
-          'channelId': channelId,
-          'subscribedAt': FieldValue.serverTimestamp(),
-          'notificationsEnabled': true,
-        });
-        tx.update(channelRef, {
-          'subscriberCount': FieldValue.increment(1),
-        });
+        tx
+          ..set(subRef, {
+            'userId': currentUserId,
+            'channelId': channelId,
+            'subscribedAt': FieldValue.serverTimestamp(),
+            'notificationsEnabled': true,
+          })
+          ..update(channelRef, {
+            'subscriberCount': FieldValue.increment(1),
+          });
       }, maxAttempts: 3);
 
       // Optimistic local update instead of full reload
@@ -485,7 +625,7 @@ class SubscriptionController extends GetxController {
       applyFilters();
 
       Get.snackbar('Success', 'Subscribed successfully');
-    } catch (e) {
+    } on Object catch (e) {
       debugPrint('Error subscribing: $e');
       Get.snackbar('Error', 'Failed to subscribe: $e');
     }
@@ -504,10 +644,11 @@ class SubscriptionController extends GetxController {
       if (subDoc.exists) {
         // Deterministic ID doc found — atomic delete + decrement
         await _firestore.runTransaction((tx) async {
-          tx.delete(subRef);
-          tx.update(channelRef, {
-            'subscriberCount': FieldValue.increment(-1),
-          });
+          tx
+            ..delete(subRef)
+            ..update(channelRef, {
+              'subscriberCount': FieldValue.increment(-1),
+            });
         }, maxAttempts: 3);
       } else {
         // Fallback: query for legacy auto-generated ID docs
@@ -535,7 +676,7 @@ class SubscriptionController extends GetxController {
       applyFilters();
 
       Get.snackbar('Success', 'Unsubscribed successfully');
-    } catch (e) {
+    } on Object catch (e) {
       debugPrint('Error unsubscribing: $e');
       Get.snackbar('Error', 'Failed to unsubscribe: $e');
     }
@@ -545,6 +686,3 @@ class SubscriptionController extends GetxController {
     return subscriptions.any((s) => s.channelId == channelId);
   }
 }
-
-
-

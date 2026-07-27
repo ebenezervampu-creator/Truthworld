@@ -18,6 +18,9 @@ import {
   ClaimNoticeType,
   ClaimStatus,
   ClaimImpact,
+  CopyrightOwnerAction,
+  CopyrightOwnerNotification,
+  ChannelStrike,
 } from "./copyrightTypes";
 import { copyrightDetectionService } from "./copyrightDetection";
 import { v4 as uuidv4 } from "uuid";
@@ -439,6 +442,201 @@ Return JSON:
     } catch (error) {
       logger.error("[CopyrightClaims] Error resolving appeal", { appealId, error });
       return false;
+    }
+  }
+
+  /**
+   * 🛡️ STEP 4 PARALLEL COPYRIGHT MATCH HANDLER
+   * Called when a copyright match is detected in parallel with Step 4.
+   * Pauses Step 4 publication and notifies the original copyright owner.
+   */
+  async handleStep4CopyrightMatch(
+    jobId: string,
+    videoId: string,
+    copiedUserId: string,
+    copiedChannelId: string,
+    videoTitle: string,
+    thumbnailUrl: string,
+    match: CopyrightMatch
+  ): Promise<string> {
+    const notificationId = `cp_notif_${uuidv4()}`;
+    logger.info("[CopyrightClaims] Handling Step 4 Copyright Match", { videoId, matchId: match.matchId });
+
+    try {
+      const assetSnap = await db().collection("copyright_assets").doc(match.assetId).get();
+      const originalOwnerId = assetSnap.exists ? (assetSnap.data()?.ownerId || "unknown") : "unknown";
+
+      const notification: CopyrightOwnerNotification = {
+        notificationId,
+        matchId: match.matchId,
+        assetId: match.assetId,
+        originalOwnerId,
+        copiedVideoId: videoId,
+        copiedUserId,
+        copiedChannelId,
+        videoTitle,
+        thumbnailUrl,
+        matchedSegments: match.matchedSegments || [],
+        similarityScore: match.score || 0.9,
+        status: "pending_owner_action",
+        createdAt: Date.now()
+      };
+      (notification as any).escrowStatus = "holding";
+      (notification as any).escrowBalance = 0;
+
+      const batch = db().batch();
+      batch.set(db().collection("copyright_owner_notifications").doc(notificationId), notification);
+
+      // Pause Video and Job at Step 4 (copyright_hold) with YouTube Escrow holding
+      batch.set(db().collection("videos").doc(videoId), {
+        copyrightStatus: "copyright_hold",
+        escrowStatus: "holding",
+        gatewayStatus: "MANUAL_REVIEW",
+        status: "copyright_hold",
+        isPublished: false,
+        copyrightNotificationId: notificationId,
+        updatedAt: Date.now()
+      }, { merge: true });
+
+      batch.set(db().collection("video_jobs").doc(jobId), {
+        status: "copyright_hold",
+        copyrightNotificationId: notificationId,
+        updatedAt: Date.now()
+      }, { merge: true });
+
+      await batch.commit();
+      logger.info("[CopyrightClaims] Step 4 Copyright Hold applied & owner notified", { notificationId, originalOwnerId });
+      return notificationId;
+    } catch (error) {
+      logger.error("[CopyrightClaims] Error handling Step 4 Copyright match", { error });
+      throw error;
+    }
+  }
+
+  /**
+   * 🛡️ RESOLVE COPYRIGHT OWNER ACTION
+   * Called when original copyright owner picks an option:
+   * - YELLOW_STRIKE: Strike channel & Delete/Terminate video at Step 4
+   * - REDIRECT_MONETIZATION: Redirect revenue to owner & Resume Step 4 pipeline
+   * - NO_OBJECTION: License video & Resume Step 4 pipeline
+   */
+  async resolveCopyrightOwnerAction(
+    notificationId: string,
+    ownerId: string,
+    action: CopyrightOwnerAction,
+    distributionLayer?: any
+  ): Promise<{ success: boolean; message: string }> {
+    logger.info("[CopyrightClaims] Resolving Copyright Owner Action", { notificationId, ownerId, action });
+
+    try {
+      const notifRef = db().collection("copyright_owner_notifications").doc(notificationId);
+      const notifSnap = await notifRef.get();
+
+      if (!notifSnap.exists) {
+        return { success: false, message: "Copyright notification not found" };
+      }
+
+      const notif = notifSnap.data() as CopyrightOwnerNotification;
+      if (notif.originalOwnerId !== ownerId && ownerId !== "admin") {
+        return { success: false, message: "Forbidden: You are not the original copyright owner" };
+      }
+
+      const videoId = notif.copiedVideoId;
+      const jobId = notif.copiedVideoId; // Standardized fallback
+
+      if (action === "YELLOW_STRIKE") {
+        const strikeId = `strike_${uuidv4()}`;
+        const strike: ChannelStrike = {
+          strikeId,
+          channelId: notif.copiedChannelId || "unknown",
+          userId: notif.copiedUserId,
+          videoId,
+          strikeType: "yellow_copyright",
+          reason: `Yellow Copyright Takedown Strike issued by owner of asset ${notif.assetId}`,
+          assetId: notif.assetId,
+          issuedAt: Date.now(),
+          expiresAt: Date.now() + (90 * 24 * 60 * 60 * 1000) // 90 days TTL
+        };
+
+        const batch = db().batch();
+        batch.set(db().collection("channel_strikes").doc(strikeId), strike);
+        batch.update(notifRef, {
+          status: "action_taken",
+          selectedAction: action,
+          actionTakenAt: Date.now()
+        });
+
+        // DELETE & TERMINATE VIDEO AT STEP 4
+        batch.delete(db().collection("videos").doc(videoId));
+        batch.set(db().collection("video_jobs").doc(jobId), {
+          status: "failed",
+          failureReason: "Video terminated at Step 4 due to Yellow Copyright Strike by copyright owner.",
+          terminatedAt: Date.now()
+        }, { merge: true });
+
+        await batch.commit();
+        logger.info("[CopyrightClaims] Yellow Strike issued & video deleted at Step 4", { videoId, strikeId });
+        return { success: true, message: "Yellow Strike issued. Video deleted and pipeline terminated." };
+      }
+
+      if (action === "REDIRECT_MONETIZATION" || action === "NO_OBJECTION") {
+        const isRedirect = action === "REDIRECT_MONETIZATION";
+        const batch = db().batch();
+
+        batch.update(notifRef, {
+          status: "action_taken",
+          selectedAction: action,
+          actionTakenAt: Date.now(),
+          escrowStatus: isRedirect ? "payout_to_owner" : "payout_to_creator",
+          escrowPaidOutAt: Date.now()
+        });
+
+        batch.set(db().collection("videos").doc(videoId), {
+          copyrightStatus: isRedirect ? "claimed" : "clear",
+          copyrightLicensed: !isRedirect,
+          monetizationRedirectedTo: isRedirect ? notif.originalOwnerId : null,
+          escrowStatus: isRedirect ? "payout_to_owner" : "payout_to_creator",
+          gatewayStatus: "APPROVED",
+          status: "published",
+          isPublished: true,
+          updatedAt: Date.now()
+        }, { merge: true });
+
+        batch.set(db().collection("video_jobs").doc(jobId), {
+          status: "published",
+          copyrightStatus: isRedirect ? "claimed" : "clear",
+          updatedAt: Date.now()
+        }, { merge: true });
+
+        await batch.commit();
+
+        // RESUME PIPELINE: Publish dubbing/transcoding task if distributionLayer provided
+        if (distributionLayer) {
+          await distributionLayer.publish("dubbing-processing", {
+            eventId: `dub_resume_${jobId}`,
+            eventType: "dubbing-processing",
+            jobId,
+            userId: notif.copiedUserId,
+            timestamp: Date.now(),
+            data: { videoUrl: "", executionPlan: { enablePath2: true } },
+            retryCount: 0,
+            source: "copyright-resume"
+          });
+        }
+
+        logger.info(`[CopyrightClaims] Pipeline resumed post-copyright resolution (${action}) with YouTube Escrow Payout`, { videoId });
+        return {
+          success: true,
+          message: isRedirect
+            ? "Monetization redirected to copyright owner. Ad revenue Escrow paid out to owner. Pipeline resumed from Step 4."
+            : "No objection logged. Claim released and Escrow paid out to creator. Pipeline resumed from Step 4."
+        };
+      }
+
+      return { success: false, message: "Invalid action type" };
+    } catch (error) {
+      logger.error("[CopyrightClaims] Error resolving owner action", { error });
+      return { success: false, message: `Error: ${(error as any).message}` };
     }
   }
 }

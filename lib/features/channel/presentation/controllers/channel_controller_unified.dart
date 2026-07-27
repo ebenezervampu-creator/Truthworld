@@ -115,7 +115,7 @@ class ChannelController extends GetxController
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final Uuid _uuid = Uuid();
+  final Uuid _uuid = const Uuid();
   final ImageVerificationService _imageVerificationService =
       ImageVerificationService();
 
@@ -183,6 +183,7 @@ class ChannelController extends GetxController
   RxBool isSubscribed = false.obs;
   RxBool isSubscriptionLoading = true.obs;
   final RxBool notificationsEnabled = true.obs;
+  final RxString notificationOption = 'all'.obs;
   final RxMap<String, RxBool> _subscribedMap = <String, RxBool>{}.obs;
   RxInt subscriberCount = 0.obs;
   RxBool isLoading = false.obs;
@@ -204,13 +205,10 @@ class ChannelController extends GetxController
   final hasVideos = false.obs;
   final hasPlaylists = false.obs;
   final hasPosts = false.obs;
+  final channelVideoCount = 0.obs;
 
   List<String> get activeTabs {
-    final list = <String>['Home'];
-    if (hasVideos.value) list.add('Videos');
-    if (hasPlaylists.value) list.add('Playlists');
-    if (hasPosts.value) list.add('Posts');
-    return list;
+    return const ['Home', 'Videos', 'Playlists', 'Posts'];
   }
 
   // Reactive State - Image Upload
@@ -349,6 +347,37 @@ class ChannelController extends GetxController
 
   // Computed Properties
   bool get canCreateMoreChannels => channels.length < maxChannelsPerUser;
+
+  // Category Selection Helpers
+  void toggleCategory(String category) {
+    if (selectedCategories.contains(category)) {
+      selectedCategories.remove(category);
+    } else {
+      selectedCategories.add(category);
+    }
+    selectedCategory.value =
+        selectedCategories.isEmpty ? null : selectedCategories.first;
+    formChangeTrigger.value++;
+  }
+
+  void selectAllCategories() {
+    selectedCategories.assignAll(categories);
+    selectedCategory.value = categories.isNotEmpty ? categories.first : 'Other';
+    formChangeTrigger.value++;
+  }
+
+  void deselectAllCategories() {
+    selectedCategories.clear();
+    selectedCategory.value = null;
+    formChangeTrigger.value++;
+  }
+
+  bool isCategorySelected(String category) {
+    return selectedCategories.contains(category);
+  }
+
+  bool get isAllCategoriesSelected =>
+      selectedCategories.length == categories.length && categories.isNotEmpty;
 
   // UI Controllers for details page
   late ScrollController scrollController;
@@ -1135,6 +1164,9 @@ class ChannelController extends GetxController
         'category': selectedCategories.isEmpty
             ? (selectedCategory.value ?? 'other')
             : selectedCategories.join(', '),
+        'categories': selectedCategories.isEmpty
+            ? [(selectedCategory.value ?? 'other')]
+            : selectedCategories.toList(),
         'contactEmail': contactEmail.text.trim().isEmpty
             ? null
             : contactEmail.text.trim(),
@@ -1391,6 +1423,8 @@ class ChannelController extends GetxController
             if (snapshot.exists) {
               final data = snapshot.data();
               notificationsEnabled.value = data?['notificationsEnabled'] ?? true;
+              notificationOption.value = data?['notificationOption'] as String? ??
+                  (notificationsEnabled.value ? 'all' : 'none');
             }
             isSubscriptionLoading.value = false;
           },
@@ -1401,7 +1435,7 @@ class ChannelController extends GetxController
         );
   }
 
-  Future<void> updateNotificationPreference(String channelId, bool enabled) async {
+  Future<void> updateNotificationPreference(String channelId, String option) async {
     final user = _auth.currentUser;
     if (user == null) {
       _showErrorSnackbar('You must be logged in to update preferences.');
@@ -1410,13 +1444,21 @@ class ChannelController extends GetxController
 
     final subDocId = '${channelId}_${user.uid}';
     final subRef = _firestore.collection(_subsCol).doc(subDocId);
+    final enabled = option != 'none';
 
     try {
       await subRef.set({
         'notificationsEnabled': enabled,
+        'notificationOption': option,
       }, SetOptions(merge: true));
       notificationsEnabled.value = enabled;
-      _showSuccessSnackbar(enabled ? 'All notifications turned on' : 'Notifications muted');
+      notificationOption.value = option;
+      final msg = option == 'all'
+          ? 'All notifications turned on'
+          : (option == 'personalized'
+              ? 'Personalized notifications set'
+              : 'Notifications turned off');
+      _showSuccessSnackbar(msg);
     } catch (e) {
       _showErrorSnackbar('Failed to update notification preferences');
     }
@@ -1457,6 +1499,8 @@ class ChannelController extends GetxController
             subscriberCount.value = count is int
                 ? count
                 : (count as num).toInt();
+            final updatedChannel = Channel.fromDocumentSnapshot(snapshot);
+            selectedChannel.value = updatedChannel;
           }
         });
   }
@@ -1897,6 +1941,8 @@ class ChannelController extends GetxController
     }
 
     listenSubscription(channel.channelId);
+    fetchSubscriberCount(channel.channelId);
+    fetchChannelVideoCount(channel.channelId);
     _attachScrollListener();
     loadInitialVideos();
     checkChannelContent(channel.channelId);
@@ -1963,6 +2009,9 @@ class ChannelController extends GetxController
             .toList();
         lastVideoDocument.value = snapshot.docs.last;
         hasVideos.value = true;
+        if (channelVideoCount.value == 0) {
+          channelVideoCount.value = snapshot.docs.length;
+        }
       } else {
         videos.clear();
         lastVideoDocument.value = null;
@@ -2050,6 +2099,20 @@ class ChannelController extends GetxController
     hasVideos.value = false;
     hasPlaylists.value = false;
     hasPosts.value = false;
+    channelVideoCount.value = 0;
+  }
+
+  Future<void> fetchChannelVideoCount(String channelId) async {
+    try {
+      final countSnap = await _firestore
+          .collection('videos')
+          .where('channelId', isEqualTo: channelId)
+          .count()
+          .get();
+      channelVideoCount.value = countSnap.count ?? 0;
+    } catch (e) {
+      debugPrint('Error fetching channel video count: $e');
+    }
   }
 
   Future<void> checkChannelContent(String channelId) async {

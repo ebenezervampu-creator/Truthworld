@@ -102,16 +102,27 @@ export const onVideoUploadedForModeration = onObjectFinalized(
       const { videoModerationService } = require("../pipeline/services/videoModerationService");
       const result = await videoModerationService.moderate(videoGcsUri, contentType);
 
+      // ─── Determine moderation status from v3.0 policy action ──────
+      const moderationStatus = result.policyAction === "manual_review"
+        ? "manual_review"
+        : result.approved ? "approved" : "rejected";
+
       const moderationData: Record<string, any> = {
-        "moderation.status": result.approved ? "approved" : "rejected",
+        "moderation.status": moderationStatus,
         "moderation.reason": result.violationReason,
+        "moderation.topic": result.topic,
+        "moderation.intent": result.intent,
+        "moderation.policyAction": result.policyAction,
+        "moderation.riskLevel": result.riskLevel,
+        "moderation.policyReason": result.policyReason,
+        "moderation.explanation": result.explanation,
         "moderation.violationCategories": result.violationCategories,
         "moderation.confidenceScore": result.confidenceScore,
         "moderation.summary": result.summary,
         "moderation.processingTimeMs": result.processingTimeMs,
         "moderation.checkedAt": Date.now(),
         "moderation.model": "gemini-2.5-flash",
-        "moderation.version": "v2.0-zero-ffmpeg",
+        "moderation.version": "v3.0-intent-aware",
         category: result.category || "Other",
       };
 
@@ -124,14 +135,20 @@ export const onVideoUploadedForModeration = onObjectFinalized(
         durationMs: result.processingTimeMs,
       });
 
-      // ─── STEP 4: If REJECTED → cancel any in-progress pipeline ─────────
-      if (!result.approved) {
-        console.warn("[VideoModeration] Video REJECTED — cancelling pipeline", { videoId });
+      // ─── STEP 4: Route based on moderation decision ────────────────
+      if (moderationStatus === "rejected") {
+        // ─── REJECTED → cancel any in-progress pipeline ──────────────
+        console.warn("[VideoModeration] Video REJECTED", {
+          videoId,
+          topic: result.topic,
+          intent: result.intent,
+          policyReason: result.policyReason,
+        });
 
         // Update video status to rejected
         await db.collection("videos").doc(videoId).update({
           status: "rejected",
-          rejectionReason: result.violationReason,
+          rejectionReason: result.policyReason || result.violationReason,
         });
 
         // Cancel any in-progress video_jobs for this video
@@ -147,15 +164,56 @@ export const onVideoUploadedForModeration = onObjectFinalized(
             status: "rejected",
             "stages.moderation": {
               status: "failed",
-              reason: result.violationReason,
+              reason: result.policyReason || result.violationReason,
               failedAt: Date.now(),
             },
             updatedAt: Date.now(),
           });
           console.log("[VideoModeration] Cancelled pipeline job:", jobDoc.id);
         }
+
+      } else if (moderationStatus === "manual_review") {
+        // ─── MANUAL REVIEW → pause pipeline, await admin decision ────
+        console.warn("[VideoModeration] Video sent to MANUAL REVIEW", {
+          videoId,
+          topic: result.topic,
+          intent: result.intent,
+          riskLevel: result.riskLevel,
+          confidence: result.confidenceScore,
+          policyReason: result.policyReason,
+        });
+
+        // Set video status to pending_review — not published, not rejected
+        await db.collection("videos").doc(videoId).update({
+          status: "pending_review",
+        });
+
+        // Pause the pipeline job — mark moderation stage as pending_review
+        const jobsSnap = await db.collection("video_jobs")
+          .where("videoId", "==", videoId)
+          .where("status", "in", ["accepted", "processing", "running"])
+          .limit(1)
+          .get();
+
+        if (!jobsSnap.empty) {
+          const jobDoc = jobsSnap.docs[0];
+          await jobDoc.ref.update({
+            "stages.moderation": {
+              status: "pending_review",
+              progress: 50,
+              reason: result.policyReason || "Flagged for manual review due to ambiguous intent.",
+              topic: result.topic,
+              intent: result.intent,
+              riskLevel: result.riskLevel,
+              confidence: result.confidenceScore,
+              flaggedAt: Date.now(),
+            },
+            updatedAt: Date.now(),
+          });
+        }
+
       } else {
-        // ─── STEP 5: If APPROVED → update video_jobs moderation stage ────
+        // ─── APPROVED → update video_jobs moderation stage ───────────
         const jobsSnap = await db.collection("video_jobs")
           .where("videoId", "==", videoId)
           .limit(1)
@@ -169,6 +227,8 @@ export const onVideoUploadedForModeration = onObjectFinalized(
               progress: 100,
               completedAt: Date.now(),
               summary: result.summary,
+              topic: result.topic,
+              intent: result.intent,
             },
             updatedAt: Date.now(),
           });

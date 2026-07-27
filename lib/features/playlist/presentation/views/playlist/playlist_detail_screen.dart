@@ -7,6 +7,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
@@ -15,23 +16,24 @@ import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 // ==========================================================================
-// YOUTUBE THEME COLORS
+// APP THEME COLORS & DESIGN TOKENS
 // ==========================================================================
 const Color ytBackground = AppColors.bgPage;
-const Color ytSurface = Color(0xFF1A1A1A);
-const Color ytSurfaceLight = Color(0xFF262626);
-const Color ytSurfaceHover = Color(0xFF3D3D3D);
+const Color ytSurface = AppColors.bgSurface;
+const Color ytSurfaceLight = AppColors.bgSurfaceHover;
+const Color ytSurfaceHover = AppColors.bgSurfaceHigh;
 const Color ytTextPrimary = AppColors.textPrimary;
 const Color ytTextSecondary = AppColors.textSecondary;
 const Color ytTextTertiary = AppColors.textTertiary;
-const Color ytRed = Color(0xFFFF0000);
+const Color ytRed = AppColors.brand;
 const Color ytBorder = AppColors.searchBorder;
 
 // ==========================================================================
-// PLAYLIST DETAIL SCREEN - YOUTUBE STYLE
+// PLAYLIST DETAIL SCREEN
 // ==========================================================================
 class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
-  const PlaylistDetailScreen({super.key});
+  const PlaylistDetailScreen({super.key, this.playlist});
+  final PlaylistModel? playlist;
 
   @override
   Widget build(BuildContext context) {
@@ -39,18 +41,71 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
     if (!Get.isRegistered<PlaylistDetailController>()) {
       Get.put(PlaylistDetailController());
     }
-    
-    final args = Get.arguments;
-    if (args == null || args['playlist'] is! PlaylistModel) {
-      return _buildErrorState('Playlist data is missing.', Get.back);
+
+    var activePlaylist = playlist;
+
+    if (activePlaylist == null) {
+      final args = Get.arguments;
+      if (args != null) {
+        if (args is PlaylistModel) {
+          activePlaylist = args;
+        } else if (args is Map && args['playlist'] is PlaylistModel) {
+          activePlaylist = args['playlist'];
+        }
+      }
     }
 
-    final PlaylistModel playlist = args['playlist'];
+    if (activePlaylist == null && Get.isRegistered<HomeController>()) {
+      final rawPlaylist = Get.find<HomeController>().selectedPlaylist.value;
+      if (rawPlaylist is PlaylistModel) {
+        activePlaylist = rawPlaylist;
+      }
+    }
+
+    if (activePlaylist == null) {
+      return Scaffold(
+        backgroundColor: ytBackground,
+        appBar: AppBar(
+          backgroundColor: ytBackground,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: ytTextPrimary),
+            onPressed: Get.back,
+          ),
+          title: const Text(
+            'Playlist',
+            style: TextStyle(
+              color: ytTextPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        body: _buildErrorState('Playlist data is missing.', Get.back),
+      );
+    }
+
     controller.reset();
 
     return Scaffold(
       backgroundColor: ytBackground,
-      body: _buildContent(context, playlist),
+      appBar: AppBar(
+        backgroundColor: ytBackground,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: ytTextPrimary),
+          onPressed: Get.back,
+        ),
+        title: Text(
+          activePlaylist.playlistName,
+          style: const TextStyle(
+            color: ytTextPrimary,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+      body: _buildContent(context, activePlaylist),
     );
   }
 
@@ -622,6 +677,10 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
         }
 
         return ListView.builder(
+          shrinkWrap: !isDesktop,
+          physics: isDesktop
+              ? const AlwaysScrollableScrollPhysics()
+              : const NeverScrollableScrollPhysics(),
           padding: EdgeInsets.symmetric(
             horizontal: isDesktop ? 24 : (isTablet ? 24 : 16),
             vertical: 8,
@@ -767,11 +826,15 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   // LOADING & EMPTY STATES
   // ==========================================================================
-  Widget _buildVideoShimmer() {
+  Widget _buildVideoShimmer({bool isDesktop = false}) {
     return Shimmer.fromColors(
       baseColor: ytSurface,
       highlightColor: ytSurfaceLight,
       child: ListView.builder(
+        shrinkWrap: !isDesktop,
+        physics: isDesktop
+            ? const AlwaysScrollableScrollPhysics()
+            : const NeverScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         itemCount: 5,
         itemBuilder: (context, index) => Padding(
@@ -806,58 +869,64 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   }
 
   Widget _buildEmptyState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.playlist_remove, size: 64, color: ytTextTertiary),
-          SizedBox(height: 16),
-          Text(
-            'No videos found',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-              color: ytTextPrimary,
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 48, horizontal: 16),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.playlist_remove, size: 64, color: ytTextTertiary),
+            SizedBox(height: 16),
+            Text(
+              'No videos found',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: ytTextPrimary,
+              ),
             ),
-          ),
-          SizedBox(height: 8),
-          Text(
-            'This playlist is empty',
-            style: TextStyle(
-              fontSize: 14,
-              color: ytTextSecondary,
+            SizedBox(height: 8),
+            Text(
+              'This playlist is empty',
+              style: TextStyle(
+                fontSize: 14,
+                color: ytTextSecondary,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildErrorState(String message, VoidCallback onRetry) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline, size: 48, color: ytTextTertiary),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 16,
-              color: ytTextSecondary,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 16),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: ytTextTertiary),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 16,
+                color: ytTextSecondary,
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: onRetry,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: ytTextPrimary,
-              foregroundColor: ytBackground,
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: onRetry,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ytTextPrimary,
+                foregroundColor: ytBackground,
+              ),
+              child: const Text('Retry'),
             ),
-            child: const Text('Retry'),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -931,28 +1000,37 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // HELPER METHODS
   // ==========================================================================
   Future<List<Video>> _fetchVideos(PlaylistModel playlist) async {
-    final playlistController = Get.find<PlaylistController>();
-    final videoIds = await playlistController.fetchPlaylistVideoIds(
-      playlist.id,
-      playlist.isPublic,
-    );
+    try {
+      final playlistController = Get.find<PlaylistController>();
+      var videoIds = await playlistController.fetchPlaylistVideoIds(
+        playlist.id,
+        playlist.isPublic,
+        ownerId: playlist.ownerId,
+      );
 
-    if (videoIds.isEmpty) return [];
-    
-    final videos = <Video>[];
-    const batchSize = 10;
-    for (var i = 0; i < videoIds.length; i += batchSize) {
-      final batchIds = videoIds.skip(i).take(batchSize).toList();
-      final snapshot = await FirebaseFirestore.instance
-          .collection('videos')
-          .where(FieldPath.documentId, whereIn: batchIds)
-          .get();
-      videos.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));
+      if (videoIds.isEmpty && playlist.videoIds.isNotEmpty) {
+        videoIds = playlist.videoIds;
+      }
+
+      if (videoIds.isEmpty) return [];
+
+      final videos = <Video>[];
+      const batchSize = 10;
+      for (var i = 0; i < videoIds.length; i += batchSize) {
+        final batchIds = videoIds.skip(i).take(batchSize).toList();
+        final snapshot = await FirebaseFirestore.instance
+            .collection('videos')
+            .where(FieldPath.documentId, whereIn: batchIds)
+            .get();
+        videos.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));
+      }
+
+      final videoMap = {for (final v in videos) v.id: v};
+      return videoIds.map((id) => videoMap[id]).whereType<Video>().toList();
+    } catch (e) {
+      debugPrint('Error fetching playlist videos: $e');
+      return [];
     }
-    
-    // Sort by original order
-    final videoMap = {for (final v in videos) v.id: v};
-    return videoIds.map((id) => videoMap[id]).whereType<Video>().toList();
   }
 
   String _formatViews(int views) {

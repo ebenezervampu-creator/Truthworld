@@ -197,6 +197,212 @@ export const getFinalOutput = onRequest(
 );
 
 /**
+ * 🪄 Trigger On-Demand AI Features for a Video
+ *
+ * Supports generating subtitles (e.g. Telugu, Hindi, English), dubbed audio tracks,
+ * fact-checking report, AI summary, timestamped chapters, and advanced AI settings
+ * anytime from Content Screen or Edit Video screen.
+ */
+export const triggerVideoAIFeatures = onRequest(
+  {
+    cors: true,
+    region: "asia-south1",
+    minInstances: 0,
+    maxInstances: 2,
+    timeoutSeconds: 300,
+    memory: "512MiB",
+    secrets: ["GEMINI_API_KEY", "ASSEMBLYAI_KEY"],
+  },
+  async (req, res) => {
+    try {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+
+      const {
+        videoId,
+        features = [],
+        targetLanguages = ["te", "hi"],
+        priorityMode = "accuracy",
+        sensitiveTopics = [],
+        autoChapters = true,
+      } = req.body || {};
+
+      if (!videoId) {
+        res.status(400).json({ error: "Missing videoId" });
+        return;
+      }
+
+      const userId = authUser.uid;
+      const videoDocRef = admin.firestore().collection("videos").doc(videoId);
+      const videoSnap = await videoDocRef.get();
+
+      if (!videoSnap.exists) {
+        res.status(404).json({ error: "Video not found" });
+        return;
+      }
+
+      const videoData = videoSnap.data() || {};
+
+      // Verify authorization: owner or admin
+      if (videoData.ownerId && videoData.ownerId !== userId) {
+        const userDoc = await admin.firestore().collection("users").doc(userId).get();
+        const isAdmin = userDoc.exists && userDoc.data()?.role === "admin";
+        if (!isAdmin) {
+          res.status(403).json({ error: "Unauthorized: You do not own this video" });
+          return;
+        }
+      }
+
+      const videoUrl = videoData.videoUrl || videoData.originalUrl || "";
+      if (!videoUrl) {
+        res.status(400).json({ error: "Video source URL is empty" });
+        return;
+      }
+
+      const jobDocRef = admin.firestore().collection("video_jobs").doc(videoId);
+      const jobSnap = await jobDocRef.get();
+      const jobData = jobSnap.exists ? jobSnap.data() : null;
+
+      const existingLanguages: string[] = jobData?.executionPlan?.languages || ["en"];
+      const languagesSet = new Set([...existingLanguages, ...targetLanguages]);
+      const combinedLanguages = Array.from(languagesSet);
+
+      const wantSubtitles = features.includes("subtitles");
+      const wantDubbing = features.includes("dubbing");
+      const wantFactCheck = features.includes("factcheck");
+      const wantSummary = features.includes("summary");
+      const wantChapters = features.includes("chapters");
+
+      const executionPlan: ExecutionPlan = {
+        jobId: videoId,
+        languages: combinedLanguages,
+        primaryLanguage: videoData.language || "en",
+        enablePath1: wantFactCheck || wantSummary || (jobData?.executionPlan?.enablePath1 ?? true),
+        enablePath2: wantDubbing || wantSubtitles || (jobData?.executionPlan?.enablePath2 ?? true),
+        enableTruthEngine: wantFactCheck || wantSummary || (jobData?.executionPlan?.enableTruthEngine ?? true),
+        enableReachEngine: wantDubbing || wantSubtitles || (jobData?.executionPlan?.enableReachEngine ?? true),
+        enableAuxiliary: true,
+        dubbingMode: "standard",
+        generateDubbing: wantDubbing,
+        genLangSubs: wantSubtitles,
+        generateSubtitles: wantSubtitles,
+        autoChapters: wantChapters || autoChapters,
+        priorityMode: priorityMode,
+        sensitiveTopics: sensitiveTopics,
+        channelType: jobData?.executionPlan?.channelType || "standard",
+        maxClaims: 20,
+        priority: "normal",
+        skipCache: false,
+      };
+
+      const now = Date.now();
+      const eventId = `ondemand_${videoId}_${now}`;
+
+      await jobDocRef.set({
+        jobId: videoId,
+        videoId: videoId,
+        userId: userId,
+        channelId: videoData.channelId || userId,
+        videoUrl: videoUrl,
+        fileName: videoData.title || "video.mp4",
+        status: "processing",
+        executionPlan: executionPlan,
+        updatedAt: now,
+        createdAt: jobData?.createdAt || now,
+        linkedVideoIds: admin.firestore.FieldValue.arrayUnion(videoId),
+        stages: {
+          ...(jobData?.stages || {}),
+          onDemandAI: {
+            status: "running",
+            progress: 10,
+            requestedFeatures: features,
+            requestedLanguages: targetLanguages,
+            startedAt: now,
+          }
+        }
+      }, { merge: true });
+
+      await videoDocRef.update({
+        status: "processing",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      const transcriptSnap = await admin.firestore().collection("transcripts").doc(videoId).get();
+      const transcriptionCompleted = transcriptSnap.exists;
+
+      // Run feature pipelines asynchronously
+      (async () => {
+        try {
+          if (!transcriptionCompleted) {
+            const { TranscriptionLayer } = require("./pipeline/layers/05-transcription");
+            const transcriptionLayer = new TranscriptionLayer();
+            await transcriptionLayer.submitTranscription(videoId, userId, videoUrl, executionPlan, eventId);
+          } else {
+            const tasks: Promise<any>[] = [];
+
+            if (wantFactCheck || wantSummary) {
+              const { CredibilityEngine } = require("./pipeline/layers/06-credibility");
+              const credibilityEngine = new CredibilityEngine(PIPELINE_CONFIG.GEMINI_API_KEY);
+              tasks.push(
+                credibilityEngine.runCredibilityPipeline(
+                  videoId,
+                  userId,
+                  executionPlan,
+                  `fact_${eventId}`
+                )
+              );
+            }
+
+            if (wantDubbing || wantSubtitles) {
+              const { DubbingEngine } = require("./pipeline/layers/07-dubbing");
+              const dubbingEngine = new DubbingEngine();
+              tasks.push(
+                dubbingEngine.runDubbingPipeline(
+                  videoId,
+                  userId,
+                  videoUrl,
+                  executionPlan,
+                  `dub_${eventId}`
+                )
+              );
+            }
+
+            await Promise.all(tasks);
+
+            const { aggregationLayer } = require("./pipeline/layers/09-aggregation");
+            await aggregationLayer.onStageComplete(videoId, "aggregation", userId, executionPlan, eventId);
+          }
+
+          await jobDocRef.update({
+            "stages.onDemandAI.status": "completed",
+            "stages.onDemandAI.progress": 100,
+            "stages.onDemandAI.completedAt": Date.now(),
+          });
+        } catch (bgError) {
+          console.error("[triggerVideoAIFeatures] Background task error:", bgError);
+          await jobDocRef.update({
+            "stages.onDemandAI.status": "failed",
+            "stages.onDemandAI.error": String(bgError),
+          });
+        }
+      })();
+
+      res.status(200).json({
+        success: true,
+        jobId: videoId,
+        message: `AI features (${features.join(", ") || "all"}) requested for target languages: ${targetLanguages.join(", ")}`,
+        executionPlan,
+      });
+    } catch (error) {
+      console.error("[triggerVideoAIFeatures] Error:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Internal server error",
+      });
+    }
+  }
+);
+
+/**
  * ☁️ Video upload trigger — fires when video is uploaded to Cloud Storage
  *
  * CONFIG: minInstances=0, maxInstances=10
@@ -1696,6 +1902,130 @@ export const refreshBackgroundQueue = onTaskDispatched(
     timeoutSeconds: 300,
   },
   runSWRTask
+);
+
+/**
+ * 📣 Creator Appeal Gateway Endpoint
+ * Allows creators to appeal a REJECTED video to the Admin Manual Review queue
+ */
+export const submitVideoAppeal = onRequest(
+  { cors: true, region: "asia-south1", memory: "256MiB", timeoutSeconds: 30 },
+  async (req, res) => {
+    try {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+
+      const { videoId, appealReason } = req.body;
+      const userId = authUser.uid;
+
+      if (!videoId || !appealReason) {
+        res.status(400).json({ error: "Missing videoId or appealReason" });
+        return;
+      }
+
+      const videoRef = admin.firestore().collection("videos").doc(videoId);
+      const doc = await videoRef.get();
+
+      if (!doc.exists) {
+        res.status(404).json({ error: "Video not found" });
+        return;
+      }
+
+      const videoData = doc.data()!;
+      if (videoData.userId !== userId && videoData.creatorId !== userId) {
+        res.status(403).json({ error: "Forbidden: You do not own this video" });
+        return;
+      }
+
+      // Update gatewayDecision to appealed
+      const updatedDecision = {
+        ...(videoData.gatewayDecision || {}),
+        appealed: true,
+        appealedAt: Date.now(),
+        appealReason,
+        appealStatus: "pending"
+      };
+
+      await videoRef.set({
+        gatewayDecision: updatedDecision,
+        gatewayStatus: "MANUAL_REVIEW",
+        updatedAt: Date.now()
+      }, { merge: true });
+
+      // Add to Admin Review Queue
+      await admin.firestore().collection("admin_review_queue").doc(videoId).set({
+        jobId: videoData.jobId || videoId,
+        videoId,
+        userId,
+        appealReason,
+        gatewayDecision: updatedDecision,
+        queuedAt: Date.now(),
+        status: "pending_appeal"
+      }, { merge: true });
+
+      logger.info("[Appeal Gateway] Video appeal submitted by creator", { videoId, userId, appealReason });
+
+      res.status(200).json({
+        success: true,
+        message: "Video appeal successfully submitted and queued for Admin Manual Review.",
+        appealStatus: "pending"
+      });
+    } catch (error) {
+      logger.error("[Appeal Gateway] Failed to submit appeal", { error: String(error) });
+      res.status(500).json({ error: "Internal server error submitting appeal" });
+    }
+  }
+);
+
+/**
+ * 🛡️ Copyright Owner Action Resolution Endpoint
+ * Allows original copyright owners to pick:
+ * 1. YELLOW_STRIKE (Delete video & issue strike to channel)
+ * 2. REDIRECT_MONETIZATION (Redirect ad revenue to original owner & resume pipeline)
+ * 3. NO_OBJECTION (License video & resume pipeline)
+ */
+export const resolveCopyrightOwnerAction = onRequest(
+  { cors: true, region: "asia-south1", memory: "256MiB", timeoutSeconds: 30 },
+  async (req, res) => {
+    try {
+      const authUser = await requireAuth(req, res);
+      if (!authUser) return;
+
+      const { notificationId, action } = req.body;
+      const ownerId = authUser.uid;
+
+      if (!notificationId || !action) {
+        res.status(400).json({ error: "Missing notificationId or action" });
+        return;
+      }
+
+      if (!["YELLOW_STRIKE", "REDIRECT_MONETIZATION", "NO_OBJECTION"].includes(action)) {
+        res.status(400).json({ error: "Invalid action. Must be YELLOW_STRIKE, REDIRECT_MONETIZATION, or NO_OBJECTION." });
+        return;
+      }
+
+      const { copyrightClaimsService } = require("./pipeline/services/copyrightClaims");
+      const { DistributionLayer } = require("./pipeline/layers/04-distribution");
+      const distLayer = new DistributionLayer();
+
+      const result = await copyrightClaimsService.resolveCopyrightOwnerAction(
+        notificationId,
+        ownerId,
+        action,
+        distLayer
+      );
+
+      if (!result.success) {
+        res.status(400).json({ error: result.message });
+        return;
+      }
+
+      res.status(200).json(result);
+    } catch (error) {
+      logger.error("[Copyright Action API] Failed to resolve copyright owner action", { error: String(error) });
+      res.status(500).json({ error: "Internal server error processing copyright action" });
+    }
+  }
 );
 
 

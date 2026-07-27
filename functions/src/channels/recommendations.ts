@@ -13,31 +13,30 @@ const db = () => admin.firestore();
  * Normalized to 0-10 scale + Tier Baseline.
  */
 function calculateDiscoveryScore(params: {
-  videoRating: number;      // 0.0 - 10.0
+  isCredibilityVerified: boolean;
   createdAt: number;       // epoch ms
   engagementRate: number;  // 0.0 - 1.0 (likes/views)
   isSubscribed: boolean;
   momentum: number;        // 0.0 - 1.0 (trend)
   tier: "basic" | "creator" | "advanced" | "elite";
   inactiveDays: number;    // Days since last upload
-  trustDelta: number;      // trust delta in last 7 days (negative = drop)
 }): number {
   const now = Date.now();
   const ageHours = (now - params.createdAt) / 3600000;
   
   // 1. Component Normalization (0-10)
-  const trustScore = params.videoRating;
+  const credibilityBonus = params.isCredibilityVerified ? 10 : 0;
   const engagementScore = Math.min(10, params.engagementRate * 100); 
   const recencyScore = 10 * Math.exp(-ageHours / 72); 
   const followScore = params.isSubscribed ? 10 : 0;
   const momentumScore = params.momentum * 10;
 
   // 2. Additive Weighting
-  let baseScore = (trustScore * 0.45) + 
-                  (engagementScore * 0.20) + 
-                  (recencyScore * 0.15) + 
-                  (followScore * 0.10) + 
-                  (momentumScore * 0.10);
+  let baseScore = (engagementScore * 0.35) + 
+                  (recencyScore * 0.25) + 
+                  (followScore * 0.20) + 
+                  (momentumScore * 0.15) + 
+                  (credibilityBonus * 0.05);
 
   // 3. Tier Baseline Boosts (The Moat)
   let tierBoost = {
@@ -50,11 +49,6 @@ function calculateDiscoveryScore(params: {
   // Hardening A: Soft Decay for Inactive Channels (60+ days)
   if (params.inactiveDays >= 60 && tierBoost > 0) {
     tierBoost *= 0.5; // Halve the prestige boost if dead
-  }
-
-  // Hardening B: Negative Penalty for Sharp Trust Drops (Trust Suppression)
-  if (params.trustDelta < -1.0) {
-    baseScore *= 0.7; // 30% reach suppression for credibility crisis
   }
 
   return baseScore + tierBoost;
@@ -87,10 +81,10 @@ export const getHomeFeed = onRequest(
       }
 
       // 2. Multi-Pool Candidate Selection (Simplified to avoid composite indexes)
-      // Pool A: High Trust videos - no category filter to avoid composite index
+      // Pool A: Verified videos - no category filter to avoid composite index
       const trustPool = await db().collection("videos")
-        .where("trustScore", ">=", 7.0)
-        .orderBy("trustScore", "desc")
+        .where("credibilityVerified", "==", true)
+        .orderBy("createdAt", "desc")
         .limit(40)
         .get();
 
@@ -100,9 +94,9 @@ export const getHomeFeed = onRequest(
         .limit(40)
         .get();
 
-      // Pool C: Newcomers (High Trust, Low Views, Recent)
+      // Pool C: Newcomers (Verified, Low Views, Recent)
       const newcomerPool = await db().collection("videos")
-        .where("trustScore", ">=", 8.0)
+        .where("credibilityVerified", "==", true)
         .where("viewCount", "<=", 1000)
         .orderBy("viewCount", "asc")
         .limit(10)
@@ -179,14 +173,13 @@ export const getHomeFeed = onRequest(
 
         const now = Date.now();
         const discoveryScore = calculateDiscoveryScore({
-          videoRating: data.videoRating ?? data.trustScore ?? 5.0,
+          isCredibilityVerified: data.credibilityVerified ?? false,
           createdAt: data.createdAt?.toMillis ? data.createdAt.toMillis() : (data.createdAt || Date.now()),
           engagementRate,
           isSubscribed,
           momentum: channel.reputation?.trend30d || 0,
           tier: channel.tier || "basic",
-          inactiveDays: channel.updatedAt ? (now - channel.updatedAt) / 86400000 : 0,
-          trustDelta: channel.reputation?.trend30d || 0
+          inactiveDays: channel.updatedAt ? (now - channel.updatedAt) / 86400000 : 0
         });
 
         scoredCandidates.set(doc.id, {
@@ -195,9 +188,8 @@ export const getHomeFeed = onRequest(
           discoveryScore,
           tier: channel.tier || "basic",
           recommendationReason: isSubscribed ? "Following" : 
-                               (data.viewCount <= 1000 && data.trustScore >= 8.0 ? "Rising Star" :
-                               (data.trustScore >= 9.0 ? "Elite Credibility" : 
-                               (data.momentum > 0.5 ? "Rising Fast" : "For You")))
+                               (data.credibilityVerified ? "Fact-Checked" : 
+                               (data.momentum > 0.5 ? "Rising Fast" : "For You"))
         });
       });
 
@@ -210,7 +202,7 @@ export const getHomeFeed = onRequest(
           title: v.title,
           creatorName: v.channelName,
           channelId: v.channelId,
-          videoRating: v.videoRating ?? v.trustScore,
+          credibilityVerified: v.credibilityVerified ?? false,
           thumbnailUrl: v.thumbnailUrl,
           category: v.category,
           recommendationReason: v.recommendationReason,
@@ -240,11 +232,11 @@ export const getDiscoveryModules = onRequest(
         .limit(10)
         .get();
 
-      // 2. Trusted Today (High Trust Index videos) - Simplified to avoid composite index
-      // Fetch high trust videos, then filter by date in-memory
+      // 2. Verified Today (Fact Checked videos) - Simplified to avoid composite index
+      // Fetch verified videos, then filter by date in-memory
       const trustedVideosSnap = await db().collection("videos")
-        .where("trustScore", ">=", 8.0)
-        .orderBy("trustScore", "desc")
+        .where("credibilityVerified", "==", true)
+        .orderBy("createdAt", "desc")
         .limit(30)
         .get();
 
@@ -276,7 +268,7 @@ export const getDiscoveryModules = onRequest(
       res.status(200).json({
         modules: {
           "Elite Spotlight": eliteSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-          "Trusted Today": trustedTodaySnap.map(d => ({ id: d.id, ...d.data() })),
+          "Verified Today": trustedTodaySnap.map(d => ({ id: d.id, ...d.data() })),
           "Rising Fast": risingSnap.map(d => ({ id: d.id, ...d.data() }))
         }
       });

@@ -13,6 +13,8 @@ class ChannelEntity { // active, suspended, deleted
     this.totalViews = 0,
     this.isVerified = false,
     this.status = 'active',
+    this.category = 'other',
+    this.categories = const [],
   });
   final String id;
   final String name;
@@ -32,6 +34,8 @@ class ChannelEntity { // active, suspended, deleted
   final DateTime updatedAt;
   final bool isVerified;
   final String status;
+  final String category;
+  final List<String> categories;
 
   @override
   bool operator ==(Object other) =>

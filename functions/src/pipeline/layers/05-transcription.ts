@@ -29,6 +29,9 @@ import { logger } from "../utils/logger";
 import { costEngine } from "../services/cost-engine";
 import { reputationService } from "../services/reputationService"; // v7.3
 import { PIPELINE_CONFIG } from "../config";
+import { videoGatewayService } from "../services/videoGatewayService";
+import { copyrightDetectionService } from "../services/copyrightDetection";
+import { copyrightClaimsService } from "../services/copyrightClaims";
 
 const ASSEMBLY_BASE = "https://api.assemblyai.com/v2";
 const db = () => admin.firestore();
@@ -204,10 +207,160 @@ export class TranscriptionLayer {
       // Cost Tracking
       costEngine.recordTranscriptionCost(jobId, userId, enhanced.duration).catch(() => {});
 
-      // 5. Atomic completion & Fan-out check
+      // 5. Gemini Video Moderation Gateway Check
+      const gatewayDecision = await videoGatewayService.evaluateVideo(
+        jobId,
+        enhanced.text,
+        enhanced.segments,
+        executionPlan
+      );
+
+      const targetVideoId = (executionPlan as any).videoId || jobId;
+      await db().collection("video_jobs").doc(jobId).set({
+        gatewayDecision,
+        updatedAt: Date.now()
+      }, { merge: true });
+
+      // HALT DOWNSTREAM PROCESSING IF REJECTED
+      if (gatewayDecision.status === "REJECTED") {
+        logger.warn("[Transcription Gateway] VIDEO REJECTED by Gateway — halting transcoding and publishing", {
+          jobId,
+          rejectionReason: gatewayDecision.rejectionReason,
+          violatingPolicies: gatewayDecision.violatingPolicies
+        });
+        await EdgeLayer.updateStageSync(jobId, "transcription", {
+          status: "failed",
+          error: `Video rejected by Gateway: ${gatewayDecision.rejectionReason}`
+        });
+        return { submitted: true }; // HALT
+      }
+
+      // HALT DOWNSTREAM PROCESSING IF MANUAL_REVIEW
+      if (gatewayDecision.status === "MANUAL_REVIEW") {
+        logger.warn("[Transcription Gateway] VIDEO SENT TO MANUAL REVIEW — queueing in Admin Portal & halting transcoding", {
+          jobId,
+          reviewReason: gatewayDecision.reviewReason,
+          sensitiveTopics: gatewayDecision.sensitiveTopics
+        });
+        await db().collection("admin_review_queue").doc(jobId).set({
+          jobId,
+          userId,
+          videoUrl,
+          transcriptText: enhanced.text,
+          gatewayDecision,
+          queuedAt: Date.now(),
+          status: "pending"
+        });
+        await EdgeLayer.updateStageSync(jobId, "transcription", {
+          status: "completed",
+          progress: 100
+        });
+        return { submitted: true }; // HALT UNTIL ADMIN APPROVAL
+      }
+
+      // ── APPROVED: PUBLISH VIDEO, THUMBNAIL & ALL METADATA TO FIRESTORE FIRST ──
+      const thumbnailUrl = (executionPlan as any).thumbnailUrl || (executionPlan as any).thumbnail || "";
+
+      const publicationData = {
+        id: targetVideoId,
+        jobId: jobId,
+        userId: userId,
+        videoUrl: videoUrl,
+        thumbnailUrl: thumbnailUrl,
+        title: (executionPlan as any).title || "Untitled Video",
+        description: (executionPlan as any).description || gatewayDecision.summary || "",
+        summary: gatewayDecision.summary || "",
+        category: gatewayDecision.category || "General",
+        tags: gatewayDecision.tags || [],
+        autoChapters: gatewayDecision.autoChapters || [],
+        gatewayDecision,
+        gatewayStatus: "APPROVED",
+        status: "published",
+        isPublished: true,
+        metadataComplete: true,
+        publishedAt: Date.now(),
+        updatedAt: Date.now()
+      };
+
+      // ── PARALLEL COPYRIGHT DETECTION AT STEP 4 ──
+      const copyrightMatchResult = await copyrightDetectionService.detectCopyright({
+        videoId: targetVideoId,
+        ownerId: userId,
+        channelId: (executionPlan as any).channelId || "unknown",
+        md5Hash: null,
+        transcript: enhanced.text,
+        summary: gatewayDecision.summary || "",
+        duration: enhanced.duration || 60,
+        summaryEmbedding: [],
+        transcriptHash: "",
+        chunks: []
+      }).catch((err: any) => {
+        logger.warn("[Transcription Gateway] Parallel copyright detection warning", { err });
+        return { hasMatch: false, matches: [] };
+      });
+
+      if (copyrightMatchResult.hasMatch && copyrightMatchResult.matches.length > 0) {
+        const topMatch = copyrightMatchResult.matches[0];
+
+        // Calculate total matched duration across segments (in seconds)
+        const totalMatchedSeconds = (topMatch.matchedSegments || []).reduce(
+          (sum: number, s: any) => sum + Math.max(0, (s.infringingEnd || 0) - (s.infringingStart || 0)), 0
+        );
+
+        const isExactMd5 = topMatch.matchType === "exact_md5";
+        
+        // ── INDUSTRY STANDARD ACCEPTABLE LIMITS ──
+        // 1. Clips under 15 seconds used for quotes/commentary are acceptable Fair Use
+        // 2. Substantial matches (>= 15 seconds or exact MD5) trigger Step 4 Copyright Hold
+        const isAcceptableFairUse = !isExactMd5 && (totalMatchedSeconds > 0 && totalMatchedSeconds <= 15);
+
+        if (isExactMd5 || (topMatch.score >= 0.70 && !isAcceptableFairUse)) {
+          logger.warn(`🛑 [Copyright Gateway] Substantial Copyright Match (score: ${topMatch.score}, duration: ${totalMatchedSeconds}s). Pausing Step 4 & notifying copyright owner.`, { topMatch });
+
+          await copyrightClaimsService.handleStep4CopyrightMatch(
+            jobId,
+            targetVideoId,
+            userId,
+            (executionPlan as any).channelId || "unknown",
+            publicationData.title,
+            thumbnailUrl,
+            topMatch
+          );
+
+          return { submitted: true }; // PAUSE PIPELINE AT STEP 4 FOR COPYRIGHT OWNER DECISION
+        } else {
+          logger.info(`🟢 [Copyright Gateway] Copyright match within Industry Standard Acceptable Limits (duration: ${totalMatchedSeconds}s, score: ${topMatch.score}). Auto-cleared as Fair Use.`);
+        }
+      }
+
+      // Write & Await Firestore Publish Completion
+      await Promise.all([
+        db().collection("videos").doc(targetVideoId).set(publicationData, { merge: true }),
+        db().collection("video_jobs").doc(jobId).set({
+          gatewayDecision,
+          status: "published",
+          metadataComplete: true,
+          publishedAt: Date.now(),
+          updatedAt: Date.now()
+        }, { merge: true })
+      ]);
+
+      // VERIFY Firestore Publication Succeeded Before Triggering Downstream Services
+      const verifySnap = await db().collection("videos").doc(targetVideoId).get();
+      if (!verifySnap.exists || !verifySnap.data()?.isPublished) {
+        throw new Error(`[Transcription Gateway] Firestore video publishing failed for videoId: ${targetVideoId}. Downstream jobs aborted.`);
+      }
+
+      logger.info(`[Transcription Gateway] Video, thumbnail & metadata SUCCESSFULLY PUBLISHED into Firestore for videoId: ${targetVideoId}. Now initiating downstream resolutions and AI feature services.`, {
+        videoId: targetVideoId,
+        category: gatewayDecision.category,
+        thumbnailUrl
+      });
+
+      // ── NOW (AND ONLY NOW) TRIGGER DOWNSTREAM RESOLUTION TRANSCODING & AI FEATURES ──
       await aggregationLayer.onStageComplete(jobId, "transcription", userId, executionPlan);
 
-      // 6. Fan-out immediately (Fact-checking, Dubbing, and Copyright)
+      // Fan-out immediately (Fact-checking, Dubbing, Transcoding, and Copyright)
       const fanoutTasks: Promise<any>[] = [];
       
       // Fan-out to copyright check (always required)
@@ -221,7 +374,18 @@ export class TranscriptionLayer {
         source: "transcription-polling"
       }));
 
-      if (executionPlan.enablePath1) {
+      // ── AFTER STEP 4: TRIGGER ONLY FEATURES REQUESTED BY THE CHANNEL ──
+
+      // 1. Credibility Feature (Fact Checking & 3D Trust Score)
+      const shouldRunCredibility = !!(
+        executionPlan.enablePath1 ||
+        executionPlan.enableTruthEngine ||
+        (executionPlan as any).enableCredibility ||
+        (executionPlan as any).enableFactChecking
+      );
+
+      if (shouldRunCredibility) {
+        logger.info(`[Transcription Gateway] Channel requested CREDIBILITY feature for job ${jobId} — launching fact-processing`);
         fanoutTasks.push(this.distribution.publish("fact-processing", {
           eventId: `fact_${jobId}`,
           eventType: "fact-processing",
@@ -231,20 +395,21 @@ export class TranscriptionLayer {
           retryCount: 0,
           source: "transcription-polling"
         }));
+      } else {
+        logger.info(`[Transcription Gateway] Credibility feature NOT requested by channel for job ${jobId} — skipping fact-checking`);
       }
 
-      // Restore Path 2 (ReachEngine) fan-out for immediate processing
-      if (executionPlan.enablePath2 || executionPlan.enableReachEngine) {
-        fanoutTasks.push(this.distribution.publish("dubbing-processing", {
-          eventId: `dub_${jobId}`,
-          eventType: "dubbing-processing",
-          jobId, userId,
-          timestamp: Date.now(),
-          data: { videoUrl, executionPlan },
-          retryCount: 0,
-          source: "transcription-polling"
-        }));
-      }
+      // 2. Multi-Resolution Video Transcoding (1080p, 720p, 480p, 360p) & Reach Engine — ALWAYS REQUIRED for Approved Videos
+      logger.info(`[Transcription Gateway] Video approved & published in Firestore — ALWAYS launching multi-resolution transcoding (1080p, 720p, 480p, 360p) for job ${jobId}`);
+      fanoutTasks.push(this.distribution.publish("dubbing-processing", {
+        eventId: `dub_${jobId}`,
+        eventType: "dubbing-processing",
+        jobId, userId,
+        timestamp: Date.now(),
+        data: { videoUrl, executionPlan },
+        retryCount: 0,
+        source: "transcription-polling"
+      }));
 
       await Promise.all(fanoutTasks);
       await this.distribution.markEventCompleted(eventId);

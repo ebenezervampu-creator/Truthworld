@@ -4,10 +4,9 @@ import 'package:get/get.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/dashboard_comments_controller.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/theme/app_colors.dart';
-import 'package:truthworld/theme/app_theme.dart';
 
-/// Professional YouTube Studio Comment Management Page
-/// Built with GetX, App Colors & Typography Design Tokens
+/// Exact YouTube Studio Architecture Comment Management Page
+/// Optimized for Mobile (Android/iOS) and Responsive Desktop Layouts
 class DashboardCommentsPage extends StatefulWidget {
   const DashboardCommentsPage({super.key});
 
@@ -15,7 +14,8 @@ class DashboardCommentsPage extends StatefulWidget {
   State<DashboardCommentsPage> createState() => _DashboardCommentsPageState();
 }
 
-class _DashboardCommentsPageState extends State<DashboardCommentsPage> with SingleTickerProviderStateMixin {
+class _DashboardCommentsPageState extends State<DashboardCommentsPage>
+    with SingleTickerProviderStateMixin {
   late final DashboardCommentsController controller;
   late final TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
@@ -50,197 +50,270 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final bgPageColor = isDarkMode ? AppColors.bgPage : Colors.grey.shade50;
 
     return Scaffold(
-      backgroundColor: isDarkMode ? AppColors.bgPage : AppColors.textSecondary,
-      body: Column(
-        children: [
-          // ── Studio Comments Top Bar & Tabs ──
-          _buildHeaderBar(context, isDarkMode),
+      backgroundColor: bgPageColor,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isMobile = constraints.maxWidth < 768;
 
-          // ── Filter Toolbar ──
-          _buildFilterToolbar(context, isDarkMode),
+          return Column(
+            children: [
+              // ── YouTube Studio Header Bar & Navigation Tabs ──
+              _buildHeaderBar(context, isDarkMode, isMobile),
 
-          // ── Main Body Split View ──
-          Expanded(
-            child: Obx(() {
-              if (controller.videosError.value != null) {
-                return _buildErrorState(controller.videosError.value!);
-              }
+              // ── YouTube Studio Horizontal Filter Chips Toolbar ──
+              _buildFilterToolbar(context, isDarkMode, isMobile),
 
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Left Pane: Video Selector
-                  Container(
-                    width: 320,
-                    decoration: BoxDecoration(
-                      color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
-                      border: Border(
-                        right: BorderSide(
-                          color: isDarkMode ? AppColors.bgDivider : AppColors.textSecondary,
+              // ── Main Comments Stream & Desktop Layout ──
+              Expanded(
+                child: Obx(() {
+                  if (isMobile) {
+                    return _buildCommentsPane(isDarkMode, isMobile);
+                  }
+
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Left Pane: Video Selector (Desktop / Tablet)
+                      Container(
+                        width: 320,
+                        decoration: BoxDecoration(
+                          color: isDarkMode ? AppColors.bgSurface : Colors.white,
+                          border: Border(
+                            right: BorderSide(
+                              color: isDarkMode
+                                  ? AppColors.bgDivider
+                                  : Colors.grey.shade300,
+                            ),
+                          ),
                         ),
+                        child: _buildVideoSelectorPane(isDarkMode),
                       ),
-                    ),
-                    child: _buildVideoSelectorPane(isDarkMode),
-                  ),
 
-                  // Right Pane: Comments Stream
-                  Expanded(
-                    child: _buildCommentsPane(isDarkMode),
-                  ),
-                ],
-              );
-            }),
-          ),
-        ],
+                      // Right Pane: Comments Stream
+                      Expanded(
+                        child: _buildCommentsPane(isDarkMode, isMobile),
+                      ),
+                    ],
+                  );
+                }),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // HEADER BAR & TABS
+  // 1. YOUTUBE STUDIO HEADER BAR & SUB-HEADER TABS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  Widget _buildHeaderBar(BuildContext context, bool isDarkMode) {
+  Widget _buildHeaderBar(BuildContext context, bool isDarkMode, bool isMobile) {
+    final bgSurface = isDarkMode ? AppColors.bgPage : Colors.white;
+    final textColor = isDarkMode ? AppColors.textPrimary : Colors.black87;
+    final subtitleColor = isDarkMode ? AppColors.textSecondary : Colors.grey.shade700;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: BoxDecoration(
-        color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
+        color: bgSurface,
         border: Border(
           bottom: BorderSide(
-            color: isDarkMode ? AppColors.bgDivider : AppColors.textSecondary,
+            color: isDarkMode
+                ? AppColors.bgDivider
+                : Colors.grey.shade200,
           ),
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.brand.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
+          // Studio Title Row
+          Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: isMobile ? 16 : 24,
+              vertical: isMobile ? 12 : 16,
             ),
-            child: const Icon(Icons.forum_rounded, color: AppColors.brand, size: 24),
-          ),
-          const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Channel Comments',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.brand.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.comment_rounded,
+                    color: AppColors.brand,
+                    size: 20,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Manage, heart, and reply to viewer comments across all videos',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Channel comments',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: isMobile ? 18 : 22,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Manage and reply to viewer comments across all your videos',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: subtitleColor,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          // Tabs (Published vs Held for Review)
-          Container(
-            height: 40,
-            decoration: BoxDecoration(
-              color: isDarkMode ? AppColors.bgInput : AppColors.textSecondary,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              isScrollable: true,
-              indicatorSize: TabBarIndicatorSize.tab,
-              indicator: BoxDecoration(
-                color: AppColors.brand,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              labelColor: AppColors.textPrimary,
-              unselectedLabelColor: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
-              labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-              tabs: const [
-                Tab(text: 'Published'),
-                Tab(text: 'Held for Review'),
               ],
             ),
           ),
+
+          // YouTube Studio Tabs (Published vs Held for Review)
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TabBar(
+                controller: _tabController,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                indicatorColor: AppColors.brand,
+                indicatorWeight: 3,
+                indicatorSize: TabBarIndicatorSize.label,
+                labelColor: isDarkMode ? AppColors.textPrimary : Colors.black,
+                unselectedLabelColor: subtitleColor,
+                labelStyle: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+                dividerColor: Colors.transparent,
+                padding: EdgeInsets.zero,
+                labelPadding: const EdgeInsets.only(right: 24, bottom: 8),
+                tabs: const [
+                  Tab(text: 'Published'),
+                  Tab(text: 'Held for review'),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // FILTER TOOLBAR
+  // 2. YOUTUBE STUDIO HORIZONTAL FILTER CHIPS TOOLBAR
   // ═══════════════════════════════════════════════════════════════════════════
 
-  Widget _buildFilterToolbar(BuildContext context, bool isDarkMode) {
+  Widget _buildFilterToolbar(BuildContext context, bool isDarkMode, bool isMobile) {
+    final bgSurface = isDarkMode ? AppColors.bgPage : Colors.grey.shade100;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 16 : 24,
+        vertical: 10,
+      ),
       decoration: BoxDecoration(
-        color: isDarkMode ? AppColors.bgPage : AppColors.textSecondary,
+        color: bgSurface,
         border: Border(
           bottom: BorderSide(
-            color: isDarkMode ? AppColors.bgDivider : AppColors.textSecondary,
+            color: isDarkMode
+                ? AppColors.bgDivider
+                : Colors.grey.shade300,
           ),
         ),
       ),
-      child: Row(
-        children: [
-          // Filter Chips
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildFilterChip('all', 'All Comments', Icons.chat_bubble_outline_rounded, isDarkMode),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('unanswered', "I haven't responded", Icons.reply_rounded, isDarkMode),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('answered', 'Responded', Icons.done_all_rounded, isDarkMode),
-                  const SizedBox(width: 8),
-                  _buildFilterChip('hearted', 'With Creator Heart ❤️', Icons.favorite_rounded, isDarkMode),
-                ],
-              ),
-            ),
-          ),
-
-          // Search Field
-          Container(
-            width: 240,
-            height: 36,
-            decoration: BoxDecoration(
-              color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: isDarkMode ? AppColors.bgDivider : AppColors.textSecondary,
-              ),
-            ),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (val) => controller.setSearchQuery(val),
-              style: TextStyle(
-                fontSize: 13,
-                color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
-              ),
-              decoration: InputDecoration(
-                hintText: 'Search comments...',
-                hintStyle: TextStyle(
-                  fontSize: 12,
-                  color: isDarkMode ? AppColors.textTertiary : AppColors.textSecondary,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            // Search Input Pill
+            Container(
+              height: 36,
+              width: isMobile ? 180 : 220,
+              decoration: BoxDecoration(
+                color: isDarkMode ? AppColors.bgInput : Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: isDarkMode
+                      ? AppColors.bgDivider
+                      : Colors.grey.shade400,
                 ),
-                prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.textTertiary),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.only(top: 8),
+              ),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (val) => controller.setSearchQuery(val),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'Search comments...',
+                  hintStyle: TextStyle(
+                    fontSize: 12,
+                    color: isDarkMode ? AppColors.textTertiary : Colors.grey.shade600,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    size: 18,
+                    color: AppColors.textTertiary,
+                  ),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? GestureDetector(
+                          onTap: () {
+                            _searchController.clear();
+                            controller.setSearchQuery('');
+                          },
+                          child: const Icon(
+                            Icons.clear_rounded,
+                            size: 16,
+                            color: AppColors.textTertiary,
+                          ),
+                        )
+                      : null,
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                ),
               ),
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+
+            // Filter Chips
+            _buildFilterChip('all', 'All', Icons.chat_bubble_outline_rounded, isDarkMode),
+            const SizedBox(width: 6),
+            _buildFilterChip('unanswered', "I haven't responded", Icons.reply_rounded, isDarkMode),
+            const SizedBox(width: 6),
+            _buildFilterChip('answered', 'Responded', Icons.done_all_rounded, isDarkMode),
+            const SizedBox(width: 6),
+            _buildFilterChip('hearted', 'With Creator Heart ❤️', Icons.favorite_rounded, isDarkMode),
+
+            // Video Filter Selector Chip for Mobile
+            if (isMobile) ...[
+              const SizedBox(width: 6),
+              _buildMobileVideoDropdownChip(isDarkMode),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -248,30 +321,165 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
   Widget _buildFilterChip(String id, String label, IconData icon, bool isDarkMode) {
     return Obx(() {
       final isSelected = _selectedFilterChip.value == id;
-      return ChoiceChip(
-        avatar: Icon(icon, size: 14, color: isSelected ? AppColors.textPrimary : AppColors.brand),
-        label: Text(label),
-        selected: isSelected,
-        onSelected: (selected) {
-          if (selected) {
-            _selectedFilterChip.value = id;
-            if (id == 'answered' || id == 'unanswered' || id == 'all') {
-              controller.setCommentFilter(id);
-            }
+      return GestureDetector(
+        onTap: () {
+          _selectedFilterChip.value = id;
+          if (id == 'answered' || id == 'unanswered' || id == 'all') {
+            controller.setCommentFilter(id);
           }
         },
-        selectedColor: AppColors.brand,
-        backgroundColor: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
-        labelStyle: TextStyle(
-          fontSize: 12,
-          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-          color: isSelected ? AppColors.textPrimary : (isDarkMode ? AppColors.textPrimary : AppColors.bgPage),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.brand
+                : (isDarkMode ? AppColors.bgSurface : Colors.white),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isSelected
+                  ? AppColors.brand
+                  : (isDarkMode
+                      ? AppColors.bgDivider
+                      : Colors.grey.shade400),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 14,
+                color: isSelected
+                    ? Colors.white
+                    : (isDarkMode ? AppColors.textSecondary : Colors.grey.shade700),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                  color: isSelected
+                      ? Colors.white
+                      : (isDarkMode ? AppColors.textPrimary : Colors.black87),
+                ),
+              ),
+            ],
+          ),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: isSelected ? AppColors.brand : (isDarkMode ? AppColors.bgDivider : AppColors.textSecondary),
+      );
+    });
+  }
+
+  Widget _buildMobileVideoDropdownChip(bool isDarkMode) {
+    return Obx(() {
+      final selectedId = controller.selectedVideoId.value;
+      final videos = controller.videosWithComments;
+      final selectedVideo = videos.firstWhereOrNull((v) => v.videoId == selectedId);
+
+      final labelText = selectedId == null
+          ? 'All Videos (${controller.allComments.length})'
+          : '${selectedVideo?.title ?? "Video"} (${selectedVideo?.commentCount ?? 0})';
+
+      return PopupMenuButton<String?>(
+        tooltip: 'Filter by video',
+        color: isDarkMode ? AppColors.bgSurface : Colors.white,
+        onSelected: (vId) => controller.selectVideo(vId),
+        itemBuilder: (context) => [
+          PopupMenuItem<String?>(
+            child: Row(
+              children: [
+                const Icon(Icons.video_library_rounded, size: 18, color: AppColors.brand),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'All Videos (${controller.allComments.length})',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: selectedId == null ? FontWeight.bold : FontWeight.normal,
+                      color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const PopupMenuDivider(),
+          ...videos.map((video) {
+            return PopupMenuItem<String?>(
+              value: video.videoId,
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: video.thumbnail.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: video.thumbnail,
+                            width: 24,
+                            height: 18,
+                            fit: BoxFit.cover,
+                            errorWidget: (context, url, err) =>
+                                const Icon(Icons.play_circle_outline, size: 14),
+                          )
+                        : const Icon(Icons.ondemand_video_rounded, size: 16, color: AppColors.brand),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      '${video.title} (${video.commentCount})',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: selectedId == video.videoId ? FontWeight.bold : FontWeight.normal,
+                        color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: selectedId != null
+                ? AppColors.brand.withValues(alpha: 0.2)
+                : (isDarkMode ? AppColors.bgSurface : Colors.white),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: selectedId != null
+                  ? AppColors.brand
+                  : (isDarkMode ? AppColors.bgDivider : Colors.grey.shade400),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.video_collection_rounded, size: 14, color: AppColors.brand),
+              const SizedBox(width: 6),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 140),
+                child: Text(
+                  labelText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.arrow_drop_down_rounded,
+                size: 18,
+                color: isDarkMode ? AppColors.textSecondary : Colors.grey.shade700,
+              ),
+            ],
           ),
         ),
       );
@@ -279,7 +487,7 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // LEFT PANE: VIDEO SELECTOR
+  // 3. LEFT PANE: VIDEO SELECTOR (DESKTOP / TABLET)
   // ═══════════════════════════════════════════════════════════════════════════
 
   Widget _buildVideoSelectorPane(bool isDarkMode) {
@@ -298,89 +506,93 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'VIDEOS',
+                'YOUR VIDEOS',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 1.1,
-                  color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                  letterSpacing: 1.2,
+                  color: isDarkMode ? AppColors.textSecondary : Colors.grey.shade700,
                 ),
               ),
               Text(
                 '${videos.length} videos',
                 style: TextStyle(
                   fontSize: 12,
-                  color: isDarkMode ? AppColors.textTertiary : AppColors.textSecondary,
+                  color: isDarkMode ? AppColors.textTertiary : Colors.grey.shade600,
                 ),
               ),
             ],
           ),
         ),
-        const Divider(height: 1, color: AppColors.bgDivider),
+        Divider(height: 1, color: isDarkMode ? AppColors.bgDivider : Colors.grey.shade300),
 
-        // "All Videos" option
+        // "All Videos" Option
         ListTile(
+          dense: true,
           selected: controller.selectedVideoId.value == null,
           selectedTileColor: AppColors.brand.withValues(alpha: 0.15),
-          leading: const Icon(Icons.video_library_rounded, color: AppColors.brand),
+          leading: const Icon(Icons.video_library_rounded, color: AppColors.brand, size: 20),
           title: Text(
             'All Videos',
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: controller.selectedVideoId.value == null ? FontWeight.bold : FontWeight.w500,
-              color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+              color: isDarkMode ? AppColors.textPrimary : Colors.black87,
             ),
           ),
           subtitle: Text(
-            '${controller.allComments.length} total comments',
+            '${controller.allComments.length} comments',
             style: TextStyle(
-              fontSize: 12,
-              color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+              fontSize: 11,
+              color: isDarkMode ? AppColors.textSecondary : Colors.grey.shade600,
             ),
           ),
           onTap: () => controller.selectVideo(null),
         ),
-        const Divider(height: 1, color: AppColors.bgDivider),
+        Divider(height: 1, color: isDarkMode ? AppColors.bgDivider : Colors.grey.shade300),
 
-        // Videos list
+        // Video list
         Expanded(
           child: ListView.separated(
             itemCount: videos.length,
-            separatorBuilder: (context, index) => const Divider(height: 1, color: AppColors.bgDivider),
+            separatorBuilder: (context, index) =>
+                Divider(height: 1, color: isDarkMode ? AppColors.bgDivider : Colors.grey.shade200),
             itemBuilder: (context, index) {
               final video = videos[index];
               final isSelected = controller.selectedVideoId.value == video.videoId;
 
               return ListTile(
+                dense: true,
                 selected: isSelected,
                 selectedTileColor: AppColors.brand.withValues(alpha: 0.15),
                 leading: ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(4),
                   child: video.thumbnail.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: video.thumbnail,
-                          width: 48,
-                          height: 36,
+                          width: 44,
+                          height: 32,
                           fit: BoxFit.cover,
-                          errorWidget: (context, url, err) => Container(color: AppColors.textSecondary),
+                          errorWidget: (context, url, err) =>
+                              ColoredBox(color: Colors.grey.shade800, child: const Icon(Icons.play_arrow, size: 16)),
                         )
-                      : Container(width: 48, height: 36, color: AppColors.textSecondary),
+                      : ColoredBox(color: Colors.grey.shade800, child: const SizedBox(width: 44, height: 32)),
                 ),
                 title: Text(
                   video.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                    color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                    color: isDarkMode ? AppColors.textPrimary : Colors.black87,
                   ),
                 ),
                 subtitle: Text(
                   '${video.formattedCommentCount} • ${video.formattedViewCount} views',
                   style: TextStyle(
-                    fontSize: 11,
-                    color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                    fontSize: 10.5,
+                    color: isDarkMode ? AppColors.textSecondary : Colors.grey.shade600,
                   ),
                 ),
                 onTap: () => controller.selectVideo(video.videoId),
@@ -393,10 +605,10 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // RIGHT PANE: COMMENTS STREAM
+  // 4. RIGHT PANE / MAIN BODY: COMMENTS STREAM
   // ═══════════════════════════════════════════════════════════════════════════
 
-  Widget _buildCommentsPane(bool isDarkMode) {
+  Widget _buildCommentsPane(bool isDarkMode, bool isMobile) {
     if (controller.isLoadingComments.value) {
       return const Center(child: CircularProgressIndicator(color: AppColors.brand));
     }
@@ -406,7 +618,11 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
     // Search query filtering
     if (_searchController.text.isNotEmpty) {
       final query = _searchController.text.toLowerCase();
-      comments = comments.where((c) => c.text.toLowerCase().contains(query) || c.displayName.toLowerCase().contains(query)).toList();
+      comments = comments
+          .where((c) =>
+              c.text.toLowerCase().contains(query) ||
+              c.displayName.toLowerCase().contains(query))
+          .toList();
     }
 
     // Hearted filter
@@ -416,169 +632,229 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
 
     if (comments.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.forum_outlined, size: 56, color: isDarkMode ? AppColors.textTertiary : AppColors.textSecondary),
-            const SizedBox(height: 12),
-            Text(
-              'No Comments Match Criteria',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.chat_bubble_outline_rounded,
+                size: 48,
+                color: isDarkMode ? AppColors.textTertiary : Colors.grey.shade400,
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Try adjusting your search query or filter chips.',
-              style: TextStyle(
-                fontSize: 13,
-                color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+              const SizedBox(height: 12),
+              Text(
+                'No comments found',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              Text(
+                'Try adjusting your search query or filter chips.',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDarkMode ? AppColors.textSecondary : Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(20),
+    return ListView.separated(
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 0 : 16,
+        vertical: isMobile ? 0 : 12,
+      ),
       itemCount: comments.length,
+      separatorBuilder: (context, index) => Divider(
+        height: 1,
+        thickness: 1,
+        color: isDarkMode ? AppColors.bgDivider : Colors.grey.shade200,
+      ),
       itemBuilder: (context, index) {
         final comment = comments[index];
-        return _buildYouTubeStyleCommentCard(context, comment, isDarkMode);
+        return _buildYouTubeStyleCommentCard(context, comment, isDarkMode, isMobile);
       },
     );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // YOUTUBE STUDIO STYLE COMMENT CARD
+  // 5. EXACT YOUTUBE STUDIO COMMENT ITEM ARCHITECTURE
   // ═══════════════════════════════════════════════════════════════════════════
 
-  Widget _buildYouTubeStyleCommentCard(BuildContext context, Comment comment, bool isDarkMode) {
+  Widget _buildYouTubeStyleCommentCard(
+      BuildContext context, Comment comment, bool isDarkMode, bool isMobile) {
     final isLiked = controller.isCommentLikedByCreator(comment);
     final isDisliked = controller.isCommentDislikedByCreator(comment);
     final isHearted = comment.isHeartedByCreator;
     final showReplyBox = _activeReplyBoxes[comment.id] ?? false;
 
     // Find parent video if available
-    final video = controller.videosWithComments.firstWhereOrNull((v) => v.videoId == comment.videoId);
+    final video = controller.videosWithComments
+        .firstWhereOrNull((v) => v.videoId == comment.videoId);
+
+    final cardBg = isDarkMode ? AppColors.bgPage : Colors.white;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDarkMode ? AppColors.bgDivider : AppColors.textSecondary,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.bgPage.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+      color: cardBg,
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 16 : 20,
+        vertical: 14,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Video Context Header Bar ──
-          if (video != null) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: isDarkMode ? AppColors.bgInput : AppColors.textSecondary,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.ondemand_video_rounded, size: 14, color: AppColors.brand),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      video.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+          // ── Video Context Bar (Thumbnail + Title Bar) ──
+          if (video != null || comment.videoId.isNotEmpty) ...[
+            GestureDetector(
+              onTap: () {
+                if (video != null) {
+                  controller.selectVideo(video.videoId);
+                }
+              },
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isDarkMode
+                      ? AppColors.bgSurface
+                      : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(3),
+                      child: video?.thumbnail.isNotEmpty ?? false
+                          ? CachedNetworkImage(
+                              imageUrl: video!.thumbnail,
+                              width: 32,
+                              height: 22,
+                              fit: BoxFit.cover,
+                              errorWidget: (context, url, err) =>
+                                  const Icon(Icons.play_circle_outline, size: 14),
+                            )
+                          : const Icon(Icons.ondemand_video_rounded,
+                              size: 16, color: AppColors.brand),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        video?.title ?? 'Video: ${comment.videoId}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                    if (video != null) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        video.formattedCommentCount,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isDarkMode ? AppColors.textTertiary : Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
           ],
 
+          // ── Comment Header & Body Row ──
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Avatar
+              // Commenter Avatar
               CircleAvatar(
-                radius: 20,
+                radius: 18,
                 backgroundColor: AppColors.brand.withValues(alpha: 0.2),
-                backgroundImage: comment.avatarUrl.isNotEmpty ? CachedNetworkImageProvider(comment.avatarUrl) : null,
+                backgroundImage: comment.avatarUrl.isNotEmpty
+                    ? CachedNetworkImageProvider(comment.avatarUrl)
+                    : null,
                 child: comment.avatarUrl.isEmpty
                     ? Text(
-                        comment.displayName.isNotEmpty ? comment.displayName[0].toUpperCase() : 'U',
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.brand),
+                        comment.displayName.isNotEmpty
+                            ? comment.displayName[0].toUpperCase()
+                            : 'U',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.brand,
+                          fontSize: 14,
+                        ),
                       )
                     : null,
               ),
               const SizedBox(width: 12),
 
-              // Comment Details
+              // Comment Body & Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Display Name & Time Row
                     Row(
                       children: [
-                        Text(
-                          comment.displayName,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                        Expanded(
+                          child: Text(
+                            comment.displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.bold,
+                              color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Text(
                           controller.formatDateTime(comment.createdAt.toDate()),
                           style: TextStyle(
-                            fontSize: 12,
-                            color: isDarkMode ? AppColors.textTertiary : AppColors.textSecondary,
+                            fontSize: 11,
+                            color: isDarkMode ? AppColors.textTertiary : Colors.grey.shade600,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 4),
 
-                    // Comment Body Text
+                    // Comment Content Text
                     Text(
                       comment.text,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 13.5,
                         height: 1.4,
-                        color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                        color: isDarkMode ? AppColors.textPrimary : Colors.black87,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
 
-                    // ── YouTube Action Controls Row ──
+                    // ── Action Buttons Row (YouTube Studio Standard) ──
                     Row(
                       children: [
                         // Like Button
                         IconButton(
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.only(right: 6, top: 4, bottom: 4),
                           icon: Icon(
-                            isLiked ? Icons.thumb_up_alt_rounded : Icons.thumb_up_off_alt_rounded,
-                            size: 18,
-                            color: isLiked ? AppColors.brand : (isDarkMode ? AppColors.textSecondary : AppColors.textSecondary),
+                            isLiked ? Icons.thumb_up_rounded : Icons.thumb_up_alt_outlined,
+                            size: 16,
+                            color: isLiked
+                                ? AppColors.brand
+                                : (isDarkMode
+                                    ? AppColors.textSecondary
+                                    : Colors.grey.shade600),
                           ),
                           onPressed: () => controller.likeCommentAsChannel(
                             videoId: comment.videoId,
@@ -586,22 +862,31 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
                             asChannel: true,
                           ),
                         ),
-                        if (comment.likeCount > 0)
+                        if (comment.likeCount > 0) ...[
                           Text(
                             '${comment.likeCount}',
                             style: TextStyle(
-                              fontSize: 12,
-                              color: isDarkMode ? AppColors.textSecondary : AppColors.textSecondary,
+                              fontSize: 11,
+                              color: isDarkMode ? AppColors.textSecondary : Colors.grey.shade700,
                             ),
                           ),
-                        const SizedBox(width: 8),
+                          const SizedBox(width: 12),
+                        ],
 
                         // Dislike Button
                         IconButton(
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                           icon: Icon(
-                            isDisliked ? Icons.thumb_down_alt_rounded : Icons.thumb_down_off_alt_rounded,
-                            size: 18,
-                            color: isDisliked ? AppColors.error : (isDarkMode ? AppColors.textSecondary : AppColors.textSecondary),
+                            isDisliked
+                                ? Icons.thumb_down_rounded
+                                : Icons.thumb_down_alt_outlined,
+                            size: 16,
+                            color: isDisliked
+                                ? AppColors.error
+                                : (isDarkMode
+                                    ? AppColors.textSecondary
+                                    : Colors.grey.shade600),
                           ),
                           onPressed: () => controller.dislikeCommentAsChannel(
                             videoId: comment.videoId,
@@ -609,25 +894,60 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
                             asChannel: true,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 10),
 
-                        // Creator Heart ❤️ Button (YouTube Signature Feature!)
+                        // Creator Heart ❤️ Button with Avatar Badge Overlay
                         IconButton(
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                           icon: Stack(
+                            clipBehavior: Clip.none,
                             alignment: Alignment.center,
                             children: [
                               Icon(
                                 isHearted ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                                size: 20,
-                                color: isHearted ? AppColors.error : (isDarkMode ? AppColors.textSecondary : AppColors.textSecondary),
+                                size: 18,
+                                color: isHearted
+                                    ? const Color(
+                                        0xFFFF2E4C) // YouTube Creator Heart Red
+                                    : (isDarkMode
+                                        ? AppColors.textSecondary
+                                        : Colors.grey.shade600),
                               ),
                               if (isHearted)
-                                const Positioned(
-                                  bottom: 0,
-                                  right: 0,
-                                  child: CircleAvatar(
-                                    radius: 5,
-                                    backgroundColor: AppColors.brand,
+                                Positioned(
+                                  bottom: -3,
+                                  right: -4,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: isDarkMode
+                                            ? AppColors.bgPage
+                                            : Colors.white,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    child: CircleAvatar(
+                                      radius: 5,
+                                      backgroundColor: AppColors.brand,
+                                      backgroundImage: controller
+                                              .userChannelAvatar.value.isNotEmpty
+                                          ? CachedNetworkImageProvider(
+                                              controller.userChannelAvatar.value)
+                                          : null,
+                                      child: controller
+                                              .userChannelAvatar.value.isEmpty
+                                          ? const Text(
+                                              'C',
+                                              style: TextStyle(
+                                                fontSize: 6,
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            )
+                                          : null,
+                                    ),
                                   ),
                                 ),
                             ],
@@ -642,15 +962,30 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
                         const SizedBox(width: 12),
 
                         // Reply Button
-                        TextButton.icon(
-                          onPressed: () {
+                        GestureDetector(
+                          onTap: () {
                             _activeReplyBoxes[comment.id] = !showReplyBox;
                           },
-                          icon: const Icon(Icons.reply_rounded, size: 16),
-                          label: const Text('REPLY'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: AppColors.brand,
-                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.reply_rounded,
+                                  size: 15,
+                                  color: AppColors.brand,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'REPLY',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.brand,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
 
@@ -658,35 +993,54 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
 
                         // Options Menu
                         PopupMenuButton<String>(
-                          icon: Icon(Icons.more_vert_rounded, size: 18, color: isDarkMode ? AppColors.textTertiary : AppColors.textSecondary),
-                          color: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
+                          icon: Icon(
+                            Icons.more_vert_rounded,
+                            size: 18,
+                            color: isDarkMode ? AppColors.textTertiary : Colors.grey.shade600,
+                          ),
+                          padding: EdgeInsets.zero,
+                          color: isDarkMode ? AppColors.bgSurface : Colors.white,
                           onSelected: (val) {
-                            Get.snackbar('Comment Action', val, backgroundColor: AppColors.bgSurface, colorText: AppColors.textPrimary);
+                            Get.snackbar(
+                              'Comment Action',
+                              val,
+                              backgroundColor: isDarkMode ? AppColors.bgSurface : Colors.black87,
+                              colorText: Colors.white,
+                            );
                           },
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(value: 'Pin comment', child: Text('Pin comment')),
-                            const PopupMenuItem(value: 'Remove', child: Text('Remove')),
-                            const PopupMenuItem(value: 'Report', child: Text('Report spam or abuse')),
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(value: 'Pin comment', child: Text('Pin comment')),
+                            PopupMenuItem(value: 'Remove', child: Text('Remove')),
+                            PopupMenuItem(
+                                value: 'Report', child: Text('Report spam or abuse')),
                           ],
                         ),
                       ],
                     ),
 
-                    // ── Creator Reply Card (If already replied) ──
+                    // ── Creator Reply Display (If already replied) ──
                     if (comment.hasCreatorReply && comment.creatorReply != null) ...[
                       const SizedBox(height: 10),
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: AppColors.brand.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.brand.withValues(alpha: 0.3)),
+                          color: isDarkMode
+                              ? AppColors.bgSurface
+                              : Colors.purple.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: AppColors.brand.withValues(alpha: 0.3),
+                          ),
                         ),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(Icons.mark_chat_read_rounded, color: AppColors.brand, size: 18),
-                            const SizedBox(width: 10),
+                            const Icon(
+                              Icons.mark_chat_read_rounded,
+                              color: AppColors.brand,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -696,14 +1050,15 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
                                       Text(
                                         comment.creatorReply!.userName,
                                         style: const TextStyle(
-                                          fontSize: 13,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.bold,
                                           color: AppColors.brand,
                                         ),
                                       ),
                                       const SizedBox(width: 6),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 5, vertical: 1),
                                         decoration: BoxDecoration(
                                           color: AppColors.brand,
                                           borderRadius: BorderRadius.circular(4),
@@ -711,20 +1066,22 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
                                         child: const Text(
                                           'CREATOR',
                                           style: TextStyle(
-                                            fontSize: 9,
+                                            fontSize: 8,
                                             fontWeight: FontWeight.bold,
-                                            color: AppColors.textPrimary,
+                                            color: Colors.white,
                                           ),
                                         ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 4),
+                                  const SizedBox(height: 2),
                                   Text(
                                     comment.creatorReply!.text,
                                     style: TextStyle(
-                                      fontSize: 13,
-                                      color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage,
+                                      fontSize: 12,
+                                      color: isDarkMode
+                                          ? AppColors.textPrimary
+                                          : Colors.black87,
                                     ),
                                   ),
                                 ],
@@ -735,9 +1092,9 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
                       ),
                     ],
 
-                    // ── Animated Inline Reply Drawer ──
+                    // ── Inline Reply Drawer ──
                     if (showReplyBox) ...[
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
                       _buildInlineReplyDrawer(context, comment, isDarkMode),
                     ],
                   ],
@@ -751,10 +1108,11 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // INLINE REPLY DRAWER WITH QUICK CHIPS
+  // 6. INLINE REPLY DRAWER WITH QUICK CHIPS
   // ═══════════════════════════════════════════════════════════════════════════
 
-  Widget _buildInlineReplyDrawer(BuildContext context, Comment comment, bool isDarkMode) {
+  Widget _buildInlineReplyDrawer(
+      BuildContext context, Comment comment, bool isDarkMode) {
     final replyCtrl = _getReplyController(comment.id);
     final quickReplies = [
       'Thanks for watching! 🙏',
@@ -766,14 +1124,16 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDarkMode ? AppColors.bgInput : AppColors.textSecondary,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.brand.withValues(alpha: 0.4)),
+        color: isDarkMode ? AppColors.bgInput : Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: AppColors.brand.withValues(alpha: 0.4),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Quick Reply Suggestions
+          // Quick Suggestion Chips
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -782,8 +1142,12 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
                   padding: const EdgeInsets.only(right: 6, bottom: 8),
                   child: ActionChip(
                     label: Text(qr),
-                    backgroundColor: isDarkMode ? AppColors.bgSurface : AppColors.textPrimary,
-                    labelStyle: const TextStyle(fontSize: 11, color: AppColors.brand),
+                    backgroundColor: isDarkMode ? AppColors.bgSurface : Colors.white,
+                    labelStyle: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.brand,
+                      fontWeight: FontWeight.w600,
+                    ),
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     onPressed: () {
                       replyCtrl.text = qr;
@@ -798,13 +1162,23 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
             controller: replyCtrl,
             maxLines: 3,
             minLines: 1,
-            style: TextStyle(fontSize: 13, color: isDarkMode ? AppColors.textPrimary : AppColors.bgPage),
+            style: TextStyle(
+              fontSize: 13,
+              color: isDarkMode ? AppColors.textPrimary : Colors.black87,
+            ),
             decoration: InputDecoration(
               hintText: 'Reply publicly as channel...',
-              hintStyle: const TextStyle(fontSize: 12, color: AppColors.textTertiary),
+              hintStyle: TextStyle(
+                fontSize: 12,
+                color: isDarkMode ? AppColors.textTertiary : Colors.grey.shade600,
+              ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide(color: isDarkMode ? AppColors.bgDivider : AppColors.textSecondary),
+                borderSide: BorderSide(
+                  color: isDarkMode
+                      ? AppColors.bgDivider
+                      : Colors.grey.shade300,
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -814,6 +1188,7 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
             ),
           ),
           const SizedBox(height: 8),
+
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
@@ -822,7 +1197,13 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
                   _activeReplyBoxes[comment.id] = false;
                   replyCtrl.clear();
                 },
-                child: const Text('Cancel', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isDarkMode ? AppColors.textSecondary : Colors.grey.shade700,
+                  ),
+                ),
               ),
               const SizedBox(width: 8),
               ElevatedButton.icon(
@@ -836,40 +1217,25 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage> with Sing
                     );
                     _activeReplyBoxes[comment.id] = false;
                     replyCtrl.clear();
-                    Get.snackbar('Reply Sent', 'Publicly replied as channel', backgroundColor: AppColors.brand, colorText: AppColors.textPrimary);
+                    Get.snackbar(
+                      'Reply Sent',
+                      'Publicly replied as channel',
+                      backgroundColor: AppColors.brand,
+                      colorText: Colors.white,
+                    );
                   }
                 },
                 icon: const Icon(Icons.send_rounded, size: 14),
                 label: const Text('Reply'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.brand,
-                  foregroundColor: AppColors.textPrimary,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorState(String errorMsg) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.error),
-          const SizedBox(height: 12),
-          Text(
-            errorMsg,
-            style: const TextStyle(fontSize: 16, color: AppColors.error),
-          ),
-          const SizedBox(height: 12),
-          ElevatedButton(
-            onPressed: () => controller.loadCommentsForChannel(),
-            child: const Text('Retry'),
           ),
         ],
       ),

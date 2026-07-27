@@ -1254,72 +1254,84 @@ class _CategoryPageState extends State<CategoryPage>
 
   Widget _buildErrorWidget(String message) {
     return Container(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.error_outline_rounded,
-            size: 64,
-            color: AppColors.brand.withValues(alpha: 0.7),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Center(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.error_outline_rounded,
+                size: 36,
+                color: AppColors.brand.withValues(alpha: 0.7),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Something went wrong',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                message,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            'Something went wrong',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            style: TextStyle(
-              fontSize: 14,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildEmptyWidget(String message) {
     return Container(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.video_library_outlined,
-            size: 64,
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Center(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.video_library_outlined,
+                size: 36,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'No content found',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                message,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            'No content found',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            style: TextStyle(
-              fontSize: 14,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -1338,66 +1350,69 @@ class _CategoryPageState extends State<CategoryPage>
             fontWeight: FontWeight.bold,
           ),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Genre',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface,
-                fontWeight: FontWeight.w500,
+        content: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Genre',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: controller.genres
-                  .map(
-                    (genre) => FilterChip(
-                      label: Text(genre),
-                      selected: controller.selectedGenre.value == genre,
-                      onSelected: (_) {
-                        controller.selectedGenre.value = genre;
-                      },
-                      backgroundColor: AppColors.bgSurfaceContainerHighest
-                          .withValues(alpha: 0.3),
-                      selectedColor: _getCategoryColor().withValues(alpha: 0.2),
-                      checkmarkColor: _getCategoryColor(),
-                      labelStyle: TextStyle(
-                        color: controller.selectedGenre.value == genre
-                            ? _getCategoryColor()
-                            : Theme.of(context).colorScheme.onSurfaceVariant,
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: controller.genres
+                    .map(
+                      (genre) => FilterChip(
+                        label: Text(genre),
+                        selected: controller.selectedGenre.value == genre,
+                        onSelected: (_) {
+                          controller.selectedGenre.value = genre;
+                        },
+                        backgroundColor: AppColors.bgSurfaceContainerHighest
+                            .withValues(alpha: 0.3),
+                        selectedColor: _getCategoryColor().withValues(alpha: 0.2),
+                        checkmarkColor: _getCategoryColor(),
+                        labelStyle: TextStyle(
+                          color: controller.selectedGenre.value == genre
+                              ? _getCategoryColor()
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                  )
-                  .toList(),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Sort by',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface,
-                fontWeight: FontWeight.w500,
+                    )
+                    .toList(),
               ),
-            ),
-            const SizedBox(height: 8),
-            ...sortOptions.map(
-              (option) => RadioMenuButton<String>(
-                value: option,
-                groupValue: controller.selectedSort.value,
-                onChanged: (value) {
-                  controller.selectedSort.value = value!;
-                },
-                child: Text(
-                  option,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface,
+              const SizedBox(height: 16),
+              Text(
+                'Sort by',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...sortOptions.map(
+                (option) => RadioMenuButton<String>(
+                  value: option,
+                  groupValue: controller.selectedSort.value,
+                  onChanged: (value) {
+                    controller.selectedSort.value = value!;
+                  },
+                  child: Text(
+                    option,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -1437,26 +1452,29 @@ class _CategoryPageState extends State<CategoryPage>
             fontWeight: FontWeight.bold,
           ),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: sortOptions
-              .map(
-                (option) => RadioMenuButton<String>(
-                  value: option,
-                  groupValue: controller.selectedSort.value,
-                  onChanged: (value) {
-                    controller.selectedSort.value = value!;
-                    Navigator.pop(context);
-                  },
-                  child: Text(
-                    option,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurface,
+        content: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: sortOptions
+                .map(
+                  (option) => RadioMenuButton<String>(
+                    value: option,
+                    groupValue: controller.selectedSort.value,
+                    onChanged: (value) {
+                      controller.selectedSort.value = value!;
+                      Navigator.pop(context);
+                    },
+                    child: Text(
+                      option,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
                     ),
                   ),
-                ),
-              )
-              .toList(),
+                )
+                .toList(),
+          ),
         ),
       ),
     );

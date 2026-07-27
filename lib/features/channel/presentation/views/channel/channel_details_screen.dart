@@ -174,11 +174,10 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     bool isDesktop = false,
     bool isTablet = false,
   }) {
-    return Obx(() {
-      final activeTabs = controller.activeTabs;
-      final tabCount = activeTabs.length;
+    final activeTabs = controller.activeTabs;
+    final tabCount = activeTabs.length;
 
-      return DefaultTabController(
+    return DefaultTabController(
         key: ValueKey('tab-controller-${channel.channelId}-${activeTabs.join(",")}'),
         length: tabCount,
         child: NestedScrollView(
@@ -247,7 +246,6 @@ class ChannelDetailsPage extends GetView<ChannelController> {
           ),
         ),
       );
-    });
   }
 
   // ==========================================================================
@@ -316,86 +314,90 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                       ),
                     ),
                   ),
-                Obx(() {
-                  final currentUser = FirebaseAuth.instance.currentUser;
-                  if (currentUser == null || channel.ownerId != currentUser.uid) {
-                    return const SizedBox.shrink();
-                  }
+                Builder(
+                  builder: (context) {
+                    final currentUser = FirebaseAuth.instance.currentUser;
+                    if (currentUser == null || channel.ownerId != currentUser.uid) {
+                      return const SizedBox.shrink();
+                    }
 
-                  final status = controller.detailsBannerStatus.value;
-                  if (status.isEmpty || status == 'APPROVED') {
-                    return const SizedBox.shrink();
-                  }
+                    return Obx(() {
+                      final status = controller.detailsBannerStatus.value;
+                      if (status.isEmpty || status == 'APPROVED') {
+                        return const SizedBox.shrink();
+                      }
 
-                  var overlayColor = AppColors.bgPage54;
-                  var badgeColor = const Color(0xFF3B82F6);
-                  var text = 'Banner Verification Pending';
-                  var icon = Icons.sync_rounded;
-                  final isPending = status == 'PENDING';
+                      var overlayColor = AppColors.bgPage54;
+                      var badgeColor = const Color(0xFF3B82F6);
+                      var text = 'Banner Verification Pending';
+                      var icon = Icons.sync_rounded;
+                      final isPending = status == 'PENDING';
 
-                  if (status == 'REJECTED') {
-                    overlayColor = AppColors.bgPage.withValues(alpha: 0.8);
-                    badgeColor = const Color(0xFFEF4444);
-                    text = "Banner Rejected: ${controller.detailsBannerReason.value.isNotEmpty ? controller.detailsBannerReason.value : 'Violated Community Guidelines'}";
-                    icon = Icons.error_outline_rounded;
-                  } else if (status == 'FLAGGED') {
-                    overlayColor = AppColors.bgPage.withValues(alpha: 0.7);
-                    badgeColor = const Color(0xFFF59E0B);
-                    text = 'Banner Review Needed: ${controller.detailsBannerReason.value}';
-                    icon = Icons.warning_amber_rounded;
-                  }
+                      if (status == 'REJECTED') {
+                        overlayColor = AppColors.bgPage.withValues(alpha: 0.8);
+                        badgeColor = const Color(0xFFEF4444);
+                        text = "Banner Rejected: ${controller.detailsBannerReason.value.isNotEmpty ? controller.detailsBannerReason.value : 'Violated Community Guidelines'}";
+                        icon = Icons.error_outline_rounded;
+                      } else if (status == 'FLAGGED') {
+                        overlayColor = AppColors.bgPage.withValues(alpha: 0.7);
+                        badgeColor = const Color(0xFFF59E0B);
+                        text = 'Banner Review Needed: ${controller.detailsBannerReason.value}';
+                        icon = Icons.warning_amber_rounded;
+                      }
 
-                  return Positioned.fill(
-                    child: Container(
-                      color: overlayColor,
-                      padding: const EdgeInsets.all(16),
-                      child: Center(
+                      return Positioned.fill(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: badgeColor,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: badgeColor.withValues(alpha: 0.3),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (isPending)
-                                const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
+                          color: overlayColor,
+                          padding: const EdgeInsets.all(16),
+                          child: Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: badgeColor,
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: badgeColor.withValues(alpha: 0.3),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
                                   ),
-                                )
-                              else
-                                Icon(icon, color: AppColors.textPrimary, size: 18),
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  text,
-                                  style: const TextStyle(
-                                    color: AppColors.textPrimary,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
+                                ],
                               ),
-                            ],
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (isPending)
+                                    const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
+                                      ),
+                                    )
+                                  else
+                                    Icon(icon, color: AppColors.textPrimary, size: 18),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: Text(
+                                      text,
+                                      style: const TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                  );
-                }),
+                      );
+                    });
+                  },
+                ),
               ],
             ),
           ),
@@ -461,62 +463,66 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                             ),
                           ),
                         ),
-                        Obx(() {
-                          final currentUser = FirebaseAuth.instance.currentUser;
-                          if (currentUser == null || channel.ownerId != currentUser.uid) {
-                            return const SizedBox.shrink();
-                          }
+                        Builder(
+                          builder: (context) {
+                            final currentUser = FirebaseAuth.instance.currentUser;
+                            if (currentUser == null || channel.ownerId != currentUser.uid) {
+                              return const SizedBox.shrink();
+                            }
 
-                          final status = controller.detailsAvatarStatus.value;
-                          if (status.isEmpty || status == 'APPROVED') {
-                            return const SizedBox.shrink();
-                          }
+                            return Obx(() {
+                              final status = controller.detailsAvatarStatus.value;
+                              if (status.isEmpty || status == 'APPROVED') {
+                                return const SizedBox.shrink();
+                              }
 
-                          var overlayColor = AppColors.bgPage54;
-                          var badgeColor = const Color(0xFF3B82F6);
-                          var icon = Icons.sync_rounded;
-                          final isPending = status == 'PENDING';
+                              var overlayColor = AppColors.bgPage54;
+                              var badgeColor = const Color(0xFF3B82F6);
+                              var icon = Icons.sync_rounded;
+                              final isPending = status == 'PENDING';
 
-                          if (status == 'REJECTED') {
-                            overlayColor = AppColors.bgPage.withValues(alpha: 0.8);
-                            badgeColor = const Color(0xFFEF4444);
-                            icon = Icons.error_outline_rounded;
-                          } else if (status == 'FLAGGED') {
-                            overlayColor = AppColors.bgPage.withValues(alpha: 0.7);
-                            badgeColor = const Color(0xFFF59E0B);
-                            icon = Icons.warning_amber_rounded;
-                          }
+                              if (status == 'REJECTED') {
+                                overlayColor = AppColors.bgPage.withValues(alpha: 0.8);
+                                badgeColor = const Color(0xFFEF4444);
+                                icon = Icons.error_outline_rounded;
+                              } else if (status == 'FLAGGED') {
+                                overlayColor = AppColors.bgPage.withValues(alpha: 0.7);
+                                badgeColor = const Color(0xFFF59E0B);
+                                icon = Icons.warning_amber_rounded;
+                              }
 
-                          return Positioned.fill(
-                            child: ColoredBox(
-                              color: overlayColor,
-                              child: Tooltip(
-                                message: status == 'REJECTED'
-                                    ? 'Avatar Rejected: ${controller.detailsAvatarReason.value}'
-                                    : (status == 'FLAGGED' ? 'Review Needed: ${controller.detailsAvatarReason.value}' : 'Avatar Verification Pending'),
-                                child: Center(
-                                  child: Container(
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: badgeColor,
-                                      shape: BoxShape.circle,
+                              return Positioned.fill(
+                                child: ColoredBox(
+                                  color: overlayColor,
+                                  child: Tooltip(
+                                    message: status == 'REJECTED'
+                                        ? 'Avatar Rejected: ${controller.detailsAvatarReason.value}'
+                                        : (status == 'FLAGGED' ? 'Review Needed: ${controller.detailsAvatarReason.value}' : 'Avatar Verification Pending'),
+                                    child: Center(
+                                      child: Container(
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: badgeColor,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: isPending
+                                            ? const SizedBox(
+                                                width: 14,
+                                                height: 14,
+                                                child: CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
+                                                ),
+                                              )
+                                            : Icon(icon, color: AppColors.textPrimary, size: 14),
+                                      ),
                                     ),
-                                    child: isPending
-                                        ? const SizedBox(
-                                            width: 14,
-                                            height: 14,
-                                            child: CircularProgressIndicator(
-                                              strokeWidth: 2,
-                                              valueColor: AlwaysStoppedAnimation<Color>(AppColors.textPrimary),
-                                            ),
-                                          )
-                                        : Icon(icon, color: AppColors.textPrimary, size: 14),
                                   ),
                                 ),
-                              ),
-                            ),
-                          );
-                        }),
+                              );
+                            });
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -552,11 +558,15 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                     ),
                     const SizedBox(height: 4),
                     Obx(() {
-                      final handle = channel.handle.isNotEmpty
-                          ? channel.handle
-                          : '@${channel.channelName.toLowerCase().replaceAll(' ', '')}';
+                      final currentChannel = controller.selectedChannel.value ?? channel;
+                      final handle = currentChannel.handle.isNotEmpty
+                          ? currentChannel.handle
+                          : '@${currentChannel.channelName.toLowerCase().replaceAll(' ', '')}';
+                      final count = controller.channelVideoCount.value > 0
+                          ? controller.channelVideoCount.value
+                          : currentChannel.videoCount;
                       return Text(
-                        '$handle • ${controller.formattedSubscribers} subscribers • ${channel.videoCount} videos',
+                        '$handle • ${controller.formattedSubscribers} subscribers • $count videos',
                         style: TextStyle(
                           fontSize: isDesktop ? 14 : 12,
                           color: ytTextSecondary,
@@ -657,14 +667,17 @@ class ChannelDetailsPage extends GetView<ChannelController> {
         Obx(() {
           final isSubscribed = controller.isSubscribed.value;
           final notificationsEnabled = controller.notificationsEnabled.value;
+          final notificationOption = controller.notificationOption.value;
           return AnimatedSubscribeButton(
             isSubscribed: isSubscribed,
             notificationsEnabled: notificationsEnabled,
+            notificationOption: notificationOption,
+            onNotificationTap: () => _showNotificationsDialog(context, channel),
             onPressed: FirebaseAuth.instance.currentUser == null
                 ? () {}
                 : () async {
                     if (isSubscribed) {
-                      _showUnsubscribeConfirmation(context, channel);
+                      _showNotificationsDialog(context, channel);
                     } else {
                       await controller.toggleSubscription(
                         channel.channelId,
@@ -919,7 +932,16 @@ class ChannelDetailsPage extends GetView<ChannelController> {
 
         final playlists = snapshot.data!.docs
             .map(PlaylistModel.fromDocumentSnapshot)
+            .where((p) => p.thumbnailUrl.trim().isNotEmpty)
             .toList();
+
+        if (playlists.isEmpty) {
+          return _buildEmptyTabState(
+            icon: Icons.playlist_play,
+            title: 'No playlists yet',
+            subtitle: "This channel hasn't created any playlists",
+          );
+        }
 
         return _buildPlaylistGrid(
           context,
@@ -974,25 +996,26 @@ class ChannelDetailsPage extends GetView<ChannelController> {
         // Sort posts by uploadedAt descending
         posts.sort((a, b) => b.uploadedAt.compareTo(a.uploadedAt));
 
-        final crossAxisCount = isDesktop ? 3 : (isTablet ? 2 : 1);
-        final horizontalPadding = isDesktop ? 32.0 : (isTablet ? 24.0 : 16.0);
+        final horizontalPadding = isDesktop ? 64.0 : (isTablet ? 32.0 : 12.0);
+        final maxContentWidth = isDesktop ? 720.0 : (isTablet ? 600.0 : double.infinity);
 
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 16),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            childAspectRatio: isDesktop ? 1.1 : (isTablet ? 1.0 : 1.2),
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
+        return Align(
+          alignment: Alignment.topCenter,
+          child: Container(
+            constraints: BoxConstraints(maxWidth: maxContentWidth),
+            child: ListView.separated(
+              shrinkWrap: true,
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 16),
+              itemCount: posts.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 16),
+              itemBuilder: (context, index) {
+                return CommunityPostCard(
+                  post: posts[index],
+                );
+              },
+            ),
           ),
-          itemCount: posts.length,
-          itemBuilder: (context, index) {
-            return CommunityPostCard(
-              post: posts[index],
-            );
-          },
         );
       },
     );
@@ -1253,7 +1276,12 @@ class ChannelDetailsPage extends GetView<ChannelController> {
 
         final playlists = snapshot.data!.docs
             .map(PlaylistModel.fromDocumentSnapshot)
+            .where((p) => p.thumbnailUrl.trim().isNotEmpty)
             .toList();
+
+        if (playlists.isEmpty) {
+          return const SizedBox.shrink();
+        }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1290,14 +1318,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
       margin: const EdgeInsets.only(right: 12),
       child: InkWell(
         onTap: () {
-          // Check if HomeController is available (we're in home screen context)
-          if (Get.isRegistered<HomeController>()) {
-            final homeController = Get.find<HomeController>();
-            homeController.navigateToPlaylistDetail(playlist);
-          } else {
-            // Navigate to home first, then show playlist detail
-            Get.toNamed('/', arguments: {'openPlaylist': playlist});
-          }
+          Get.toNamed('/playlist-detail', arguments: {'playlist': playlist});
         },
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1310,16 +1331,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                 ),
                 child: Stack(
                   children: [
-                    if (playlist.thumbnailUrl.isNotEmpty)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: CachedNetworkImage(
-                          imageUrl: playlist.thumbnailUrl,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          height: double.infinity,
-                        ),
-                      ),
+                    _buildPlaylistThumbnailImage(playlist),
                     Container(
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(8),
@@ -1378,6 +1390,64 @@ class ChannelDetailsPage extends GetView<ChannelController> {
               style: TextStyle(fontSize: 12, color: ytTextSecondary),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlaylistThumbnailImage(PlaylistModel playlist) {
+    if (playlist.thumbnailUrl.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: CachedNetworkImage(
+          imageUrl: playlist.thumbnailUrl,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorWidget: (context, url, error) => _buildThumbnailFallback(),
+        ),
+      );
+    } else if (playlist.videoIds.isNotEmpty) {
+      return FutureBuilder<DocumentSnapshot>(
+        future: FirebaseFirestore.instance
+            .collection('videos')
+            .doc(playlist.videoIds.first)
+            .get(),
+        builder: (context, snapshot) {
+          if (snapshot.hasData && snapshot.data!.exists) {
+            final data = snapshot.data!.data() as Map<String, dynamic>?;
+            final videoThumb = data?['thumbnailUrl'] as String?;
+            if (videoThumb != null && videoThumb.isNotEmpty) {
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: CachedNetworkImage(
+                  imageUrl: videoThumb,
+                  fit: BoxFit.cover,
+                  width: double.infinity,
+                  height: double.infinity,
+                  errorWidget: (context, url, error) => _buildThumbnailFallback(),
+                ),
+              );
+            }
+          }
+          return _buildThumbnailFallback();
+        },
+      );
+    }
+    return _buildThumbnailFallback();
+  }
+
+  Widget _buildThumbnailFallback() {
+    return Container(
+      decoration: BoxDecoration(
+        color: ytSurfaceLight,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Center(
+        child: Icon(
+          Icons.playlist_play_rounded,
+          size: 36,
+          color: AppColors.brand,
         ),
       ),
     );
@@ -1504,27 +1574,33 @@ class ChannelDetailsPage extends GetView<ChannelController> {
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _buildStatItem(
-                    icon: Icons.people_outline,
-                    label: 'Subscribers',
-                    value: controller.formattedSubscribers,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildStatItem(
-                    icon: Icons.video_library_outlined,
-                    label: 'Videos',
-                    value: channel.videoCount.toString(),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildStatItem(
-                    icon: Icons.visibility_outlined,
-                    label: 'Views',
-                    value: _formatViews(channel.viewCount),
-                  ),
-                ],
-              ),
+              child: Obx(() {
+                final currentChannel = controller.selectedChannel.value ?? channel;
+                return Column(
+                  children: [
+                    _buildStatItem(
+                      icon: Icons.people_outline,
+                      label: 'Subscribers',
+                      value: controller.formattedSubscribers,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildStatItem(
+                      icon: Icons.video_library_outlined,
+                      label: 'Videos',
+                      value: (controller.channelVideoCount.value > 0
+                              ? controller.channelVideoCount.value
+                              : currentChannel.videoCount)
+                          .toString(),
+                    ),
+                    const SizedBox(height: 16),
+                    _buildStatItem(
+                      icon: Icons.visibility_outlined,
+                      label: 'Views',
+                      value: _formatViews(currentChannel.viewCount),
+                    ),
+                  ],
+                );
+              }),
             ),
           ),
         ],
@@ -1606,7 +1682,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     }
   }
 
-  void _showNotificationsDialog(BuildContext context) {
+  void _showNotificationsDialog(BuildContext context, Channel targetChannel) {
     showModalBottomSheet(
       context: context,
       backgroundColor: ytSurface,
@@ -1628,7 +1704,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
             ),
             const SizedBox(height: 16),
             const Text(
-              'Notification settings',
+              'Options',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,
@@ -1637,43 +1713,95 @@ class ChannelDetailsPage extends GetView<ChannelController> {
             ),
             const SizedBox(height: 16),
             Obx(() {
-              final isAll = controller.notificationsEnabled.value;
+              final option = controller.notificationOption.value;
+              final isAll = option == 'all';
+              final isPersonalized = option == 'personalized';
+              final isNone = option == 'none' || !controller.notificationsEnabled.value;
+
               return Column(
                 children: [
                   ListTile(
                     leading: Icon(
-                      Icons.notifications_active,
+                      Icons.notifications_active_rounded,
                       color: isAll ? AppColors.brand : ytTextPrimary,
                     ),
                     title: Text(
-                      'All notifications',
+                      'All',
                       style: TextStyle(
                         color: isAll ? AppColors.brand : ytTextPrimary,
                         fontWeight: isAll ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
+                    subtitle: const Text(
+                      "You'll get all notifications",
+                      style: TextStyle(fontSize: 12, color: ytTextSecondary),
+                    ),
                     trailing: isAll ? const Icon(Icons.check, color: AppColors.brand) : null,
                     onTap: () {
                       Navigator.pop(context);
-                      controller.updateNotificationPreference(channel!.channelId, true);
+                      controller.updateNotificationPreference(targetChannel.channelId, 'all');
                     },
                   ),
                   ListTile(
                     leading: Icon(
-                      Icons.notifications_off,
-                      color: !isAll ? AppColors.brand : ytTextPrimary,
+                      Icons.notifications_outlined,
+                      color: isPersonalized ? AppColors.brand : ytTextPrimary,
+                    ),
+                    title: Text(
+                      'Personalized',
+                      style: TextStyle(
+                        color: isPersonalized ? AppColors.brand : ytTextPrimary,
+                        fontWeight: isPersonalized ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    subtitle: const Text(
+                      "You'll get personalized notifications",
+                      style: TextStyle(fontSize: 12, color: ytTextSecondary),
+                    ),
+                    trailing: isPersonalized ? const Icon(Icons.check, color: AppColors.brand) : null,
+                    onTap: () {
+                      Navigator.pop(context);
+                      controller.updateNotificationPreference(targetChannel.channelId, 'personalized');
+                    },
+                  ),
+                  ListTile(
+                    leading: Icon(
+                      Icons.notifications_off_outlined,
+                      color: isNone ? AppColors.brand : ytTextPrimary,
                     ),
                     title: Text(
                       'None',
                       style: TextStyle(
-                        color: !isAll ? AppColors.brand : ytTextPrimary,
-                        fontWeight: !isAll ? FontWeight.bold : FontWeight.normal,
+                        color: isNone ? AppColors.brand : ytTextPrimary,
+                        fontWeight: isNone ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
-                    trailing: !isAll ? const Icon(Icons.check, color: AppColors.brand) : null,
+                    subtitle: const Text(
+                      'Turn off all notifications',
+                      style: TextStyle(fontSize: 12, color: ytTextSecondary),
+                    ),
+                    trailing: isNone ? const Icon(Icons.check, color: AppColors.brand) : null,
                     onTap: () {
                       Navigator.pop(context);
-                      controller.updateNotificationPreference(channel!.channelId, false);
+                      controller.updateNotificationPreference(targetChannel.channelId, 'none');
+                    },
+                  ),
+                  const Divider(color: ytBorder),
+                  ListTile(
+                    leading: const Icon(
+                      Icons.person_remove_outlined,
+                      color: AppColors.brand,
+                    ),
+                    title: const Text(
+                      'Unsubscribe',
+                      style: TextStyle(
+                        color: AppColors.brand,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _showUnsubscribeConfirmation(context, targetChannel);
                     },
                   ),
                 ],
@@ -1685,8 +1813,4 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     );
   }
 }
-
-
-
-
 

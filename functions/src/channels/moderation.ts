@@ -77,12 +77,8 @@ DECISION RUBRIC:
 You must respond with a JSON object matching this schema:
 {
   "approved": boolean,
-  "reason": "Provide a detailed, custom explanation of at least 2-3 sentences. Do NOT use generic templates. For approvals, explain specifically why the channel details are safe, constructive, and in alignment with our community guidelines. For rejections, specify exactly which guidelines or rules were violated, citing the specific offending words or phrases from the channel registration details.",
-  "categories": ["Category1", "Category2"]
-}
-
-Valid categories to select from (choose 1 to 3 relevant categories that best describe the channel):
-['Gaming', 'Music', 'Entertainment', 'Education', 'Technology', 'Sports', 'News', 'Lifestyle', 'Travel', 'Food', 'Fashion', 'Health', 'Business', 'Comedy', 'Science', 'Art', 'Documentary', 'Animation', 'Automotive', 'Pets & Animals', 'DIY & How-to', 'Fitness', 'Beauty', 'Finance', 'History', 'Nature', 'Spirituality', 'Kids & Family', 'Other']`,
+  "reason": "Provide a detailed, custom explanation of at least 2-3 sentences. Do NOT use generic templates. For approvals, explain specifically why the channel details are safe, constructive, and in alignment with our community guidelines. For rejections, specify exactly which guidelines or rules were violated, citing the specific offending words or phrases from the channel registration details."
+}`,
           generationConfig: {
             responseMimeType: "application/json",
           },
@@ -93,28 +89,24 @@ Valid categories to select from (choose 1 to 3 relevant categories that best des
         const result = await model.generateContent(prompt);
         const responseText = result.response.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-        let responseObj: { approved?: boolean; reason?: string; categories?: string[] };
+        let responseObj: { approved?: boolean; reason?: string };
         try {
           responseObj = JSON.parse(responseText);
         } catch (parseErr) {
           logger.error(`[onChannelWritten] Gemini returned non-JSON response for ${channelId}`, { responseText });
-          responseObj = { approved: false, reason: "AI moderation returned an invalid response format. Channel details held for review.", categories: ["Other"] };
+          responseObj = { approved: false, reason: "AI moderation returned an invalid response format. Channel details held for review." };
         }
 
         const approved = responseObj.approved === true;
         const reason = approved ? "" : (responseObj.reason || "Violated Community Guidelines");
-        const categories = Array.isArray(responseObj.categories) && responseObj.categories.length > 0
-          ? responseObj.categories.join(", ")
-          : "Other";
 
-        logger.info(`[onChannelWritten] Gemini moderation finished for ${channelId}: approved=${approved}, reason=${reason}, categories=${categories}`);
+        logger.info(`[onChannelWritten] Gemini moderation finished for ${channelId}: approved=${approved}, reason=${reason}`);
 
-        // Update channel status in Firestore
+        // Update channel status in Firestore (DO NOT overwrite creator-provided categories)
         await db().collection("channels").doc(channelId).update({
           geminiApproved: approved,
           status: approved ? "active" : "verificationRejected",
           moderationReason: reason,
-          category: categories,
           updatedAt: Date.now(),
         });
 

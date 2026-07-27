@@ -76,6 +76,7 @@ class LanguageRequestsList extends StatelessWidget {
               return const SizedBox.shrink();
             }
             final vc = Get.find<VideoController>(tag: tag);
+            vc.rxVideo.value;
             final reqs = vc.languageRequests
                 .where((r) => r.type == type)
                 .toList();

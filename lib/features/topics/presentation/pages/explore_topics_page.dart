@@ -4,15 +4,18 @@ import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
+import 'package:truthworld/components/ui/video_options_sheet.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
 import 'package:truthworld/core/utils/format_utils.dart';
 import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/topic_management_screen.dart';
+import 'package:truthworld/features/miniplayer/presentation/utils/miniplayer_utils.dart';
 import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/topics/data/models/topic_categories.dart';
 import 'package:truthworld/features/topics/presentation/controllers/explore_topics_controller.dart';
 import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
+import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class ExploreTopicsPage extends StatefulWidget {
@@ -163,16 +166,12 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                     ),
                   ),
 
-                  // Topics horizontal PageView (one-by-one) or states
+                  // Topics feed matching FollowingTopicsPage structure
                   Obx(() {
                     if (controller.isLoading.value &&
                         controller.topics.isEmpty) {
                       return SliverToBoxAdapter(
-                        child: Container(
-                          height: context.isMobile ? 360 : 540,
-                          alignment: Alignment.center,
-                          child: const _TopicPageViewShimmerWidget(),
-                        ),
+                        child: _buildLoadingState(),
                       );
                     }
 
@@ -197,8 +196,14 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
                       );
                     }
 
-                    return SliverToBoxAdapter(
-                      child: _buildTopicsPageView(context),
+                    return SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final topic = controller.topics[index];
+                          return _buildTopicVideoSection(context, topic);
+                        },
+                        childCount: controller.topics.length,
+                      ),
                     );
                   }),
                 ],
@@ -239,7 +244,13 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
   }
 
   Widget _buildCategoryGrid(BuildContext context) {
-    final categories = TopicCategoriesConfig.categories.skip(1).toList();
+    if (controller.isLoadingCategories.value && controller.availableCategories.isEmpty) {
+      return _buildCategorySkeletonGrid(context);
+    }
+    final categories = controller.availableCategories;
+    if (categories.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
     return SliverGrid(
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: context.isMobile
@@ -253,6 +264,31 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
         final category = categories[index];
         return _buildCategoryCard(context, category);
       }, childCount: categories.length),
+    );
+  }
+
+  Widget _buildCategorySkeletonGrid(BuildContext context) {
+    return SliverGrid(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: context.isMobile
+            ? 2
+            : (ResponsiveContext(context).isTablet ? 3 : 4),
+        childAspectRatio: 1.6,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      delegate: SliverChildBuilderDelegate((context, index) {
+        return Shimmer.fromColors(
+          baseColor: const Color(0xFF272727),
+          highlightColor: const Color(0xFF3F3F3F),
+          child: Container(
+            decoration: BoxDecoration(
+              color: AppColors.textPrimary,
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        );
+      }, childCount: 4),
     );
   }
 
@@ -347,6 +383,409 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
     );
   }
 
+  Widget _buildLoadingState() {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+    final isTablet = screenWidth >= 600 && screenWidth < 1024;
+    final isDesktop = screenWidth >= 1024;
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHorizontalVideoSkeleton(isMobile, isTablet, isDesktop),
+          const SizedBox(height: 24),
+          _buildHorizontalVideoSkeleton(isMobile, isTablet, isDesktop),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTopicVideoSection(BuildContext context, Topic topic) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile = screenWidth < 600;
+    final isTablet = screenWidth >= 600 && screenWidth < 1024;
+    final isDesktop = screenWidth >= 1024;
+    final key = topic.id;
+    final followingController = Get.isRegistered<FollowingTopicsController>()
+        ? Get.find<FollowingTopicsController>()
+        : Get.put(FollowingTopicsController());
+
+    final sectionHeight = isMobile ? 260.0 : (isTablet ? 290.0 : 310.0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Explore Topic Header Row
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            isMobile ? 16 : 24,
+            16,
+            isMobile ? 8 : 12,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    controller.preloadTopicDetails(topic);
+                    Get.toNamed<void>(
+                      topic.topicRoute,
+                      arguments: {
+                        'slug': topic.slug,
+                        'fromCard': true,
+                        'topic': topic,
+                      },
+                    );
+                  },
+                  child: Text(
+                    'Explore ${topic.title}',
+                    style: TextStyle(
+                      fontSize: isMobile ? 18 : (isTablet ? 22 : 24),
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: AppColors.textPrimary),
+                color: const Color(0xFF212121),
+                onSelected: (value) {
+                  if (value == 'view_topic') {
+                    controller.preloadTopicDetails(topic);
+                    Get.toNamed<void>(
+                      topic.topicRoute,
+                      arguments: {
+                        'slug': topic.slug,
+                        'fromCard': true,
+                        'topic': topic,
+                      },
+                    );
+                  } else if (value == 'toggle_follow') {
+                    followingController.toggleFollowTopic(topic);
+                  }
+                },
+                itemBuilder: (context) {
+                  final isFollowed = followingController.isTopicFollowed(topic.id);
+                  return [
+                    const PopupMenuItem(
+                      value: 'view_topic',
+                      child: Row(
+                        children: [
+                          Icon(Icons.visibility_outlined, color: AppColors.textPrimary, size: 20),
+                          SizedBox(width: 12),
+                          Text('View Topic Details', style: TextStyle(color: AppColors.textPrimary)),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'toggle_follow',
+                      child: Row(
+                        children: [
+                          Icon(
+                            isFollowed ? Icons.bookmark_remove_outlined : Icons.bookmark_add_outlined,
+                            color: AppColors.textPrimary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            isFollowed ? 'Unfollow Topic' : 'Follow Topic',
+                            style: const TextStyle(color: AppColors.textPrimary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ];
+                },
+              ),
+            ],
+          ),
+        ),
+
+        // Horizontal Video Cards List
+        Obx(() {
+          final isLoading = controller.isLoadingVideosMap[key] ?? false;
+          final videos = controller.topicVideosMap[key];
+
+          if (isLoading && (videos == null || videos.isEmpty)) {
+            return _buildHorizontalVideoSkeleton(isMobile, isTablet, isDesktop);
+          }
+
+          if (videos == null || videos.isEmpty) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.ondemand_video_rounded, color: AppColors.textTertiary, size: 36),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'No videos found for this topic',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Check back later or tap to view details',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          return SizedBox(
+            height: sectionHeight,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: videos.length,
+              itemBuilder: (context, index) {
+                final video = videos[index];
+                return _buildHorizontalVideoCard(
+                  context,
+                  topic,
+                  video,
+                  isMobile,
+                  isTablet,
+                  isDesktop,
+                );
+              },
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildHorizontalVideoCard(
+    BuildContext context,
+    Topic topic,
+    Video video,
+    bool isMobile,
+    bool isTablet,
+    bool isDesktop,
+  ) {
+    final cardWidth = isMobile ? 280.0 : (isTablet ? 320.0 : 360.0);
+
+    return Container(
+      width: cardWidth,
+      margin: const EdgeInsets.only(right: 16),
+      child: GestureDetector(
+        onTap: () {
+          MiniplayerNavigationHelper.navigateToVideoScreen(
+            video: video,
+            routeArguments: {
+              'video': video,
+              'heroTag': 'explore_topic_${topic.id}_${video.id}',
+            },
+          );
+        },
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Video Thumbnail
+            Stack(
+              children: [
+                AspectRatio(
+                  aspectRatio: 16 / 9,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: CachedNetworkImage(
+                      imageUrl: video.thumbnailUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        color: const Color(0xFF272727),
+                      ),
+                      errorWidget: (context, url, error) => const ColoredBox(
+                        color: Color(0xFF272727),
+                        child: Icon(
+                          Icons.videocam_off_rounded,
+                          color: AppColors.textTertiary,
+                          size: 36,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // Fact Checked Badge (if applicable)
+                if (video.factCheckUrl.isNotEmpty)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.verified_rounded, color: AppColors.textPrimary, size: 10),
+                          SizedBox(width: 4),
+                          Text(
+                            'Fact Checked',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // Duration Badge
+                Positioned(
+                  bottom: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgPage.withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      video.duration,
+                      style: const TextStyle(
+                        color: AppColors.textPrimary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 10),
+
+            // Video Title & Options Menu
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    video.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: isMobile ? 14 : 15,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                      height: 1.25,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.more_vert, size: 18, color: AppColors.textSecondary),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  onPressed: () => VideoOptionsSheet.show(context, video),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 4),
+
+            // Channel Name
+            Text(
+              video.channelName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: isMobile ? 12 : 13,
+                color: AppColors.textSecondary,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+
+            const SizedBox(height: 2),
+
+            // Views & Upload Time
+            Text(
+              '${FormatUtils.formatCount(video.views)} views • ${timeago.format(video.uploadedAt.toDate())}',
+              style: TextStyle(
+                fontSize: isMobile ? 12 : 13,
+                color: AppColors.textTertiary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHorizontalVideoSkeleton(bool isMobile, bool isTablet, bool isDesktop) {
+    final cardWidth = isMobile ? 280.0 : (isTablet ? 320.0 : 360.0);
+    final sectionHeight = isMobile ? 260.0 : (isTablet ? 290.0 : 310.0);
+    return SizedBox(
+      height: sectionHeight,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: 4,
+        itemBuilder: (context, index) {
+          return Container(
+            width: cardWidth,
+            margin: const EdgeInsets.only(right: 16),
+            child: Shimmer.fromColors(
+              baseColor: const Color(0xFF272727),
+              highlightColor: const Color(0xFF3F3F3F),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.textPrimary,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(width: double.infinity, height: 14, color: AppColors.textPrimary),
+                  const SizedBox(height: 6),
+                  Container(width: 140, height: 12, color: AppColors.textPrimary),
+                  const SizedBox(height: 4),
+                  Container(width: 100, height: 12, color: AppColors.textPrimary),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _buildTopicsPageView(BuildContext context) {
     final isMobile = context.isMobile;
     final bannerHeight = isMobile ? 360.0 : 540.0;
@@ -371,7 +810,7 @@ class _ExploreTopicsPageState extends State<ExploreTopicsPage> {
               return AnimatedBuilder(
                 animation: _pageController,
                 builder: (context, child) {
-                  double pageOffset = 0.0;
+                  var pageOffset = 0.0;
                   if (_pageController.hasClients) {
                     try {
                       pageOffset = _pageController.page! - index;

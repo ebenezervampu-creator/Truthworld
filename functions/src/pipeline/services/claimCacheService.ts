@@ -1,7 +1,7 @@
 import * as admin from "firebase-admin";
-import * as crypto from "crypto";
 import { VerifiedClaim, ClaimStatus, RichSource } from "../types";
 import { logger } from "../utils/logger";
+import { hashClaimText } from "../utils/claim-normalization";
 
 /**
  * 🏛 v12.0: Institutional Claim Cache (Tier 1)
@@ -11,18 +11,13 @@ import { logger } from "../utils/logger";
  */
 export class ClaimCacheService {
   private static readonly COLLECTION = "claim_cache";
-  private static readonly CACHE_ENABLED = false;
+  private static readonly CACHE_ENABLED = true;
 
   /**
    * Generates a stable hash for a claim after normalization.
    */
   private generateHash(text: string): string {
-    const normalized = text
-      .toLowerCase()
-      .trim()
-      .replace(/[.,!?;:]/g, "")
-      .replace(/\s+/g, " ");
-    return crypto.createHash("sha256").update(normalized).digest("hex");
+    return hashClaimText(text);
   }
 
   /**
@@ -58,6 +53,12 @@ export class ClaimCacheService {
         reasoning: data.reasoning,
         richSources: data.richSources as RichSource[],
         verificationConfidence: data.confidence,
+        displayLabel: data.displayLabel,
+        evidenceLevel: data.evidenceLevel,
+        evidenceDetails: data.evidenceDetails,
+        consensusDetails: data.consensusDetails,
+        classificationConfidence: data.classificationConfidence,
+        historicalEvidenceConfidence: data.historicalEvidenceConfidence,
         isGrounded: true,
         verificationMethod: 'cache_hit'
       };
@@ -73,16 +74,16 @@ export class ClaimCacheService {
   async set(claim: VerifiedClaim): Promise<void> {
     if (!ClaimCacheService.CACHE_ENABLED) return;
     
-    // Only cache high-confidence, successful verifications
-    if (claim.verificationConfidence < 0.8 || claim.status === 'verification_timeout') return;
+    // Do not cache timed-out or unverified claims
+    if (!claim.status || claim.status === 'verification_timeout' || claim.status === 'unverified') return;
 
     try {
       const hash = this.generateHash(claim.text);
       const now = Date.now();
       
-      // Dynamic TTL based on claim importance and nature
-      let ttlDays = 30;
-      if (claim.nature === 'VERIFIABLE_FACT') ttlDays = 180;
+      // Dynamic TTL based on claim importance and nature (180 days for facts, 90 days for others)
+      let ttlDays = 90;
+      if (claim.nature === 'VERIFIABLE_FACT' || claim.nature === 'HISTORICAL_FACT') ttlDays = 180;
       
       const expiresAt = now + (ttlDays * 24 * 60 * 60 * 1000);
 
@@ -92,15 +93,21 @@ export class ClaimCacheService {
         status: claim.status,
         reasoning: claim.reasoning,
         richSources: claim.richSources || [],
-        confidence: claim.verificationConfidence,
+        confidence: claim.verificationConfidence || 0.8,
         nature: claim.nature,
+        displayLabel: claim.displayLabel,
+        evidenceLevel: claim.evidenceLevel,
+        evidenceDetails: claim.evidenceDetails,
+        consensusDetails: claim.consensusDetails,
+        classificationConfidence: claim.classificationConfidence,
+        historicalEvidenceConfidence: claim.historicalEvidenceConfidence,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         expiresAt,
         hitCount: 1,
         lastHitAt: admin.firestore.FieldValue.serverTimestamp()
-      });
+      }, { merge: true });
 
-      logger.info(`[ClaimCache] Cached new claim: ${claim.text.substring(0, 50)}...`);
+      logger.info(`[ClaimCache] Cached verified claim: "${claim.text.substring(0, 50)}..."`);
     } catch (error) {
       logger.error("[ClaimCache] Failed to set cache", { error });
     }
@@ -131,18 +138,27 @@ export class ClaimCacheService {
         query.forEach(doc => {
           const data = doc.data();
           if (data && data.expiresAt && Date.now() > data.expiresAt) {
-            logger.info(`[ClaimCache] Batch cache expired for: ${doc.id}`);
+            logger.info(`[ClaimCache] Batch cache expired for doc: ${doc.id}`);
             return;
           }
-          const originalText = texts[hashes.indexOf(doc.id)];
-          results.set(originalText, {
-            status: data.status as ClaimStatus,
-            reasoning: data.reasoning,
-            richSources: data.richSources as RichSource[],
-            verificationConfidence: data.confidence,
-            isGrounded: true,
-            verificationMethod: 'cache_hit'
-          });
+          const idx = hashes.indexOf(doc.id);
+          if (idx !== -1) {
+            const originalText = texts[idx];
+            results.set(originalText, {
+              status: data.status as ClaimStatus,
+              reasoning: data.reasoning,
+              richSources: data.richSources as RichSource[],
+              verificationConfidence: data.confidence,
+              displayLabel: data.displayLabel,
+              evidenceLevel: data.evidenceLevel,
+              evidenceDetails: data.evidenceDetails,
+              consensusDetails: data.consensusDetails,
+              classificationConfidence: data.classificationConfidence,
+              historicalEvidenceConfidence: data.historicalEvidenceConfidence,
+              isGrounded: true,
+              verificationMethod: 'cache_hit'
+            });
+          }
         });
       }
     } catch (error) {
@@ -150,6 +166,14 @@ export class ClaimCacheService {
     }
 
     return results;
+  }
+
+  /**
+   * Batch save verified claims to cache.
+   */
+  async setBatch(claims: VerifiedClaim[]): Promise<void> {
+    if (!ClaimCacheService.CACHE_ENABLED || claims.length === 0) return;
+    await Promise.allSettled(claims.map(c => this.set(c)));
   }
 }
 

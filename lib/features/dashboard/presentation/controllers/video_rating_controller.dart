@@ -36,19 +36,13 @@ class VideoRatingController extends GetxController {
       ratedVideos.value = snapshot.docs
           .map(Video.fromDocumentSnapshot)
           .where((video) => 
-            video.trustScore > 0 || 
-            video.videoRating > 0 || 
-            video.uiReport != null || 
-            video.factCheckStats != null ||
-            video.trustLabel != null
+            video.factCheckUrl.isNotEmpty
           )
           .toList();
 
-      // Sort by video rating primarily, then trust score
+      // Sort by creation date
       ratedVideos.sort((a, b) {
-        final scoreA = a.videoRating > 0 ? a.videoRating : a.trustScore;
-        final scoreB = b.videoRating > 0 ? b.videoRating : b.trustScore;
-        return scoreB.compareTo(scoreA);
+        return b.createdAt.compareTo(a.createdAt);
       });
 
     } catch (e) {

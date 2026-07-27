@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:truthworld/core/network/result.dart';
 import 'package:truthworld/core/exceptions/app_exceptions.dart';
+import 'package:truthworld/core/network/result.dart';
 
 void main() {
   group('Result<T>', () {
@@ -14,7 +14,7 @@ void main() {
     });
 
     test('Failure wraps exception correctly', () {
-      final exception = GenericAppException(message: 'Something went wrong');
+      const exception = GenericAppException(message: 'Something went wrong');
       final result = Result<String>.failure(exception);
 
       expect(result.isSuccess, false);
@@ -35,7 +35,7 @@ void main() {
     });
 
     test('when() dispatches to failure handler', () {
-      final exception = GenericAppException(message: 'oops');
+      const exception = GenericAppException(message: 'oops');
       final result = Result<int>.failure(exception);
 
       final output = result.when(
@@ -67,8 +67,8 @@ void main() {
     });
 
     test('Failure equality', () {
-      final ex1 = GenericAppException(message: 'error');
-      final ex2 = GenericAppException(message: 'error');
+      const ex1 = GenericAppException(message: 'error');
+      const ex2 = GenericAppException(message: 'error');
 
       final a = Result<int>.failure(ex1);
       final b = Result<int>.failure(ex2);

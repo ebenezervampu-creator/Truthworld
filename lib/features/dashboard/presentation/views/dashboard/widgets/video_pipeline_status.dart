@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -8,10 +9,15 @@ import 'package:url_launcher/url_launcher.dart';
 class VideoPipelineStatusWidget extends StatelessWidget {
 
   VideoPipelineStatusWidget({
-    required this.video, required this.isDarkMode, super.key,
-  }) : _isExpanded = (video.status.name != 'ready').obs;
+    required this.video,
+    required this.isDarkMode,
+    this.initiallyExpanded = false,
+    super.key,
+  }) : _isExpanded = (initiallyExpanded || video.status.name != 'ready').obs;
+
   final Video video;
   final bool isDarkMode;
+  final bool initiallyExpanded;
   final RxBool _isExpanded;
 
   String? _getThumbnailFileName(String url) {
@@ -23,7 +29,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
       final uri = Uri.parse(url);
       final decodedPath = Uri.decodeComponent(uri.pathSegments.last);
       return decodedPath.split('/').last;
-    } catch (e) {
+    } on Object catch (_) {
       try {
         final base = url.split('?').first;
         final segments = base.split('%2F');
@@ -31,7 +37,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
           return segments.last;
         }
         return base.split('/').last;
-      } catch (_) {
+      } on Object catch (_) {
         return null;
       }
     }
@@ -42,7 +48,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
     try {
       final url = Uri.parse(urlString);
       await launchUrl(url, mode: LaunchMode.externalApplication);
-    } catch (e) {
+    } on Object catch (e) {
       debugPrint('Failed to launch URL: $e');
     }
   }
@@ -73,13 +79,17 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                     final imageDoc = imageSnap.data?.data();
                     final resolutionDoc = resolutionSnap.data?.data();
 
-                    // Video Content Moderation (Gemini Audio Analysis)
+                    // Video Content Moderation (Gemini v3.0 Intent-Aware Analysis)
                     final moderationData = videoDocData?['moderation'] as Map<String, dynamic>?;
                     final moderationStatus = (moderationData?['status'] as String?)?.toUpperCase() ?? 'PENDING';
-                    final moderationReason = moderationData?['reason'] as String?;
+                    final moderationReason = moderationData?['policyReason'] as String? ?? moderationData?['reason'] as String?;
                     final moderationSummary = moderationData?['summary'] as String?;
                     final moderationCategories = (moderationData?['violationCategories'] as List<dynamic>?)?.cast<String>() ?? [];
                     final moderationTime = moderationData?['processingTimeMs'] as num?;
+                    final moderationTopic = moderationData?['topic'] as String?;
+                    final moderationIntent = moderationData?['intent'] as String?;
+                    final moderationRiskLevel = moderationData?['riskLevel'] as String?;
+                    final moderationExplanation = moderationData?['explanation'] as String?;
 
                     // Thumbnail Safety Verification (Vertex AI Vision)
                     final imageStatus = (imageDoc?['status'] as String?)?.toUpperCase() ?? 'PENDING';
@@ -111,49 +121,69 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                               },
                               borderRadius: BorderRadius.circular(12),
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                padding: const EdgeInsets.all(12),
                                 key: const Key('pipeline_header_row'),
-                                child: Row(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Icon(
-                                      Icons.settings_suggest_outlined,
-                                      color: AppColors.brand,
-                                      size: 20,
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.tune_rounded,
+                                          color: AppColors.brand,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'Processing Pipeline',
+                                            style: AppTextStyles.titleMedium.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: AppColors.textPrimary,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Icon(
+                                          _isExpanded.value
+                                              ? Icons.expand_less_rounded
+                                              : Icons.expand_more_rounded,
+                                          color: AppColors.textSecondary,
+                                          size: 22,
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(width: 10),
-                                    Text(
-                                      'Processing Pipeline',
-                                      style: AppTextStyles.titleMedium.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.textPrimary,
-                                      ),
-                                    ),
-                                    const Spacer(),
-                                    // Thumbnail Moderation Tag
-                                    _buildMiniBadge(
-                                      label: 'Content: $moderationStatus',
-                                      color: _getSafetyColor(moderationStatus),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    _buildMiniBadge(
-                                      label: 'Thumb: $imageStatus',
-                                      color: _getSafetyColor(imageStatus),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    // Status Indicator
-                                    _buildMiniBadge(
-                                      label: video.status.name.toUpperCase(),
-                                      color: video.status.name == 'ready'
-                                          ? AppColors.success
-                                          : (video.status.name == 'failed'
-                                              ? AppColors.error
-                                              : AppColors.warning),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Icon(
-                                      _isExpanded.value ? Icons.expand_less_rounded : Icons.expand_more_rounded,
-                                      color: AppColors.textSecondary,
-                                      size: 20,
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 6,
+                                      crossAxisAlignment: WrapCrossAlignment.center,
+                                      children: [
+                                        _buildMiniBadge(
+                                          label: 'Content: $moderationStatus',
+                                          color: _getSafetyColor(moderationStatus),
+                                        ),
+                                        _buildMiniBadge(
+                                          label: 'Thumb: $imageStatus',
+                                          color: _getSafetyColor(imageStatus),
+                                        ),
+                                        _buildMiniBadge(
+                                          label: video.status.name == 'pending_review'
+                                              ? 'PENDING REVIEW'
+                                              : video.status.name.toUpperCase(),
+                                          color: video.status.name == 'ready'
+                                              ? AppColors.success
+                                              : (video.status.name == 'rejected'
+                                                  ? AppColors.error
+                                                  : (video.status.name == 'pending_review'
+                                                      ? AppColors.info
+                                                      : (video.status.name == 'failed'
+                                                          ? AppColors.error
+                                                          : AppColors.warning))),
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
@@ -164,7 +194,7 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                             AnimatedCrossFade(
                               firstChild: const SizedBox.shrink(),
                               secondChild: Padding(
-                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -179,6 +209,10 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                       summary: moderationSummary,
                                       categories: moderationCategories,
                                       processingTimeMs: moderationTime?.toInt(),
+                                      topic: moderationTopic,
+                                      intent: moderationIntent,
+                                      riskLevel: moderationRiskLevel,
+                                      explanation: moderationExplanation,
                                     ),
 
                                     const SizedBox(height: 16),
@@ -194,11 +228,13 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                           size: 18,
                                         ),
                                         const SizedBox(width: 8),
-                                        Text(
-                                          imageReason ?? 'Awaiting safety checks from Vertex AI Vision...',
-                                          style: AppTextStyles.bodySmall.copyWith(
-                                            fontSize: 13,
-                                            color: AppColors.textSecondary,
+                                        Expanded(
+                                          child: Text(
+                                            imageReason ?? 'Awaiting safety checks from Vertex AI Vision...',
+                                            style: AppTextStyles.bodySmall.copyWith(
+                                              fontSize: 13,
+                                              color: AppColors.textSecondary,
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -258,6 +294,9 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                                         ),
                                       ),
                                     ],
+
+                                    const SizedBox(height: 16),
+                                    _buildGenerateAIButton(context),
                                   ],
                                 ),
                               ),
@@ -278,17 +317,22 @@ class VideoPipelineStatusWidget extends StatelessWidget {
     );
   }
 
-  /// Builds the Video Content Moderation panel showing Gemini audio analysis result.
+  /// Builds the Video Content Moderation panel showing Gemini v3.0 intent-aware analysis.
   Widget _buildModerationPanel({
     required String status,
     String? reason,
     String? summary,
     List<String> categories = const [],
     int? processingTimeMs,
+    String? topic,
+    String? intent,
+    String? riskLevel,
+    String? explanation,
   }) {
     final color = _getSafetyColor(status);
     final icon = _getSafetyIcon(status);
     final isProcessing = status == 'PROCESSING';
+    final isManualReview = status == 'MANUAL_REVIEW';
 
     return Container(
       width: double.infinity,
@@ -319,14 +363,16 @@ class VideoPipelineStatusWidget extends StatelessWidget {
               Expanded(
                 child: Text(
                   isProcessing
-                      ? 'Analyzing audio against Community Guidelines...'
+                      ? 'Analyzing content (topic, intent, risk)...'
                       : (status == 'APPROVED'
                           ? 'Content approved — complies with Community Guidelines'
                           : (status == 'REJECTED'
-                              ? 'Content rejected — violates Community Guidelines'
-                              : (status == 'ERROR'
-                                  ? 'Moderation system error (transient failure)'
-                                  : 'Awaiting content moderation...'))),
+                              ? 'Content rejected — policy violation detected'
+                              : (isManualReview
+                                  ? 'Pending manual review — awaiting admin decision'
+                                  : (status == 'ERROR'
+                                      ? 'Moderation system error (transient failure)'
+                                      : 'Awaiting content moderation...')))),
                   style: AppTextStyles.bodyMedium.copyWith(
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
@@ -344,6 +390,37 @@ class VideoPipelineStatusWidget extends StatelessWidget {
                 ),
             ],
           ),
+
+          // Intent & Topic Badges (v3.0 — show for all completed states)
+          if ((topic != null || intent != null || riskLevel != null) &&
+              (status == 'APPROVED' || status == 'REJECTED' || isManualReview)) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                if (topic != null)
+                  _buildInfoChip(
+                    label: topic.replaceAll('_', ' '),
+                    color: AppColors.brand,
+                    prefix: 'Topic',
+                  ),
+                if (intent != null)
+                  _buildInfoChip(
+                    label: intent.replaceAll('_', ' '),
+                    color: _getIntentColor(intent),
+                    prefix: 'Intent',
+                  ),
+                if (riskLevel != null)
+                  _buildInfoChip(
+                    label: riskLevel.toUpperCase(),
+                    color: _getRiskColor(riskLevel),
+                    prefix: 'Risk',
+                  ),
+              ],
+            ),
+          ],
+
           // Violation Categories (if rejected)
           if (categories.isNotEmpty && status == 'REJECTED') ...[
             const SizedBox(height: 8),
@@ -370,8 +447,9 @@ class VideoPipelineStatusWidget extends StatelessWidget {
               }).toList(),
             ),
           ],
-          // Reason (if rejected or system error)
-          if (reason != null && reason.isNotEmpty && (status == 'REJECTED' || status == 'ERROR')) ...[
+
+          // Policy Reason (if rejected, manual review, or error)
+          if (reason != null && reason.isNotEmpty && (status == 'REJECTED' || isManualReview || status == 'ERROR')) ...[
             const SizedBox(height: 6),
             Text(
               reason,
@@ -382,6 +460,54 @@ class VideoPipelineStatusWidget extends StatelessWidget {
               ),
             ),
           ],
+
+          // Explanation (v3.0 — brief reasoning chain)
+          if (explanation != null && explanation.isNotEmpty && status != 'ERROR') ...[
+            const SizedBox(height: 4),
+            Text(
+              explanation,
+              style: AppTextStyles.caption.copyWith(
+                fontSize: 10.5,
+                color: AppColors.textTertiary,
+                fontStyle: FontStyle.italic,
+                height: 1.3,
+              ),
+            ),
+          ],
+
+          // Manual review guidance info box
+          if (isManualReview) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.info.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: AppColors.info.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(top: 1),
+                    child: Icon(Icons.info_outline_rounded, size: 14, color: AppColors.info),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Our AI detected this content discusses a sensitive topic but could not confidently determine if it is journalistic/educational or promotional. An admin will review shortly.',
+                      style: AppTextStyles.caption.copyWith(
+                        fontSize: 10.5,
+                        color: AppColors.info,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           // Summary (if approved)
           if (summary != null && summary.isNotEmpty && status == 'APPROVED') ...[
             const SizedBox(height: 6),
@@ -438,6 +564,8 @@ class VideoPipelineStatusWidget extends StatelessWidget {
         return AppColors.success;
       case 'REJECTED':
         return AppColors.error;
+      case 'MANUAL_REVIEW':
+        return AppColors.info;
       case 'ERROR':
       case 'FLAGGED':
         return AppColors.warning;
@@ -453,6 +581,8 @@ class VideoPipelineStatusWidget extends StatelessWidget {
         return Icons.check_circle_outline_rounded;
       case 'REJECTED':
         return Icons.cancel_outlined;
+      case 'MANUAL_REVIEW':
+        return Icons.hourglass_top_rounded;
       case 'ERROR':
       case 'FLAGGED':
         return Icons.warning_amber_rounded;
@@ -460,6 +590,67 @@ class VideoPipelineStatusWidget extends StatelessWidget {
       default:
         return Icons.hourglass_empty_rounded;
     }
+  }
+
+  /// Returns a color based on the moderation intent category.
+  Color _getIntentColor(String intent) {
+    switch (intent.toLowerCase()) {
+      case 'news_reporting':
+      case 'documentary':
+        return AppColors.info;
+      case 'educational':
+        return AppColors.success;
+      case 'commentary':
+      case 'review':
+      case 'satire':
+        return AppColors.brand;
+      case 'personal_experience':
+      case 'entertainment':
+        return AppColors.textSecondary;
+      case 'promotional':
+        return AppColors.warning;
+      case 'instructional_harmful':
+        return AppColors.error;
+      default:
+        return AppColors.textTertiary;
+    }
+  }
+
+  /// Returns a color based on the moderation risk level.
+  Color _getRiskColor(String riskLevel) {
+    switch (riskLevel.toLowerCase()) {
+      case 'safe':
+      case 'low':
+        return AppColors.success;
+      case 'medium':
+        return AppColors.warning;
+      case 'high':
+      case 'critical':
+        return AppColors.error;
+      default:
+        return AppColors.textTertiary;
+    }
+  }
+
+  /// Builds a compact info chip for displaying topic/intent/risk metadata.
+  Widget _buildInfoChip({required String label, required Color color, String? prefix}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Text(
+        prefix != null ? '$prefix: $label' : label,
+        style: AppTextStyles.labelSmall.copyWith(
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+          color: color,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
   }
 
   Widget _buildResolutionChip(String label, dynamic variantData) {
@@ -543,6 +734,9 @@ class VideoPipelineStatusWidget extends StatelessWidget {
               height: 12,
               child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.brand),
             );
+          case 'pending_review':
+            itemColor = AppColors.info;
+            leadingWidget = const Icon(Icons.hourglass_top_rounded, color: AppColors.info, size: 16);
           case 'failed':
             itemColor = AppColors.error;
             leadingWidget = const Icon(Icons.error_rounded, color: AppColors.error, size: 16);
@@ -689,6 +883,228 @@ class VideoPipelineStatusWidget extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildGenerateAIButton(BuildContext context) {
+    final controller = Get.isRegistered<VideoManagementController>()
+        ? Get.find<VideoManagementController>()
+        : Get.put(VideoManagementController());
+
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.brand,
+          side: const BorderSide(color: AppColors.brand, width: 1.5),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+        label: Text(
+          'Generate / Add AI Features (Telugu, Hindi, Dubbing, Factcheck...)',
+          style: AppTextStyles.labelMedium.copyWith(
+            fontWeight: FontWeight.bold,
+            color: AppColors.brand,
+          ),
+        ),
+        onPressed: () {
+          _showGenerateAIFeaturesQuickModal(context, video, controller);
+        },
+      ),
+    );
+  }
+
+  void _showGenerateAIFeaturesQuickModal(
+    BuildContext context,
+    Video video,
+    VideoManagementController controller,
+  ) {
+    final selectedLangs = <String>{'te', 'hi'}.obs;
+    final selectedFeatures = <String>{'subtitles', 'dubbing', 'factcheck', 'summary', 'chapters'}.obs;
+    final isAccuracyMode = true.obs;
+
+    final availableLangs = [
+      {'code': 'te', 'name': 'Telugu (తెలుగు)'},
+      {'code': 'hi', 'name': 'Hindi (हिन्दी)'},
+      {'code': 'en', 'name': 'English'},
+      {'code': 'ta', 'name': 'Tamil (தமிழ்)'},
+      {'code': 'kn', 'name': 'Kannada (ಕನ್ನಡ)'},
+      {'code': 'ml', 'name': 'Malayalam (മലയാളം)'},
+      {'code': 'es', 'name': 'Spanish'},
+    ];
+
+    Get.dialog<void>(
+      Dialog(
+        backgroundColor: AppColors.bgSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.bgDivider),
+        ),
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Obx(
+                () => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.auto_awesome_rounded,
+                          color: AppColors.brand,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'On-Demand AI Features',
+                            style: AppTextStyles.titleLarge.copyWith(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 17,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: AppColors.textSecondary, size: 18),
+                          onPressed: Get.back<void>,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Target Languages',
+                      style: AppTextStyles.labelMedium.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: availableLangs.map((lang) {
+                        final code = lang['code']!;
+                        final name = lang['name']!;
+                        final isSelected = selectedLangs.contains(code);
+                        return FilterChip(
+                          label: Text(name),
+                          selected: isSelected,
+                          selectedColor: AppColors.brand.withValues(alpha: 0.2),
+                          checkmarkColor: AppColors.brand,
+                          labelStyle: AppTextStyles.labelMedium.copyWith(
+                            fontSize: 11.5,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            color: isSelected ? AppColors.brand : AppColors.textPrimary,
+                          ),
+                          onSelected: (val) {
+                            if (val) {
+                              selectedLangs.add(code);
+                            } else if (selectedLangs.length > 1) {
+                              selectedLangs.remove(code);
+                            }
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'AI Features',
+                      style: AppTextStyles.labelMedium.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    CheckboxListTile(
+                      value: selectedFeatures.contains('subtitles'),
+                      activeColor: AppColors.brand,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Subtitles (SRT/VTT)'),
+                      subtitle: const Text('Generate captions in target languages'),
+                      onChanged: (val) => (val ?? false) ? selectedFeatures.add('subtitles') : selectedFeatures.remove('subtitles'),
+                    ),
+                    CheckboxListTile(
+                      value: selectedFeatures.contains('dubbing'),
+                      activeColor: AppColors.brand,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Audio Dubbing Tracks'),
+                      subtitle: const Text('Generate voice audio in Telugu, Hindi, etc.'),
+                      onChanged: (val) => (val ?? false) ? selectedFeatures.add('dubbing') : selectedFeatures.remove('dubbing'),
+                    ),
+                    CheckboxListTile(
+                      value: selectedFeatures.contains('factcheck'),
+                      activeColor: AppColors.brand,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Fact-Checking Report'),
+                      subtitle: const Text('Extract claims and truth score'),
+                      onChanged: (val) => (val ?? false) ? selectedFeatures.add('factcheck') : selectedFeatures.remove('factcheck'),
+                    ),
+                    CheckboxListTile(
+                      value: selectedFeatures.contains('summary'),
+                      activeColor: AppColors.brand,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('AI Video Summary'),
+                      subtitle: const Text('Generate smart video summary'),
+                      onChanged: (val) => (val ?? false) ? selectedFeatures.add('summary') : selectedFeatures.remove('summary'),
+                    ),
+                    CheckboxListTile(
+                      value: selectedFeatures.contains('chapters'),
+                      activeColor: AppColors.brand,
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Auto-Chapters'),
+                      subtitle: const Text('Generate timestamped section breaks'),
+                      onChanged: (val) => (val ?? false) ? selectedFeatures.add('chapters') : selectedFeatures.remove('chapters'),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: Get.back<void>,
+                          child: const Text('Cancel'),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.brand,
+                            foregroundColor: AppColors.textPrimary,
+                          ),
+                          icon: const Icon(Icons.bolt_rounded, size: 16),
+                          label: const Text('Generate AI Features'),
+                          onPressed: selectedFeatures.isEmpty
+                              ? null
+                              : () {
+                                  Get.back<void>();
+                                  controller.triggerAIFeatures(
+                                    videoId: video.id,
+                                    features: selectedFeatures.toList(),
+                                    targetLanguages: selectedLangs.toList(),
+                                    priorityMode: isAccuracyMode.value ? 'accuracy' : 'speed',
+                                    autoChapters: selectedFeatures.contains('chapters'),
+                                  );
+                                },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

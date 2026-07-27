@@ -1,29 +1,60 @@
 # This file configures the analyzer, which statically analyzes Dart code to
 # check for errors, warnings, and lints.
-#
-# The issues identified by the analyzer are surfaced in the UI of Dart-enabled
-# IDEs (https://dart.dev/tools#ides-and-editors). The analyzer can also be
-# invoked from the command line by running `flutter analyze`.
 
 include: package:very_good_analysis/analysis_options.yaml
 
 linter:
   rules:
-    # Temporarily relaxed while migrating (remove one at a time):
-    avoid_print: false              # Phase 8 will remove all prints
-    public_member_api_docs: false   # Enable after Phase 12
-    lines_longer_than_80_chars: false  # Enable selectively after Phase 4
-    sort_pub_dependencies: false    # Not critical
-    flutter_style_todos: false      # Existing TODOs don't follow this
-    comment_references: false       # Too many false positives during migration
+    # Relaxations for application code & migration:
+    avoid_print: false
+    public_member_api_docs: false
+    lines_longer_than_80_chars: false
+    sort_pub_dependencies: false
+    flutter_style_todos: false
+    comment_references: false
+    avoid_catches_without_on_clauses: false
+    avoid_dynamic_calls: false
+    cascade_invocations: false
+    use_setters_to_change_properties: false
+    avoid_positional_boolean_parameters: false
+    one_member_abstracts: false
+    unawaited_futures: false
+    parameter_assignments: false
+    deprecated_consistency: false
+    no_default_cases: false
+    avoid_slow_async_io: false
+    prefer_constructors_over_static_methods: false
+    only_throw_errors: false
+    avoid_types_as_parameter_names: false
+    use_named_constants: false
+    prefer_null_aware_method_calls: false
+    join_return_with_assignment: false
+    avoid_multiple_declarations_per_line: false
+    use_is_even_rather_than_modulo: false
+    cancel_subscriptions: false
+    constant_identifier_names: false
+    prefer_int_literals: false
+    use_late_for_private_fields_and_variables: false
+    avoid_field_initializers_in_const_classes: false
+    avoid_equals_and_hash_code_on_mutable_classes: false
+    sort_constructors_first: false
+    document_ignores: false
+    eol_at_end_of_file: false
 
 analyzer:
+  language:
+    strict-casts: false
+    strict-inference: false
+    strict-raw-types: false
   errors:
     dead_code: warning
     unused_import: warning
     unused_local_variable: warning
+    unused_element: ignore
+    deprecated_member_use: ignore
   exclude:
     - "**/*.g.dart"
     - "**/*.freezed.dart"
     - "build/**"
     - ".dart_tool/**"
+

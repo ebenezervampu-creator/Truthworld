@@ -34,12 +34,17 @@ import 'package:video_player/video_player.dart';
 class TowerPlayerController extends GetxController {
 
   TowerPlayerController({required this.videoPlayerController, this.tag}) {
-    _rxValue = videoPlayerController.value.obs;
-    isInitialized.value = videoPlayerController.value.isInitialized;
-    aspectRatio.value = videoPlayerController.value.aspectRatio;
-    isPlaying.value = videoPlayerController.value.isPlaying;
-    hasError.value = videoPlayerController.value.hasError;
-    errorDescription.value = videoPlayerController.value.errorDescription ?? '';
+    try {
+      _rxValue = videoPlayerController.value.obs;
+      isInitialized.value = videoPlayerController.value.isInitialized;
+      aspectRatio.value = videoPlayerController.value.aspectRatio;
+      isPlaying.value = videoPlayerController.value.isPlaying;
+      hasError.value = videoPlayerController.value.hasError;
+      errorDescription.value = videoPlayerController.value.errorDescription ?? '';
+    } catch (_) {
+      _rxValue = const VideoPlayerValue.uninitialized().obs;
+      isInitialized.value = false;
+    }
   }
   // ── Global registry ───────────────────────────────────────
   static final List<TowerPlayerController> _activePlayers = [];
@@ -795,15 +800,20 @@ class TowerPlayerController extends GetxController {
       videoPlayerController.removeListener(_onVpcUpdate);
     } catch (_) {}
     videoPlayerController = vpc;
-    _rxValue.value = vpc.value;
+    try {
+      _rxValue.value = vpc.value;
+      isInitialized.value = vpc.value.isInitialized;
+      aspectRatio.value = vpc.value.aspectRatio;
+      isPlaying.value = vpc.value.isPlaying;
+      hasError.value = vpc.value.hasError;
+      errorDescription.value = vpc.value.errorDescription ?? '';
+    } catch (_) {
+      isInitialized.value = false;
+    }
 
-    isInitialized.value = vpc.value.isInitialized;
-    aspectRatio.value = vpc.value.aspectRatio;
-    isPlaying.value = vpc.value.isPlaying;
-    hasError.value = vpc.value.hasError;
-    errorDescription.value = vpc.value.errorDescription ?? '';
-
-    videoPlayerController.addListener(_onVpcUpdate);
+    try {
+      videoPlayerController.addListener(_onVpcUpdate);
+    } catch (_) {}
     abr.attachVideoController(videoPlayerController);
     _initChewieController();
     _preRollPlayed = false;

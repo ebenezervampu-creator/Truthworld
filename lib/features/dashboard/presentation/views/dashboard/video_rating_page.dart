@@ -102,9 +102,6 @@ class VideoRatingPage extends GetView<VideoRatingController> {
   }
 
   Widget _buildVideoCard(Video video) {
-    final score = video.videoRating > 0 ? video.videoRating : video.trustScore;
-    final scoreColor = Color(controller.getTrustColor(score));
-
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -160,57 +157,10 @@ class VideoRatingPage extends GetView<VideoRatingController> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    if (video.trustLabel != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: scoreColor.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: scoreColor.withValues(alpha: 0.3)),
-                        ),
-                        child: Text(
-                          video.trustLabel!,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: scoreColor,
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               ),
-              // Score Gauge
-              Column(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: scoreColor, width: 3),
-                    ),
-                    child: Center(
-                      child: Text(
-                        score.toInt().toString(),
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: scoreColor,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Score',
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
+              const SizedBox.shrink(),
               const SizedBox(width: 16),
               const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: AppColors.textSecondary),
             ],
@@ -221,9 +171,6 @@ class VideoRatingPage extends GetView<VideoRatingController> {
   }
 
   Widget _buildRatingDetails(Video video) {
-    final score = video.videoRating > 0 ? video.videoRating : video.trustScore;
-    final scoreColor = Color(controller.getTrustColor(score));
-
     return Column(
       children: [
         // Header
@@ -265,42 +212,7 @@ class VideoRatingPage extends GetView<VideoRatingController> {
                   ),
                   child: Row(
                     children: [
-                      // Large Gauge
-                      Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          SizedBox(
-                            width: 100,
-                            height: 100,
-                            child: CircularProgressIndicator(
-                              value: score / 100,
-                              strokeWidth: 8,
-                              backgroundColor: AppColors.bgDivider,
-                              valueColor: AlwaysStoppedAnimation<Color>(scoreColor),
-                            ),
-                          ),
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                score.toInt().toString(),
-                                style: const TextStyle(
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                              const Text(
-                                '/100',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                      const SizedBox.shrink(),
                       const SizedBox(width: 24),
                       Expanded(
                         child: Column(
@@ -314,16 +226,6 @@ class VideoRatingPage extends GetView<VideoRatingController> {
                                 color: AppColors.textPrimary,
                               ),
                             ),
-                            const SizedBox(height: 8),
-                            if (video.trustLabel != null)
-                              Text(
-                                video.trustLabel!,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                  color: scoreColor,
-                                ),
-                              ),
                           ],
                         ),
                       ),
@@ -332,24 +234,9 @@ class VideoRatingPage extends GetView<VideoRatingController> {
                 ),
                 const SizedBox(height: 24),
                 
-                // Scoring Factors
-                if (video.scoringFactors != null) ...[
-                  _buildSectionTitle('Scoring Factors'),
-                  const SizedBox(height: 12),
-                  _buildFactorRow('Factual Accuracy', video.scoringFactors!.accuracy),
-                  _buildFactorRow('Evidence Strength', video.scoringFactors!.evidence),
-                  _buildFactorRow('Freshness', video.scoringFactors!.freshness),
-                  _buildFactorRow('Integrity', video.scoringFactors!.integrity),
-                  const SizedBox(height: 24),
-                ],
-
-                // Deductions
-                if (video.deductions.isNotEmpty) ...[
-                  _buildSectionTitle('Trust Deductions'),
-                  const SizedBox(height: 12),
-                  ...video.deductions.map(_buildDeductionItem),
-                  const SizedBox(height: 24),
-                ],
+                if (video.scoringFactors != null) const SizedBox.shrink(),
+                if (video.deductions.isNotEmpty) const SizedBox.shrink(),
+                const SizedBox(height: 24),
 
                 // Honesty Breakdown
                 if (video.honestyBreakdown != null) ...[

@@ -544,7 +544,7 @@ class _VideoCardState extends State<VideoCard> {
                     ),
                   ),
                 // Fact Checked badge
-                if (widget.video.videoRating > 0 || widget.video.factCheckUrl.isNotEmpty)
+                if (widget.video.factCheckUrl.isNotEmpty)
                   Positioned(
                     top: AppTheme.spacing.xs,
                     left: AppTheme.spacing.xs,

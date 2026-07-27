@@ -1,93 +1,89 @@
-import 'package:truthworld/theme/app_theme.dart';
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:get/get.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
-import 'package:google_fonts/google_fonts.dart';
-import 'package:truthworld/data/models/channel.dart';
-import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
-// import 'package:truthworld/features/home/presentation/views/home/search/search.dart';
-import 'package:truthworld/features/notifications/presentation/views/notifications/notification.dart';
-import 'package:truthworld/features/notifications/presentation/controllers/video_feed_notification_controller.dart';
-import 'package:truthworld/features/video/data/models/video.dart';
-import 'package:truthworld/core/services/auth_service.dart';
-import 'package:visibility_detector/visibility_detector.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:universal_html/html.dart' as html;
-import 'package:truthworld/features/topics/data/models/topic.dart';
-import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
+import 'package:truthworld/components/ui/community_post_card.dart';
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
 import 'package:truthworld/components/ui/video_card.dart';
-import 'package:truthworld/components/ui/community_post_card.dart';
-import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/deep_link_service.dart';
-import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
-import 'package:url_launcher/url_launcher.dart';
-
-
-// Feature Pages for Dashboard (Deferred for YouTube-speed startup)
-import 'package:truthworld/features/subscriptions/presentation/views/subscriptions/subscriptions.dart'
-    deferred as subscriptions;
-import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart'
-    deferred as history;
-import 'package:truthworld/features/myvideos/presentation/views/myvideos/my_videos.dart'
-    deferred as my_videos;
-import 'package:truthworld/features/library/presentation/views/library/library_screen.dart'
-    deferred as lib_feature;
-import 'package:truthworld/features/trending/presentation/views/trending/trending_page.dart'
-    deferred as trending;
+import 'package:truthworld/core/widgets/deferred_widget.dart';
+import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/about/presentation/views/About/about.dart'
     deferred as about;
+import 'package:truthworld/features/channel/presentation/views/channel/channel_details_screen.dart'
+    deferred as channel_details;
+import 'package:truthworld/features/community/data/models/community_post_model.dart';
+import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/community_guidelines.dart'
+    deferred as community_guidelines;
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/privacy_polices.dart'
     deferred as privacy;
 import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/terms.dart'
     deferred as terms;
-import 'package:truthworld/features/settings/presentation/views/settings/settings.dart'
-    deferred as settings;
-import 'package:truthworld/features/feedback/presentation/views/feedback/help.dart'
-    deferred as help;
-import 'package:truthworld/features/video/presentation/views/clips/clips_page.dart'
-    deferred as clips;
-import 'package:truthworld/features/feedback/presentation/views/feedback/feedbacks.dart'
-    deferred as feedback;
-import 'package:truthworld/features/likedvideos/presentation/views/likedvideos/liked_video_screen.dart'
-    deferred as liked_videos;
-import 'package:truthworld/features/video/presentation/views/downloadpage/download_page.dart'
-    deferred as downloads;
-import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_screen.dart'
-    deferred as playlist;
-import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_detail_screen.dart'
-    deferred as playlist_detail;
 import 'package:truthworld/features/discover/presentation/views/discover_channels.dart'
     deferred as discover;
-import 'package:truthworld/features/channel/presentation/views/channel/channel_details_screen.dart'
-    deferred as channel_details;
+import 'package:truthworld/features/feedback/presentation/views/feedback/feedbacks.dart'
+    deferred as feedback;
+import 'package:truthworld/features/feedback/presentation/views/feedback/help.dart'
+    deferred as help;
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/features/library/presentation/views/library/library_screen.dart'
+    deferred as lib_feature;
+import 'package:truthworld/features/likedvideos/presentation/views/likedvideos/liked_video_screen.dart'
+    deferred as liked_videos;
+import 'package:truthworld/features/myvideos/presentation/views/myvideos/my_videos.dart'
+    deferred as my_videos;
+import 'package:truthworld/features/notifications/presentation/controllers/video_feed_notification_controller.dart';
+import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_detail_screen.dart'
+    deferred as playlist_detail;
+import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_screen.dart'
+    deferred as playlist;
+import 'package:truthworld/features/settings/presentation/views/settings/settings.dart'
+    deferred as settings;
+// Feature Pages for Dashboard (Deferred for YouTube-speed startup)
+import 'package:truthworld/features/subscriptions/presentation/views/subscriptions/subscriptions.dart'
+    deferred as subscriptions;
+import 'package:truthworld/features/topics/data/models/topic.dart';
+import 'package:truthworld/features/topics/presentation/controllers/following_topics_controller.dart';
+import 'package:truthworld/features/topics/presentation/controllers/topic_controller.dart';
 import 'package:truthworld/features/topics/presentation/pages/explore_topics_page.dart'
     deferred as explore_topics;
 import 'package:truthworld/features/topics/presentation/pages/following_topics_page.dart'
     deferred as following_topics;
-import 'package:truthworld/features/content/presentation/views/mvp/privacy-policy/community_guidelines.dart'
-    deferred as community_guidelines;
-
-import 'package:truthworld/core/widgets/deferred_widget.dart';
+import 'package:truthworld/features/trending/presentation/views/trending/trending_page.dart'
+    deferred as trending;
+import 'package:truthworld/features/video/data/models/video.dart';
+import 'package:truthworld/features/video/presentation/views/clips/clips_page.dart'
+    deferred as clips;
+import 'package:truthworld/features/video/presentation/views/downloadpage/download_page.dart'
+    deferred as downloads;
+import 'package:truthworld/features/watchhistory/presentation/views/watchhistory/watchhistory.dart'
+    deferred as history;
+import 'package:truthworld/theme/app_theme.dart';
+import 'package:universal_html/html.dart' as html;
+import 'package:url_launcher/url_launcher.dart';
+import 'package:visibility_detector/visibility_detector.dart';
 
 // ==========================================================================
 // ENHANCED DARK PROFESSIONAL THEME DEFINITION
 // ==========================================================================
-final Color darkBackground = AppColors.bgPage; // Deeper black
-final Color darkSurface = AppColors.bgInput; // Rich dark surface
-final Color darkSurfaceVariant = Color(0xFF1E1E1E); // Elevated surfaces
-final Color darkOnSurface = Color(0xFFE8E8E8); // Crisp white text
-final Color darkOnSurfaceVariant = Color(0xFFB8B8B8); // Muted text
-final Color primaryAccent = Color(0xFF1976D2); // Professional blue
-final Color secondaryAccent = Color(0xFF42A5F5); // Lighter blue
-final Color tertiaryAccent = Color(0xFF90CAF9); // Subtle blue
+const Color darkBackground = AppColors.bgPage; // Deeper black
+const Color darkSurface = AppColors.bgInput; // Rich dark surface
+const Color darkSurfaceVariant = Color(0xFF1E1E1E); // Elevated surfaces
+const Color darkOnSurface = Color(0xFFE8E8E8); // Crisp white text
+const Color darkOnSurfaceVariant = Color(0xFFB8B8B8); // Muted text
+const Color primaryAccent = Color(0xFF1976D2); // Professional blue
+const Color secondaryAccent = Color(0xFF42A5F5); // Lighter blue
+const Color tertiaryAccent = Color(0xFF90CAF9); // Subtle blue
 ThemeData modernDarkProfessionalTheme = ThemeData(
   brightness: Brightness.dark,
   primaryColor: primaryAccent,
@@ -104,11 +100,10 @@ ThemeData modernDarkProfessionalTheme = ThemeData(
     onTertiary: Colors.white,
     tertiaryContainer: tertiaryAccent.withValues(alpha: 0.12),
     onTertiaryContainer: tertiaryAccent,
-    surface: darkSurface,
     onSurface: darkOnSurface,
     surfaceContainerHighest: darkSurfaceVariant,
     onSurfaceVariant: darkOnSurfaceVariant,
-    error: Color(0xFFFF6B6B),
+    error: const Color(0xFFFF6B6B),
     onError: Colors.white,
     outline: darkSurfaceVariant,
     outlineVariant: darkOnSurfaceVariant.withValues(alpha: 0.3),
@@ -204,8 +199,8 @@ ThemeData modernDarkProfessionalTheme = ThemeData(
       color: darkOnSurface,
       letterSpacing: 0.15,
     ),
-    iconTheme: IconThemeData(color: darkOnSurfaceVariant, size: 24),
-    actionsIconTheme: IconThemeData(color: darkOnSurfaceVariant, size: 24),
+    iconTheme: const IconThemeData(color: darkOnSurfaceVariant, size: 24),
+    actionsIconTheme: const IconThemeData(color: darkOnSurfaceVariant, size: 24),
   ),
   // Enhanced Card Theme
   cardTheme: CardThemeData(
@@ -226,7 +221,7 @@ ThemeData modernDarkProfessionalTheme = ThemeData(
       elevation: 2,
       shadowColor: primaryAccent.withValues(alpha: 0.3),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       textStyle: GoogleFonts.roboto(
         fontWeight: FontWeight.w500,
         fontSize: 16,
@@ -240,7 +235,7 @@ ThemeData modernDarkProfessionalTheme = ThemeData(
       disabledForegroundColor: primaryAccent.withValues(alpha: 0.3),
       side: BorderSide(color: primaryAccent.withValues(alpha: 0.6), width: 1.5),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       textStyle: GoogleFonts.roboto(
         fontWeight: FontWeight.w500,
         fontSize: 14,
@@ -253,7 +248,7 @@ ThemeData modernDarkProfessionalTheme = ThemeData(
       foregroundColor: primaryAccent,
       disabledForegroundColor: primaryAccent.withValues(alpha: 0.3),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       textStyle: GoogleFonts.roboto(
         fontWeight: FontWeight.w500,
         fontSize: 14,
@@ -271,9 +266,9 @@ ThemeData modernDarkProfessionalTheme = ThemeData(
     labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
     iconTheme: WidgetStateProperty.resolveWith((states) {
       if (states.contains(WidgetState.selected)) {
-        return IconThemeData(color: Colors.grey, size: 24);
+        return const IconThemeData(color: Colors.grey, size: 24);
       }
-      return IconThemeData(color: darkOnSurfaceVariant, size: 24);
+      return const IconThemeData(color: darkOnSurfaceVariant, size: 24);
     }),
     labelTextStyle: WidgetStateProperty.resolveWith((states) {
       final style = GoogleFonts.roboto(
@@ -291,7 +286,7 @@ ThemeData modernDarkProfessionalTheme = ThemeData(
     backgroundColor: darkSurface,
     indicatorColor: primaryAccent.withValues(alpha: 0.15),
     elevation: 1,
-    groupAlignment: -1.0,
+    groupAlignment: -1,
     labelType: NavigationRailLabelType.none,
     selectedLabelTextStyle: GoogleFonts.roboto(
       fontSize: 12,
@@ -305,8 +300,8 @@ ThemeData modernDarkProfessionalTheme = ThemeData(
       fontWeight: FontWeight.w500,
       letterSpacing: 0.5,
     ),
-    selectedIconTheme: IconThemeData(color: primaryAccent, size: 24),
-    unselectedIconTheme: IconThemeData(color: darkOnSurfaceVariant, size: 24),
+    selectedIconTheme: const IconThemeData(color: primaryAccent, size: 24),
+    unselectedIconTheme: const IconThemeData(color: darkOnSurfaceVariant, size: 24),
   ),
   // Enhanced Chip Theme
   chipTheme: ChipThemeData(
@@ -326,7 +321,7 @@ ThemeData modernDarkProfessionalTheme = ThemeData(
       letterSpacing: 0.1,
     ),
     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
     side: BorderSide.none,
     brightness: Brightness.dark,
     elevation: 0,
@@ -365,7 +360,7 @@ ThemeData modernDarkProfessionalTheme = ThemeData(
     fillColor: darkSurfaceVariant.withValues(alpha: 0.3),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: darkSurfaceVariant),
+      borderSide: const BorderSide(color: darkSurfaceVariant),
     ),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
@@ -373,13 +368,13 @@ ThemeData modernDarkProfessionalTheme = ThemeData(
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: primaryAccent, width: 2),
+      borderSide: const BorderSide(color: primaryAccent, width: 2),
     ),
     errorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: Color(0xFFFF6B6B)),
+      borderSide: const BorderSide(color: Color(0xFFFF6B6B)),
     ),
-    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     hintStyle: GoogleFonts.roboto(
       color: darkOnSurfaceVariant,
       fontWeight: FontWeight.w400,
@@ -393,10 +388,10 @@ ThemeData modernDarkProfessionalTheme = ThemeData(
 // ==========================================================================
 // CONSTANTS
 // ==========================================================================
-const double kTabletBreakpoint = 600.0;
-const double kDesktopBreakpoint = 1000.0;
-const double kSideNavWidth = 280.0;
-const double kCompactSideNavWidth = 80.0;
+const double kTabletBreakpoint = 600;
+const double kDesktopBreakpoint = 1000;
+const double kSideNavWidth = 280;
+const double kCompactSideNavWidth = 80;
 const double kBottomNavBarHeight = kToolbarHeight;
 
 class HomeSidebarVisibility {
@@ -475,16 +470,15 @@ class Home extends GetView<HomeController> {
   Widget _buildResponsiveLayout(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final bool isDesktop = constraints.maxWidth >= kDesktopBreakpoint;
-        final bool isTablet =
+        final isDesktop = constraints.maxWidth >= kDesktopBreakpoint;
+        final isTablet =
             constraints.maxWidth >= kTabletBreakpoint &&
             constraints.maxWidth < kDesktopBreakpoint;
-        final bool isMobile = constraints.maxWidth < kTabletBreakpoint;
-        final bool showCompactNavRail = isTablet && constraints.maxWidth < 850;
+        final isMobile = constraints.maxWidth < kTabletBreakpoint;
+        final showCompactNavRail = isTablet && constraints.maxWidth < 850;
         return Scaffold(
           backgroundColor: modernDarkProfessionalTheme.scaffoldBackgroundColor,
           appBar: _buildGlobalAppBar(context, isMobile, isTablet, isDesktop),
-          drawer: null,
           extendBody: true,
           body: SafeArea(
             bottom: false,
@@ -565,8 +559,8 @@ class Home extends GetView<HomeController> {
     bool isDesktop,
   ) {
     return Obx(() {
-      final int index = controller.sideNavSelectedIndex.value;
-      final bool isCore = _isCoreTab(index);
+      final index = controller.sideNavSelectedIndex.value;
+      final isCore = _isCoreTab(index);
 
       return Stack(
         children: [
@@ -626,7 +620,7 @@ class Home extends GetView<HomeController> {
             switchInCurve: Curves.easeOutCubic,
             switchOutCurve: Curves.easeInCubic,
             child: !isCore
-                ? Container(
+                ? ColoredBox(
                     key: ValueKey(index),
                     color: modernDarkProfessionalTheme.scaffoldBackgroundColor,
                     child: _buildSubPageContent(
@@ -789,35 +783,35 @@ class Home extends GetView<HomeController> {
 
   Widget _buildDesktopHeader(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: Row(
         children: [
           InkWell(
-            onTap: () => Get.offAllNamed("/"),
+            onTap: () => Get.offAllNamed('/'),
             borderRadius: BorderRadius.circular(8),
             child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 8.0),
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: Row(
                 children: [
                   Container(
-                    padding: EdgeInsets.all(3),
+                    padding: const EdgeInsets.all(3),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
+                      gradient: const LinearGradient(
                         colors: [primaryAccent, secondaryAccent],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(
+                    child: const Icon(
                       Icons.play_circle_fill_rounded,
                       color: Colors.white,
                       size: 32,
                     ),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   Text(
-                    "Truthworld",
+                    'Truthworld',
                     style: modernDarkProfessionalTheme.textTheme.titleLarge
                         ?.copyWith(
                           fontWeight: FontWeight.bold,
@@ -829,11 +823,11 @@ class Home extends GetView<HomeController> {
               ),
             ),
           ),
-          SizedBox(width: 40),
+          const SizedBox(width: 40),
           Expanded(
             child: Center(
               child: Container(
-                constraints: BoxConstraints(maxWidth: 650),
+                constraints: const BoxConstraints(maxWidth: 650),
                 height: 44,
                 child: Material(
                   borderRadius: BorderRadius.circular(22),
@@ -847,7 +841,7 @@ class Home extends GetView<HomeController> {
                     },
                     borderRadius: BorderRadius.circular(22),
                     child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 20.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Row(
                         children: [
                           Icon(
@@ -857,7 +851,7 @@ class Home extends GetView<HomeController> {
                                 .onSurfaceVariant,
                             size: 22,
                           ),
-                          SizedBox(width: 16),
+                          const SizedBox(width: 16),
                           Expanded(
                             child: Text(
                               'Search videos...',
@@ -901,17 +895,17 @@ class Home extends GetView<HomeController> {
     return Padding(
       padding: const EdgeInsets.only(left: 16),
       child: InkWell(
-        onTap: () => Get.offAllNamed("/"),
+        onTap: () => Get.offAllNamed('/'),
         borderRadius: BorderRadius.circular(8),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                padding: EdgeInsets.all(2),
+                padding: const EdgeInsets.all(2),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
+                  gradient: const LinearGradient(
                     colors: [primaryAccent, secondaryAccent],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -926,7 +920,7 @@ class Home extends GetView<HomeController> {
               ),
               const SizedBox(width: 8),
               Text(
-                "Truthworld",
+                'Truthworld',
                 style: modernDarkProfessionalTheme.textTheme.titleLarge
                     ?.copyWith(
                       fontWeight: FontWeight.bold,
@@ -944,7 +938,7 @@ class Home extends GetView<HomeController> {
     return [
       if (isMobile)
         Container(
-          margin: EdgeInsets.only(right: 8),
+          margin: const EdgeInsets.only(right: 8),
           decoration: BoxDecoration(
             color: modernDarkProfessionalTheme
                 .colorScheme
@@ -986,7 +980,7 @@ class Home extends GetView<HomeController> {
     }
     final controller = Get.find<VideoFeedNotificationController>();
     return Padding(
-      padding: const EdgeInsets.only(right: 8.0),
+      padding: const EdgeInsets.only(right: 8),
       child: Obx(() {
         final count = controller.unseenCount;
         return Stack(
@@ -1007,7 +1001,7 @@ class Home extends GetView<HomeController> {
                 top: 8,
                 right: 8,
                 child: Container(
-                  padding: EdgeInsets.all(4),
+                  padding: const EdgeInsets.all(4),
                   decoration: BoxDecoration(
                     color: Colors.red,
                     borderRadius: BorderRadius.circular(12),
@@ -1030,17 +1024,17 @@ class Home extends GetView<HomeController> {
 
   Widget _buildSignInButton(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       child: Obx(
         () => OutlinedButton.icon(
-          icon: Icon(
+          icon: const Icon(
             Icons.account_circle_outlined,
             size: 18,
             color: primaryAccent,
           ),
           label: Text(
-            controller.isLoadingAuth.value ? "Signing In..." : "Sign In",
-            style: TextStyle(color: primaryAccent, fontWeight: FontWeight.w500),
+            controller.isLoadingAuth.value ? 'Signing In...' : 'Sign In',
+            style: const TextStyle(color: primaryAccent, fontWeight: FontWeight.w500),
           ),
           onPressed: controller.isLoadingAuth.value
               ? null
@@ -1053,7 +1047,7 @@ class Home extends GetView<HomeController> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(24),
             ),
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           ),
         ),
       ),
@@ -1062,9 +1056,9 @@ class Home extends GetView<HomeController> {
 
   Widget _buildUserMenu(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(right: 12.0, left: 4.0),
+      padding: const EdgeInsets.only(right: 12, left: 4),
       child: PopupMenuButton<String>(
-        tooltip: "Account",
+        tooltip: 'Account',
         offset: const Offset(0, 45),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         elevation: 8,
@@ -1079,7 +1073,6 @@ class Home extends GetView<HomeController> {
               } else {
                 Get.toNamed('/channelscreen');
               }
-              break;
           }
         },
         itemBuilder: (context) => [
@@ -1202,7 +1195,7 @@ class Home extends GetView<HomeController> {
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
-            offset: Offset(0, -2),
+            offset: const Offset(0, -2),
           ),
         ],
       ),
@@ -1212,9 +1205,9 @@ class Home extends GetView<HomeController> {
                 .copyWith(
                   iconTheme: WidgetStateProperty.resolveWith((states) {
                     if (states.contains(WidgetState.selected)) {
-                      return IconThemeData(color: Colors.grey, size: 24);
+                      return const IconThemeData(color: Colors.grey, size: 24);
                     }
-                    return IconThemeData(color: darkOnSurfaceVariant, size: 24);
+                    return const IconThemeData(color: darkOnSurfaceVariant, size: 24);
                   }),
                   labelTextStyle: WidgetStateProperty.resolveWith((states) {
                     final style = GoogleFonts.roboto(
@@ -1237,17 +1230,17 @@ class Home extends GetView<HomeController> {
             height: kBottomNavBarHeight,
             indicatorColor: Colors.grey.withValues(alpha: 0.15),
             destinations: [
-              NavigationDestination(
+              const NavigationDestination(
                 icon: Icon(Icons.home_outlined),
                 selectedIcon: Icon(Icons.home),
                 label: 'Home',
               ),
-              NavigationDestination(
+              const NavigationDestination(
                 icon: Icon(Icons.interests_outlined),
                 selectedIcon: Icon(Icons.interests),
                 label: ' Topics',
               ),
-              NavigationDestination(
+              const NavigationDestination(
                 icon: Icon(Icons.subscriptions_outlined),
                 selectedIcon: Icon(Icons.subscriptions),
                 label: 'Subscriptions',
@@ -1330,20 +1323,19 @@ class Home extends GetView<HomeController> {
 // MODERNIZED SIDE NAVIGATION RAIL
 // ==========================================================================
 class _ModernSideNavigationRail extends StatelessWidget {
+  const _ModernSideNavigationRail({
+    required this.selectedIndex,
+    required this.onSelectItem,
+    required this.onShowSignInSnackbar,
+    required this.currentUser,
+    required this.homeController, this.isCompact = false,
+  });
   final int selectedIndex;
   final Function(int) onSelectItem;
   final VoidCallback onShowSignInSnackbar;
   final User? currentUser;
   final bool isCompact;
   final HomeController homeController;
-  const _ModernSideNavigationRail({
-    required this.selectedIndex,
-    required this.onSelectItem,
-    required this.onShowSignInSnackbar,
-    required this.currentUser,
-    this.isCompact = false,
-    required this.homeController,
-  });
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1381,7 +1373,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
       return ListView(
         padding: EdgeInsets.zero,
         children: [
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
 
           // Main Navigation Section
           Padding(
@@ -1391,7 +1383,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
               children: [
                 if (!isCompact)
                   Padding(
-                    padding: EdgeInsets.only(left: 4, bottom: 8, top: 4),
+                    padding: const EdgeInsets.only(left: 4, bottom: 8, top: 4),
                     child: Text(
                       'EXPLORE',
                       style: GoogleFonts.roboto(
@@ -1410,7 +1402,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                   Icons.home_outlined,
                   'Home',
                   HomeController.indexHome,
-                  route: "/home",
+                  route: '/home',
                 ),
                 if (isAuthenticated)
                   _buildNavItem(
@@ -1419,7 +1411,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                     Icons.subscriptions_outlined,
                     'Subscriptions',
                     HomeController.indexSubscriptions,
-                    route: "/subscriptions",
+                    route: '/subscriptions',
                     requiresAuth: true,
                   ),
                 _buildNavItem(
@@ -1428,7 +1420,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                   Icons.explore_outlined,
                   'Discover Channel',
                   HomeController.indexDiscover,
-                  route: "/discover",
+                  route: '/discover',
                 ),
                 _buildNavItem(
                   context,
@@ -1436,7 +1428,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                   Icons.interests_outlined,
                   'Explore Topics',
                   HomeController.indexExploreTopics,
-                  route: "/explore-topics",
+                  route: '/explore-topics',
                 ),
               ],
             ),
@@ -1446,9 +1438,9 @@ class _ModernSideNavigationRail extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 _buildDivider(context),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 // Personal Section
                 Padding(
                   padding: EdgeInsets.symmetric(
@@ -1459,7 +1451,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                     children: [
                       if (!isCompact)
                         Padding(
-                          padding: EdgeInsets.only(left: 4, bottom: 8, top: 4),
+                          padding: const EdgeInsets.only(left: 4, bottom: 8, top: 4),
                           child: Text(
                             'YOU',
                             style: GoogleFonts.roboto(
@@ -1482,7 +1474,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                             'Your channel',
                             HomeController.indexChannelDetail,
                             requiresAuth: true,
-                            onTap: () => homeController.navigateToYourChannel(),
+                            onTap: homeController.navigateToYourChannel,
                           );
                         }
                         return const SizedBox.shrink();
@@ -1494,7 +1486,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                           Icons.history_outlined,
                           'History',
                           HomeController.indexHistory,
-                          route: "/history",
+                          route: '/history',
                           requiresAuth: true,
                         ),
                       if (homeController.hasPlaylists.value)
@@ -1504,7 +1496,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                           Icons.playlist_play_outlined,
                           'Playlists',
                           HomeController.indexPlaylists,
-                          route: "/playlistscreen",
+                          route: '/playlistscreen',
                           requiresAuth: true,
                         ),
                       if (homeController.hasFollowedTopics.value)
@@ -1514,7 +1506,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                           Icons.check_circle_outline_rounded,
                           'Following Topics',
                           HomeController.indexFollowingTopics,
-                          route: "/following-topics",
+                          route: '/following-topics',
                           requiresAuth: true,
                         ),
                       if (homeController.hasWatchLater.value)
@@ -1525,7 +1517,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                           'Watch later',
                           HomeController.indexWatchLater,
                           requiresAuth: true,
-                          onTap: () => homeController.navigateToWatchLater(),
+                          onTap: homeController.navigateToWatchLater,
                         ),
                       if (homeController.hasLikedVideos.value)
                         _buildNavItem(
@@ -1534,7 +1526,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                           Icons.favorite_outline,
                           'Liked videos',
                           HomeController.indexLikedVideos,
-                          route: "/likedvideos",
+                          route: '/likedvideos',
                           requiresAuth: true,
                         ),
                       if (homeController.hasUploadedVideos.value)
@@ -1544,7 +1536,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                           Icons.slideshow_outlined,
                           'Your videos',
                           HomeController.indexYourVideos,
-                          route: "/myvideos",
+                          route: '/myvideos',
                           requiresAuth: true,
                         ),
                       if (homeController.hasClips.value)
@@ -1554,7 +1546,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                           Icons.content_cut_outlined,
                           'Your Clips',
                           HomeController.indexClips,
-                          route: "/clips",
+                          route: '/clips',
                           requiresAuth: true,
                         ),
                       if (homeController.hasDownloads.value)
@@ -1564,7 +1556,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                           Icons.download_outlined,
                           'Downloads',
                           HomeController.indexDownloads,
-                          route: "/downloads",
+                          route: '/downloads',
                           requiresAuth: true,
                         ),
                     ],
@@ -1577,9 +1569,9 @@ class _ModernSideNavigationRail extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 _buildDivider(context),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
 
                 // Subscriptions Section
                 _buildSectionHeader(context, 'Following'),
@@ -1587,9 +1579,9 @@ class _ModernSideNavigationRail extends StatelessWidget {
               ],
             ),
 
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           _buildDivider(context),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
 
           // Support Section
           Padding(
@@ -1599,7 +1591,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
               children: [
                 if (!isCompact)
                   Padding(
-                    padding: EdgeInsets.only(left: 4, bottom: 8, top: 4),
+                    padding: const EdgeInsets.only(left: 4, bottom: 8, top: 4),
                     child: Text(
                       'SUPPORT',
                       style: GoogleFonts.roboto(
@@ -1618,7 +1610,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                   Icons.settings_outlined,
                   'Settings',
                   HomeController.indexSettings,
-                  route: "/settings",
+                  route: '/settings',
                 ),
                 _buildNavItem(
                   context,
@@ -1626,7 +1618,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                   Icons.help_outline,
                   'Help Center',
                   HomeController.indexHelp,
-                  route: "/help",
+                  route: '/help',
                 ),
                 _buildNavItem(
                   context,
@@ -1634,7 +1626,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                   Icons.chat_bubble_outline,
                   'Feedback',
                   HomeController.indexFeedback,
-                  route: "/feedback",
+                  route: '/feedback',
                 ),
                 _buildNavItem(
                   context,
@@ -1648,9 +1640,9 @@ class _ModernSideNavigationRail extends StatelessWidget {
             ),
           ),
 
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           _buildDivider(context),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
 
           // Legal & Policies Section
           Padding(
@@ -1660,7 +1652,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
               children: [
                 if (!isCompact)
                   Padding(
-                    padding: EdgeInsets.only(left: 4, bottom: 8, top: 4),
+                    padding: const EdgeInsets.only(left: 4, bottom: 8, top: 4),
                     child: Text(
                       'POLICIES',
                       style: GoogleFonts.roboto(
@@ -1705,8 +1697,8 @@ class _ModernSideNavigationRail extends StatelessWidget {
                   998,
                   route: '/studio',
                   onTap: () async {
-                    final String? origin = html.window.location.origin;
-                    final String studioUrl = kIsWeb && (origin?.contains('localhost') ?? false)
+                    final origin = html.window.location.origin;
+                    final studioUrl = kIsWeb && origin.contains('localhost')
                         ? '$origin/studio'
                         : 'https://truthworld-1-studio.web.app/';
                     final studioUri = Uri.parse(studioUrl);
@@ -1747,9 +1739,9 @@ class _ModernSideNavigationRail extends StatelessWidget {
             ),
           ),
 
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           _buildDivider(context),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
 
           // Footer Section
           Padding(
@@ -1757,11 +1749,11 @@ class _ModernSideNavigationRail extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
                 // Footer
                 if (!isCompact)
                   Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16, horizontal: 4),
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 4),
                     child: Column(
                       children: [
                         Text(
@@ -1770,17 +1762,17 @@ class _ModernSideNavigationRail extends StatelessWidget {
                             fontSize: 12,
                             color: isDarkMode
                                 ? Colors.white38
-                                : Color(0xFF94A3B8),
+                                : const Color(0xFF94A3B8),
                           ),
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
                           'Made with ❤️ for creators',
                           style: GoogleFonts.roboto(
                             fontSize: 11,
                             color: isDarkMode
                                 ? Colors.white24
-                                : Color(0xFFCBD5E1),
+                                : const Color(0xFFCBD5E1),
                           ),
                         ),
                       ],
@@ -1807,7 +1799,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
     if (requiresAuth && !AuthService.to.isAuthenticated.value) {
       return const SizedBox.shrink();
     }
-    final bool isSelected = (index == HomeController.indexWatchLater)
+    final isSelected = (index == HomeController.indexWatchLater)
         ? (selectedIndex == HomeController.indexPlaylistDetail &&
               homeController.selectedPlaylist.value?.playlistName
                       .toLowerCase() ==
@@ -1817,7 +1809,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
         ? Colors.white
         : modernDarkProfessionalTheme.colorScheme.onSurfaceVariant;
     return Container(
-      margin: EdgeInsets.symmetric(vertical: 2),
+      margin: const EdgeInsets.symmetric(vertical: 2),
       child: Material(
         color: isSelected
             ? Colors.white.withValues(alpha: 0.12)
@@ -1833,7 +1825,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
           },
           borderRadius: BorderRadius.circular(isCompact ? 16 : 24),
           child: AnimatedContainer(
-            duration: Duration(milliseconds: 200),
+            duration: const Duration(milliseconds: 200),
             padding: EdgeInsets.symmetric(
               horizontal: isCompact ? 0 : 16,
               vertical: isCompact ? 12 : 12,
@@ -1875,7 +1867,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           AnimatedSwitcher(
-            duration: Duration(milliseconds: 200),
+            duration: const Duration(milliseconds: 200),
             child: Icon(
               isSelected ? selectedIcon : unselectedIcon,
               key: ValueKey(isSelected),
@@ -1910,7 +1902,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
     return Row(
       children: [
         AnimatedSwitcher(
-          duration: Duration(milliseconds: 200),
+          duration: const Duration(milliseconds: 200),
           child: Icon(
             isSelected ? selectedIcon : unselectedIcon,
             key: ValueKey(isSelected),
@@ -1945,7 +1937,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
     } else {
       // DASHBOARD NAVIGATION LOGIC
       // Instead of full page transitions, we just update the index for dashboard-compatible pages
-      final bool isDashboardPage =
+      final isDashboardPage =
           index == HomeController.indexHome ||
           index == HomeController.indexTrending ||
           index == HomeController.indexSubscriptions ||
@@ -1980,7 +1972,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
         }
       } else {
         if (route != null && Get.currentRoute != route) {
-          final bool isAtHome =
+          final isAtHome =
               Get.currentRoute == '/home' || Get.currentRoute == '/';
           if (index == HomeController.indexHome) {
             Get.offAllNamed(route);
@@ -1998,16 +1990,16 @@ class _ModernSideNavigationRail extends StatelessWidget {
 
   Widget _buildDivider(BuildContext context) {
     return Container(
-      margin: EdgeInsets.symmetric(vertical: 16),
+      margin: const EdgeInsets.symmetric(vertical: 16),
       height: 0.5,
       color: modernDarkProfessionalTheme.dividerColor,
     );
   }
 
   Widget _buildSectionHeader(BuildContext context, String title) {
-    if (isCompact) return SizedBox.shrink();
+    if (isCompact) return const SizedBox.shrink();
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       child: Text(
         title,
         style: modernDarkProfessionalTheme.textTheme.titleSmall?.copyWith(
@@ -2058,7 +2050,6 @@ class _ModernSideNavigationRail extends StatelessWidget {
             bannerUrl: '',
             createdAt: Timestamp.now(),
             updatedAt: Timestamp.now(),
-            subscriberCount: 0,
           );
 
           return _ModernChannelListItem(
@@ -2080,9 +2071,9 @@ class _ModernSideNavigationRail extends StatelessWidget {
     homeController.isNavigating.value = true;
     Get.toNamed(
       channel.channelRoute,
-      arguments: {"channel": channel, 'subscribercount': subscriberCount},
+      arguments: {'channel': channel, 'subscribercount': subscriberCount},
     );
-    Future.delayed(Duration(seconds: 1), () {
+    Future.delayed(const Duration(seconds: 1), () {
       homeController.isNavigating.value = false;
     });
   }
@@ -2110,13 +2101,13 @@ class _ModernSideNavigationRail extends StatelessWidget {
             Container(
               width: 32,
               height: 32,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: Colors.white,
                 shape: BoxShape.circle,
               ),
             ),
             if (!isCompact) ...[
-              SizedBox(width: 16),
+              const SizedBox(width: 16),
               Container(height: 16, width: 120, color: Colors.white),
             ],
           ],
@@ -2149,7 +2140,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                   color:
                       modernDarkProfessionalTheme.colorScheme.onSurfaceVariant,
                 ),
-                SizedBox(width: 8),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     message,
@@ -2172,14 +2163,14 @@ class _ModernSideNavigationRail extends StatelessWidget {
 // MODERNIZED CHANNEL LIST ITEM
 // ==========================================================================
 class _ModernChannelListItem extends StatelessWidget {
-  final Channel channel;
-  final VoidCallback onTap;
-  final bool isCompact;
   const _ModernChannelListItem({
     required this.channel,
     required this.onTap,
     required this.isCompact,
   });
+  final Channel channel;
+  final VoidCallback onTap;
+  final bool isCompact;
   @override
   Widget build(BuildContext context) {
     return Material(
@@ -2207,7 +2198,7 @@ class _ModernChannelListItem extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           _buildChannelAvatar(context, 16),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
             channel.channelName,
             style: modernDarkProfessionalTheme.textTheme.labelSmall?.copyWith(
@@ -2227,7 +2218,7 @@ class _ModernChannelListItem extends StatelessWidget {
     return Row(
       children: [
         _buildChannelAvatar(context, 16),
-        SizedBox(width: 16),
+        const SizedBox(width: 16),
         Expanded(
           child: Text(
             channel.channelName,
@@ -2256,19 +2247,14 @@ class _ModernChannelListItem extends StatelessWidget {
 // MODERNIZED MAIN CONTENT
 // ==========================================================================
 class _ModernMainContent extends StatelessWidget {
+  const _ModernMainContent({
+    required this.isMobile, required this.isTablet, required this.isDesktop, required this.homeController, required this.appBarActionsBuilder, super.key,
+  });
   final bool isMobile;
   final bool isTablet;
   final bool isDesktop;
   final HomeController homeController;
   final List<Widget> Function(BuildContext) appBarActionsBuilder;
-  const _ModernMainContent({
-    super.key,
-    required this.isMobile,
-    required this.isTablet,
-    required this.isDesktop,
-    required this.homeController,
-    required this.appBarActionsBuilder,
-  });
   String _formatViews(int views) {
     if (views < 1000) return views.toString();
     if (views < 1000000) {
@@ -2284,46 +2270,13 @@ class _ModernMainContent extends StatelessWidget {
     try {
       return timeago.format(timestamp.toDate());
     } catch (e) {
-      debugPrint("Error formatting timestamp: $e");
-      return "some time ago";
+      debugPrint('Error formatting timestamp: $e');
+      return 'some time ago';
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final categories = [
-      'All',
-      'Education',
-      'Entertainment',
-      'Music',
-      'News',
-      'Sports',
-      'Gaming',
-      'Technology',
-      'Science',
-      'Travel',
-      'Lifestyle',
-      'Comedy',
-      'Documentary',
-      'Movies',
-      'TV Shows',
-      'Vlogs',
-      'DIY & How-to',
-      'Health & Fitness',
-      'Fashion & Beauty',
-      'Food & Cooking',
-      'Business & Finance',
-      'Animation',
-      'Short Films',
-      'Motivation',
-      'History',
-      'Art & Design',
-      'Automotive',
-      'Animals & Pets',
-      'Spirituality',
-      'Nature & Wildlife',
-      'Kids & Family',
-    ];
     final horizontalPadding = isMobile ? 16.0 : (isTablet ? 24.0 : 32.0);
     return Container(
       decoration: BoxDecoration(
@@ -2341,19 +2294,26 @@ class _ModernMainContent extends StatelessWidget {
       child: CustomScrollView(
         controller: homeController.scrollController,
         slivers: [
-          if (homeController.sideNavSelectedIndex.value ==
-              HomeController.indexHome)
-            _buildMobileCategoryBar(context, categories),
+          Obx(() {
+            if (homeController.sideNavSelectedIndex.value ==
+                HomeController.indexHome) {
+              return _buildMobileCategoryBar(
+                context,
+                homeController.availableCategories,
+              );
+            }
+            return const SliverToBoxAdapter(child: SizedBox.shrink());
+          }),
           SliverToBoxAdapter(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _FeaturedVideoBanner(horizontalPadding: horizontalPadding),
-                SizedBox(height: 32),
+                const SizedBox(height: 32),
                 _PersonalizedPlaylistsSection(
                   horizontalPadding: horizontalPadding,
                 ),
-                SizedBox(height: 24),
+                const SizedBox(height: 24),
               ],
             ),
           ),
@@ -2363,7 +2323,7 @@ class _ModernMainContent extends StatelessWidget {
                 isMobile: isMobile,
                 isTablet: isTablet,
                 isDesktop: isDesktop,
-                videos: [], // Pass empty list while loading
+                videos: const [], // Pass empty list while loading
                 heroPrefix: 'grid_loading',
                 isLoading: true,
                 horizontalPadding: horizontalPadding,
@@ -2385,16 +2345,16 @@ class _ModernMainContent extends StatelessWidget {
           }),
           Obx(() {
             if (homeController.isLoadingMore.value) {
-              return SliverToBoxAdapter(
+              return const SliverToBoxAdapter(
                 child: Center(
                   child: Padding(
-                    padding: const EdgeInsets.all(16.0),
+                    padding: EdgeInsets.all(16),
                     child: CircularProgressIndicator(color: primaryAccent),
                   ),
                 ),
               );
             }
-            return SliverToBoxAdapter(child: SizedBox.shrink());
+            return const SliverToBoxAdapter(child: SizedBox.shrink());
           }),
           SliverToBoxAdapter(
             child: SizedBox(
@@ -2429,9 +2389,9 @@ class _ModernMainContent extends StatelessWidget {
     List<String> categories,
   ) {
     return PreferredSize(
-      preferredSize: const Size.fromHeight(48.0),
+      preferredSize: const Size.fromHeight(48),
       child: Container(
-        height: 48.0,
+        height: 48,
         decoration: BoxDecoration(
           color: modernDarkProfessionalTheme.appBarTheme.backgroundColor,
           border: Border(
@@ -2452,14 +2412,14 @@ class _ModernMainContent extends StatelessWidget {
               final isSelected =
                   homeController.selectedCategory.value == category;
               return Padding(
-                padding: const EdgeInsets.only(right: 8.0),
+                padding: const EdgeInsets.only(right: 8),
                 child: GestureDetector(
                   onTap: () {
                     homeController.selectCategory(category);
                     HapticFeedback.selectionClick();
                     Get.toNamed(
-                      "/category",
-                      arguments: {"category": category},
+                      '/category',
+                      arguments: {'category': category},
                     );
                   },
                   child: AnimatedContainer(
@@ -2493,15 +2453,6 @@ class _ModernMainContent extends StatelessWidget {
 // MODERNIZED VIDEO GRID SECTION
 // ==========================================================================
 class _ModernVideoGridSection extends StatelessWidget {
-  final bool isMobile;
-  final bool isTablet;
-  final bool isDesktop;
-  final List<dynamic> videos;
-  final String heroPrefix;
-  final bool isLoading;
-  final double horizontalPadding;
-  final String Function(int) formatViews;
-  final String Function(Timestamp) formatTimestamp;
   const _ModernVideoGridSection({
     required this.isMobile,
     required this.isTablet,
@@ -2513,6 +2464,15 @@ class _ModernVideoGridSection extends StatelessWidget {
     required this.formatViews,
     required this.formatTimestamp,
   });
+  final bool isMobile;
+  final bool isTablet;
+  final bool isDesktop;
+  final List<dynamic> videos;
+  final String heroPrefix;
+  final bool isLoading;
+  final double horizontalPadding;
+  final String Function(int) formatViews;
+  final String Function(Timestamp) formatTimestamp;
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
@@ -2525,7 +2485,7 @@ class _ModernVideoGridSection extends StatelessWidget {
   }
 
   Widget _buildVideoGrid(BuildContext context, List<dynamic> videos) {
-    int crossAxisCount = isMobile ? 1 : 3;
+    final crossAxisCount = isMobile ? 1 : 3;
     return SliverPadding(
       padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
       sliver: SliverMasonryGrid.count(
@@ -2545,7 +2505,7 @@ class _ModernVideoGridSection extends StatelessWidget {
             }
             return VideoCard(video: item, isGrid: true, heroPrefix: heroPrefix);
           } else if (item is CommunityPostModel) {
-            return CommunityPostCard(post: item, isFullWidth: true);
+            return CommunityPostCard(post: item);
           }
           return const SizedBox.shrink();
         },
@@ -2608,7 +2568,7 @@ class _ModernVideoGridSection extends StatelessWidget {
                 size: 48,
                 color: modernDarkProfessionalTheme.colorScheme.onSurfaceVariant,
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Text(
                 'No videos found',
                 style: modernDarkProfessionalTheme.textTheme.titleMedium
@@ -2618,7 +2578,7 @@ class _ModernVideoGridSection extends StatelessWidget {
                           .onSurfaceVariant,
                     ),
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Text(
                 'Try selecting a different category',
                 style: modernDarkProfessionalTheme.textTheme.bodyMedium
@@ -2640,8 +2600,8 @@ class _ModernVideoGridSection extends StatelessWidget {
 // FEATURED VIDEO BANNER
 // ==========================================================================
 class _FeaturedVideoBanner extends StatefulWidget {
-  final double horizontalPadding;
   const _FeaturedVideoBanner({required this.horizontalPadding});
+  final double horizontalPadding;
 
   @override
   State<_FeaturedVideoBanner> createState() => _FeaturedVideoBannerState();
@@ -2684,7 +2644,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
   void _reinitPageController() {
     final topics = _homeController.featuredTopics;
     if (topics.isEmpty) return;
-    final int itemsCount = topics.length;
+    final itemsCount = topics.length;
     final initialPage =
         (_infiniteItems ~/ 2) - ((_infiniteItems ~/ 2) % itemsCount);
     try {
@@ -2738,8 +2698,8 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
 
   @override
   Widget build(BuildContext context) {
-    final bool isMobile = MediaQuery.of(context).size.width < kTabletBreakpoint;
-    final double bannerHeight = isMobile ? 320 : 520;
+    final isMobile = MediaQuery.of(context).size.width < kTabletBreakpoint;
+    final bannerHeight = isMobile ? 320.0 : 520.0;
 
     return Obx(() {
       if (_homeController.isLoadingFeaturedTopics.value) {
@@ -2775,7 +2735,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
         return const SizedBox.shrink();
       }
 
-      final int itemsCount = topics.length;
+      final itemsCount = topics.length;
       return VisibilityDetector(
         key: const Key('featured_banner_visibility'),
         onVisibilityChanged: (info) {
@@ -2801,7 +2761,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.4),
                     blurRadius: 20,
-                    offset: Offset(0, 10),
+                    offset: const Offset(0, 10),
                   ),
                 ],
               ),
@@ -2829,9 +2789,9 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                             }
 
                             // Awesome transition effects
-                            final double scale = (1 - (pageOffset.abs() * 0.3))
+                            final scale = (1 - (pageOffset.abs() * 0.3))
                                 .clamp(0.7, 1.0);
-                            final double opacity =
+                            final opacity =
                                 (1 - (pageOffset.abs() * 0.5)).clamp(0.0, 1.0);
 
                             return Opacity(
@@ -2878,7 +2838,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: List.generate(itemsCount, (index) {
                           return Obx(() {
-                            final bool isSelected =
+                            final isSelected =
                                 _currentIndex.value == index;
                             return AnimatedContainer(
                               duration: const Duration(milliseconds: 300),
@@ -2935,7 +2895,6 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                 color: Colors.white.withValues(alpha: 0.1),
                 border: Border.all(
                   color: Colors.white.withValues(alpha: 0.2),
-                  width: 1,
                 ),
               ),
               child: Icon(
@@ -2964,7 +2923,7 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
           .doc(topic.id)
           .snapshots(),
       builder: (context, snapshot) {
-        Topic currentTopic = topic;
+        var currentTopic = topic;
         if (snapshot.hasData && snapshot.data!.exists) {
           currentTopic = Topic.fromDocumentSnapshot(snapshot.data!);
         }
@@ -2988,10 +2947,10 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
         ? Get.find<FollowingTopicsController>()
         : Get.put(FollowingTopicsController());
 
-    final double btnPaddingH = isMobile ? 12 : 20;
-    final double btnPaddingV = isMobile ? 8 : 12;
-    final double btnFontSize = isMobile ? 13 : 15;
-    final double btnIconSize = isMobile ? 16 : 18;
+    final btnPaddingH = isMobile ? 12.0 : 20.0;
+    final btnPaddingV = isMobile ? 8.0 : 12.0;
+    final btnFontSize = isMobile ? 13.0 : 15.0;
+    final btnIconSize = isMobile ? 16.0 : 18.0;
 
     return GestureDetector(
       onTap: () => _navigateToTopic(context, topic),
@@ -3003,9 +2962,9 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
             child: Transform.translate(
               offset: Offset(pageOffset * 100, 0), // Parallax move
               child: Image.network(
-                (topic.coverImage?.isNotEmpty == true
+                (topic.coverImage?.isNotEmpty ?? false
                         ? topic.coverImage
-                        : topic.thumbnailUrl?.isNotEmpty == true
+                        : topic.thumbnailUrl?.isNotEmpty ?? false
                         ? topic.thumbnailUrl
                         : null) ??
                     'https://images.unsplash.com/photo-1677442136019-21780ecad995?q=80&w=1932&auto=format&fit=crop',
@@ -3181,7 +3140,6 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                             side: isFollowed
                                 ? BorderSide(
                                     color: Colors.white.withValues(alpha: 0.3),
-                                    width: 1,
                                   )
                                 : BorderSide.none,
                           ),
@@ -3191,9 +3149,9 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                     }),
                     ElevatedButton.icon(
                       onPressed: () {
-                        final String slug = topic.slug;
-                        final String title = topic.title;
-                        final String? imageUrl =
+                        final slug = topic.slug;
+                        final title = topic.title;
+                        final imageUrl =
                             topic.coverImage ?? topic.thumbnailUrl;
                         final topicUrl = DeepLinkService.topicUrl(slug);
                         ShareBottomSheet.show(
@@ -3230,7 +3188,6 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
                           borderRadius: BorderRadius.circular(24),
                           side: BorderSide(
                             color: Colors.white.withValues(alpha: 0.3),
-                            width: 1,
                           ),
                         ),
                         elevation: 0,
@@ -3292,8 +3249,8 @@ class _FeaturedVideoBannerState extends State<_FeaturedVideoBanner> {
 // PERSONALIZED PLAYLISTS SECTION
 // ==========================================================================
 class _PersonalizedPlaylistsSection extends StatelessWidget {
-  final double horizontalPadding;
   const _PersonalizedPlaylistsSection({required this.horizontalPadding});
+  final double horizontalPadding;
 
   @override
   Widget build(BuildContext context) {
@@ -3338,7 +3295,7 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
               final playlist = playlists[index];
               return Container(
                 width: 240,
-                margin: EdgeInsets.only(right: 16),
+                margin: const EdgeInsets.only(right: 16),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
                   image: DecorationImage(
@@ -3362,11 +3319,11 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
                       ],
                     ),
                   ),
-                  padding: EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16),
                   alignment: Alignment.bottomLeft,
                   child: Text(
                     playlist['title']!,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -3386,26 +3343,24 @@ class _PersonalizedPlaylistsSection extends StatelessWidget {
 // REUSABLE MODERN AVATAR WIDGET
 // ==========================================================================
 class _ModernAvatar extends StatelessWidget {
+
+  const _ModernAvatar({
+    required this.radius, this.imageUrl,
+    this.placeholderText,
+  });
   final String? imageUrl;
   final double radius;
   final String? placeholderText;
 
-  const _ModernAvatar({
-    this.imageUrl,
-    required this.radius,
-    this.placeholderText,
-  });
-
   @override
   Widget build(BuildContext context) {
-    final bool hasImage = imageUrl != null && imageUrl!.isNotEmpty;
+    final hasImage = imageUrl != null && imageUrl!.isNotEmpty;
 
     return Container(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(
           color: primaryAccent.withValues(alpha: 0.2),
-          width: 1,
         ),
       ),
       child: CircleAvatar(
@@ -3462,7 +3417,7 @@ class SubscriptionsShimmerPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isMobile = MediaQuery.of(context).size.width < 600;
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F0F),
       body: SafeArea(
@@ -3472,7 +3427,7 @@ class SubscriptionsShimmerPlaceholder extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(16),
                 child: Shimmer.fromColors(
                   baseColor: const Color(0xFF1E1E1E),
                   highlightColor: Colors.white12,
@@ -3637,14 +3592,14 @@ class TopicsShimmerPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isMobile = MediaQuery.of(context).size.width < 600;
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return Scaffold(
       backgroundColor: const Color(0xFF0F0F0F),
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const NeverScrollableScrollPhysics(),
           child: Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -3731,7 +3686,7 @@ class LibraryShimmerPlaceholder extends StatelessWidget {
       backgroundColor: Colors.black,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -3783,7 +3738,7 @@ class LibraryShimmerPlaceholder extends StatelessWidget {
                   itemCount: 8,
                   itemBuilder: (context, index) {
                     return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16.0),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                       child: Shimmer.fromColors(
                         baseColor: const Color(0xFF1E1E1E),
                         highlightColor: Colors.white12,

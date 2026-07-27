@@ -525,8 +525,10 @@ Content creators may be eligible for monetization through:
 **Eligibility Requirements:**
 - Account in good standing
 - Compliance with all policies
-- Minimum subscriber and watch time thresholds
-- Age verification (18+ for most programs)
+- Zero subscriber count required (Monetization active from Day 1)
+- Cash withdrawal unlocked on a per-video basis upon reaching 10 hours of watch time for that specific video
+- Unwithdrawn or locked earnings can be spent immediately on platform AI features (AI Subtitles, AI Dubbing, AI Highlights)
+- Age verification (18+ for payout registration)
 - Valid payment information
 
 6.2 Payment Terms

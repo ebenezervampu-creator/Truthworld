@@ -31,7 +31,8 @@ import { PerformanceLayer }        from "./10-performance";
 import { logger }                  from "../utils/logger";
 import { alerting }                from "../utils/alerting";
 import { PIPELINE_CONFIG, DEEP_RESEARCH_CONFIG, isDeepResearchEnabled }         from "../config";
-import { reputationService }       from "../services/reputationService";
+// v12.0: reputationService no longer used directly in credibility layer (scoring removed)
+// import { reputationService }       from "../services/reputationService";
 import { contentIntentDetector }    from "../services/contentIntentDetector";
 import { speakerTrustEngine }       from "../services/speakerTrustEngine";
 import { SpeakerRegistryService }    from "../services/speakerRegistry";
@@ -209,6 +210,7 @@ export class CredibilityEngine {
 
       const rawClaims = rawClaimsResult.claims;
       extractionPartial = rawClaimsResult.partial;
+      void extractionPartial; // v12.0: No longer passed to scoring engine
 
       logger.info("[Credibility] Context recognized", { jobId, traceId, ...domainInfo });
 
@@ -412,6 +414,7 @@ export class CredibilityEngine {
         }
         return verified;
       })();
+      void batchStats; // v12.0: Scoring engine removed; batchStats preserved for structure
 
       // 9. Merge cached + stale + newly verified + labeled opinions (v5.0)
       const newlyVerified = await verificationPromise;
@@ -566,12 +569,9 @@ export class CredibilityEngine {
       // 10. Build explainability
       const explainableResults = this.buildExplainability(allVerified);
 
-      // 11.5 NEW: Fetch user reputation for Expertise Score (Factor 5)
-      const userRep = await reputationService.getReputation(userId);
-      const userHistory = {
-         reputation: userRep ? userRep.accuracyRate : 0.8, // Fallback to 80% if new
-         misinfoStrikes: 0 // Placeholder until strikes are implemented in ReputationService
-      };
+      // v12.0: User reputation no longer used for scoring but kept for future use
+      // const userRep = await reputationService.getReputation(userId);
+      void userId; // Suppress unused warning
 
       // 11.6 v5.0: Compute Speaker Trust Metrics
       const speakerBreakdowns = speakerTrustEngine.computeSpeakerMetrics(allVerified, synthesis.speakerRoles);
@@ -579,102 +579,63 @@ export class CredibilityEngine {
 
       const tFinal = Date.now();
 
-      // 12. Score (Institutional Trust Score v5.0)
-      // v5.0: Determine if launch claims were grounded (have real sources)
-      const launchGrounded = domainInfo.isLaunchNews && newlyVerified.some(c => 
-        c.isGrounded === true || (c.richSources && c.richSources.length > 0)
-      );
+      // v12.0: Scoring engine removed — no Trust Index calculation
+      // The fact-checking pipeline (extraction, verification, synthesis) remains intact.
+      // Videos no longer receive numerical scores, factors, or deductions.
+      const factCheckStats = {
+        totalClaims: rawClaims.length,
+        extractedClaims: rawClaims.length,
+        evaluatedClaims: allVerified.filter(c => 
+          c.status !== 'opinion_claim' && c.status !== 'religious_belief' && c.status !== 'satire_claim'
+        ).length,
+        correct: allVerified.filter(c => c.status === 'verified_true').length,
+        mostly_correct: allVerified.filter(c => c.status === 'mostly_true').length,
+        incorrect: allVerified.filter(c => c.status === 'false_claim').length,
+        unsupported: allVerified.filter(c => c.status === 'unproven').length,
+        unverifiable: 0,
+        filtered: filteredCount,
+        religious_belief: allVerified.filter(c => c.status === 'religious_belief').length,
+        opinion_claim: allVerified.filter(c => c.status === 'opinion_claim').length,
+        satire_claim: allVerified.filter(c => c.status === 'satire_claim').length,
+        verification_timeout: allVerified.filter(c => c.status === 'verification_timeout').length,
+        cacheHitRate: hitRate,
+        checkedClaimsRatio: rawClaims.length > 0 ? allVerified.length / rawClaims.length : 0,
+        verificationCoverageRatio: 1.0,
+      };
 
-      const trustScoreResult = this.scoringEngine.calculateInstitutionalTrustScore(
-        jobId, userId,
-        transcript, 
-        allVerified,
-        rawClaims.length,
-        executionPlan.channelType === "custom" ? "strict" : "balanced",
 
-        domainInfo.cautionLevel,
-        domainInfo.domain,
-        {
-          consistencyFactor: synthesis.chapters?.[0]?.videoRating ? synthesis.chapters[0].videoRating / 10 : undefined,
-          manipulationScore: synthesis.manipulationScore, // Graded L11 score
-          chapters: synthesis.chapters, // NEW: Pass for deterministic normalization
-          filteringReasons, // NEW: Pass for reporting
-          contentIntent,    // v4.3: Content Intent Detection
-          isLaunchNews: domainInfo.isLaunchNews,  // v5.0: Launch freshness boost
-          launchGrounded,                          // v5.0: Grounding confirmation
-          speakerCount,                            // v7.2: Calculate Metadata Reliability Score
-          viewerNote: synthesis.viewerNote,        // v8.3: Narrative generation
-          hallucinationIsolation: synthesis.hallucinationIsolation, // v10.0
-          traceabilityMap: synthesis.traceabilityMap, // v10.0
-          extractionPartial, // v11.1: Partial extraction telemetry
-        },
-        userHistory,
-        executionPlan.videoCategory, // v8.0: Category-aware epistemic scoring
-        undefined,                   // primaryVertical
-        {},                          // verticalScores
-        executionPlan.synthesisTier || 'standard',
-        batchStats
-      );
-
-      // v11.5: Institutional-grade coverage metric
-      const totalVerifiable = trustScoreResult.factCheckStats.totalClaims - 
-                             (trustScoreResult.factCheckStats.opinion_claim + 
-                              trustScoreResult.factCheckStats.religious_belief + 
-                              trustScoreResult.factCheckStats.satire_claim);
-      
-      const totalTimedOut = trustScoreResult.factCheckStats.verification_timeout;
-      const totalReachedTerminal = totalVerifiable - totalTimedOut;
-      
-      const coverageRatio = totalVerifiable > 0 ? Math.max(0, totalReachedTerminal / totalVerifiable) : 1.0;
-      trustScoreResult.factCheckStats.verificationCoverageRatio = Number(coverageRatio.toFixed(2));
 
       const result: CredibilityResult = {
-        analysisState:    trustScoreResult.analysisState,
-        scoreAvailable:   trustScoreResult.scoreAvailable,
-        analysisFailureReason: trustScoreResult.analysisFailureReason,
-        viewerNote:       trustScoreResult.viewerNote,
-        uiReport:         trustScoreResult.uiReport,
+        analysisState:    'VERIFIED' as any, // v12.0: Analysis completes but no scoring
+        scoreAvailable:   false, // v12.0: No score generated
+        analysisFailureReason: undefined,
+        viewerNote:       synthesis.viewerNote,
+        uiReport:         undefined, // v12.0: No scoring-based UI report
 
-        trustScore:       trustScoreResult.trustScore,
-        trustLabel:       trustScoreResult.trustLabel,
-        confidence:       trustScoreResult.confidence,
-        confidenceTier:   trustScoreResult.confidenceTier,
-        videoRating:      trustScoreResult.videoRating ?? (trustScoreResult.trustScore !== null ? Number((trustScoreResult.trustScore / 10).toFixed(1)) : 0),
+        trustScore:       null, // v12.0: Scoring removed
+        trustLabel:       'Not Scored' as any,
+        confidence:       0,
+        confidenceTier:   'low' as any,
+        videoRating:      0,
         
-        factors:          trustScoreResult.factors,
+        factors:          null, // v12.0: Scoring factors removed
         chapters:         synthesis.chapters || [],
-        speakers:         speakerBreakdowns, // v5.0: Populated speaker metrics
+        speakers:         speakerBreakdowns,
         claims:           explainableResults,
         
-        deductions:       trustScoreResult.deductions, // v5.1: Transparency
+        deductions:       [], // v12.0: Deductions removed
         
-        // v8.0: Category-Aware Epistemic Scoring
-        videoCategory:          trustScoreResult.videoCategory,
-        categoryWeightProfile:  trustScoreResult.categoryWeightProfile,
-        honestyBreakdown:       trustScoreResult.honestyBreakdown,
-        contextualFlags:        trustScoreResult.contextualFlags,
-        harmCapApplied:         trustScoreResult.harmCapApplied,
-        harmCapReason:          trustScoreResult.harmCapReason,
-        rawScoreBeforeCap:      trustScoreResult.rawScoreBeforeCap,
-        penaltyApplied:         trustScoreResult.penaltyApplied,
+        // v12.0: Category & epistemic scoring removed
+        videoCategory:          executionPlan.videoCategory,
+        categoryWeightProfile:  undefined,
+        honestyBreakdown:       undefined,
+        contextualFlags:        undefined,
+        harmCapApplied:         false,
+        harmCapReason:          undefined,
+        rawScoreBeforeCap:      undefined,
+        penaltyApplied:         undefined,
         
-        factCheckStats: {
-          totalClaims:      rawClaims.length,
-          extractedClaims:  rawClaims.length,
-          evaluatedClaims:  trustScoreResult.factCheckStats.evaluatedClaims,
-          correct:      trustScoreResult.factCheckStats.correct,
-          mostly_correct: trustScoreResult.factCheckStats.mostly_correct,
-          incorrect:    trustScoreResult.factCheckStats.incorrect,
-          unsupported:  trustScoreResult.factCheckStats.unsupported,
-          unverifiable: trustScoreResult.factCheckStats.unverifiable,
-          filtered:     filteredCount,
-          religious_belief: trustScoreResult.factCheckStats.religious_belief,
-          opinion_claim:    trustScoreResult.factCheckStats.opinion_claim,
-          satire_claim:     trustScoreResult.factCheckStats.satire_claim,
-          verification_timeout: trustScoreResult.factCheckStats.verification_timeout,
-          cacheHitRate: hitRate,
-          verificationCoverageRatio: trustScoreResult.factCheckStats.verificationCoverageRatio,
-        },
+        factCheckStats,
         filteringReasons: [],
         contentIntent: {
           primaryIntent: contentIntent.primaryIntent,
@@ -686,13 +647,13 @@ export class CredibilityEngine {
           ratingCeiling: contentIntent.ratingCeiling,
         },
         
-        scoringMethod:  trustScoreResult.scoringMethod,
-        diagnostics:      trustScoreResult.diagnostics || [],
-        confidenceNotes:  trustScoreResult.confidenceNotes || [],
-        vertical:         trustScoreResult.vertical,
-        verticalScores:   trustScoreResult.verticalScores,
-        reviewTriggered:  trustScoreResult.reviewTriggered,
-        reviewReason:     trustScoreResult.reviewReason,
+        scoringMethod:  'balanced',
+        diagnostics:      [],
+        confidenceNotes:  [],
+        vertical:         undefined,
+        verticalScores:   undefined,
+        reviewTriggered:  false,
+        reviewReason:     undefined,
         synthesisTier,
         isLongform:       durationSeconds > 600,
         isFinal:        true, 
@@ -706,11 +667,11 @@ export class CredibilityEngine {
         manipulationScore: synthesis.manipulationScore,
         isAppealed:     false,
         appealStatus:   'none',
-        sourceLedger:   trustScoreResult.sourceLedger,
-        verifiedAsOf:   trustScoreResult.verifiedAsOf,
-        evaluationHealth,                                  // v11.0: Claim reach + evaluation health
-        repairSuggestions: trustScoreResult.repairSuggestions, // v11.0: Creator repair path
-        consistencyIssues: trustScoreResult.consistencyIssues, // v11.0: Traceable consistency
+        sourceLedger:   undefined,
+        verifiedAsOf:   new Date().toISOString().split('T')[0],
+        evaluationHealth,
+        repairSuggestions: undefined,
+        consistencyIssues: undefined,
         verifiedAt:     Date.now(),
         processingTime: Date.now() - t0,
 
@@ -720,19 +681,19 @@ export class CredibilityEngine {
           claimsExtracted: rawClaims.length,
           verificationAttempted: evaluationHealth.attemptedClaims,
           verificationSucceeded: evaluationHealth.evaluatedClaims,
-          verificationTimedOut: trustScoreResult.factCheckStats.verification_timeout,
-          verificationCompleted: trustScoreResult.factCheckStats.verification_timeout === 0 && evaluationHealth.attemptedClaims > 0,
+          verificationTimedOut: factCheckStats.verification_timeout,
+          verificationCompleted: factCheckStats.verification_timeout === 0 && evaluationHealth.attemptedClaims > 0,
           claimsVerified: (allVerified.filter(c => ['verified_true', 'mostly_true', 'false_claim', 'misleading', 'disputed'].includes(c.status)).length > 0),
           verificationPipelineCompleted: true,
           summaryGenerated: synthesis.conclusion.label !== "Error",
           consistencyCheckCompleted: true,
-          checkedClaimsRatio: trustScoreResult.factCheckStats.checkedClaimsRatio,
-          verificationCoverage: trustScoreResult.factCheckStats.verificationCoverageRatio || 0,
+          checkedClaimsRatio: factCheckStats.checkedClaimsRatio,
+          verificationCoverage: factCheckStats.verificationCoverageRatio || 0,
         },
 
         versions: {
           model: "Gemini 2.5 Multi-Model",
-          scoring: "v8.5", // v8.5: Path 1 multi-dimensional scoring
+          scoring: "v12.0-no-scoring",
           registry: "v3-blended"
         },
 
@@ -764,17 +725,14 @@ export class CredibilityEngine {
         }
       };
 
-      // v5.0: Sync conclusion label with honest verdict when no evaluation occurred
-      if (result.factCheckStats.evaluatedClaims === 0 && result.conclusion) {
-        result.conclusion.label = result.trustLabel;
-      }
+      // v12.0: No scoring — conclusion label stays as synthesis-generated
 
       // 14. Store result
       await this.storeResult(jobId, userId, result);
 
       // 15. Emit fact-complete
       const eventData: FactCompleteData = {
-        honestRating:     result.trustScore,
+        honestRating:     null, // v12.0: Scoring removed
         claimsEvaluated:  result.factCheckStats.evaluatedClaims,
         correct:          result.factCheckStats.correct,
         incorrect:        result.factCheckStats.incorrect,
@@ -860,7 +818,7 @@ export class CredibilityEngine {
           jobId, userId,
           timestamp:  Date.now(),
           data:       {
-            honestRating: fallbackResult.trustScore,
+            honestRating: null, // v12.0: Scoring removed
             claimsEvaluated: 0,
             correct: 0,
             incorrect: 0,
@@ -884,13 +842,17 @@ export class CredibilityEngine {
    * Generates a neutral, low-confidence result when AI capacity is exceeded.
    */
   private generateCapacityFallbackResult(jobId: string, userId: string, error: string, transcript: any): CredibilityResult {
-    const rawResult = this.scoringEngine.calculateInstitutionalTrustScore(
-      jobId, userId, transcript, [], 0, "balanced", "medium", "General",
-      { extractionError: 'AI_CAPACITY_EXCEEDED' }
-    );
-    
+    // v12.0: No scoring engine invocation — return minimal result with null scores
     return {
-      ...rawResult,
+      analysisState: 'ANALYSIS_INCOMPLETE' as any,
+      scoreAvailable: false,
+      trustScore: null,
+      trustLabel: 'Not Scored' as any,
+      confidence: 0,
+      confidenceTier: 'low' as any,
+      videoRating: 0,
+      factors: null,
+      deductions: [],
       totalClaims: 0,
       evaluatedClaims: 0,
       claims: [],
@@ -901,7 +863,15 @@ export class CredibilityEngine {
       viewerNote: "The AI provider is currently at capacity. Analysis is incomplete.",
       latencyMs: { extraction: 0, verification: 0, consistency: 0, synthesis: 0, total: 0 },
       telemetry: { transcriptLoaded: true, claimsExtracted: 0, verificationCompleted: false, summaryGenerated: false },
-      stats: { correct: 0, mostly_correct: 0, incorrect: 0, unsupported: 0, unverifiable: 0, filtered: 0, cacheHitRate: 0 }
+      factCheckStats: { totalClaims: 0, extractedClaims: 0, evaluatedClaims: 0, correct: 0, mostly_correct: 0, incorrect: 0, unsupported: 0, unverifiable: 0, filtered: 0, religious_belief: 0, opinion_claim: 0, satire_claim: 0, verification_timeout: 0 },
+      scoringMethod: 'balanced',
+      synthesisTier: 'standard',
+      isLongform: false,
+      isFinal: false,
+      verifiedAt: Date.now(),
+      processingTime: 0,
+      versions: { model: "Gemini 2.5", scoring: "v12.0-no-scoring", registry: "v3-blended" },
+      filteringReasons: [],
     } as any;
   }
 

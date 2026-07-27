@@ -176,6 +176,7 @@ export interface ExecutionPlan {
   enableABHooks?: boolean;
   generateDubbing: boolean;
   genLangSubs: boolean;
+  generateSubtitles?: boolean;
   channelType: ChannelType;
   autoChapters?: boolean;
 

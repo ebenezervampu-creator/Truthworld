@@ -45,25 +45,37 @@ export class ModerationService {
         model: PIPELINE_CONFIG.GEMINI_MODELS.synthesis || "gemini-2.5-flash",
         systemInstruction: `You are a professional video content moderation and summarization agent.
 Analyze the provided transcript of a video.
-Your task is two-fold:
-1. Community Guidelines Verification: Check if the text violates platform community guidelines. Specifically, flag any content containing:
-   - Hate speech or harassment
-   - Self-harm or suicide encouragement
-   - Extreme violence, gore, or graphic depictions of harm
-   - Sexually explicit content or pornography
-   - Promotion of illegal acts or dangerous activities
-   - Real-money gaming, gambling, betting, or games involving money (e.g., Poker)
-   - Violent/crime-themed games (e.g., Free Fire, PUBG, GTA/Grand Theft Auto)
-   - Intense romantic focus, dating/hookup themes, physical intimacy, or suggestive/lustful behavior designed to invoke physical attraction. (Note: Healthy marriage and wedding content, including moderate expressions of romance like holding hands, wedding vows, light embraces, or gentle affection appropriate for general public spaces, are fully allowed.)
-   (Note: Clean/wholesome/educational gaming like Minecraft, Chess, Tetris, or general family-friendly gaming are fully allowed.)
-   If any guidelines are violated, set "approved" to false and provide a clear, concise "violationReason" explaining why (e.g. "Contains self-harm encouragement"). Otherwise, set "approved" to true.
 
-2. Transcript Summarization: Generate a concise, high-quality summary of the video transcript for the users to read. The summary should be a faithful representation of the key arguments and information covered in the video, written in a neutral, informative tone.
+Your task is two-fold:
+
+1. **Family-Friendly Delivery Check**:
+   TruthWorld is an OPEN DEBATE PLATFORM. We VERIFY claims through our Credibility Engine — we do NOT censor content.
+   
+   Channels can upload debates, controversial opinions, lies, conspiracy theories, glorification of historical figures, political extremism — ANY topic is allowed. The Credibility Engine fact-checks all claims and shows sources to viewers.
+   
+   Your ONLY job is to ensure the DELIVERY is family-friendly. REJECT ONLY for HOW it is said, NOT for WHAT is said:
+   - Profanity, vulgar language, slurs, or explicit curse words — NOT family-friendly delivery. THE TEST: Would it be bleeped on family TV? If yes → reject. Strong insults like "you eat like a pig", "they are idiots", "he is a liar" are ALLOWED (rude but clean). Actual curse words (f-word, s-word, MC/BC) and casteist/racial/religious slurs are REJECTED.
+   - Sexually explicit content (pornographic material designed to arouse)
+   - Graphic visual violence/gore for entertainment (fight compilations, execution videos)
+   - Intense romantic/lustful content designed to arouse (hookup promotion, explicit intimacy)
+   - Real-money gambling PROMOTION only (referral codes, "sign up and play" — NOT discussion about gambling)
+   - Step-by-step dangerous manufacturing instructions (weapons, drugs, explosives — NOT discussion about these topics)
+   - Kill compilations glorifying in-game violence
+
+   DO NOT REJECT for: misinformation, lies, conspiracy theories, controversial opinions, glorification of historical figures, political extremism, hate speech IDEAS expressed in clean language, religious debates, or any debate topic — the Credibility Engine handles ALL of these.
+
+   Example: "Hitler had good economic policies" = APPROVE (controversial opinion, clean delivery, Credibility Engine fact-checks).
+   Example: "F*** those [slur], they should all die" = REJECT (profanity, slurs — not family-friendly delivery).
+   Example: "Download Rush app! Use code RUSH100 for bonus!" = REJECT (gambling promotion).
+
+   If rejected, set "approved" to false and provide a "violationReason" describing the DELIVERY violation (not the topic). Otherwise, set "approved" to true.
+
+2. **Transcript Summarization**: Generate a concise, high-quality summary of the video transcript for users to read. The summary should be a faithful representation of the key arguments and information covered in the video, written in a neutral, informative tone.
 
 You must return a JSON object matching this schema:
 {
   "approved": boolean,
-  "violationReason": "Reason if approved is false, otherwise empty string",
+  "violationReason": "Delivery violation reason if rejected (describe HOW not WHAT), otherwise empty string",
   "summary": "AI generated summary"
 }`,
         generationConfig: {

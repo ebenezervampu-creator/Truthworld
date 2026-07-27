@@ -52,6 +52,7 @@ class Channel {
     this.status = ChannelStatus.active,
     this.isVerified = false,
     this.category = 'other',
+    this.categories = const [],
     this.language = 'en',
     this.monetizationTier = MonetizationTier.none,
     this.monetizationSettings,
@@ -90,6 +91,15 @@ class Channel {
       ),
       isVerified: data['isVerified'] ?? false,
       category: data['category'] ?? 'other',
+      categories: data['categories'] != null
+          ? List<String>.from(data['categories'])
+          : (data['category'] != null && (data['category'] as String).isNotEmpty
+              ? (data['category'] as String)
+                  .split(',')
+                  .map((e) => e.trim())
+                  .where((e) => e.isNotEmpty)
+                  .toList()
+              : ['other']),
       language: data['language'] ?? 'en',
       monetizationTier: MonetizationTier.values.firstWhere(
         (e) => e.name == (data['monetizationTier'] ?? 'none'),
@@ -136,6 +146,7 @@ class Channel {
   final ChannelStatus status;
   final bool isVerified;
   final String category;
+  final List<String> categories;
   final String language;
   final String? moderationReason;
 
@@ -192,6 +203,7 @@ class Channel {
       'status': status.name,
       'isVerified': isVerified,
       'category': category,
+      'categories': categories,
       'language': language,
       'monetizationTier': monetizationTier.name,
       'monetizationSettings': monetizationSettings,

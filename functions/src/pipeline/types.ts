@@ -313,6 +313,7 @@ export interface FilteredClaim extends ExtractedClaim {
 
 export type SourceTier = 'A' | 'B' | 'C' | 'D' | 'E';
 export type VerificationMethod = 'grounded' | 'deterministic' | 'cache_hit' | 'llm_training' | 'not_verified';
+export type SourceCategory = 'book' | 'journal' | 'newspaper' | 'website' | 'government' | 'scripture' | 'legal' | 'encyclopedia' | 'academic_press' | 'archive';
 
 export interface RichSource {
   title: string;
@@ -323,6 +324,20 @@ export interface RichSource {
   publishedAt?: string;
   tier: SourceTier;
   snippet?: string; // Stored in full.json only
+  author?: string;
+  sourceType?: SourceCategory;
+  bookTitle?: string;
+  chapter?: string;
+  pageNumbers?: string;
+  volume?: string;
+  edition?: string;
+  isbn?: string;
+  doi?: string;
+  journalName?: string;
+  sectionAnchor?: string;
+  directUrl?: string;
+  yearPublished?: number;
+  accessDate?: string;
   lastPublished?: string;
   lastVerified?: string;
   retrievalMethod?: string;
@@ -886,7 +901,7 @@ export interface CategoryWeightProfile {
 export interface FactCheckDocument {
   videoId: string;
   userId: string;
-  honestRating: number;
+  honestRating: number | null; // v12.0: Nullable after scoring removal
   factCheck: {
     totalClaims: number;
     evaluatedClaims: number;
@@ -1094,6 +1109,7 @@ export interface ExecutionPlan {
   enableABHooks?: boolean; // generate 3 variants for first 10s
   generateDubbing: boolean;
   genLangSubs: boolean;
+  generateSubtitles?: boolean;
   channelType: ChannelType;
   autoChapters?: boolean;
 
@@ -1163,6 +1179,55 @@ export type EventType =
   | 'resolution-requested'
   | 'copyright-processing'
   | 'copyright-complete';
+
+export type GatewayDecisionStatus = 'APPROVED' | 'REJECTED' | 'MANUAL_REVIEW';
+
+export interface ViolatingClaimInfo {
+  text: string;
+  timestampMs?: number;
+  reason: string;
+}
+
+export interface FlaggedTimestampInfo {
+  startMs: number;
+  endMs: number;
+  reason: string;
+}
+
+export interface AutoChapterInfo {
+  startMs: number;
+  endMs: number;
+  title: string;
+  summary: string;
+}
+
+export interface VideoGatewayDecision {
+  status: GatewayDecisionStatus;
+  confidence: number;
+  evaluatedAt: number;
+  
+  // Available when status === 'APPROVED'
+  summary?: string;
+  category?: string;
+  tags?: string[];
+  autoChapters?: AutoChapterInfo[];
+  
+  // Available when status === 'REJECTED'
+  rejectionReason?: string;
+  violatingPolicies?: string[];
+  violatingClaims?: ViolatingClaimInfo[];
+  
+  // Available when status === 'MANUAL_REVIEW'
+  reviewReason?: string;
+  sensitiveTopics?: string[];
+  flaggedTimestamps?: FlaggedTimestampInfo[];
+
+  // Appeal fields
+  appealed?: boolean;
+  appealedAt?: number;
+  appealReason?: string;
+  appealStatus?: 'pending' | 'approved' | 'rejected';
+}
 
 export interface PipelineEvent<T = Record<string, any>> {
   eventId: string;

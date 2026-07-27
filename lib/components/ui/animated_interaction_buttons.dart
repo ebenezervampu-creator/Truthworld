@@ -328,6 +328,7 @@ class AnimatedSubscribeButton extends StatefulWidget {
     this.subscribedText = 'Subscribed',
     this.unsubscribedText = 'Subscribe',
     this.notificationsEnabled = false,
+    this.notificationOption = 'all',
     this.onNotificationTap,
     this.compact = false,
   });
@@ -336,6 +337,7 @@ class AnimatedSubscribeButton extends StatefulWidget {
   final String subscribedText;
   final String unsubscribedText;
   final bool notificationsEnabled;
+  final String notificationOption;
   final VoidCallback? onNotificationTap;
   final bool compact;
 
@@ -413,7 +415,11 @@ class _AnimatedSubscribeButtonState extends State<AnimatedSubscribeButton>
 
   void _handleTap() {
     HapticFeedback.lightImpact();
-    widget.onPressed();
+    if (widget.isSubscribed && widget.onNotificationTap != null) {
+      widget.onNotificationTap!();
+    } else {
+      widget.onPressed();
+    }
   }
 
   @override
@@ -431,6 +437,15 @@ class _AnimatedSubscribeButtonState extends State<AnimatedSubscribeButton>
         : const EdgeInsets.symmetric(horizontal: 16, vertical: 9);
 
     final fontSize = widget.compact ? 12.0 : 13.0;
+
+    IconData bellIcon;
+    if (widget.notificationOption == 'none' || !widget.notificationsEnabled) {
+      bellIcon = Icons.notifications_off_rounded;
+    } else if (widget.notificationOption == 'personalized') {
+      bellIcon = Icons.notifications_outlined;
+    } else {
+      bellIcon = Icons.notifications_active_rounded;
+    }
 
     return ScaleTransition(
       scale: _scaleAnimation,
@@ -481,9 +496,7 @@ class _AnimatedSubscribeButtonState extends State<AnimatedSubscribeButton>
                             return Transform.rotate(
                               angle: _bellSwingAnimation.value,
                               child: Icon(
-                                widget.notificationsEnabled
-                                    ? Icons.notifications_active_rounded
-                                    : Icons.notifications_none_rounded,
+                                bellIcon,
                                 size: fontSize + 3,
                                 color: fgColor,
                               ),
@@ -498,6 +511,12 @@ class _AnimatedSubscribeButtonState extends State<AnimatedSubscribeButton>
                             fontWeight: FontWeight.w600,
                             fontSize: fontSize,
                           ),
+                        ),
+                        const SizedBox(width: 2),
+                        Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          size: fontSize + 3,
+                          color: fgColor,
                         ),
                       ],
                     ),
