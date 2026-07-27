@@ -99,6 +99,20 @@ class SavedCommentsController extends GetxController {
     }
   }
 
+  final RxString selectedCategory = 'all'.obs; // 'all', 'video', 'topic', 'community_post'
+
+  int get totalCount => comments.length;
+  int get videoCount => comments.where((c) => c.sourceType == 'video').length;
+  int get topicCount => comments.where((c) => c.sourceType == 'topic').length;
+  int get communityCount => comments.where((c) => c.sourceType == 'community_post').length;
+
+  void setSelectedCategory(String category) {
+    if (selectedCategory.value != category) {
+      selectedCategory.value = category;
+      HapticFeedback.lightImpact();
+    }
+  }
+
   void setSearchQuery(String query) {
     searchQuery.value = query;
   }
@@ -117,12 +131,23 @@ class SavedCommentsController extends GetxController {
   }
 
   List<SavedCommentModel> get filteredComments {
-    if (searchQuery.isEmpty) return comments;
-    final query = searchQuery.value.toLowerCase();
-    return comments.where((item) {
-      return item.text.toLowerCase().contains(query) ||
-          item.userName.toLowerCase().contains(query) ||
-          item.sourceTitle.toLowerCase().contains(query);
-    }).toList();
+    var list = comments.toList();
+
+    // Category filter
+    if (selectedCategory.value != 'all') {
+      list = list.where((item) => item.sourceType == selectedCategory.value).toList();
+    }
+
+    // Search query filter
+    if (searchQuery.isNotEmpty) {
+      final query = searchQuery.value.toLowerCase();
+      list = list.where((item) {
+        return item.text.toLowerCase().contains(query) ||
+            item.userName.toLowerCase().contains(query) ||
+            item.sourceTitle.toLowerCase().contains(query);
+      }).toList();
+    }
+
+    return list;
   }
 }

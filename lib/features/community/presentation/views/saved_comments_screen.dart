@@ -204,90 +204,214 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
 
         final filtered = controller.filteredComments;
 
-        if (filtered.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: const BoxDecoration(
-                    color: AppColors.bgSurfaceHover,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.comment_outlined,
-                    size: 40,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  controller.searchQuery.value.isNotEmpty
-                      ? 'No matching saved comments'
-                      : 'No saved comments yet',
-                  style: GoogleFonts.roboto(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
-                  child: Text(
-                    controller.searchQuery.value.isNotEmpty
-                        ? 'Try searching with a different keyword'
-                        : 'Comments you save from Videos, Topics, or Community Posts will appear here',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.roboto(
-                      fontSize: 14,
-                      color: AppColors.textSecondary,
+        return Column(
+          children: [
+            // Category Filter Chips Bar (Videos, Topics, Community Posts, All)
+            _buildCategoryFilterChips(controller),
+            const SizedBox(height: 4),
+
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: const BoxDecoration(
+                              color: AppColors.bgSurfaceHover,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.comment_outlined,
+                              size: 40,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          Text(
+                            controller.searchQuery.value.isNotEmpty
+                                ? 'No matching saved comments'
+                                : _getEmptyCategoryTitle(controller.selectedCategory.value),
+                            style: GoogleFonts.roboto(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 32),
+                            child: Text(
+                              controller.searchQuery.value.isNotEmpty
+                                  ? 'Try searching with a different keyword'
+                                  : 'Comments you save from Videos, Topics, or Community Posts will appear here',
+                              textAlign: TextAlign.center,
+                              style: GoogleFonts.roboto(
+                                fontSize: 14,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: () async {
+                        controller.refreshComments();
+                      },
+                      color: AppColors.brand,
+                      backgroundColor: AppColors.bgSurface,
+                      child: CustomScrollView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: [
+                          // Saved Section Header
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    _getCategoryTitle(controller.selectedCategory.value),
+                                    style: GoogleFonts.roboto(
+                                      color: AppColors.textPrimary,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.brand.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      '${filtered.length}',
+                                      style: GoogleFonts.roboto(
+                                        color: AppColors.brand,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          // Saved Comment Grid
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                            sliver: SliverGrid(
+                              delegate: SliverChildBuilderDelegate(
+                                (context, index) {
+                                  final comment = filtered[index];
+                                  return _SavedCommentCard(
+                                    comment: comment,
+                                    onTap: () => _navigateToSource(comment),
+                                    onUnsave: () => controller.unsaveComment(comment.id),
+                                    onCopyText: () => _copyCommentText(comment.text),
+                                    sourceIcon: _getSourceIcon(comment.sourceType),
+                                    sourceLabel: _getSourceLabel(comment.sourceType),
+                                  );
+                                },
+                                childCount: filtered.length,
+                              ),
+                              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                mainAxisSpacing: 12,
+                                crossAxisSpacing: 12,
+                                childAspectRatio: 1.15,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+            ),
+          ],
+        );
+      }),
+    );
+  }
+
+  Widget _buildCategoryFilterChips(SavedCommentsController controller) {
+    final categories = [
+      {'id': 'all', 'label': 'All', 'icon': Icons.all_inbox_rounded, 'count': controller.totalCount},
+      {'id': 'video', 'label': 'Videos', 'icon': Icons.play_circle_fill_rounded, 'count': controller.videoCount},
+      {'id': 'topic', 'label': 'Topics', 'icon': Icons.tag_rounded, 'count': controller.topicCount},
+      {'id': 'community_post', 'label': 'Community', 'icon': Icons.article_rounded, 'count': controller.communityCount},
+    ];
+
+    return SizedBox(
+      height: 46,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        itemCount: categories.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final cat = categories[index];
+          final id = cat['id'] as String? ?? 'all';
+          final label = cat['label'] as String? ?? '';
+          final icon = cat['icon'] as IconData? ?? Icons.comment;
+          final count = cat['count'] as int? ?? 0;
+
+          return Obx(() {
+            final isSelected = controller.selectedCategory.value == id;
+            return Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => controller.setSelectedCategory(id),
+                borderRadius: BorderRadius.circular(20),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.brand
+                        : AppColors.bgSurface,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.brand
+                          : Colors.white.withValues(alpha: 0.1),
                     ),
                   ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        return RefreshIndicator(
-          onRefresh: () async {
-            controller.refreshComments();
-          },
-          color: AppColors.brand,
-          backgroundColor: AppColors.bgSurface,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              // Saved Section Header
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
+                      Icon(
+                        icon,
+                        size: 15,
+                        color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
+                      ),
+                      const SizedBox(width: 6),
                       Text(
-                        'Saved',
+                        label,
                         style: GoogleFonts.roboto(
-                          color: AppColors.textPrimary,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                          color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: AppColors.brand.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
+                          color: isSelected
+                              ? Colors.black.withValues(alpha: 0.25)
+                              : AppColors.bgSurfaceHover,
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
-                          '${filtered.length}',
+                          '$count',
                           style: GoogleFonts.roboto(
-                            color: AppColors.brand,
-                            fontSize: 12,
+                            fontSize: 10,
                             fontWeight: FontWeight.bold,
+                            color: isSelected ? AppColors.textPrimary : AppColors.textSecondary,
                           ),
                         ),
                       ),
@@ -295,80 +419,37 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
                   ),
                 ),
               ),
-
-              // Saved Comment Grid
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                sliver: SliverGrid(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final comment = filtered[index];
-                      return _SavedCommentCard(
-                        comment: comment,
-                        onTap: () => _navigateToSource(comment),
-                        onUnsave: () => controller.unsaveComment(comment.id),
-                        onCopyText: () => _copyCommentText(comment.text),
-                        sourceIcon: _getSourceIcon(comment.sourceType),
-                        sourceLabel: _getSourceLabel(comment.sourceType),
-                      );
-                    },
-                    childCount: filtered.length,
-                  ),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 1.15,
-                  ),
-                ),
-              ),
-
-              // Suggested Section Header
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 28, 16, 12),
-                  child: Text(
-                    'Suggested',
-                    style: GoogleFonts.roboto(
-                      color: AppColors.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-
-              // Suggested Section Content (Placeholder)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
-                  child: Column(
-                    children: [
-                      Text(
-                        'No suggestions',
-                        style: GoogleFonts.roboto(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Try again later',
-                        style: GoogleFonts.roboto(
-                          fontSize: 13,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      }),
+            );
+          });
+        },
+      ),
     );
+  }
+
+  String _getCategoryTitle(String category) {
+    switch (category) {
+      case 'video':
+        return 'Saved Video Comments';
+      case 'topic':
+        return 'Saved Topic Comments';
+      case 'community_post':
+        return 'Saved Community Comments';
+      default:
+        return 'All Saved Comments';
+    }
+  }
+
+  String _getEmptyCategoryTitle(String category) {
+    switch (category) {
+      case 'video':
+        return 'No saved video comments';
+      case 'topic':
+        return 'No saved topic comments';
+      case 'community_post':
+        return 'No saved community post comments';
+      default:
+        return 'No saved comments yet';
+    }
   }
 }
 

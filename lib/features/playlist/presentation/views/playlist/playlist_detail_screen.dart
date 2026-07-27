@@ -219,36 +219,41 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
 
     return Container(
       padding: EdgeInsets.all(horizontalPadding),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Thumbnail
-          _buildThumbnail(playlist, isTablet: isTablet),
-          const SizedBox(width: 16),
-          // Info
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  playlist.playlistName,
-                  style: TextStyle(
-                    fontSize: isTablet ? 22 : 20,
-                    fontWeight: FontWeight.w700,
-                    color: ytTextPrimary,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Thumbnail
+              _buildThumbnail(playlist, isTablet: isTablet),
+              const SizedBox(width: 16),
+              // Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      playlist.playlistName,
+                      style: TextStyle(
+                        fontSize: isTablet ? 22 : 18,
+                        fontWeight: FontWeight.w700,
+                        color: ytTextPrimary,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    _buildChannelInfo(playlist),
+                    const SizedBox(height: 8),
+                    _buildPlaylistStats(playlist),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                _buildChannelInfo(playlist),
-                const SizedBox(height: 8),
-                _buildPlaylistStats(playlist),
-                const SizedBox(height: 16),
-                _buildActionButtons(context, playlist, isTablet: isTablet),
-              ],
-            ),
+              ),
+            ],
           ),
+          const SizedBox(height: 16),
+          _buildActionButtons(context, playlist, isTablet: isTablet),
         ],
       ),
     );
@@ -391,6 +396,8 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
             fontSize: 12,
             color: ytTextTertiary,
           ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
         );
       },
     );
@@ -421,12 +428,16 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                   children: [
                     Icon(Icons.play_arrow, color: ytBackground, size: 20),
                     SizedBox(width: 4),
-                    Text(
-                      'Play all',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: ytBackground,
+                    Flexible(
+                      child: Text(
+                        'Play all',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: ytBackground,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],
@@ -455,12 +466,16 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
                   children: [
                     Icon(Icons.shuffle, color: ytTextPrimary, size: 18),
                     SizedBox(width: 4),
-                    Text(
-                      'Shuffle',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: ytTextPrimary,
+                    Flexible(
+                      child: Text(
+                        'Shuffle',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: ytTextPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],

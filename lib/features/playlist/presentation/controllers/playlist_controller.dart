@@ -293,11 +293,16 @@ class PlaylistController extends GetxController {
         });
       }
 
-      // Add to local list immediately for UI update
+      // Add to local list immediately for UI update (only if not already added by stream)
       if (isPublic) {
-        publicPlaylists.add(playlist);
+        if (!publicPlaylists.any((p) => p.id == playlist.id)) {
+          publicPlaylists.add(playlist);
+        }
+      } else {
+        if (!playlists.any((p) => p.id == playlist.id)) {
+          playlists.add(playlist);
+        }
       }
-      playlists.add(playlist);
 
       // Refresh to ensure consistency
       refreshPlaylistsTick();
