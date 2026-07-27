@@ -361,13 +361,29 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
     }
   }
 
+  void _copyCommentText(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    HapticFeedback.lightImpact();
+    Get.snackbar(
+      'Copied',
+      'Comment text copied to clipboard',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: AppColors.bgSurface,
+      colorText: AppColors.textPrimary,
+      margin: const EdgeInsets.all(16),
+      borderRadius: 12,
+      duration: const Duration(seconds: 2),
+      icon: const Icon(Icons.content_copy_rounded, color: AppColors.brand),
+    );
+  }
+
   void _showCommentOptions(BuildContext context, Comment comment, TopicInteractionController controller) {
     final user = FirebaseAuth.instance.currentUser;
     final isOwner = user != null && user.uid == comment.userId;
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.textSecondary,
+      backgroundColor: AppColors.bgSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -376,6 +392,14 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ListTile(
+                leading: const Icon(Icons.content_copy_rounded, color: AppColors.textPrimary),
+                title: const Text('Copy text', style: TextStyle(color: AppColors.textPrimary)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _copyCommentText(comment.text);
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.bookmark_outline_rounded, color: AppColors.textPrimary),
                 title: const Text('Save comment', style: TextStyle(color: AppColors.textPrimary)),
@@ -845,13 +869,60 @@ class TopicReplyItemWidget extends StatelessWidget {
   final bool isDesktop;
   final Function(String?) onNavigateToChannel;
 
+  Future<void> _toggleSaveReply(Reply reply) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      Get.snackbar('Authentication Required', 'Please sign in to save comments.');
+      return;
+    }
+    final docRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('savedComments')
+        .doc(reply.id);
+
+    try {
+      final docSnap = await docRef.get();
+      if (docSnap.exists) {
+        await docRef.delete();
+        Get.snackbar('Removed', 'Reply removed from Saved Comments');
+      } else {
+        await docRef.set({
+          'text': reply.text,
+          'userName': reply.displayName,
+          'userImage': reply.avatarUrl,
+          'sourceType': 'topic',
+          'sourceId': topicId,
+          'sourceTitle': 'Topic',
+          'savedAt': FieldValue.serverTimestamp(),
+        });
+
+        Get.snackbar(
+          'Saved',
+          'Reply saved to Saved Comments',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: AppColors.bgSurface,
+          colorText: AppColors.textPrimary,
+          margin: const EdgeInsets.all(16),
+          borderRadius: 12,
+          mainButton: TextButton(
+            onPressed: () => Get.toNamed('/saved-comments'),
+            child: const Text('VIEW', style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold)),
+          ),
+        );
+      }
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to save reply: $e');
+    }
+  }
+
   void _showReplyOptions(BuildContext context, Reply reply, TopicInteractionController controller) {
     final user = FirebaseAuth.instance.currentUser;
     final isOwner = user != null && user.uid == reply.userId;
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.textSecondary,
+      backgroundColor: AppColors.bgSurface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -860,6 +931,34 @@ class TopicReplyItemWidget extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ListTile(
+                leading: const Icon(Icons.content_copy_rounded, color: AppColors.textPrimary),
+                title: const Text('Copy text', style: TextStyle(color: AppColors.textPrimary)),
+                onTap: () {
+                  Navigator.pop(context);
+                  Clipboard.setData(ClipboardData(text: reply.text));
+                  HapticFeedback.lightImpact();
+                  Get.snackbar(
+                    'Copied',
+                    'Comment text copied to clipboard',
+                    snackPosition: SnackPosition.BOTTOM,
+                    backgroundColor: AppColors.bgSurface,
+                    colorText: AppColors.textPrimary,
+                    margin: const EdgeInsets.all(16),
+                    borderRadius: 12,
+                    duration: const Duration(seconds: 2),
+                    icon: const Icon(Icons.content_copy_rounded, color: AppColors.brand),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.bookmark_outline_rounded, color: AppColors.textPrimary),
+                title: const Text('Save comment', style: TextStyle(color: AppColors.textPrimary)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _toggleSaveReply(reply);
+                },
+              ),
               if (isOwner)
                 ListTile(
                   leading: const Icon(Icons.delete, color: AppColors.error),

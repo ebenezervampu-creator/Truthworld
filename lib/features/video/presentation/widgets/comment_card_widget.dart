@@ -1,5 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:get/get.dart';
 import 'package:truthworld/components/ui/animated_interaction_buttons.dart';
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
@@ -132,19 +136,117 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
           ),
         ),
         // More options menu
-        PopupMenuButton(
-          child: const Icon(
+        PopupMenuButton<String>(
+          icon: const Icon(
             Icons.more_vert,
             size: 18,
             color: AppColors.textSecondary,
           ),
+          onSelected: (value) async {
+            if (value == 'copy') {
+              Clipboard.setData(ClipboardData(text: widget.comment.text));
+              HapticFeedback.lightImpact();
+              Get.snackbar(
+                'Copied',
+                'Comment text copied to clipboard',
+                snackPosition: SnackPosition.BOTTOM,
+                backgroundColor: AppColors.bgSurface,
+                colorText: AppColors.textPrimary,
+                margin: const EdgeInsets.all(16),
+                borderRadius: 12,
+                duration: const Duration(seconds: 2),
+                icon: const Icon(Icons.content_copy_rounded, color: AppColors.brand),
+              );
+            } else if (value == 'save') {
+              final user = FirebaseAuth.instance.currentUser;
+              if (user == null) {
+                Get.snackbar('Authentication Required', 'Please sign in to save comments.');
+                return;
+              }
+              final docRef = FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user.uid)
+                  .collection('savedComments')
+                  .doc(widget.comment.id);
+
+              try {
+                final docSnap = await docRef.get();
+                if (docSnap.exists) {
+                  await docRef.delete();
+                  Get.snackbar('Removed', 'Comment removed from Saved Comments');
+                } else {
+                  await docRef.set({
+                    'text': widget.comment.text,
+                    'userName': widget.comment.displayName,
+                    'userImage': widget.comment.avatarUrl,
+                    'sourceType': 'video',
+                    'sourceId': '',
+                    'sourceTitle': 'Video',
+                    'savedAt': FieldValue.serverTimestamp(),
+                  });
+
+                  Get.snackbar(
+                    'Saved',
+                    'Comment saved to Saved Comments',
+                    snackPosition: SnackPosition.BOTTOM,
+                    backgroundColor: AppColors.bgSurface,
+                    colorText: AppColors.textPrimary,
+                    margin: const EdgeInsets.all(16),
+                    borderRadius: 12,
+                    mainButton: TextButton(
+                      onPressed: () => Get.toNamed('/saved-comments'),
+                      child: const Text('VIEW', style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold)),
+                    ),
+                  );
+                }
+              } catch (e) {
+                Get.snackbar('Error', 'Failed to save comment: $e');
+              }
+            } else if (value == 'report') {
+              Get.snackbar('Reported', 'Thank you for your report.');
+            }
+          },
           itemBuilder: (context) => [
-            if (widget.isCreatorComment)
-              const PopupMenuItem(
-                child: Text('Mark as Helpful'),
+            const PopupMenuItem<String>(
+              value: 'copy',
+              child: Row(
+                children: [
+                  Icon(Icons.content_copy_rounded, size: 18, color: AppColors.textPrimary),
+                  SizedBox(width: 12),
+                  Text('Copy text'),
+                ],
               ),
-            const PopupMenuItem(
-              child: Text('Report'),
+            ),
+            const PopupMenuItem<String>(
+              value: 'save',
+              child: Row(
+                children: [
+                  Icon(Icons.bookmark_outline_rounded, size: 18, color: AppColors.textPrimary),
+                  SizedBox(width: 12),
+                  Text('Save comment'),
+                ],
+              ),
+            ),
+            if (widget.isCreatorComment)
+              const PopupMenuItem<String>(
+                value: 'helpful',
+                child: Row(
+                  children: [
+                    Icon(Icons.star_outline_rounded, size: 18, color: AppColors.brand),
+                    SizedBox(width: 12),
+                    Text('Mark as Helpful'),
+                  ],
+                ),
+              ),
+            const PopupMenuItem<String>(
+              value: 'report',
+              child: Row(
+                children: [
+                  Icon(Icons.flag_outlined, size: 18, color: AppColors.textSecondary),
+                  SizedBox(width: 12),
+                  Text('Report'),
+                ],
+              ),
             ),
           ],
         ),

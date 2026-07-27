@@ -1,12 +1,14 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/user_avatar.dart';
 import 'package:truthworld/features/community/data/models/saved_comment_model.dart';
 import 'package:truthworld/features/community/presentation/controllers/saved_comments_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
+
+enum _CardMenuOption { openSource, copyText, unsave }
 
 class SavedCommentsScreen extends StatefulWidget {
   const SavedCommentsScreen({super.key});
@@ -51,6 +53,21 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
     }
   }
 
+  void _copyCommentText(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    HapticFeedback.lightImpact();
+    Get.snackbar(
+      'Copied',
+      'Comment text copied to clipboard',
+      snackPosition: SnackPosition.TOP,
+      backgroundColor: AppColors.bgSurfaceHover,
+      colorText: AppColors.textPrimary,
+      margin: const EdgeInsets.all(16),
+      borderRadius: 12,
+      duration: const Duration(seconds: 2),
+    );
+  }
+
   IconData _getSourceIcon(String sourceType) {
     switch (sourceType) {
       case 'video':
@@ -71,7 +88,7 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
       case 'topic':
         return 'Topic Comment';
       case 'community_post':
-        return 'Community Post Comment';
+        return 'Post Comment';
       default:
         return 'Comment';
     }
@@ -92,7 +109,7 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
             onPressed: () => Get.back<void>(),
           ),
           title: Text(
-            'Saved Comments',
+            'Comments',
             style: GoogleFonts.roboto(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.bold,
@@ -108,6 +125,9 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
         ),
       );
     }
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final crossAxisCount = screenWidth > 600 ? (screenWidth / 220).floor() : 2;
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
@@ -132,7 +152,7 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
             );
           }
           return Text(
-            'Saved Comments',
+            'Comments',
             style: GoogleFonts.roboto(
               color: AppColors.textPrimary,
               fontWeight: FontWeight.bold,
@@ -238,169 +258,312 @@ class _SavedCommentsScreenState extends State<SavedCommentsScreen> {
           },
           color: AppColors.brand,
           backgroundColor: AppColors.bgSurface,
-          child: ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: filtered.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final comment = filtered[index];
-              return _buildSavedCommentTile(comment);
-            },
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              // Saved Section Header
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  child: Row(
+                    children: [
+                      Text(
+                        'Saved',
+                        style: GoogleFonts.roboto(
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.brand.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${filtered.length}',
+                          style: GoogleFonts.roboto(
+                            color: AppColors.brand,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Saved Comment Grid
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                sliver: SliverGrid(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final comment = filtered[index];
+                      return _SavedCommentCard(
+                        comment: comment,
+                        onTap: () => _navigateToSource(comment),
+                        onUnsave: () => controller.unsaveComment(comment.id),
+                        onCopyText: () => _copyCommentText(comment.text),
+                        sourceIcon: _getSourceIcon(comment.sourceType),
+                        sourceLabel: _getSourceLabel(comment.sourceType),
+                      );
+                    },
+                    childCount: filtered.length,
+                  ),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 1.15,
+                  ),
+                ),
+              ),
+
+              // Suggested Section Header
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 28, 16, 12),
+                  child: Text(
+                    'Suggested',
+                    style: GoogleFonts.roboto(
+                      color: AppColors.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+
+              // Suggested Section Content (Placeholder)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
+                  child: Column(
+                    children: [
+                      Text(
+                        'No suggestions',
+                        style: GoogleFonts.roboto(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Try again later',
+                        style: GoogleFonts.roboto(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       }),
     );
   }
+}
 
-  Widget _buildSavedCommentTile(SavedCommentModel comment) {
-    final timeStr = timeago.format(comment.savedAt);
-    final iconData = _getSourceIcon(comment.sourceType);
-    final sourceLabel = _getSourceLabel(comment.sourceType);
+class _SavedCommentCard extends StatelessWidget {
+  const _SavedCommentCard({
+    required this.comment,
+    required this.onTap,
+    required this.onUnsave,
+    required this.onCopyText,
+    required this.sourceIcon,
+    required this.sourceLabel,
+  });
 
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
+  final SavedCommentModel comment;
+  final VoidCallback onTap;
+  final VoidCallback onUnsave;
+  final VoidCallback onCopyText;
+  final IconData sourceIcon;
+  final String sourceLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final rawHandle = comment.userName.replaceAll(' ', '_').toLowerCase();
+    final handle = rawHandle.startsWith('@') ? rawHandle.substring(1) : rawHandle;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black26,
-            blurRadius: 8,
-            offset: Offset(0, 2),
+        child: Ink(
+          decoration: BoxDecoration(
+            color: AppColors.bgSurface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black26,
+                blurRadius: 6,
+                offset: Offset(0, 2),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: () => _navigateToSource(comment),
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header: Source Type Tag + Unsave Option (Overflow Protected)
-                Row(
-                  children: [
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Icon(iconData, size: 16, color: AppColors.brand),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              sourceLabel,
-                              style: GoogleFonts.roboto(
-                                color: AppColors.brand,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header Row: Avatar + "Comment from @..." + Options Menu
+              Row(
+                children: [
+                  UserAvatar(
+                    radius: 14,
+                    photoUrl: comment.userImage,
+                    displayName: comment.userName,
+                    fontSize: 10,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Comment from',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.roboto(
+                            color: AppColors.textSecondary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w400,
                           ),
-                          if (comment.sourceTitle.isNotEmpty) ...[
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                '• ${comment.sourceTitle}',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.roboto(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
+                        ),
+                        Text(
+                          '@$handle',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.roboto(
+                            color: AppColors.textPrimary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuButton<_CardMenuOption>(
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    icon: const Icon(
+                      Icons.more_vert_rounded,
+                      color: AppColors.textSecondary,
+                      size: 18,
+                    ),
+                    color: AppColors.bgSurfaceHover,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                    ),
+                    onSelected: (option) {
+                      switch (option) {
+                        case _CardMenuOption.openSource:
+                          onTap();
+                        case _CardMenuOption.copyText:
+                          onCopyText();
+                        case _CardMenuOption.unsave:
+                          onUnsave();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: _CardMenuOption.openSource,
+                        height: 36,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.open_in_new_rounded, size: 16, color: AppColors.brand),
+                            const SizedBox(width: 8),
+                            Text('View source', style: GoogleFonts.roboto(fontSize: 12, color: AppColors.textPrimary)),
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.bookmark_remove_rounded, color: Colors.white70, size: 20),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      tooltip: 'Unsave comment',
-                      onPressed: () => controller.unsaveComment(comment.id),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                // Author Row
-                Row(
-                  children: [
-                    UserAvatar(
-                      radius: 12,
-                      photoUrl: comment.userImage,
-                      displayName: comment.userName,
-                      fontSize: 10,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              comment.userName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.roboto(
-                                color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            timeStr,
-                            style: GoogleFonts.roboto(
-                              color: AppColors.textSecondary,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
+                      PopupMenuItem(
+                        value: _CardMenuOption.copyText,
+                        height: 36,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.copy_rounded, size: 16, color: AppColors.textSecondary),
+                            const SizedBox(width: 8),
+                            Text('Copy text', style: GoogleFonts.roboto(fontSize: 12, color: AppColors.textPrimary)),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
+                      PopupMenuItem(
+                        value: _CardMenuOption.unsave,
+                        height: 36,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.bookmark_remove_rounded, size: 16, color: AppColors.error),
+                            const SizedBox(width: 8),
+                            Text('Unsave', style: GoogleFonts.roboto(fontSize: 12, color: AppColors.error)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
 
-                // Comment Content Text
-                Text(
+              // Comment Body Text
+              Expanded(
+                child: Text(
                   comment.text,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.roboto(
                     color: AppColors.textPrimary,
-                    fontSize: 14,
-                    height: 1.4,
+                    fontSize: 13,
+                    height: 1.35,
                   ),
                 ),
-                const SizedBox(height: 12),
+              ),
 
-                // Footer: Tap to view action
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+              const SizedBox(height: 8),
+
+              // Source Badge/Pill Footer
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.bgSurfaceHover,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      'Tap to view comment',
-                      style: GoogleFonts.roboto(
-                        color: AppColors.brand,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                    Icon(sourceIcon, size: 12, color: AppColors.brand),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        comment.sourceTitle.isNotEmpty ? comment.sourceTitle : sourceLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.roboto(
+                          color: AppColors.textSecondary,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    const Icon(Icons.arrow_forward_ios_rounded, size: 10, color: AppColors.brand),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 }
+

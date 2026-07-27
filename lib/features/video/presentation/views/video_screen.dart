@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:timeago/timeago.dart' as timeago;
@@ -3668,6 +3669,69 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
     }
   }
 
+  void _copyCommentText(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    HapticFeedback.lightImpact();
+    Get.snackbar(
+      'Copied',
+      'Comment text copied to clipboard',
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.grey.shade900,
+      colorText: Colors.white,
+      margin: const EdgeInsets.all(16),
+      borderRadius: 12,
+      duration: const Duration(seconds: 2),
+      icon: const Icon(Icons.content_copy_rounded, color: Colors.white),
+    );
+  }
+
+  Future<void> _toggleSaveReply(Reply reply, String videoId) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      Get.snackbar('Authentication Required', 'Please sign in to save comments.');
+      return;
+    }
+    final docRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('savedComments')
+        .doc(reply.id);
+
+    try {
+      final docSnap = await docRef.get();
+      if (docSnap.exists) {
+        await docRef.delete();
+        Get.snackbar('Removed', 'Reply removed from Saved Comments');
+      } else {
+        await docRef.set({
+          'text': reply.text,
+          'userName': reply.displayName,
+          'userImage': reply.avatarUrl,
+          'sourceType': 'video',
+          'sourceId': videoId,
+          'sourceTitle': 'Video',
+          'savedAt': FieldValue.serverTimestamp(),
+        });
+
+        Get.snackbar(
+          'Saved',
+          'Reply saved to Saved Comments',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: AppColors.bgSurface,
+          colorText: AppColors.textPrimary,
+          margin: const EdgeInsets.all(16),
+          borderRadius: 12,
+          mainButton: TextButton(
+            onPressed: () => Get.toNamed('/saved-comments'),
+            child: const Text('VIEW', style: TextStyle(color: AppColors.brand, fontWeight: FontWeight.bold)),
+          ),
+        );
+      }
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to save reply: $e');
+    }
+  }
+
   void _showCommentOptions(BuildContext context, Comment comment, CommentsController commentsController) {
     final user = FirebaseAuth.instance.currentUser;
     final isOwner = user != null && user.uid == comment.userId;
@@ -3683,6 +3747,14 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ListTile(
+                leading: const Icon(Icons.content_copy_rounded, color: Colors.white),
+                title: const Text('Copy text', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _copyCommentText(comment.text);
+                },
+              ),
               ListTile(
                 leading: const Icon(Icons.bookmark_outline_rounded, color: Colors.white),
                 title: const Text('Save comment', style: TextStyle(color: Colors.white)),
@@ -3761,6 +3833,22 @@ class _CommentItemWidgetState extends State<_CommentItemWidget> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              ListTile(
+                leading: const Icon(Icons.content_copy_rounded, color: Colors.white),
+                title: const Text('Copy text', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _copyCommentText(reply.text);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.bookmark_outline_rounded, color: Colors.white),
+                title: const Text('Save comment', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Navigator.pop(context);
+                  _toggleSaveReply(reply, commentsController.video?.id ?? '');
+                },
+              ),
               if (isOwner)
                 ListTile(
                   leading: const Icon(Icons.delete, color: Colors.red),
