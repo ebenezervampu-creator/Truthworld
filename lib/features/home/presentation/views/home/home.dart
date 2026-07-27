@@ -1698,7 +1698,7 @@ class _ModernSideNavigationRail extends StatelessWidget {
                   route: '/studio',
                   onTap: () async {
                     final origin = html.window.location.origin;
-                    final studioUrl = kIsWeb && origin.contains('localhost')
+                    final studioUrl = kIsWeb && '$origin'.contains('localhost')
                         ? '$origin/studio'
                         : 'https://truthworld-1-studio.web.app/';
                     final studioUri = Uri.parse(studioUrl);
