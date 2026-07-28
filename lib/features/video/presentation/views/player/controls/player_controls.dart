@@ -8,6 +8,7 @@ import 'package:truthworld/features/video/presentation/controllers/tower_player_
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/controls/progress_bar.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
+import 'package:truthworld/features/video/presentation/widgets/video_chapters_bottom_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class MainControls extends StatelessWidget {
@@ -60,38 +61,6 @@ class MainControls extends StatelessWidget {
                               Get.back();
                             }
                           },
-                        ),
-                        const Spacer(),
-                        // Autoplay pill switch in top-center
-                        Obx(
-                          () => MobileAutoplaySwitch(
-                            value: ctrl.isAutoplay.value,
-                            onChanged: (v) => ctrl.toggleAutoplay(),
-                          ),
-                        ),
-                        const Spacer(),
-                        // CC / Subtitles (always present, taps toggle or toast if empty)
-                        Obx(
-                          () => IconBtn(
-                            icon: ctrl.subtitlesEnabled.value
-                                ? Icons.closed_caption_rounded
-                                : Icons.closed_caption_outlined,
-                            onTap: () {
-                              if (ctrl.subtitleTracks.isEmpty) {
-                                ctrl.showToast('No captions available for this video');
-                                return;
-                              }
-                              if (ctrl.subtitlesEnabled.value) {
-                                ctrl.setSubtitles(enabled: false);
-                              } else {
-                                ctrl.setSubtitles(
-                                  enabled: true,
-                                  track: ctrl.subtitleTracks.first,
-                                );
-                              }
-                            },
-                            size: 24,
-                          ),
                         ),
                       ],
                     ),
@@ -515,14 +484,14 @@ class PlayerBottomBar extends StatelessWidget {
                 bottomRight: Radius.circular(12),
               ),
       ),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 0),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ProgressBar(ctrl: ctrl),
-          const SizedBox(height: 8),
           ControlRow(ctrl: ctrl, isNarrow: isNarrow, isMedium: isMedium),
+          const SizedBox(height: 6),
+          ProgressBar(ctrl: ctrl),
         ],
       ),
     );
@@ -545,14 +514,76 @@ class ControlRow extends StatelessWidget {
 
     if (isMobileDevice) {
       return Row(
-        mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          // Miniplayer, Settings and Fullscreen together at the end
+          TimeDisplay(ctrl: ctrl),
+          const SizedBox(width: 4),
+          Tooltip(
+            message: 'Chapters',
+            child: IconBtn(
+              icon: Icons.segment_rounded,
+              onTap: () {
+                if (ctrl.chapters.isEmpty) {
+                  ctrl.showToast('No chapters available for this video');
+                  return;
+                }
+                VideoController? vc;
+                try {
+                  if (ctrl.tag != null && Get.isRegistered<VideoController>(tag: ctrl.tag)) {
+                    vc = Get.find<VideoController>(tag: ctrl.tag);
+                  } else if (Get.isRegistered<VideoController>()) {
+                    vc = Get.find<VideoController>();
+                  }
+                } catch (_) {}
+                if (vc != null) {
+                  VideoChaptersBottomSheet.show(context, video: vc.video, videoTag: ctrl.tag);
+                } else {
+                  ctrl.activePanel.value = 'chapters';
+                  ctrl.settingsOpen.value = true;
+                }
+              },
+            ),
+          ),
+          const Spacer(),
+          Obx(
+            () => Tooltip(
+              message: ctrl.subtitlesEnabled.value ? 'Subtitles (on)' : 'Subtitles (off)',
+              child: IconBtn(
+                icon: ctrl.subtitlesEnabled.value
+                    ? Icons.closed_caption_rounded
+                    : Icons.closed_caption_outlined,
+                onTap: () {
+                  if (ctrl.subtitleTracks.isEmpty) {
+                    ctrl.showToast('No captions available for this video');
+                    return;
+                  }
+                  if (ctrl.subtitlesEnabled.value) {
+                    ctrl.setSubtitles(enabled: false);
+                  } else {
+                    ctrl.setSubtitles(
+                      enabled: true,
+                      track: ctrl.subtitleTracks.first,
+                    );
+                  }
+                },
+              ),
+            ),
+          ),
           Tooltip(
             message: 'Miniplayer',
             child: IconBtn(
               icon: Icons.branding_watermark_outlined,
               onTap: ctrl.togglePiP,
+            ),
+          ),
+          Obx(
+            () => Tooltip(
+              message: ctrl.isZoomToFill.value ? 'Fit to screen' : 'Zoom to fill',
+              child: IconBtn(
+                icon: ctrl.isZoomToFill.value
+                    ? Icons.fit_screen_rounded
+                    : Icons.aspect_ratio_rounded,
+                onTap: ctrl.toggleZoomToFill,
+              ),
             ),
           ),
           Tooltip(
@@ -619,7 +650,34 @@ class ControlRow extends StatelessWidget {
         ],
 
         // Time display
-        Flexible(child: TimeDisplay(ctrl: ctrl)),
+        TimeDisplay(ctrl: ctrl),
+        const SizedBox(width: 4),
+        Tooltip(
+          message: 'Chapters',
+          child: IconBtn(
+            icon: Icons.segment_rounded,
+            onTap: () {
+              if (ctrl.chapters.isEmpty) {
+                ctrl.showToast('No chapters available for this video');
+                return;
+              }
+              VideoController? vc;
+              try {
+                if (ctrl.tag != null && Get.isRegistered<VideoController>(tag: ctrl.tag)) {
+                  vc = Get.find<VideoController>(tag: ctrl.tag);
+                } else if (Get.isRegistered<VideoController>()) {
+                  vc = Get.find<VideoController>();
+                }
+              } catch (_) {}
+              if (vc != null) {
+                VideoChaptersBottomSheet.show(context, video: vc.video, videoTag: ctrl.tag);
+              } else {
+                ctrl.activePanel.value = 'chapters';
+                ctrl.settingsOpen.value = true;
+              }
+            },
+          ),
+        ),
         const Spacer(),
 
         // Right cluster
@@ -633,31 +691,19 @@ class ControlRow extends StatelessWidget {
             ),
           ),
 
-        // Autoplay
-        if (!isNarrow)
-          Obx(
-            () => Tooltip(
-              message: ctrl.isAutoplay.value ? 'Autoplay is on' : 'Autoplay is off',
-              child: IconBtn(
-                icon: ctrl.isAutoplay.value
-                    ? Icons.playlist_play_rounded
-                    : Icons.playlist_remove_rounded,
-                onTap: ctrl.toggleAutoplay,
-              ),
-            ),
-          ),
-
-        // CC / Subtitles
-        Obx(() {
-          if (ctrl.subtitleTracks.isEmpty) return const SizedBox.shrink();
-          return Tooltip(
+        // CC / Subtitles (always present alongside Settings)
+        Obx(
+          () => Tooltip(
             message: ctrl.subtitlesEnabled.value ? 'Subtitles (on)' : 'Subtitles (off)',
             child: IconBtn(
               icon: ctrl.subtitlesEnabled.value
                   ? Icons.closed_caption_rounded
-                  : Icons.closed_caption_disabled_outlined,
+                  : Icons.closed_caption_outlined,
               onTap: () {
-                if (ctrl.subtitleTracks.isEmpty) return;
+                if (ctrl.subtitleTracks.isEmpty) {
+                  ctrl.showToast('No captions available for this video');
+                  return;
+                }
                 if (ctrl.subtitlesEnabled.value) {
                   ctrl.setSubtitles(enabled: false);
                 } else {
@@ -668,8 +714,8 @@ class ControlRow extends StatelessWidget {
                 }
               },
             ),
-          );
-        }),
+          ),
+        ),
 
         // Audio Only
         Obx(
@@ -702,10 +748,26 @@ class ControlRow extends StatelessWidget {
           ),
         ),
 
+        // Zoom to fill
+        Obx(
+          () => Tooltip(
+            message: ctrl.isZoomToFill.value ? 'Fit to screen' : 'Zoom to fill',
+            child: IconBtn(
+              icon: ctrl.isZoomToFill.value
+                  ? Icons.fit_screen_rounded
+                  : Icons.aspect_ratio_rounded,
+              onTap: ctrl.toggleZoomToFill,
+            ),
+          ),
+        ),
+
         // Settings
         Tooltip(
           message: 'Settings',
-          child: IconBtn(icon: Icons.settings_outlined, onTap: ctrl.openSettings),
+          child: IconBtn(
+            icon: Icons.settings_outlined,
+            onTap: () => ctrl.openSettings(context),
+          ),
         ),
 
         // Fullscreen
@@ -893,16 +955,23 @@ class TimeDisplay extends StatelessWidget {
               style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5)),
             ),
             const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                ctrl.currentChapter.value!.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  
-                  color: PT.primary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 100),
+              child: InkWell(
+                onTap: () {
+                  ctrl.activePanel.value = 'chapters';
+                  ctrl.settingsOpen.value = true;
+                },
+                borderRadius: BorderRadius.circular(4),
+                child: Text(
+                  ctrl.currentChapter.value!.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: PT.primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ),

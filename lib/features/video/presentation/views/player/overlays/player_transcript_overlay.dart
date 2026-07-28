@@ -29,6 +29,10 @@ class TranscriptOverlay extends StatelessWidget {
                 ctrl.showTranscriptPopup.value = false;
                 ctrl.startHideTimer();
               },
+              onContinue: () {
+                ctrl.showTranscriptPopup.value = false;
+                ctrl.startHideTimer();
+              },
             ),
             Expanded(
               child: Obx(() {

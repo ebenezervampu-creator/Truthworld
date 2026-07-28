@@ -7,7 +7,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:truthworld/components/ui/playlist_card.dart';
 import 'package:truthworld/core/services/auth_service.dart';
-import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
@@ -119,7 +118,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
       showDragHandle: false,
       builder: (context) {
         return Obx(() {
-          final isPublic = _tabController.index == 1;
+          final isPublic = _selectedPlaylistType.value == 'public';
 
           return AnimatedContainer(
             duration: const Duration(milliseconds: 300),
@@ -295,96 +294,7 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                     ),
                     const SizedBox(height: 24),
 
-                    // Enhanced channel selector for public playlists
-                    if (isPublic) ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: kDarksurfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.3),
-                            width: 1.5,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.2),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: DropdownButton<Channel>(
-                          hint: Row(
-                            children: [
-                              Icon(
-                                Icons.tv_rounded,
-                                color: Colors.white.withValues(alpha: 0.6),
-                                size: 20,
-                              ),
-                              const SizedBox(width: 12),
-                              Text(
-                                'Select Channel',
-                                style: GoogleFonts.roboto(
-                                  color: Colors.white.withValues(alpha: 0.7),
-                                  fontWeight: FontWeight.w400,
-                                ),
-                              ),
-                            ],
-                          ),
-                          value: _playlistController.selectedChannel.value,
-                          isExpanded: true,
-                          underline: const SizedBox(),
-                          icon: Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            color: Colors.white.withValues(alpha: 0.6),
-                          ),
-                          dropdownColor: kDarksurfaceContainerHighest,
-                          items: _playlistController.channels.isEmpty
-                              ? []
-                              : _playlistController.channels.map((channel) {
-                                  return DropdownMenuItem<Channel>(
-                                    value: channel,
-                                    child: Row(
-                                      children: [
-                                        CircleAvatar(
-                                          radius: 16,
-                                          backgroundColor: kPrimaryDark
-                                              .withValues(alpha: 0.2),
-                                          child: Text(
-                                            channel.channelName
-                                                .substring(0, 1)
-                                                .toUpperCase(),
-                                            style: GoogleFonts.roboto(
-                                              color: kPrimaryDark,
-                                              fontWeight: FontWeight.w500,
-                                              fontSize: 12,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Text(
-                                          channel.channelName,
-                                          style: GoogleFonts.roboto(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                }).toList(),
-                          onChanged: (Channel? newChannel) {
-                            _playlistController.selectedChannel.value =
-                                newChannel;
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 32),
-                    ],
+
 
                     // Modern section header
                     Row(
@@ -886,24 +796,6 @@ class _PlaylistScreenState extends State<PlaylistScreen>
                             Get.snackbar(
                               'Missing Information',
                               'Please enter a playlist name',
-                              snackPosition: SnackPosition.TOP,
-                              backgroundColor: const Color(0xFFEF4444),
-                              colorText: Colors.white,
-                              borderRadius: 12,
-                              margin: const EdgeInsets.all(16),
-                              icon: const Icon(
-                                Icons.error_outline,
-                                color: Colors.white,
-                              ),
-                            );
-                            return;
-                          }
-                          if (isPublic &&
-                              _playlistController.selectedChannel.value ==
-                                  null) {
-                            Get.snackbar(
-                              'Missing Information',
-                              'Please select a channel for public playlist',
                               snackPosition: SnackPosition.TOP,
                               backgroundColor: const Color(0xFFEF4444),
                               colorText: Colors.white,

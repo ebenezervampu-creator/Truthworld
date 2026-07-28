@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:truthworld/core/services/auth_service.dart';
@@ -367,6 +368,7 @@ class SubscriptionController extends GetxController {
         final snapshot = await _firestore
             .collection('playlists')
             .where('channelId', whereIn: batch)
+            .where('isPublic', isEqualTo: true)
             .limit(30)
             .get();
         docs.addAll(snapshot.docs);
@@ -377,6 +379,7 @@ class SubscriptionController extends GetxController {
             final snap = await _firestore
                 .collection('playlists')
                 .where('channelId', isEqualTo: cid)
+                .where('isPublic', isEqualTo: true)
                 .limit(10)
                 .get();
             docs.addAll(snap.docs);
@@ -433,13 +436,15 @@ class SubscriptionController extends GetxController {
         }
       }
 
+      final currentUid = FirebaseAuth.instance.currentUser?.uid;
       for (final doc in docs) {
         try {
           final data = doc.data() as Map<String, dynamic>?;
           if (data == null) continue;
           final post = CommunityPostModel.fromMap(data);
           final vis = (data['visibility'] as String? ?? 'public').toLowerCase();
-          if (vis == 'public') {
+          final ownerId = data['ownerId'] as String? ?? '';
+          if (vis == 'public' || vis == 'subscribers' || vis == 'members' || ownerId == currentUid) {
             posts.add(post);
           }
         } on Object catch (e) {

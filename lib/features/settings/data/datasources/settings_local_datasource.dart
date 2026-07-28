@@ -94,6 +94,10 @@ class SettingsLocalDataSource {
   }
   Future<void> saveMutedKeywords(List<String> keywords) => _storage.write(_kKeyMutedKeywords, keywords);
 
+  Future<void> clearSearchHistory() async {
+    await _storage.remove('search_recent_history');
+  }
+
   Future<void> clearAllSettings() async {
     await _storage.remove(_kKeyWellbeing);
     await _storage.remove(_kKeyPlayback);

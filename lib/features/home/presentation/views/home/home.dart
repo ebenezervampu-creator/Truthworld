@@ -1720,19 +1720,9 @@ class _ModernSideNavigationRail extends StatelessWidget {
                   Icons.admin_panel_settings_outlined,
                   'Admin Portal',
                   999,
-                  route: '/admin/login',
-                  onTap: () async {
-                    final adminUri = Uri.parse('https://truthworld-1-admin.web.app/');
-                    if (await canLaunchUrl(adminUri)) {
-                      await launchUrl(adminUri, mode: LaunchMode.externalApplication);
-                    } else {
-                      Get.snackbar(
-                        'Error',
-                        'Could not launch Admin Portal.',
-                        backgroundColor: const Color(0xFFCF6679),
-                        colorText: Colors.white,
-                      );
-                    }
+                  route: '/admin/dashboard',
+                  onTap: () {
+                    Get.toNamed('/admin/dashboard');
                   },
                 ),
               ],

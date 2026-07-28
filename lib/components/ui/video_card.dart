@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:truthworld/components/ui/video_options_sheet.dart';
+import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/core/services/watch_history_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
@@ -172,6 +174,8 @@ class _VideoCardState extends State<VideoCard> {
 
   Future<void> _loadRealChannelData() async {
     if (widget.video.channelId.isEmpty) return;
+    // Only query Firestore if Video model lacks avatar or name
+    if (_realChannelAvatarUrl.value.isNotEmpty && _realChannelName.value.isNotEmpty) return;
     try {
       final doc = await FirebaseFirestore.instance
           .collection('channels')
@@ -330,11 +334,11 @@ class _VideoCardState extends State<VideoCard> {
   }
 
   void _handleVisibilityChanged(double visibleFraction) {
-    if (widget.disableHoverPreview) return;
+    if (!mounted || widget.disableHoverPreview) return;
     // Only apply visibility-based preview on mobile platforms (Android/iOS)
-    final isMobile = Theme.of(context).platform == TargetPlatform.android ||
-                     Theme.of(context).platform == TargetPlatform.iOS;
-    if (!isMobile) return;
+    final isMobile = defaultTargetPlatform == TargetPlatform.android ||
+                     defaultTargetPlatform == TargetPlatform.iOS;
+    if (!isMobile || !mounted) return;
 
     if (visibleFraction >= 0.8) {
       if (!_isHovered.value) {
@@ -377,7 +381,11 @@ class _VideoCardState extends State<VideoCard> {
 
     return VisibilityDetector(
       key: Key('video_card_${widget.video.id}_${widget.heroPrefix}'),
-      onVisibilityChanged: (info) => _handleVisibilityChanged(info.visibleFraction),
+      onVisibilityChanged: (info) {
+        if (mounted) {
+          _handleVisibilityChanged(info.visibleFraction);
+        }
+      },
       child: MouseRegion(
         onEnter: (_) => _handleHoverEnter(),
         onExit: (_) => _handleHoverExit(),
@@ -387,6 +395,10 @@ class _VideoCardState extends State<VideoCard> {
           label: 'Video: ${widget.video.title} by ${widget.video.channelName}',
           onTap: () => _handleTap(context),
           child: Obx(() {
+            if (Get.isRegistered<UserPreferencesService>() &&
+                UserPreferencesService.to.isVideoBlocked(widget.video)) {
+              return const SizedBox.shrink();
+            }
             final hovered = _isHovered.value;
             return AnimatedScale(
               scale: hovered ? 1.02 : 1.0,
@@ -714,21 +726,22 @@ class _VideoCardState extends State<VideoCard> {
 
   Widget _buildGridVideoInfo(BuildContext context, ThemeData theme) {
     return Padding(
-      padding: const EdgeInsets.only(left: 12, right: 12, top: 12, bottom: 16),
+      padding: const EdgeInsets.only(left: 10, right: 10, top: 10, bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _ModernAvatar(
             imageUrl: _realChannelAvatarUrl.value,
-            radius: 18,
+            radius: 16,
             placeholderText: _realChannelName.value.isEmpty
                 ? '?'
                 : _realChannelName.value.substring(0, 1).toUpperCase(),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   widget.video.title,
@@ -736,15 +749,16 @@ class _VideoCardState extends State<VideoCard> {
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
-                    height: 1.3,
-                    fontSize: 15,
+                    height: 1.25,
+                    fontSize: 14,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 Text(
                   '${_realChannelName.value} · ${_formatViews(widget.video.views)} views · ${_formatTimestamp(widget.video.uploadedAt)}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
+                    fontSize: 11,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -755,7 +769,7 @@ class _VideoCardState extends State<VideoCard> {
           IconButton(
             icon: Icon(
               Icons.more_vert,
-              size: 20,
+              size: 18,
               color: theme.colorScheme.onSurfaceVariant,
             ),
             onPressed: () => VideoOptionsSheet.show(context, widget.video),

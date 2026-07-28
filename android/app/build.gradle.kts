@@ -35,6 +35,30 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    flavorDimensions += "mode"
+    productFlavors {
+        create("app") {
+            dimension = "mode"
+            applicationId = "com.truthworld.app"
+            resValue("string", "app_name", "Truthworld")
+        }
+        create("studio") {
+            dimension = "mode"
+            applicationId = "com.truthworld.studio"
+            resValue("string", "app_name", "Truthworld Studio")
+        }
+        create("admin") {
+            dimension = "mode"
+            applicationId = "com.truthworld.admin"
+            resValue("string", "app_name", "Truthworld Admin")
+        }
+        create("advertiser") {
+            dimension = "mode"
+            applicationId = "com.truthworld.advertiser"
+            resValue("string", "app_name", "Truthworld Advertiser")
+        }
+    }
 }
 
 flutter {

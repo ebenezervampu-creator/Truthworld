@@ -30,6 +30,15 @@ final class GoogleSignInExceptionHandler {
   static GoogleSignInException from(
     dynamic exception,
   ) {
+    final str = exception.toString();
+    if (str.contains('canceled') || str.contains('Account reauth failed')) {
+      return const GoogleSignInException(
+        message: 'Sign-in was cancelled or required re-authentication.',
+        code: 'user-cancelled',
+        isRetryable: true,
+      );
+    }
+
     return switch (exception) {
       final FirebaseAuthException e => _fromFirebaseAuth(e),
       final PlatformException e => _fromPlatformException(e),
@@ -47,9 +56,13 @@ final class GoogleSignInExceptionHandler {
   /// Logs the [exception] with an optional [stackTrace].
   static void log(GoogleSignInException exception, {StackTrace? stackTrace}) {
     if (kDebugMode) {
-      debugPrint('❌ [GoogleSignIn/${exception.code}] ${exception.message}');
-      if (stackTrace != null) {
-        debugPrint(stackTrace.toString());
+      if (exception.code == 'user-cancelled') {
+        debugPrint('ℹ️ [GoogleSignIn/user-cancelled] ${exception.message}');
+      } else {
+        debugPrint('❌ [GoogleSignIn/${exception.code}] ${exception.message}');
+        if (stackTrace != null) {
+          debugPrint(stackTrace.toString());
+        }
       }
     }
   }

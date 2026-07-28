@@ -736,7 +736,7 @@ class _SpeedSheet extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
             child: Row(
               children: [
-                const Icon(Icons.speed_rounded, color: AppColors.brand),
+                const Icon(Icons.speed_rounded, color: Colors.white),
                 const SizedBox(width: 12),
                 Text(
                   'Playback Speed',

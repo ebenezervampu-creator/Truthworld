@@ -158,7 +158,7 @@ class AnalyticsScreen extends StatelessWidget {
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.query_stats_rounded, color: AppColors.brand, size: 18),
+                        Icon(Icons.query_stats_rounded, color: Colors.white, size: 18),
                         SizedBox(width: 8),
                         Text(
                           'View Detailed Creator Analytics Dashboard',
@@ -169,7 +169,7 @@ class AnalyticsScreen extends StatelessWidget {
                           ),
                         ),
                         SizedBox(width: 6),
-                        Icon(Icons.arrow_forward_rounded, color: AppColors.brand, size: 14),
+                        Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 14),
                       ],
                     ),
                   ),
@@ -200,7 +200,7 @@ class AnalyticsScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.stars_rounded, color: AppColors.brand, size: 22),
+              const Icon(Icons.stars_rounded, color: Colors.white, size: 22),
               const SizedBox(width: 10),
               Text(
                 'Top Performing Videos (by views)',
@@ -248,7 +248,7 @@ class AnalyticsScreen extends StatelessWidget {
                               fit: BoxFit.cover,
                               errorWidget: (context, url, err) => const ColoredBox(
                                 color: AppColors.bgInput,
-                                child: Icon(Icons.play_circle_outline, color: AppColors.brand),
+                                child: Icon(Icons.play_circle_outline, color: Colors.white),
                               ),
                             )
                           : const ColoredBox(color: AppColors.bgInput),

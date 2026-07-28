@@ -112,22 +112,39 @@ class TowerCustomPlayer extends StatelessWidget {
                                   showAd ||
                                   c.isAudioOnly.value ||
                                   !c.isInitialized.value,
-                              child: Center(
-                                child:
-                                    c.isInitialized.value &&
-                                        c.chewieController != null
-                                    ? InteractiveViewer(
-                                        minScale: 1,
-                                        maxScale: 6,
-                                        child: AspectRatio(
-                                          aspectRatio: c.aspectRatio.value,
-                                          child: Chewie(
-                                            controller: c.chewieController!,
+                              child: Obx(() {
+                                if (!c.isInitialized.value ||
+                                    c.chewieController == null) {
+                                  return const SizedBox.shrink();
+                                }
+                                final isZoom = c.isZoomToFill.value;
+                                final ar = c.aspectRatio.value;
+
+                                return InteractiveViewer(
+                                  minScale: 1,
+                                  maxScale: 6,
+                                  child: isZoom
+                                      ? FittedBox(
+                                          fit: BoxFit.cover,
+                                          clipBehavior: Clip.hardEdge,
+                                          child: SizedBox(
+                                            width: ar * 1000,
+                                            height: 1000,
+                                            child: Chewie(
+                                              controller: c.chewieController!,
+                                            ),
+                                          ),
+                                        )
+                                      : Center(
+                                          child: AspectRatio(
+                                            aspectRatio: ar,
+                                            child: Chewie(
+                                              controller: c.chewieController!,
+                                            ),
                                           ),
                                         ),
-                                      )
-                                    : const SizedBox.shrink(),
-                              ),
+                                );
+                              }),
                             ),
 
                             // Ad video player
@@ -296,7 +313,7 @@ class TowerCustomPlayer extends StatelessWidget {
 
                       // ── Layer 5.7: Real-time Fact Overlay ─────────────────
                       Obx(() {
-                        if (c.isShowingAd.value || c.isPiP.value) return const SizedBox.shrink();
+                        if (c.isShowingAd.value || c.isPiP.value || !c.showFactOverlay.value) return const SizedBox.shrink();
                         final activeClaim = c.activeClaim.value;
                         if (activeClaim == null) return const SizedBox.shrink();
 
@@ -382,36 +399,40 @@ class TowerCustomPlayer extends StatelessWidget {
                                       }),
                                     ),
 
-                                    // Floating Vertical Actions Dock positioned directly in Stack
-                                    AnimatedPositioned(
-                                      duration: const Duration(milliseconds: 250),
-                                      curve: Curves.fastOutSlowIn,
-                                      right:
-                                          (c.showCommentsPopup.value ||
-                                              c.showTranscriptPopup.value)
-                                          ? 390.0
-                                          : (c.isInitialized.value &&
+                                    // Floating Vertical Actions Dock
+                                    Obx(() {
+                                      final hasOverlayOpen = c.showCommentsPopup.value || c.showTranscriptPopup.value;
+                                      final isDockEnabled = c.showFullscreenActionsDock.value;
+                                      if (hasOverlayOpen || !isDockEnabled) return const SizedBox.shrink();
+
+                                      return Positioned(
+                                        right: (c.isInitialized.value &&
                                                 c.aspectRatio.value < 1.0)
-                                          ? (((playerWidth -
-                                                            (playerHeight *
-                                                                    c.aspectRatio.value)
-                                                                .clamp(
-                                                                  0.0,
-                                                                  playerWidth,
-                                                                )) /
-                                                        2) +
-                                                    20.0)
-                                                .clamp(20.0, playerWidth - 60.0)
-                                          : 20.0,
-                                      bottom: 150,
-                                      child: GestureDetector(
-                                        behavior: HitTestBehavior.opaque,
-                                        onTap: () {}, // Absorb taps
-                                        child: FullscreenVerticalActionsBar(
-                                          ctrl: c,
+                                            ? (((playerWidth -
+                                                              (playerHeight *
+                                                                      c.aspectRatio.value)
+                                                                  .clamp(
+                                                                    0.0,
+                                                                    playerWidth,
+                                                                  )) /
+                                                          2) +
+                                                      20.0)
+                                                 .clamp(20.0, playerWidth - 60.0)
+                                            : 20.0,
+                                        top: 0,
+                                        bottom: 0,
+                                        child: Align(
+                                          alignment: Alignment.centerRight,
+                                          child: GestureDetector(
+                                            behavior: HitTestBehavior.opaque,
+                                            onTap: () {}, // Absorb taps
+                                            child: FullscreenVerticalActionsBar(
+                                              ctrl: c,
+                                            ),
+                                          ),
                                         ),
-                                      ),
-                                    ),
+                                      );
+                                    }),
                                   ],
                                 ],
                               ),

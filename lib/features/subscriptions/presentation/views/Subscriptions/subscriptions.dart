@@ -12,10 +12,13 @@ import 'package:truthworld/theme/app_theme.dart';
 
 
 class SubscriptionsPage extends StatelessWidget {
-  SubscriptionsPage({super.key, this.isDashboard = false});
+  const SubscriptionsPage({super.key, this.isDashboard = false});
   final bool isDashboard;
 
-  final SubscriptionController controller = Get.put(SubscriptionController());
+  SubscriptionController get controller =>
+      Get.isRegistered<SubscriptionController>()
+          ? Get.find<SubscriptionController>()
+          : Get.put(SubscriptionController());
 
   @override
   Widget build(BuildContext context) {
@@ -40,7 +43,7 @@ class SubscriptionsPage extends StatelessWidget {
                         padding: EdgeInsets.fromLTRB(spacing, spacing, spacing, spacing / 2),
                         child: Text(
                           'Subscriptions',
-                          style: GoogleFonts.robotoCondensed(
+                          style: GoogleFonts.roboto(
                             fontSize: 32,
                             fontWeight: FontWeight.bold,
                             color: AppColors.textPrimary,
@@ -58,7 +61,7 @@ class SubscriptionsPage extends StatelessWidget {
                   SliverPersistentHeader(
                     pinned: true,
                     delegate: _SliverFilterBarDelegate(
-                      child: _buildFilterBar(context),
+                      builder: _buildFilterBar,
                     ),
                   ),
 
@@ -206,19 +209,19 @@ class SubscriptionsPage extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
-            _buildDropdown<ContentFilter>(
+            Obx(() => _buildDropdown<ContentFilter>(
               label: 'Content',
               value: controller.selectedContentFilter.value,
               values: ContentFilter.values,
               onSelected: (val) => controller.setContentFilter(val.name),
-            ),
+            )),
             const SizedBox(width: 12),
-            _buildDropdown<SortFilter>(
+            Obx(() => _buildDropdown<SortFilter>(
               label: 'Sort',
               value: controller.selectedSortFilter.value,
               values: SortFilter.values,
               onSelected: (val) => controller.setSortFilter(val.name),
-            ),
+            )),
             const SizedBox(width: 12),
             Obx(() {
               // Only show duration filter for videos
@@ -234,12 +237,12 @@ class SubscriptionsPage extends StatelessWidget {
               return const SizedBox.shrink();
             }),
             const SizedBox(width: 12),
-            _buildDropdown<DateRangeFilter>(
+            Obx(() => _buildDropdown<DateRangeFilter>(
               label: 'Upload Date',
               value: controller.selectedDateRangeFilter.value,
               values: DateRangeFilter.values,
               onSelected: (val) => controller.setDateRangeFilter(val.name),
-            ),
+            )),
           ],
         ),
       ),
@@ -283,7 +286,7 @@ class SubscriptionsPage extends StatelessWidget {
                 fontWeight: FontWeight.w500,
               ),
             ),
-            const Icon(Icons.arrow_drop_down, color: AppColors.textSecondary, size: 18),
+            const Icon(Icons.arrow_drop_down, color: AppColors.textPrimary, size: 18),
           ],
         ),
       ),
@@ -348,7 +351,7 @@ class SubscriptionsPage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline, size: 48, color: AppColors.textTertiary),
+            const Icon(Icons.error_outline, size: 48, color: AppColors.textPrimary),
             const SizedBox(height: 16),
             Text(
               controller.errorMessage.value,
@@ -370,7 +373,7 @@ class SubscriptionsPage extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.subscriptions_outlined, size: 48, color: AppColors.textTertiary),
+            const Icon(Icons.subscriptions_outlined, size: 48, color: AppColors.textPrimary),
             const SizedBox(height: 16),
             const Text(
               'No content found for the selected filters',
@@ -395,8 +398,8 @@ class SubscriptionsPage extends StatelessWidget {
 
 // ── Custom Persistent Header for Filter Bar ──
 class _SliverFilterBarDelegate extends SliverPersistentHeaderDelegate {
-  _SliverFilterBarDelegate({required this.child});
-  final Widget child;
+  _SliverFilterBarDelegate({required this.builder});
+  final Widget Function(BuildContext context) builder;
 
   @override
   double get minExtent => 60;
@@ -405,7 +408,7 @@ class _SliverFilterBarDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return child;
+    return builder(context);
   }
 
   @override

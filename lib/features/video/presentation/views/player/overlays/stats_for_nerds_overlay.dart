@@ -121,7 +121,7 @@ class _StatsForNerdsOverlayState extends State<StatsForNerdsOverlay> {
                 Text(
                   'Stats for Nerds',
                   style: TS.badge.copyWith(
-                    color: AppColors.brand,
+                    color: AppColors.textPrimary,
                     fontSize: 12,
                   ),
                 ),
@@ -129,7 +129,7 @@ class _StatsForNerdsOverlayState extends State<StatsForNerdsOverlay> {
                   onTap: () => widget.ctrl.showStatsForNerds.value = false,
                   child: const Icon(
                     Icons.close,
-                    color: AppColors.textSecondary,
+                    color: AppColors.textPrimary,
                     size: 14,
                   ),
                 ),

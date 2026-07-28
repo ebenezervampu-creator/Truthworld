@@ -1,97 +1,90 @@
+import 'dart:async';
 import 'package:chewie/chewie.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:truthworld/core/utils/storage_utils.dart';
 import 'package:truthworld/features/admin/presentation/controllers/admin_controller.dart';
 import 'package:truthworld/theme/app_theme.dart';
 import 'package:video_player/video_player.dart';
+import 'package:truthworld/features/admin/presentation/views/user_management_tab.dart';
+import 'package:truthworld/features/admin/presentation/views/analytics_tab.dart';
+import 'package:truthworld/features/admin/presentation/views/alerts_config_tab.dart';
+import 'package:truthworld/features/admin/presentation/views/appeals_tab.dart';
+import 'package:truthworld/features/admin/presentation/views/security_tab.dart';
+import 'package:truthworld/features/admin/presentation/views/feedbacks_tab.dart';
+import 'package:truthworld/features/admin/presentation/views/help_support_tab.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
-  const AdminDashboardScreen({super.key});
+  AdminDashboardScreen({super.key});
+
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
   Widget build(BuildContext context) {
     final controller = Get.put(AdminController());
     final isDesktop = MediaQuery.of(context).size.width > 900;
 
-    return Obx(() {
-      if (controller.isAuthChecking.value) {
-        return const Scaffold(
-          backgroundColor: AppColors.bgPage,
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
-                ),
-                SizedBox(height: 16),
-                Text(
-                  'Verifying admin console credentials...',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
-                ),
-              ],
+    return Scaffold(
+      key: _scaffoldKey,
+      backgroundColor: AppColors.bgPage,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(60),
+        child: _buildHeader(context, controller, isDesktop),
+      ),
+      drawer: isDesktop
+          ? null
+          : Drawer(
+              backgroundColor: AppColors.bgSurface,
+              child: SafeArea(
+                child: _buildSidebar(context, controller),
+              ),
             ),
-          ),
-        );
-      }
-
-      if (!controller.isAdmin.value) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          Get.offAllNamed('/admin/login');
-        });
-        return const Scaffold(
-          backgroundColor: AppColors.bgPage,
-          body: Center(
-            child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.brand),
-            ),
-          ),
-        );
-      }
-
-      return Scaffold(
-        backgroundColor: AppColors.bgPage,
-        body: Row(
+      body: SafeArea(
+        child: Row(
           children: [
-            // Sidebar (desktop only, otherwise we can show drawer)
+            // Sidebar (desktop only)
             if (isDesktop) _buildSidebar(context, controller),
 
             // Main Workspace
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildHeader(context, controller, isDesktop),
-                  Expanded(
-                    child: Obx(() {
-                      switch (controller.currentTab.value) {
-                        case 'videos':
-                          return _buildVideoQueueTab(context, controller);
-                        case 'images':
-                          return _buildImageQueueTab(context, controller);
-                        case 'channels':
-                          return _buildChannelQueueTab(context, controller);
-                        case 'reports':
-                          return _buildReportsQueueTab(context, controller);
-                        case 'logs':
-                          return _buildAuditLogsTab(context, controller);
-                        default:
-                          return _buildOverviewTab(context, controller);
-                      }
-                    }),
-                  ),
-                ],
-              ),
+              child: Obx(() {
+                switch (controller.currentTab.value) {
+                  case 'videos':
+                    return _buildVideoQueueTab(context, controller);
+                  case 'images':
+                    return _buildImageQueueTab(context, controller);
+                  case 'channels':
+                    return _buildChannelQueueTab(context, controller);
+                  case 'reports':
+                    return _buildReportsQueueTab(context, controller);
+                  case 'logs':
+                    return _buildAuditLogsTab(context, controller);
+                  case 'users':
+                    return UserManagementTab(controller: controller);
+                  case 'analytics':
+                    return AnalyticsTab(controller: controller);
+                  case 'alerts':
+                    return AlertsConfigTab(controller: controller);
+                  case 'appeals':
+                    return AppealsTab(controller: controller);
+                  case 'security':
+                    return SecurityTab(controller: controller);
+                  case 'feedbacks':
+                    return FeedbacksTab(controller: controller);
+                  case 'help':
+                    return HelpSupportTab(controller: controller);
+                  default:
+                    return _buildOverviewTab(context, controller);
+                }
+              }),
             ),
           ],
         ),
-        drawer: isDesktop ? null : Drawer(child: _buildSidebar(context, controller)),
-      );
-    });
+      ),
+    );
   }
 
   // Sidebar widget
@@ -156,6 +149,7 @@ class AdminDashboardScreen extends StatelessWidget {
                   label: 'Dashboard',
                   tabId: 'dashboard',
                   controller: controller,
+                  context: context,
                 ),
                 Obx(() => _buildNavItem(
                       icon: Icons.video_library_outlined,
@@ -164,6 +158,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       tabId: 'videos',
                       badgeCount: controller.pendingVideos.value,
                       controller: controller,
+                      context: context,
                     )),
                 Obx(() => _buildNavItem(
                       icon: Icons.image_outlined,
@@ -172,6 +167,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       tabId: 'images',
                       badgeCount: controller.pendingImages.value,
                       controller: controller,
+                      context: context,
                     )),
                 Obx(() => _buildNavItem(
                       icon: Icons.account_circle_outlined,
@@ -180,6 +176,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       tabId: 'channels',
                       badgeCount: controller.pendingChannels.value,
                       controller: controller,
+                      context: context,
                     )),
                 Obx(() => _buildNavItem(
                       icon: Icons.report_gmailerrorred_rounded,
@@ -188,6 +185,7 @@ class AdminDashboardScreen extends StatelessWidget {
                       tabId: 'reports',
                       badgeCount: controller.pendingReports.value,
                       controller: controller,
+                      context: context,
                     )),
                 _buildNavItem(
                   icon: Icons.history_edu_outlined,
@@ -195,6 +193,92 @@ class AdminDashboardScreen extends StatelessWidget {
                   label: 'Audit History Logs',
                   tabId: 'logs',
                   controller: controller,
+                  context: context,
+                ),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'MANAGEMENT',
+                    style: TextStyle(
+                      color: AppColors.textTertiary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildNavItem(
+                  icon: Icons.people_outline_rounded,
+                  activeIcon: Icons.people_rounded,
+                  label: 'User Management',
+                  tabId: 'users',
+                  controller: controller,
+                  context: context,
+                ),
+                _buildNavItem(
+                  icon: Icons.analytics_outlined,
+                  activeIcon: Icons.analytics_rounded,
+                  label: 'Analytics',
+                  tabId: 'analytics',
+                  controller: controller,
+                  context: context,
+                ),
+                Obx(() => _buildNavItem(
+                      icon: Icons.gavel_outlined,
+                      activeIcon: Icons.gavel_rounded,
+                      label: 'Appeals',
+                      tabId: 'appeals',
+                      badgeCount: controller.pendingAppeals.value,
+                      controller: controller,
+                      context: context,
+                    )),
+                _buildNavItem(
+                  icon: Icons.feedback_outlined,
+                  activeIcon: Icons.feedback_rounded,
+                  label: 'User Feedbacks',
+                  tabId: 'feedbacks',
+                  controller: controller,
+                  context: context,
+                ),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'SYSTEM',
+                    style: TextStyle(
+                      color: AppColors.textTertiary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildNavItem(
+                  icon: Icons.notifications_outlined,
+                  activeIcon: Icons.notifications_rounded,
+                  label: 'Alerts & Escalation',
+                  tabId: 'alerts',
+                  controller: controller,
+                  context: context,
+                ),
+                _buildNavItem(
+                  icon: Icons.shield_outlined,
+                  activeIcon: Icons.shield_rounded,
+                  label: 'Security',
+                  tabId: 'security',
+                  controller: controller,
+                  context: context,
+                ),
+                _buildNavItem(
+                  icon: Icons.help_outline_rounded,
+                  activeIcon: Icons.help_rounded,
+                  label: 'Help & Support',
+                  tabId: 'help',
+                  controller: controller,
+                  context: context,
                 ),
               ],
             ),
@@ -260,7 +344,9 @@ class AdminDashboardScreen extends StatelessWidget {
     required IconData activeIcon,
     required String label,
     required String tabId,
-    required AdminController controller, int badgeCount = 0,
+    required AdminController controller,
+    required BuildContext context,
+    int badgeCount = 0,
   }) {
     return Obx(() {
       final isSelected = controller.currentTab.value == tabId;
@@ -275,6 +361,11 @@ class AdminDashboardScreen extends StatelessWidget {
               controller.currentTab.value = tabId;
               controller.selectedVideo.value = null;
               controller.selectedImage.value = null;
+              controller.selectedChannel.value = null;
+              controller.selectedReport.value = null;
+              if (_scaffoldKey.currentState?.isDrawerOpen == true) {
+                Navigator.of(context).pop();
+              }
             },
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -282,7 +373,7 @@ class AdminDashboardScreen extends StatelessWidget {
                 children: [
                   Icon(
                     isSelected ? activeIcon : icon,
-                    color: isSelected ? AppColors.brand : AppColors.textSecondary,
+                    color: isSelected ? Colors.white : AppColors.textSecondary,
                     size: 20,
                   ),
                   const SizedBox(width: 14),
@@ -321,42 +412,48 @@ class AdminDashboardScreen extends StatelessWidget {
     });
   }
 
-  // Header Widget
+  // Header Widget (AppBar)
   Widget _buildHeader(BuildContext context, AdminController controller, bool isDesktop) {
-    return Container(
-      height: 70,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: const BoxDecoration(
-        color: AppColors.bgSurface,
-        border: Border(
-          bottom: BorderSide(color: AppColors.bgDivider),
-        ),
-      ),
-      child: Row(
-        children: [
-          if (!isDesktop)
-            IconButton(
+    return AppBar(
+      backgroundColor: AppColors.bgSurface,
+      elevation: 0,
+      automaticallyImplyLeading: false,
+      titleSpacing: isDesktop ? 24 : 8,
+      leading: !isDesktop
+          ? IconButton(
               icon: const Icon(Icons.menu_rounded, color: AppColors.textPrimary),
-              onPressed: () => Scaffold.of(context).openDrawer(),
-            ),
-          Obx(() {
-            var title = 'Dashboard Overview';
-            if (controller.currentTab.value == 'videos') title = 'Video Verification Queue';
-            if (controller.currentTab.value == 'images') title = 'Image Moderation Grid';
-            if (controller.currentTab.value == 'channels') title = 'Channel Verification Queue';
-            if (controller.currentTab.value == 'reports') title = 'Video Reports Review';
-            if (controller.currentTab.value == 'logs') title = 'Audit History Logs';
-            return Text(
-              title,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            );
-          }),
-          const Spacer(),
-          TextButton.icon(
+              onPressed: () {
+                _scaffoldKey.currentState?.openDrawer();
+              },
+            )
+          : null,
+      title: Obx(() {
+        var title = 'Dashboard Overview';
+        if (controller.currentTab.value == 'videos') title = 'Video Verification Queue';
+        if (controller.currentTab.value == 'images') title = 'Image Moderation Grid';
+        if (controller.currentTab.value == 'channels') title = 'Channel Verification Queue';
+        if (controller.currentTab.value == 'reports') title = 'Video Reports Review';
+        if (controller.currentTab.value == 'logs') title = 'Audit History Logs';
+        if (controller.currentTab.value == 'users') title = 'User Management';
+        if (controller.currentTab.value == 'analytics') title = 'Safety Analytics';
+        if (controller.currentTab.value == 'alerts') title = 'Alerts & Escalation';
+        if (controller.currentTab.value == 'appeals') title = 'Content Appeals';
+        if (controller.currentTab.value == 'security') title = 'Security Center';
+        if (controller.currentTab.value == 'feedbacks') title = 'User Feedbacks & Feedback Requests';
+        if (controller.currentTab.value == 'help') title = 'Admin Help & Support';
+        return Text(
+          title,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        );
+      }),
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: TextButton.icon(
             onPressed: () => controller.signOutAdmin(),
             icon: const Icon(Icons.logout_rounded, size: 16, color: AppColors.error),
             label: const Text(
@@ -368,7 +465,11 @@ class AdminDashboardScreen extends StatelessWidget {
               ),
             ),
           ),
-        ],
+        ),
+      ],
+      bottom: const PreferredSize(
+        preferredSize: Size.fromHeight(1),
+        child: Divider(color: AppColors.bgDivider, height: 1),
       ),
     );
   }
@@ -396,56 +497,54 @@ class AdminDashboardScreen extends StatelessWidget {
           // Stats Row
           LayoutBuilder(
             builder: (context, constraints) {
-              final cols = constraints.maxWidth > 1200 ? 6 : (constraints.maxWidth > 800 ? 3 : 2);
+              final cols = constraints.maxWidth > 1200
+                  ? 6
+                  : (constraints.maxWidth > 800
+                      ? 3
+                      : (constraints.maxWidth > 500 ? 2 : 1));
               return GridView.count(
                 crossAxisCount: cols,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 mainAxisSpacing: 16,
                 crossAxisSpacing: 16,
-                childAspectRatio: cols == 6 ? 1.2 : 1.5,
+                childAspectRatio: cols >= 6 ? 1.35 : (cols >= 2 ? 1.5 : 2.2),
                 children: [
                   _buildStatCard(
                     title: 'Pending Video Reviews',
                     value: controller.pendingVideos,
                     subtitle: 'Awaiting manual decision',
                     icon: Icons.video_collection_outlined,
-                    iconColor: AppColors.warning,
                   ),
                   _buildStatCard(
                     title: 'Pending Image Reviews',
                     value: controller.pendingImages,
                     subtitle: 'Flagged by SafeSearch',
                     icon: Icons.photo_library_outlined,
-                    iconColor: AppColors.brand,
                   ),
                   _buildStatCard(
                     title: 'Pending Channel Reviews',
                     value: controller.pendingChannels,
                     subtitle: 'AI verification warnings',
                     icon: Icons.account_circle_outlined,
-                    iconColor: AppColors.warning,
                   ),
                   _buildStatCard(
                     title: 'Pending Video Reports',
                     value: controller.pendingReports,
                     subtitle: 'User submitted reports',
                     icon: Icons.report_problem_outlined,
-                    iconColor: Colors.deepOrangeAccent,
                   ),
                   _buildStatCard(
                     title: 'Total Quarantined Records',
                     value: RxInt(controller.auditLogs.length),
                     subtitle: 'Audit registry entries',
                     icon: Icons.history_toggle_off_rounded,
-                    iconColor: AppColors.success,
                   ),
                   _buildStatCard(
                     title: 'Verification System Status',
                     value: RxString('Healthy'),
                     subtitle: 'AI pipelines active',
                     icon: Icons.health_and_safety_outlined,
-                    iconColor: AppColors.success,
                   ),
                 ],
               );
@@ -541,19 +640,14 @@ class AdminDashboardScreen extends StatelessWidget {
                       }
 
                       var iconData = Icons.help_outline;
-                      var iconColor = AppColors.textSecondary;
                       if (isVideo) {
                         iconData = Icons.movie_outlined;
-                        iconColor = AppColors.brand;
                       } else if (isChannel) {
                         iconData = Icons.account_circle_outlined;
-                        iconColor = AppColors.warning;
                       } else if (isReport) {
                         iconData = Icons.report_gmailerrorred_rounded;
-                        iconColor = Colors.deepOrangeAccent;
                       } else {
                         iconData = Icons.image_outlined;
-                        iconColor = Colors.cyan;
                       }
 
                       return Padding(
@@ -564,12 +658,12 @@ class AdminDashboardScreen extends StatelessWidget {
                               width: 38,
                               height: 38,
                               decoration: BoxDecoration(
-                                color: iconColor.withValues(alpha: 0.15),
+                                color: AppColors.bgElevated,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Icon(
                                 iconData,
-                                color: iconColor,
+                                color: Colors.white,
                                 size: 18,
                               ),
                             ),
@@ -620,10 +714,9 @@ class AdminDashboardScreen extends StatelessWidget {
     required Rx value,
     required String subtitle,
     required IconData icon,
-    required Color iconColor,
   }) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.bgSurface,
         borderRadius: BorderRadius.circular(16),
@@ -634,36 +727,44 @@ class AdminDashboardScreen extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Icon(icon, color: iconColor, size: 20),
+              const SizedBox(width: 8),
+              Icon(icon, color: Colors.white, size: 20),
             ],
           ),
+          const SizedBox(height: 6),
           Obx(() {
             final displayValue = value.value.toString();
             return Text(
               displayValue,
               style: const TextStyle(
                 color: AppColors.textPrimary,
-                fontSize: 28,
+                fontSize: 26,
                 fontWeight: FontWeight.bold,
               ),
             );
           }),
+          const SizedBox(height: 4),
           Text(
             subtitle,
             style: const TextStyle(
               color: AppColors.textTertiary,
               fontSize: 11,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -672,6 +773,7 @@ class AdminDashboardScreen extends StatelessWidget {
 
   // TAB 2: VIDEOS QUEUE TAB
   Widget _buildVideoQueueTab(BuildContext context, AdminController controller) {
+    final isMobile = MediaQuery.of(context).size.width <= 800;
     return Obx(() {
       final list = controller.videos.where((v) {
         final topStatus = v['status'] as String?;
@@ -695,293 +797,303 @@ class AdminDashboardScreen extends StatelessWidget {
         );
       }
 
-      return Row(
-        children: [
-          // Left Pane: Video list
-          Expanded(
-            flex: 2,
-            child: Container(
-              decoration: const BoxDecoration(
-                border: Border(right: BorderSide(color: AppColors.bgDivider)),
-              ),
-              child: ListView.separated(
-                itemCount: list.length,
-                separatorBuilder: (context, index) => const Divider(color: AppColors.bgDivider, height: 1),
-                itemBuilder: (context, index) {
-                  final video = list[index];
-                  final isSelected = controller.selectedVideo.value?['id'] == video['id'];
-                  final title = video['title'] ?? 'Untitled Video';
-                  final mod = video['moderation'] as Map<String, dynamic>?;
-                  final status = mod?['status'] ?? video['status'] ?? 'pending';
-                  final isTimeout = mod?['violationCategories']?.contains('timeout_passthrough') == true;
+      final listWidget = Container(
+        decoration: const BoxDecoration(
+          border: Border(right: BorderSide(color: AppColors.bgDivider)),
+        ),
+        child: ListView.separated(
+          itemCount: list.length,
+          separatorBuilder: (context, index) => const Divider(color: AppColors.bgDivider, height: 1),
+          itemBuilder: (context, index) {
+            final video = list[index];
+            final isSelected = controller.selectedVideo.value?['id'] == video['id'];
+            final title = video['title'] ?? 'Untitled Video';
+            final mod = video['moderation'] as Map<String, dynamic>?;
+            final status = mod?['status'] ?? video['status'] ?? 'pending';
+            final isTimeout = mod?['violationCategories']?.contains('timeout_passthrough') == true;
 
-                  return Material(
-                    color: isSelected ? AppColors.bgSurfaceHover : Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        controller.selectedVideo.value = video;
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        child: Row(
+            return Material(
+              color: isSelected ? AppColors.bgSurfaceHover : Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  controller.selectedVideo.value = video;
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: AppColors.bgElevated,
+                          borderRadius: BorderRadius.circular(6),
+                          image: video['thumbnailUrl'] != null
+                              ? DecorationImage(
+                                  image: NetworkImage(video['thumbnailUrl']),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        child: video['thumbnailUrl'] == null
+                            ? const Icon(Icons.videocam_rounded, color: AppColors.textSecondary)
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 80,
-                              height: 50,
-                              decoration: BoxDecoration(
-                                color: AppColors.bgElevated,
-                                borderRadius: BorderRadius.circular(6),
-                                image: video['thumbnailUrl'] != null
-                                    ? DecorationImage(
-                                        image: NetworkImage(video['thumbnailUrl']),
-                                        fit: BoxFit.cover,
-                                      )
-                                    : null,
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
                               ),
-                              child: video['thumbnailUrl'] == null
-                                  ? const Icon(Icons.videocam_rounded, color: AppColors.textSecondary)
-                                  : null,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    title,
-                                    style: const TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'User: ${video['userId'] ?? video['ownerId'] ?? 'Unknown'}',
-                                    style: const TextStyle(
-                                      color: AppColors.textTertiary,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    children: [
-                                      _buildStatusBadge(status),
-                                      if (isTimeout) ...[
-                                        const SizedBox(width: 6),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.error.withValues(alpha: 0.15),
-                                            borderRadius: BorderRadius.circular(4),
-                                          ),
-                                          child: const Text(
-                                            'TIMEOUT',
-                                            style: TextStyle(
-                                              color: AppColors.error,
-                                              fontSize: 9,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ],
-                                  ),
-                                ],
+                            const SizedBox(height: 4),
+                            Text(
+                              'User: ${video['userId'] ?? video['ownerId'] ?? 'Unknown'}',
+                              style: const TextStyle(
+                                color: AppColors.textTertiary,
+                                fontSize: 11,
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-
-          // Right Pane: Video details inspector
-          Expanded(
-            flex: 3,
-            child: Obx(() {
-              final selected = controller.selectedVideo.value;
-              if (selected == null) {
-                return const Center(
-                  child: Text(
-                    'Select a video to inspect details',
-                    style: TextStyle(color: AppColors.textTertiary),
-                  ),
-                );
-              }
-
-              final videoUrl = selected['videoUrl'];
-              final mod = selected['moderation'] as Map<String, dynamic>?;
-              final status = mod?['status'] ?? selected['status'] ?? 'pending';
-
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      selected['title'] ?? 'Untitled Video',
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Status Box
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 20),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: (status == 'approved'
-                            ? AppColors.success
-                            : (status == 'rejected' ? AppColors.error : AppColors.warning)).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: (status == 'approved'
-                              ? AppColors.success
-                              : (status == 'rejected' ? AppColors.error : AppColors.warning)).withValues(alpha: 0.25),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            status == 'approved'
-                                ? Icons.check_circle_outline
-                                : (status == 'rejected' ? Icons.block_flipped : Icons.sync_rounded),
-                            color: status == 'approved'
-                                ? AppColors.success
-                                : (status == 'rejected' ? AppColors.error : AppColors.warning),
-                            size: 24,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            const SizedBox(height: 6),
+                            Row(
                               children: [
-                                Text(
-                                  'Current Status: ${status.toUpperCase()}',
-                                  style: TextStyle(
-                                    color: status == 'approved'
-                                        ? AppColors.success
-                                        : (status == 'rejected' ? AppColors.error : AppColors.warning),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                if (mod?['reason'] != null && mod!['reason'].toString().isNotEmpty) ...[
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    mod['reason'].toString(),
-                                    style: const TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontSize: 12,
+                                _buildStatusBadge(status),
+                                if (isTimeout) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.error.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text(
+                                      'TIMEOUT',
+                                      style: TextStyle(
+                                        color: AppColors.error,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                 ],
                               ],
                             ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+
+      final inspectorWidget = Obx(() {
+        final selected = controller.selectedVideo.value;
+        if (selected == null) {
+          return const Center(
+            child: Text(
+              'Select a video to inspect details',
+              style: TextStyle(color: AppColors.textTertiary),
+            ),
+          );
+        }
+
+        final videoUrl = selected['videoUrl'];
+        final mod = selected['moderation'] as Map<String, dynamic>?;
+        final status = mod?['status'] ?? selected['status'] ?? 'pending';
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (isMobile)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: TextButton.icon(
+                    onPressed: () => controller.selectedVideo.value = null,
+                    icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
+                    label: const Text('Back to Video Queue', style: TextStyle(color: AppColors.textPrimary)),
+                  ),
+                ),
+              Text(
+                selected['title'] ?? 'Untitled Video',
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Status Box
+              Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: (status == 'approved'
+                      ? AppColors.success
+                      : (status == 'rejected' ? AppColors.error : AppColors.warning)).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: (status == 'approved'
+                        ? AppColors.success
+                        : (status == 'rejected' ? AppColors.error : AppColors.warning)).withValues(alpha: 0.25),
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      status == 'approved'
+                          ? Icons.check_circle_outline
+                          : (status == 'rejected' ? Icons.block_flipped : Icons.sync_rounded),
+                      color: status == 'approved'
+                          ? AppColors.success
+                          : (status == 'rejected' ? AppColors.error : AppColors.warning),
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Current Status: ${status.toUpperCase()}',
+                            style: TextStyle(
+                              color: status == 'approved'
+                                  ? AppColors.success
+                                  : (status == 'rejected' ? AppColors.error : AppColors.warning),
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
+                          if (mod?['reason'] != null && mod!['reason'].toString().isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              mod['reason'].toString(),
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
-
-                    // Video Player Frame
-                    if (videoUrl != null)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: ColoredBox(
-                          color: AppColors.bgPage,
-                          child: AspectRatio(
-                            aspectRatio: 16 / 9,
-                            child: AdminVideoPlayer(
-                              key: ValueKey(selected['id']),
-                              url: videoUrl,
-                            ),
-                          ),
-                        ),
-                      )
-                    else
-                      Container(
-                        height: 200,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: AppColors.bgSurface,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Text(
-                          'No video URL metadata present.',
-                          style: TextStyle(color: AppColors.textTertiary),
-                        ),
-                      ),
-                    const SizedBox(height: 24),
-
-                    // Metadata Details Table
-                    const Text(
-                      'Technical Metadata',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildMetadataTable([
-                      _MetadataRow('Video ID', selected['id']),
-                      _MetadataRow('Description', selected['description'] ?? 'None'),
-                      _MetadataRow('Pipeline Status', status),
-                      _MetadataRow('Flagged Reason', mod?['reason'] ?? selected['rejectionReason'] ?? 'System automatic moderation trigger.'),
-                      _MetadataRow('Confidence Score', (mod?['confidenceScore'] ?? 'N/A').toString()),
-                      _MetadataRow('GCS Storage Path', selected['storage']?['videoPath'] ?? 'N/A'),
-                      _MetadataRow('Uploaded At', _formatTimestamp(selected['createdAt'])),
-                    ]),
-                    const SizedBox(height: 32),
-
-                    // Action buttons
-                    Row(
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: controller.isActionSubmitting.value
-                              ? null
-                              : () => _showDecisionDialog(context, controller, selected['id'], 'approve', true),
-                          icon: const Icon(Icons.check_circle_outline, size: 18, color: AppColors.textPrimary),
-                          label: const Text('Approve Video'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.success,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        OutlinedButton.icon(
-                          onPressed: controller.isActionSubmitting.value
-                              ? null
-                              : () => _showDecisionDialog(context, controller, selected['id'], 'reject', true),
-                          icon: const Icon(Icons.block_flipped, size: 18, color: AppColors.error),
-                          label: const Text('Reject Video & Quarantine'),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: AppColors.error),
-                            foregroundColor: AppColors.error,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
-              );
-            }),
+              ),
+
+              // Video Player Frame
+              if (videoUrl != null)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: ColoredBox(
+                    color: AppColors.bgPage,
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: AdminVideoPlayer(
+                        key: ValueKey(selected['id']),
+                        url: videoUrl,
+                      ),
+                    ),
+                  ),
+                )
+              else
+                Container(
+                  height: 200,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.bgSurface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'No video URL metadata present.',
+                    style: TextStyle(color: AppColors.textTertiary),
+                  ),
+                ),
+              const SizedBox(height: 24),
+
+              // Metadata Details Table
+              const Text(
+                'Technical Metadata',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildMetadataTable([
+                _MetadataRow('Video ID', selected['id']),
+                _MetadataRow('Description', selected['description'] ?? 'None'),
+                _MetadataRow('Pipeline Status', status),
+                _MetadataRow('Flagged Reason', mod?['reason'] ?? selected['rejectionReason'] ?? 'System automatic moderation trigger.'),
+                _MetadataRow('Confidence Score', (mod?['confidenceScore'] ?? 'N/A').toString()),
+                _MetadataRow('GCS Storage Path', selected['storage']?['videoPath'] ?? 'N/A'),
+                _MetadataRow('Uploaded At', _formatTimestamp(selected['createdAt'])),
+              ]),
+              const SizedBox(height: 32),
+
+              // Action buttons
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: controller.isActionSubmitting.value
+                        ? null
+                        : () => _showDecisionDialog(context, controller, selected['id'], 'approve', true),
+                    icon: const Icon(Icons.check_circle_outline, size: 18, color: Colors.white),
+                    label: const Text('Approve Video'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: controller.isActionSubmitting.value
+                        ? null
+                        : () => _showDecisionDialog(context, controller, selected['id'], 'reject', true),
+                    icon: const Icon(Icons.block_flipped, size: 18, color: AppColors.error),
+                    label: const Text('Reject Video & Quarantine'),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.error),
+                      foregroundColor: AppColors.error,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
+        );
+      });
+
+      if (isMobile) {
+        return controller.selectedVideo.value != null ? inspectorWidget : listWidget;
+      }
+
+      return Row(
+        children: [
+          Expanded(flex: 2, child: listWidget),
+          Expanded(flex: 3, child: inspectorWidget),
         ],
       );
     });
@@ -989,6 +1101,7 @@ class AdminDashboardScreen extends StatelessWidget {
 
   // TAB: CHANNELS QUEUE TAB
   Widget _buildChannelQueueTab(BuildContext context, AdminController controller) {
+    final isMobile = MediaQuery.of(context).size.width <= 800;
     return Obx(() {
       final list = controller.channels;
 
@@ -1001,308 +1114,318 @@ class AdminDashboardScreen extends StatelessWidget {
         );
       }
 
-      return Row(
-        children: [
-          // Left Pane: Channel list
-          Expanded(
-            flex: 2,
-            child: Container(
-              decoration: const BoxDecoration(
-                border: Border(right: BorderSide(color: AppColors.bgDivider)),
-              ),
-              child: ListView.separated(
-                itemCount: list.length,
-                separatorBuilder: (context, index) => const Divider(color: AppColors.bgDivider, height: 1),
-                itemBuilder: (context, index) {
-                  final channel = list[index];
-                  final isSelected = controller.selectedChannel.value?['id'] == channel['id'];
-                  final title = channel['channelName'] ?? channel['name'] ?? 'Unnamed Channel';
-                  final status = channel['status'] ?? 'underReview';
+      final listWidget = Container(
+        decoration: const BoxDecoration(
+          border: Border(right: BorderSide(color: AppColors.bgDivider)),
+        ),
+        child: ListView.separated(
+          itemCount: list.length,
+          separatorBuilder: (context, index) => const Divider(color: AppColors.bgDivider, height: 1),
+          itemBuilder: (context, index) {
+            final channel = list[index];
+            final isSelected = controller.selectedChannel.value?['id'] == channel['id'];
+            final title = channel['channelName'] ?? channel['name'] ?? 'Unnamed Channel';
+            final status = channel['status'] ?? 'underReview';
 
-                  return Material(
-                    color: isSelected ? AppColors.bgSurfaceHover : Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        controller.selectedChannel.value = channel;
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        child: Row(
+            return Material(
+              color: isSelected ? AppColors.bgSurfaceHover : Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  controller.selectedChannel.value = channel;
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: AppColors.bgElevated,
+                          shape: BoxShape.circle,
+                          image: channel['avatarUrl'] != null && channel['avatarUrl'].toString().isNotEmpty
+                              ? DecorationImage(
+                                  image: NetworkImage(channel['avatarUrl']),
+                                  fit: BoxFit.cover,
+                                )
+                              : null,
+                        ),
+                        child: channel['avatarUrl'] == null || channel['avatarUrl'].toString().isEmpty
+                            ? const Icon(Icons.face_rounded, color: AppColors.textSecondary)
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 50,
-                              height: 50,
-                              decoration: BoxDecoration(
-                                color: AppColors.bgElevated,
-                                shape: BoxShape.circle,
-                                image: channel['avatarUrl'] != null && channel['avatarUrl'].toString().isNotEmpty
-                                    ? DecorationImage(
-                                        image: NetworkImage(channel['avatarUrl']),
-                                        fit: BoxFit.cover,
-                                      )
-                                    : null,
+                            Text(
+                              title,
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
                               ),
-                              child: channel['avatarUrl'] == null || channel['avatarUrl'].toString().isEmpty
-                                  ? const Icon(Icons.face_rounded, color: AppColors.textSecondary)
-                                  : null,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    title,
-                                    style: const TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Handle: @${channel['handle'] ?? channel['customUrl'] ?? 'none'}',
-                                    style: const TextStyle(
-                                      color: AppColors.textTertiary,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  _buildStatusBadge(status),
-                                ],
+                            const SizedBox(height: 4),
+                            Text(
+                              'Handle: @${channel['handle'] ?? channel['customUrl'] ?? 'none'}',
+                              style: const TextStyle(
+                                color: AppColors.textTertiary,
+                                fontSize: 11,
                               ),
                             ),
+                            const SizedBox(height: 6),
+                            _buildStatusBadge(status),
                           ],
                         ),
                       ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-
-          // Right Pane: Channel details inspector
-          Expanded(
-            flex: 3,
-            child: Obx(() {
-              final selected = controller.selectedChannel.value;
-              if (selected == null) {
-                return const Center(
-                  child: Text(
-                    'Select a channel to inspect details',
-                    style: TextStyle(color: AppColors.textTertiary),
+                    ],
                   ),
-                );
-              }
+                ),
+              ),
+            );
+          },
+        ),
+      );
 
-              final avatarUrl = selected['avatarUrl'];
-              final bannerUrl = selected['bannerImageUrl'] ?? selected['bannerUrl'];
-              final status = selected['status'] ?? 'underReview';
-              final geminiResponse = selected['moderationReason'] ?? 'No automated response logged.';
+      final inspectorWidget = Obx(() {
+        final selected = controller.selectedChannel.value;
+        if (selected == null) {
+          return const Center(
+            child: Text(
+              'Select a channel to inspect details',
+              style: TextStyle(color: AppColors.textTertiary),
+            ),
+          );
+        }
 
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Banner Image if present
-                    if (bannerUrl != null && bannerUrl.toString().isNotEmpty) ...[
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          height: 120,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            image: DecorationImage(
-                              image: NetworkImage(bannerUrl),
-                              fit: BoxFit.cover,
-                            ),
+        final avatarUrl = selected['avatarUrl'];
+        final bannerUrl = selected['bannerImageUrl'] ?? selected['bannerUrl'];
+        final status = selected['status'] ?? 'underReview';
+        final geminiResponse = selected['moderationReason'] ?? 'No automated response logged.';
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (isMobile)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: TextButton.icon(
+                    onPressed: () => controller.selectedChannel.value = null,
+                    icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
+                    label: const Text('Back to Channels', style: TextStyle(color: AppColors.textPrimary)),
+                  ),
+                ),
+              // Banner Image if present
+              if (bannerUrl != null && bannerUrl.toString().isNotEmpty) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    height: 120,
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        image: NetworkImage(bannerUrl),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              Row(
+                children: [
+                  CircleAvatar(
+                    radius: 30,
+                    backgroundImage: avatarUrl != null && avatarUrl.toString().isNotEmpty
+                        ? NetworkImage(avatarUrl)
+                        : null,
+                    backgroundColor: AppColors.bgElevated,
+                    child: avatarUrl == null || avatarUrl.toString().isEmpty
+                        ? const Icon(Icons.face_rounded, size: 30, color: Colors.white)
+                        : null,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          selected['channelName'] ?? selected['name'] ?? 'Unnamed Channel',
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 30,
-                          backgroundImage: avatarUrl != null && avatarUrl.toString().isNotEmpty
-                              ? NetworkImage(avatarUrl)
-                              : null,
-                          backgroundColor: AppColors.bgElevated,
-                          child: avatarUrl == null || avatarUrl.toString().isEmpty
-                              ? const Icon(Icons.face_rounded, size: 30)
-                              : null,
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                selected['channelName'] ?? selected['name'] ?? 'Unnamed Channel',
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '@${selected['handle'] ?? selected['customUrl'] ?? 'none'}',
-                                style: const TextStyle(
-                                  color: AppColors.textSecondary,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ],
+                        const SizedBox(height: 4),
+                        Text(
+                          '@${selected['handle'] ?? selected['customUrl'] ?? 'none'}',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 14,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 24),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
 
-                    // Status Box
-                    Container(
-                      margin: const EdgeInsets.only(bottom: 20),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: (status == 'active'
-                            ? AppColors.success
-                            : (status == 'verificationRejected' ? AppColors.error : AppColors.warning)).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: (status == 'active'
-                              ? AppColors.success
-                              : (status == 'verificationRejected' ? AppColors.error : AppColors.warning)).withValues(alpha: 0.25),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Row(
+              // Status Box
+              Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: (status == 'active'
+                      ? AppColors.success
+                      : (status == 'verificationRejected' ? AppColors.error : AppColors.warning)).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: (status == 'active'
+                        ? AppColors.success
+                        : (status == 'verificationRejected' ? AppColors.error : AppColors.warning)).withValues(alpha: 0.25),
+                    width: 1.5,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      status == 'active'
+                          ? Icons.check_circle_outline
+                          : (status == 'verificationRejected' ? Icons.block_flipped : Icons.sync_rounded),
+                      color: status == 'active'
+                          ? AppColors.success
+                          : (status == 'verificationRejected' ? AppColors.error : AppColors.warning),
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            status == 'active'
-                                ? Icons.check_circle_outline
-                                : (status == 'verificationRejected' ? Icons.block_flipped : Icons.sync_rounded),
-                            color: status == 'active'
-                                ? AppColors.success
-                                : (status == 'verificationRejected' ? AppColors.error : AppColors.warning),
-                            size: 24,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Current Status: ${status == 'active' ? 'APPROVED/ACTIVE' : (status == 'verificationRejected' ? 'REJECTED' : 'UNDER REVIEW')}',
-                                  style: TextStyle(
-                                    color: status == 'active'
-                                        ? AppColors.success
-                                        : (status == 'verificationRejected' ? AppColors.error : AppColors.warning),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
+                          Text(
+                            'Current Status: ${status == 'active' ? 'APPROVED/ACTIVE' : (status == 'verificationRejected' ? 'REJECTED' : 'UNDER REVIEW')}',
+                            style: TextStyle(
+                              color: status == 'active'
+                                  ? AppColors.success
+                                  : (status == 'verificationRejected' ? AppColors.error : AppColors.warning),
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ],
                       ),
                     ),
-
-                    // Gemini response block
-                    const Text(
-                      'Gemini AI Moderation Analysis',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgSurfaceHover,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.bgDivider),
-                      ),
-                      child: Text(
-                        geminiResponse,
-                        style: const TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 13,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Metadata details
-                    const Text(
-                      'Channel Metadata',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildMetadataTable([
-                      _MetadataRow('Channel ID', selected['id']),
-                      _MetadataRow('Owner ID', selected['ownerId'] ?? 'N/A'),
-                      _MetadataRow('Description', selected['description'] ?? 'None'),
-                      _MetadataRow('Category', selected['category'] ?? 'None'),
-                      _MetadataRow('Language', selected['language'] ?? 'en'),
-                      _MetadataRow('Tags', (selected['tags'] as List?)?.join(', ') ?? 'None'),
-                      _MetadataRow('Status', status),
-                      _MetadataRow('Updated At', _formatTimestamp(selected['updatedAt'])),
-                    ]),
-                    const SizedBox(height: 32),
-
-                    // Action buttons
-                    Row(
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: controller.isActionSubmitting.value
-                              ? null
-                              : () => _showDecisionDialog(context, controller, selected['id'], 'approve', false, isChannel: true),
-                          icon: const Icon(Icons.check_circle_outline, size: 18, color: AppColors.textPrimary),
-                          label: const Text('Approve Channel'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.success,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        OutlinedButton.icon(
-                          onPressed: controller.isActionSubmitting.value
-                              ? null
-                              : () => _showDecisionDialog(context, controller, selected['id'], 'reject', false, isChannel: true),
-                          icon: const Icon(Icons.block_flipped, size: 18, color: AppColors.error),
-                          label: const Text('Reject Channel'),
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: AppColors.error),
-                            foregroundColor: AppColors.error,
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
-              );
-            }),
+              ),
+
+              // Gemini response block
+              const Text(
+                'Gemini AI Moderation Analysis',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.bgSurfaceHover,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.bgDivider),
+                ),
+                child: Text(
+                  geminiResponse,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Metadata details
+              const Text(
+                'Channel Metadata',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildMetadataTable([
+                _MetadataRow('Channel ID', selected['id']),
+                _MetadataRow('Owner ID', selected['ownerId'] ?? 'N/A'),
+                _MetadataRow('Description', selected['description'] ?? 'None'),
+                _MetadataRow('Category', selected['category'] ?? 'None'),
+                _MetadataRow('Language', selected['language'] ?? 'en'),
+                _MetadataRow('Tags', (selected['tags'] as List?)?.join(', ') ?? 'None'),
+                _MetadataRow('Status', status),
+                _MetadataRow('Updated At', _formatTimestamp(selected['updatedAt'])),
+              ]),
+              const SizedBox(height: 32),
+
+              // Action buttons
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: controller.isActionSubmitting.value
+                        ? null
+                        : () => _showDecisionDialog(context, controller, selected['id'], 'approve', false, isChannel: true),
+                    icon: const Icon(Icons.check_circle_outline, size: 18, color: Colors.white),
+                    label: const Text('Approve Channel'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.success,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: controller.isActionSubmitting.value
+                        ? null
+                        : () => _showDecisionDialog(context, controller, selected['id'], 'reject', false, isChannel: true),
+                    icon: const Icon(Icons.block_flipped, size: 18, color: AppColors.error),
+                    label: const Text('Reject Channel'),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.error),
+                      foregroundColor: AppColors.error,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
+        );
+      });
+
+      if (isMobile) {
+        return controller.selectedChannel.value != null ? inspectorWidget : listWidget;
+      }
+
+      return Row(
+        children: [
+          Expanded(flex: 2, child: listWidget),
+          Expanded(flex: 3, child: inspectorWidget),
         ],
       );
     });
@@ -1310,6 +1433,7 @@ class AdminDashboardScreen extends StatelessWidget {
 
   // TAB: REPORTS QUEUE TAB
   Widget _buildReportsQueueTab(BuildContext context, AdminController controller) {
+    final isMobile = MediaQuery.of(context).size.width <= 800;
     return Obx(() {
       final list = controller.reports;
 
@@ -1322,365 +1446,379 @@ class AdminDashboardScreen extends StatelessWidget {
         );
       }
 
-      return Row(
-        children: [
-          // Left Pane: Report list
-          Expanded(
-            flex: 2,
-            child: Container(
-              decoration: const BoxDecoration(
-                border: Border(right: BorderSide(color: AppColors.bgDivider)),
-              ),
-              child: ListView.separated(
-                itemCount: list.length,
-                separatorBuilder: (context, index) => const Divider(color: AppColors.bgDivider, height: 1),
-                itemBuilder: (context, index) {
-                  final report = list[index];
-                  final isSelected = controller.selectedReport.value?['id'] == report['id'];
-                  
-                  final reasonMap = report['reason'];
-                  final reason = reasonMap is Map ? (reasonMap['label'] ?? 'Unknown Reason') : (reasonMap?.toString() ?? 'Unknown Reason');
-                  final status = report['status'] ?? 'pending';
-                  final reporter = report['userEmail'] ?? 'anonymous';
+      final listWidget = Container(
+        decoration: const BoxDecoration(
+          border: Border(right: BorderSide(color: AppColors.bgDivider)),
+        ),
+        child: ListView.separated(
+          itemCount: list.length,
+          separatorBuilder: (context, index) => const Divider(color: AppColors.bgDivider, height: 1),
+          itemBuilder: (context, index) {
+            final report = list[index];
+            final isSelected = controller.selectedReport.value?['id'] == report['id'];
+            
+            final reasonMap = report['reason'];
+            final reason = reasonMap is Map ? (reasonMap['label'] ?? 'Unknown Reason') : (reasonMap?.toString() ?? 'Unknown Reason');
+            final status = report['status'] ?? 'pending';
+            final reporter = report['userEmail'] ?? 'anonymous';
 
-                  return Material(
-                    color: isSelected ? AppColors.bgSurfaceHover : Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        controller.selectedReport.value = report;
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        child: Row(
+            return Material(
+              color: isSelected ? AppColors.bgSurfaceHover : Colors.transparent,
+              child: InkWell(
+                onTap: () {
+                  controller.selectedReport.value = report;
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: const BoxDecoration(
+                          color: AppColors.bgElevated,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.report_gmailerrorred_rounded, color: Colors.white),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: const BoxDecoration(
-                                color: AppColors.bgElevated,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.report_gmailerrorred_rounded, color: Colors.deepOrangeAccent),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    reason,
-                                    style: const TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Reporter: $reporter',
-                                    style: const TextStyle(
-                                      color: AppColors.textTertiary,
-                                      fontSize: 11,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  _buildStatusBadge(status),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-
-          // Right Pane: Inspector
-          Expanded(
-            flex: 3,
-            child: Obx(() {
-              final selected = controller.selectedReport.value;
-              if (selected == null) {
-                return const Center(
-                  child: Text(
-                    'Select a report to inspect details',
-                    style: TextStyle(color: AppColors.textTertiary),
-                  ),
-                );
-              }
-
-              final videoId = selected['videoId'] as String?;
-              final video = controller.videos.firstWhereOrNull((v) => v['id'] == videoId);
-              final status = selected['status'] ?? 'pending';
-
-              final reasonMap = selected['reason'];
-              final reason = reasonMap is Map ? (reasonMap['label'] ?? 'Unknown Reason') : (reasonMap?.toString() ?? 'Unknown Reason');
-              final comment = selected['comment'] ?? 'No detailed description provided.';
-              final reporterEmail = selected['userEmail'] ?? 'anonymous';
-              final createdAtStr = _formatTimestamp(selected['createdAt']);
-
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Status Box
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: (status == 'pending' || status == 'PENDING')
-                            ? AppColors.warning.withValues(alpha: 0.1)
-                            : (status == 'resolved_rejected'
-                                ? AppColors.error.withValues(alpha: 0.1)
-                                : AppColors.success.withValues(alpha: 0.1)),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: (status == 'pending' || status == 'PENDING')
-                              ? AppColors.warning.withValues(alpha: 0.3)
-                              : (status == 'resolved_rejected'
-                                  ? AppColors.error.withValues(alpha: 0.3)
-                                  : AppColors.success.withValues(alpha: 0.3)),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Icon(
-                                (status == 'pending' || status == 'PENDING')
-                                    ? Icons.hourglass_empty_rounded
-                                    : (status == 'resolved_rejected' ? Icons.cancel_outlined : Icons.check_circle_outline_rounded),
-                                color: (status == 'pending' || status == 'PENDING')
-                                    ? AppColors.warning
-                                    : (status == 'resolved_rejected' ? AppColors.error : AppColors.success),
-                                size: 20,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                (status == 'pending' || status == 'PENDING')
-                                    ? 'UNDER MANUAL REVIEW'
-                                    : (status == 'resolved_rejected' ? 'REPORT RESOLVED: VIDEO REJECTED' : 'REPORT RESOLVED: DISMISSED'),
-                                style: TextStyle(
-                                  color: (status == 'pending' || status == 'PENDING')
-                                      ? AppColors.warning
-                                      : (status == 'resolved_rejected' ? AppColors.error : AppColors.success),
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
-                                  letterSpacing: 1.1,
-                                ),
-                              ),
-                            ],
-                          ),
-                          if (selected['resolutionComment'] != null && selected['resolutionComment'].toString().isNotEmpty) ...[
-                            const SizedBox(height: 12),
                             Text(
-                              'Resolution Note: ${selected['resolutionComment']}',
+                              reason,
                               style: const TextStyle(
                                 color: AppColors.textPrimary,
                                 fontSize: 13,
+                                fontWeight: FontWeight.w600,
                               ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Video Section
-                    const Text(
-                      'Reported Video Details',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (video != null) ...[
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.bgSurfaceHover,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.bgDivider),
-                        ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            if (video['thumbnailUrl'] != null && video['thumbnailUrl'].toString().isNotEmpty)
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.network(
-                                  video['thumbnailUrl'],
-                                  width: 120,
-                                  height: 68,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) => Container(
-                                    width: 120,
-                                    height: 68,
-                                    color: AppColors.textSecondary,
-                                    child: const Icon(Icons.broken_image, color: AppColors.textSecondary),
-                                  ),
-                                ),
-                              )
-                            else
-                              Container(
-                                width: 120,
-                                height: 68,
-                                decoration: BoxDecoration(
-                                  color: AppColors.textSecondary,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(Icons.movie_creation_outlined, color: AppColors.textSecondary),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Reporter: $reporter',
+                              style: const TextStyle(
+                                color: AppColors.textTertiary,
+                                fontSize: 11,
                               ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    video['title'] ?? 'Untitled Video',
-                                    style: const TextStyle(
-                                      color: AppColors.textPrimary,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Channel: ${video['channelName'] ?? 'Unknown'}',
-                                    style: const TextStyle(
-                                      color: AppColors.textSecondary,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Status: ${video['moderation']?['status'] ?? 'unknown'}',
-                                    style: const TextStyle(
-                                      color: AppColors.textTertiary,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
+                            const SizedBox(height: 6),
+                            _buildStatusBadge(status),
                           ],
-                        ),
-                      ),
-                    ] else ...[
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: AppColors.bgSurfaceHover,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.bgDivider),
-                        ),
-                        child: Text(
-                          'Video ID: $videoId (Video details not cached or video deleted)',
-                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
                         ),
                       ),
                     ],
-                    const SizedBox(height: 24),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
 
-                    // Report Info Section
-                    const Text(
-                      'Report Submission Info',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildMetadataTable([
-                      _MetadataRow('Report ID', selected['id']),
-                      _MetadataRow('Reporter', reporterEmail),
-                      _MetadataRow('Reason', reason),
-                      _MetadataRow('Submitted At', createdAtStr),
-                    ]),
-                    const SizedBox(height: 24),
+      final inspectorWidget = Obx(() {
+        final selected = controller.selectedReport.value;
+        if (selected == null) {
+          return const Center(
+            child: Text(
+              'Select a report to inspect details',
+              style: TextStyle(color: AppColors.textTertiary),
+            ),
+          );
+        }
 
-                    // Reporter Comment block
-                    const Text(
-                      'Reporter Comment',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
+        final videoId = selected['videoId'] as String?;
+        final video = controller.videos.firstWhereOrNull((v) => v['id'] == videoId);
+        final status = selected['status'] ?? 'pending';
+
+        final reasonMap = selected['reason'];
+        final reason = reasonMap is Map ? (reasonMap['label'] ?? 'Unknown Reason') : (reasonMap?.toString() ?? 'Unknown Reason');
+        final comment = selected['comment'] ?? 'No detailed description provided.';
+        final reporterEmail = selected['userEmail'] ?? 'anonymous';
+        final createdAtStr = _formatTimestamp(selected['createdAt']);
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (isMobile)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: TextButton.icon(
+                    onPressed: () => controller.selectedReport.value = null,
+                    icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
+                    label: const Text('Back to Reports', style: TextStyle(color: AppColors.textPrimary)),
+                  ),
+                ),
+              // Status Box
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: (status == 'pending' || status == 'PENDING')
+                      ? AppColors.warning.withValues(alpha: 0.1)
+                      : (status == 'resolved_rejected'
+                          ? AppColors.error.withValues(alpha: 0.1)
+                          : AppColors.success.withValues(alpha: 0.1)),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: (status == 'pending' || status == 'PENDING')
+                        ? AppColors.warning.withValues(alpha: 0.3)
+                        : (status == 'resolved_rejected'
+                            ? AppColors.error.withValues(alpha: 0.3)
+                            : AppColors.success.withValues(alpha: 0.3)),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          (status == 'pending' || status == 'PENDING')
+                              ? Icons.hourglass_empty_rounded
+                              : (status == 'resolved_rejected' ? Icons.cancel_outlined : Icons.check_circle_outline_rounded),
+                          color: (status == 'pending' || status == 'PENDING')
+                              ? AppColors.warning
+                              : (status == 'resolved_rejected' ? AppColors.error : AppColors.success),
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            (status == 'pending' || status == 'PENDING')
+                                ? 'UNDER MANUAL REVIEW'
+                                : (status == 'resolved_rejected' ? 'REPORT RESOLVED: VIDEO REJECTED' : 'REPORT RESOLVED: DISMISSED'),
+                            style: TextStyle(
+                              color: (status == 'pending' || status == 'PENDING')
+                                  ? AppColors.warning
+                                  : (status == 'resolved_rejected' ? AppColors.error : AppColors.success),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              letterSpacing: 1.1,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgSurfaceHover,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.bgDivider),
-                      ),
-                      child: Text(
-                        comment,
+                    if (selected['resolutionComment'] != null && selected['resolutionComment'].toString().isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        'Resolution Note: ${selected['resolutionComment']}',
                         style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 13,
-                          height: 1.4,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 32),
-
-                    // Action buttons (Only if pending)
-                    if (status == 'pending' || status == 'PENDING')
-                      Row(
-                        children: [
-                          ElevatedButton.icon(
-                            onPressed: controller.isActionSubmitting.value
-                                ? null
-                                : () => _showDecisionDialog(context, controller, selected['id'], 'dismiss', false, isReport: true),
-                            icon: const Icon(Icons.check_circle_outline, size: 18, color: AppColors.textPrimary),
-                            label: const Text('Dismiss Report (Keep Video)'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.success,
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          OutlinedButton.icon(
-                            onPressed: controller.isActionSubmitting.value
-                                ? null
-                                : () => _showDecisionDialog(context, controller, selected['id'], 'reject', false, isReport: true),
-                            icon: const Icon(Icons.block_flipped, size: 18, color: AppColors.error),
-                            label: const Text('Reject Video & Resolve'),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: AppColors.error),
-                              foregroundColor: AppColors.error,
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            ),
-                          ),
-                        ],
-                      ),
+                    ],
                   ],
                 ),
-              );
-            }),
+              ),
+              const SizedBox(height: 24),
+
+              // Video Section
+              const Text(
+                'Reported Video Details',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (video != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgSurfaceHover,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.bgDivider),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (video['thumbnailUrl'] != null && video['thumbnailUrl'].toString().isNotEmpty)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            video['thumbnailUrl'],
+                            width: 120,
+                            height: 68,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              width: 120,
+                              height: 68,
+                              color: AppColors.textSecondary,
+                              child: const Icon(Icons.broken_image, color: Colors.white),
+                            ),
+                          ),
+                        )
+                      else
+                        Container(
+                          width: 120,
+                          height: 68,
+                          decoration: BoxDecoration(
+                            color: AppColors.bgElevated,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.movie_creation_outlined, color: Colors.white),
+                        ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              video['title'] ?? 'Untitled Video',
+                              style: const TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Channel: ${video['channelName'] ?? 'Unknown'}',
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Status: ${video['moderation']?['status'] ?? 'unknown'}',
+                              style: const TextStyle(
+                                color: AppColors.textTertiary,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgSurfaceHover,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.bgDivider),
+                  ),
+                  child: Text(
+                    'Video ID: $videoId (Video details not cached or video deleted)',
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 24),
+
+              // Report Info Section
+              const Text(
+                'Report Submission Info',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildMetadataTable([
+                _MetadataRow('Report ID', selected['id']),
+                _MetadataRow('Reporter', reporterEmail),
+                _MetadataRow('Reason', reason),
+                _MetadataRow('Submitted At', createdAtStr),
+              ]),
+              const SizedBox(height: 24),
+
+              // Reporter Comment block
+              const Text(
+                'Reporter Comment',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.bgSurfaceHover,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.bgDivider),
+                ),
+                child: Text(
+                  comment,
+                  style: const TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 13,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // Action buttons (Only if pending)
+              if (status == 'pending' || status == 'PENDING')
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: controller.isActionSubmitting.value
+                          ? null
+                          : () => _showDecisionDialog(context, controller, selected['id'], 'dismiss', false, isReport: true),
+                      icon: const Icon(Icons.check_circle_outline, size: 18, color: Colors.white),
+                      label: const Text('Dismiss Report (Keep Video)'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: controller.isActionSubmitting.value
+                          ? null
+                          : () => _showDecisionDialog(context, controller, selected['id'], 'reject', false, isReport: true),
+                      icon: const Icon(Icons.block_flipped, size: 18, color: AppColors.error),
+                      label: const Text('Reject Video & Resolve'),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.error),
+                        foregroundColor: AppColors.error,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
           ),
+        );
+      });
+
+      if (isMobile) {
+        return controller.selectedReport.value != null ? inspectorWidget : listWidget;
+      }
+
+      return Row(
+        children: [
+          Expanded(flex: 2, child: listWidget),
+          Expanded(flex: 3, child: inspectorWidget),
         ],
       );
     });
@@ -1688,6 +1826,7 @@ class AdminDashboardScreen extends StatelessWidget {
 
   // TAB 3: IMAGES QUEUE TAB
   Widget _buildImageQueueTab(BuildContext context, AdminController controller) {
+    final isMobile = MediaQuery.of(context).size.width <= 800;
     return Obx(() {
       final list = controller.images;
 
@@ -1700,240 +1839,250 @@ class AdminDashboardScreen extends StatelessWidget {
         );
       }
 
-      return Row(
-        children: [
-          // Left Pane: Flagged images grid
-          Expanded(
-            flex: 2,
-            child: Container(
-              decoration: const BoxDecoration(
-                border: Border(right: BorderSide(color: AppColors.bgDivider)),
-              ),
-              child: GridView.builder(
-                padding: const EdgeInsets.all(16),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 0.9,
-                ),
-                itemCount: list.length,
-                itemBuilder: (context, index) {
-                  final img = list[index];
-                  final isSelected = controller.selectedImage.value?['id'] == img['id'];
-                  final rawUrl = img['gcsUri'] ?? img['filePath'] ?? '';
-                  final displayUrl = rawUrl.toString().replaceAll('gs://', 'https://storage.googleapis.com/').replaceAll('truthworld-1.firebasestorage.app/', 'truthworld-1.firebasestorage.app/');
-
-                  return GestureDetector(
-                    onTap: () {
-                      controller.selectedImage.value = img;
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.bgSurface,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: isSelected ? AppColors.brand : AppColors.bgDivider,
-                          width: isSelected ? 2 : 1,
-                        ),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(
-                            child: displayUrl.isNotEmpty
-                                ? Image.network(
-                                    displayUrl,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) => const Center(
-                                      child: Icon(Icons.broken_image, color: AppColors.textTertiary),
-                                    ),
-                                  )
-                                : const Icon(Icons.image, color: AppColors.textTertiary),
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.all(8),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  img['fileName'] ?? 'Image File',
-                                  style: const TextStyle(
-                                    color: AppColors.textPrimary,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 4),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.bgElevated,
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        img['category'] ?? 'Post',
-                                        style: const TextStyle(
-                                          color: AppColors.textSecondary,
-                                          fontSize: 8,
-                                        ),
-                                      ),
-                                    ),
-                                    _buildStatusBadge(img['status'] ?? 'PENDING'),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
+      final listWidget = Container(
+        decoration: const BoxDecoration(
+          border: Border(right: BorderSide(color: AppColors.bgDivider)),
+        ),
+        child: GridView.builder(
+          padding: const EdgeInsets.all(16),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 0.9,
           ),
+          itemCount: list.length,
+          itemBuilder: (context, index) {
+            final img = list[index];
+            final isSelected = controller.selectedImage.value?['id'] == img['id'];
+            final rawUrl = (img['gcsUri'] ?? img['filePath'] ?? '').toString();
+            final displayUrl = rawUrl.isNotEmpty ? StorageUtils.getFastDownloadUrl(rawUrl) : '';
 
-          // Right Pane: Image details inspector
-          Expanded(
-            flex: 3,
-            child: Obx(() {
-              final selected = controller.selectedImage.value;
-              if (selected == null) {
-                return const Center(
-                  child: Text(
-                    'Select an image to inspect details',
-                    style: TextStyle(color: AppColors.textTertiary),
+            return GestureDetector(
+              onTap: () {
+                controller.selectedImage.value = img;
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.bgSurface,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isSelected ? AppColors.brand : AppColors.bgDivider,
+                    width: isSelected ? 2 : 1,
                   ),
-                );
-              }
-
-              final rawUrl = selected['gcsUri'] ?? selected['filePath'] ?? '';
-              final displayUrl = rawUrl.toString().replaceAll('gs://', 'https://storage.googleapis.com/').replaceAll('truthworld-1.firebasestorage.app/', 'truthworld-1.firebasestorage.app/');
-              final scores = selected['detailedScores'] as Map<String, dynamic>? ?? {};
-
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                ),
+                clipBehavior: Clip.antiAlias,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      selected['fileName'] ?? 'Inspect Image',
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    Expanded(
+                      child: displayUrl.isNotEmpty
+                          ? Image.network(
+                              displayUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => const Center(
+                                child: Icon(Icons.broken_image, color: AppColors.textTertiary),
+                              ),
+                            )
+                          : const Icon(Icons.image, color: AppColors.textTertiary),
                     ),
-                    const SizedBox(height: 16),
-
-                    // Image Frame
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        color: AppColors.bgSurface,
-                        constraints: const BoxConstraints(maxHeight: 280),
-                        width: double.infinity,
-                        child: displayUrl.isNotEmpty
-                            ? Image.network(
-                                displayUrl,
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) => const Center(
-                                  child: Icon(Icons.broken_image, size: 48, color: AppColors.textTertiary),
-                                ),
-                              )
-                            : const Icon(Icons.image, size: 48, color: AppColors.textTertiary),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Safe Search Scores
-                    const Text(
-                      'AI SafeSearch Violations',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _buildSafeSearchChip('Adult', scores['adult']),
-                        _buildSafeSearchChip('Racy', scores['racy']),
-                        _buildSafeSearchChip('Violence', scores['violence']),
-                        _buildSafeSearchChip('Medical', scores['medical']),
-                        _buildSafeSearchChip('Spoof', scores['spoof']),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Metadata Details Table
-                    const Text(
-                      'Verification Metadata',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _buildMetadataTable([
-                      _MetadataRow('Document ID', selected['id']),
-                      _MetadataRow('Uploader ID', selected['userId'] ?? 'Anonymous'),
-                      _MetadataRow('Trigger Category', selected['category'] ?? 'image'),
-                      _MetadataRow('AI Reason Log', selected['reason'] ?? 'Flagged by SafeSearch filters.'),
-                      _MetadataRow('Severity Score', '${selected['score'] ?? 0} / 5'),
-                      _MetadataRow('GCS Path', selected['filePath'] ?? 'N/A'),
-                      _MetadataRow('Flagged At', _formatTimestamp(selected['flaggedAt'])),
-                    ]),
-                    const SizedBox(height: 32),
-
-                    // Action buttons
-                    if (selected['status'] == 'PENDING_REVIEW')
-                      Row(
+                    Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          ElevatedButton.icon(
-                            onPressed: controller.isActionSubmitting.value
-                                ? null
-                                : () => _showDecisionDialog(context, controller, selected['id'], 'approve', false),
-                            icon: const Icon(Icons.check_circle_outline, size: 18, color: AppColors.textPrimary),
-                            label: const Text('Approve Image'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.success,
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          Text(
+                            img['fileName'] ?? 'Image File',
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(width: 16),
-                          OutlinedButton.icon(
-                            onPressed: controller.isActionSubmitting.value
-                                ? null
-                                : () => _showDecisionDialog(context, controller, selected['id'], 'reject', false),
-                            icon: const Icon(Icons.block_flipped, size: 18, color: AppColors.error),
-                            label: const Text('Reject & Quarantine'),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: AppColors.error),
-                              foregroundColor: AppColors.error,
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                            ),
+                          const SizedBox(height: 4),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.bgElevated,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  img['category'] ?? 'Post',
+                                  style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 8,
+                                  ),
+                                ),
+                              ),
+                              _buildStatusBadge(img['status'] ?? 'PENDING'),
+                            ],
                           ),
                         ],
                       ),
+                    ),
                   ],
                 ),
-              );
-            }),
+              ),
+            );
+          },
+        ),
+      );
+
+      final inspectorWidget = Obx(() {
+        final selected = controller.selectedImage.value;
+        if (selected == null) {
+          return const Center(
+            child: Text(
+              'Select an image to inspect details',
+              style: TextStyle(color: AppColors.textTertiary),
+            ),
+          );
+        }
+
+        final rawUrl = (selected['gcsUri'] ?? selected['filePath'] ?? '').toString();
+        final displayUrl = rawUrl.isNotEmpty ? StorageUtils.getFastDownloadUrl(rawUrl) : '';
+        final scores = selected['detailedScores'] as Map<String, dynamic>? ?? {};
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (isMobile)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: TextButton.icon(
+                    onPressed: () => controller.selectedImage.value = null,
+                    icon: const Icon(Icons.arrow_back, color: Colors.white, size: 18),
+                    label: const Text('Back to Images', style: TextStyle(color: AppColors.textPrimary)),
+                  ),
+                ),
+              Text(
+                selected['fileName'] ?? 'Inspect Image',
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Image Frame
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  color: AppColors.bgSurface,
+                  constraints: const BoxConstraints(maxHeight: 280),
+                  width: double.infinity,
+                  child: displayUrl.isNotEmpty
+                      ? Image.network(
+                          displayUrl,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) => const Center(
+                            child: Icon(Icons.broken_image, size: 48, color: AppColors.textTertiary),
+                          ),
+                        )
+                      : const Icon(Icons.image, size: 48, color: AppColors.textTertiary),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Safe Search Scores
+              const Text(
+                'AI SafeSearch Violations',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildSafeSearchChip('Adult', scores['adult']),
+                  _buildSafeSearchChip('Racy', scores['racy']),
+                  _buildSafeSearchChip('Violence', scores['violence']),
+                  _buildSafeSearchChip('Medical', scores['medical']),
+                  _buildSafeSearchChip('Spoof', scores['spoof']),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Metadata Details Table
+              const Text(
+                'Verification Metadata',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildMetadataTable([
+                _MetadataRow('Document ID', selected['id']),
+                _MetadataRow('Uploader ID', selected['userId'] ?? 'Anonymous'),
+                _MetadataRow('Trigger Category', selected['category'] ?? 'image'),
+                _MetadataRow('AI Reason Log', selected['reason'] ?? 'Flagged by SafeSearch filters.'),
+                _MetadataRow('Severity Score', '${selected['score'] ?? 0} / 5'),
+                _MetadataRow('GCS Path', selected['filePath'] ?? 'N/A'),
+                _MetadataRow('Flagged At', _formatTimestamp(selected['flaggedAt'])),
+              ]),
+              const SizedBox(height: 32),
+
+              // Action buttons
+              if (selected['status'] == 'PENDING_REVIEW')
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: controller.isActionSubmitting.value
+                          ? null
+                          : () => _showDecisionDialog(context, controller, selected['id'], 'approve', false),
+                      icon: const Icon(Icons.check_circle_outline, size: 18, color: Colors.white),
+                      label: const Text('Approve Image'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.success,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: controller.isActionSubmitting.value
+                          ? null
+                          : () => _showDecisionDialog(context, controller, selected['id'], 'reject', false),
+                      icon: const Icon(Icons.block_flipped, size: 18, color: AppColors.error),
+                      label: const Text('Reject & Quarantine'),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.error),
+                        foregroundColor: AppColors.error,
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
           ),
+        );
+      });
+
+      if (isMobile) {
+        return controller.selectedImage.value != null ? inspectorWidget : listWidget;
+      }
+
+      return Row(
+        children: [
+          Expanded(flex: 2, child: listWidget),
+          Expanded(flex: 3, child: inspectorWidget),
         ],
       );
     });
@@ -1961,42 +2110,45 @@ class AdminDashboardScreen extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.bgDivider),
           ),
-          child: DataTable(
-            columnSpacing: 16,
-            horizontalMargin: 20,
-            columns: const [
-              DataColumn(label: Text('Original Location', style: TextStyle(color: AppColors.textSecondary))),
-              DataColumn(label: Text('Quarantine GCS Path', style: TextStyle(color: AppColors.textSecondary))),
-              DataColumn(label: Text('Reason Code', style: TextStyle(color: AppColors.textSecondary))),
-              DataColumn(label: Text('Owner ID', style: TextStyle(color: AppColors.textSecondary))),
-              DataColumn(label: Text('Rejection Date', style: TextStyle(color: AppColors.textSecondary))),
-            ],
-            rows: logs.map((log) {
-              return DataRow(
-                cells: [
-                  DataCell(Text(
-                    log['originalPath'] ?? 'N/A',
-                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
-                  )),
-                  DataCell(Text(
-                    log['quarantinePath'] ?? 'N/A',
-                    style: GoogleFonts.robotoMono(color: AppColors.brand, fontSize: 11),
-                  )),
-                  DataCell(Text(
-                    log['reason'] ?? 'N/A',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                  )),
-                  DataCell(Text(
-                    log['userId'] ?? 'N/A',
-                    style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
-                  )),
-                  DataCell(Text(
-                    _formatTimestamp(log['rejectedAt']),
-                    style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
-                  )),
-                ],
-              );
-            }).toList(),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columnSpacing: 16,
+              horizontalMargin: 20,
+              columns: const [
+                DataColumn(label: Text('Original Location', style: TextStyle(color: AppColors.textSecondary))),
+                DataColumn(label: Text('Quarantine GCS Path', style: TextStyle(color: AppColors.textSecondary))),
+                DataColumn(label: Text('Reason Code', style: TextStyle(color: AppColors.textSecondary))),
+                DataColumn(label: Text('Owner ID', style: TextStyle(color: AppColors.textSecondary))),
+                DataColumn(label: Text('Rejection Date', style: TextStyle(color: AppColors.textSecondary))),
+              ],
+              rows: logs.map((log) {
+                return DataRow(
+                  cells: [
+                    DataCell(Text(
+                      log['originalPath'] ?? 'N/A',
+                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 12),
+                    )),
+                    DataCell(Text(
+                      log['quarantinePath'] ?? 'N/A',
+                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 11, fontFamily: 'monospace'),
+                    )),
+                    DataCell(Text(
+                      log['reason'] ?? 'N/A',
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    )),
+                    DataCell(Text(
+                      log['userId'] ?? 'N/A',
+                      style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                    )),
+                    DataCell(Text(
+                      _formatTimestamp(log['rejectedAt']),
+                      style: const TextStyle(color: AppColors.textTertiary, fontSize: 12),
+                    )),
+                  ],
+                );
+              }).toList(),
+            ),
           ),
         ),
       );
@@ -2015,7 +2167,7 @@ class AdminDashboardScreen extends StatelessWidget {
   }) {
     final textCtrl = TextEditingController();
 
-    Get.dialog(
+    unawaited(Get.dialog(
       AlertDialog(
         backgroundColor: AppColors.bgSurface,
         title: Text(
@@ -2072,7 +2224,7 @@ class AdminDashboardScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ));
   }
 
   // SafeSearch ratings chip helper
@@ -2185,7 +2337,7 @@ class AdminVideoPlayerController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _initPlayer();
+    unawaited(_initPlayer());
   }
 
   Future<void> _initPlayer() async {
@@ -2210,7 +2362,7 @@ class AdminVideoPlayerController extends GetxController {
 
   @override
   void onClose() {
-    videoCtrl.dispose();
+    unawaited(videoCtrl.dispose());
     chewieCtrl?.dispose();
     super.onClose();
   }

@@ -122,7 +122,7 @@ ThemeData buildAppTheme({DeviceState? device}) {
 
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
       backgroundColor: AppColors.bgPage,
-      selectedItemColor: AppColors.brand,
+      selectedItemColor: Colors.white,
       unselectedItemColor: AppColors.iconDefault,
       type: BottomNavigationBarType.fixed,
       elevation: 8,

@@ -263,11 +263,19 @@ class LibraryController extends GetxController
   Future<List<Video>> _fetchVideosInBatches(List<String> videoIds) async {
     if (videoIds.isEmpty) return [];
     try {
-      final docs = await _firestore
-          .collection('videos')
-          .where(FieldPath.documentId, whereIn: videoIds)
-          .get();
-      return docs.docs.map(Video.fromDocumentSnapshot).toList();
+      final allVideos = <Video>[];
+      for (var i = 0; i < videoIds.length; i += 10) {
+        final batch = videoIds.sublist(
+          i,
+          i + 10 > videoIds.length ? videoIds.length : i + 10,
+        );
+        final docs = await _firestore
+            .collection('videos')
+            .where(FieldPath.documentId, whereIn: batch)
+            .get();
+        allVideos.addAll(docs.docs.map(Video.fromDocumentSnapshot));
+      }
+      return allVideos;
     } catch (e) {
       debugPrint('LibraryController fetch liked videos error: $e');
       return [];

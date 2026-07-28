@@ -30,7 +30,9 @@ import 'package:truthworld/features/dashboard/presentation/views/dashboard/monet
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/place_holder_screen.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/studio_settings_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/subtitles_page.dart';
+import 'package:truthworld/features/dashboard/presentation/controllers/topic_management_controller.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/topic_management_screen.dart';
+import 'package:truthworld/features/topics/presentation/widgets/create_topic_dialog.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/truth_verification_dashboard_page.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_management.dart';
 import 'package:truthworld/features/dashboard/presentation/views/dashboard/video_rating_page.dart';
@@ -394,7 +396,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         isSelectingDefault.value = false;
-        await _handleGoogleSignIn();
         return;
       }
 
@@ -908,9 +909,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Image.asset(
-                    'assets/google_logo.png', // Add Google logo asset
+                    'assets/google_logo.png',
                     width: 18,
                     height: 18,
+                    errorBuilder: (context, error, stackTrace) => const Icon(
+                      Icons.account_circle,
+                      color: AppColors.textPrimary,
+                      size: 18,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   const Text(
@@ -1067,6 +1073,9 @@ class _DashboardScreenState extends State<DashboardScreen>
       }
     } catch (e) {
       isSelectingDefault.value = false;
+      if (e is GoogleSignInUserCancelledException || (e is AuthException && e.code == 'user-cancelled')) {
+        return;
+      }
       var message = 'Failed to sign in';
       if (e is GoogleSignInException) {
         message = e.getDisplayMessage();
@@ -2806,74 +2815,197 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildRecommendationsSection(bool isDarkMode) {
-    final recommendations = [
-      {
-        'title': 'Update Channel Banner',
+    return Obx(() {
+      final ch = controller.currentChannel.value;
+      final videos = controller.recentVideos;
+      final stats = controller.channelStats;
+      final recommendations = _generateRecommendations(ch, videos, stats);
+
+      if (recommendations.isEmpty) {
+        return const SizedBox.shrink();
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Recommendations',
+            style: TextStyle(
+              fontSize: isMobile ? 20 : 24,
+              fontWeight: FontWeight.bold,
+              color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 20),
+          GridView.builder(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: isDesktop ? 3 : (isTablet ? 2 : 1),
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: isDesktop ? 1.0 : (isTablet ? 1.2 : 1.5),
+            ),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: recommendations.length,
+            itemBuilder: (context, index) {
+              final rec = recommendations[index];
+              return TweenAnimationBuilder<double>(
+                duration: Duration(milliseconds: 600 + (index * 200)),
+                tween: Tween(begin: 0, end: 1),
+                builder: (context, value, child) {
+                  return Transform.translate(
+                    offset: Offset(0, 50 * (1 - value)),
+                    child: Opacity(
+                      opacity: value,
+                      child: _buildRecommendationCard(rec, isDarkMode),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      );
+    });
+  }
+
+  List<Map<String, dynamic>> _generateRecommendations(
+    Channel? ch,
+    List<Video> videos,
+    Map<String, dynamic> stats,
+  ) {
+    final recs = <Map<String, dynamic>>[];
+
+    // 1. Banner check
+    if (ch != null && ch.bannerUrl.isEmpty) {
+      recs.add({
+        'title': 'Add a Channel Banner',
         'description':
-            'A refreshed banner can increase your channel visibility by up to 25%',
+            'Channels with banners get up to 25% more subscribers. Upload a banner to make your channel stand out.',
         'icon': Icons.image_rounded,
         'color': const Color(0xFF10B981),
-        'action': 'Update Now',
-      },
-      {
-        'title': 'Optimize Thumbnails',
-        'description':
-            'Your recent video thumbnails can be improved to increase CTR',
-        'icon': Icons.filter_rounded,
-        'color': const Color(0xFF3B82F6),
-        'action': 'Learn More',
-      },
-      {
-        'title': 'Schedule More Uploads',
-        'description':
-            'Try to maintain a consistent upload schedule for better engagement',
-        'icon': Icons.schedule_rounded,
-        'color': const Color(0xFFF59E0B),
-        'action': 'Set Schedule',
-      },
-    ];
+        'action': 'Customize',
+        'onTap': () => controller.setSelectedIndex(6),
+      });
+    }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Recommendations',
-          style: TextStyle(
-            fontSize: isMobile ? 20 : 24,
-            fontWeight: FontWeight.bold,
-            color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 20),
-        GridView.builder(
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: isDesktop ? 3 : (isTablet ? 2 : 1),
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: isDesktop ? 1.0 : (isTablet ? 1.2 : 1.5),
-          ),
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: recommendations.length,
-          itemBuilder: (context, index) {
-            final rec = recommendations[index];
-            return TweenAnimationBuilder<double>(
-              duration: Duration(milliseconds: 600 + (index * 200)),
-              tween: Tween(begin: 0, end: 1),
-              builder: (context, value, child) {
-                return Transform.translate(
-                  offset: Offset(0, 50 * (1 - value)),
-                  child: Opacity(
-                    opacity: value,
-                    child: _buildRecommendationCard(rec, isDarkMode),
-                  ),
-                );
-              },
-            );
-          },
-        ),
-      ],
-    );
+    // 2. Channel description check
+    if (ch != null && ch.description.trim().length < 30) {
+      recs.add({
+        'title': 'Improve Channel Description',
+        'description':
+            'A detailed description helps viewers find your channel. Add keywords and tell viewers what to expect.',
+        'icon': Icons.description_rounded,
+        'color': const Color(0xFF8B5CF6),
+        'action': 'Customize',
+        'onTap': () => controller.setSelectedIndex(6),
+      });
+    }
+
+    // 3. Upload frequency check
+    if (videos.isNotEmpty) {
+      final now = DateTime.now();
+      final lastUpload = videos.first.createdAt.toDate();
+      final daysSince = now.difference(lastUpload).inDays;
+      if (daysSince > 14) {
+        recs.add({
+          'title': 'Upload New Content',
+          'description':
+              "It's been $daysSince days since your last upload. Consistent uploads boost discoverability and subscriber retention.",
+          'icon': Icons.cloud_upload_rounded,
+          'color': const Color(0xFFF59E0B),
+          'action': 'Upload Now',
+          'onTap': () => Get.toNamed('/upload'),
+        });
+      }
+    } else if (ch != null) {
+      recs.add({
+        'title': 'Upload Your First Video',
+        'description':
+            "You haven't uploaded any videos yet. Start creating content to grow your channel.",
+        'icon': Icons.cloud_upload_rounded,
+        'color': const Color(0xFFF59E0B),
+        'action': 'Upload Now',
+        'onTap': () => Get.toNamed('/upload'),
+      });
+    }
+
+    // 4. Engagement check — low average views
+    if (videos.length >= 3) {
+      final avgViews = videos.fold(0, (acc, v) => acc + v.viewCount) / videos.length;
+      if (avgViews < 10) {
+        recs.add({
+          'title': 'Boost Video Visibility',
+          'description':
+              'Your recent videos average ${avgViews.toStringAsFixed(0)} views. Try sharing on social media and adding trending topics to increase reach.',
+          'icon': Icons.trending_up_rounded,
+          'color': const Color(0xFF3B82F6),
+          'action': 'View Analytics',
+          'onTap': () => controller.setSelectedIndex(3),
+        });
+      }
+    }
+
+    // 5. Tags/Topics check — videos with no tags
+    if (videos.isNotEmpty) {
+      final untaggedCount = videos.where((v) => v.tags.isEmpty && v.topics.isEmpty).length;
+      if (untaggedCount > 0) {
+        recs.add({
+          'title': 'Add Tags & Topics',
+          'description':
+              '$untaggedCount of your recent videos have no tags or topics. Adding them improves search discoverability.',
+          'icon': Icons.label_rounded,
+          'color': const Color(0xFFEC4899),
+          'action': 'Manage Content',
+          'onTap': () => controller.setSelectedIndex(2),
+        });
+      }
+    }
+
+    // 6. Thumbnail check — missing thumbnails
+    if (videos.isNotEmpty) {
+      final noThumbCount = videos.where((v) => v.thumbnailUrl.isEmpty).length;
+      if (noThumbCount > 0) {
+        recs.add({
+          'title': 'Add Video Thumbnails',
+          'description':
+              '$noThumbCount of your videos are missing custom thumbnails. Eye-catching thumbnails can increase CTR by up to 30%.',
+          'icon': Icons.filter_rounded,
+          'color': const Color(0xFF14B8A6),
+          'action': 'Manage Content',
+          'onTap': () => controller.setSelectedIndex(2),
+        });
+      }
+    }
+
+    // 7. Create a Topic
+    if (ch != null && videos.length >= 3) {
+      recs.add({
+        'title': 'Organize with Topics',
+        'description':
+            'Group your ${videos.length} videos into Topics to help viewers discover related content more easily.',
+        'icon': Icons.topic_rounded,
+        'color': const Color(0xFF6366F1),
+        'action': 'Create Topic',
+        'onTap': () => controller.setSelectedIndex(14),
+      });
+    }
+
+    // 8. Social links check
+    if (ch != null && (ch.socialLinks == null || (ch.socialLinks?.isEmpty ?? true))) {
+      recs.add({
+        'title': 'Add Social Links',
+        'description':
+            'Connect your social media accounts to your channel to build a cross-platform audience.',
+        'icon': Icons.link_rounded,
+        'color': const Color(0xFF0EA5E9),
+        'action': 'Customize',
+        'onTap': () => controller.setSelectedIndex(6),
+      });
+    }
+
+    // Cap at 3 most relevant recommendations
+    return recs.take(3).toList();
   }
 
   Widget _buildRecommendationCard(
@@ -2900,7 +3032,13 @@ class _DashboardScreenState extends State<DashboardScreen>
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: HapticFeedback.lightImpact,
+          onTap: () {
+            final onTap = recommendation['onTap'];
+            if (onTap is VoidCallback) {
+              onTap();
+            }
+            HapticFeedback.lightImpact();
+          },
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -2911,13 +3049,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                   height: 48,
                   decoration: BoxDecoration(
                     color: (recommendation['color'] as Color).withValues(
-                      alpha: 0.1,
+                      alpha: 0.2,
                     ),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     recommendation['icon'] as IconData,
-                    color: recommendation['color'] as Color,
+                    color: Colors.white,
                     size: 24,
                   ),
                 ),
@@ -2945,7 +3083,13 @@ class _DashboardScreenState extends State<DashboardScreen>
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: HapticFeedback.lightImpact,
+                    onPressed: () {
+                      final onTap = recommendation['onTap'];
+                      if (onTap is VoidCallback) {
+                        onTap();
+                      }
+                      HapticFeedback.lightImpact();
+                    },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: recommendation['color'] as Color,
                       foregroundColor: AppColors.textPrimary,
@@ -3227,6 +3371,43 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
   }
 
+  void _openCreateTopicDialogFromQuickActions(bool isDarkMode) {
+    if (!Get.isRegistered<TopicManagementController>()) {
+      Get.put(TopicManagementController());
+    }
+    final topicCtrl = Get.find<TopicManagementController>();
+    final channelId = _getChannelId(channel);
+    CreateTopicDialog.show(
+      context: context,
+      isDarkMode: isDarkMode,
+      channelVideosFuture: topicCtrl.fetchChannelVideos(channelId),
+      onCreateTopicSubmitted: (createCtrl) async {
+        String? finalThumbnailUrl;
+        if (createCtrl.thumbnailSource.value == 'custom' &&
+            createCtrl.pickedCustomImageBytes.value != null) {
+          finalThumbnailUrl = await topicCtrl.uploadTopicThumbnail(
+            createCtrl.pickedCustomImageBytes.value!,
+            createCtrl.pickedCustomImageName.value ?? 'custom_topic_thumb.jpg',
+          );
+        } else if (createCtrl.thumbnailSource.value == 'video') {
+          finalThumbnailUrl = createCtrl.chosenVideoThumbnailUrl.value;
+        }
+
+        await topicCtrl.createTopic(
+          channelId: channelId,
+          title: createCtrl.titleController.text,
+          handle: createCtrl.handleController.text,
+          description: createCtrl.descriptionController.text,
+          category: createCtrl.categoryController.text.isEmpty
+              ? 'General'
+              : createCtrl.categoryController.text,
+          thumbnailUrl: finalThumbnailUrl,
+          selectedVideoIds: createCtrl.selectedVideoIds.toList(),
+        );
+      },
+    );
+  }
+
   Widget _buildQuickActionsSection(bool isDarkMode) {
     final actions = [
       {
@@ -3236,16 +3417,16 @@ class _DashboardScreenState extends State<DashboardScreen>
         'onTap': () => Get.toNamed('/upload'),
       },
       {
-        'title': 'Go Live',
-        'icon': Icons.videocam_rounded,
+        'title': 'Create Topic',
+        'icon': Icons.topic_rounded,
         'color': const Color(0xFFEF4444),
-        'onTap': () => Get.toNamed('/live'),
+        'onTap': () => _openCreateTopicDialogFromQuickActions(isDarkMode),
       },
       {
         'title': 'Create Post',
         'icon': Icons.edit_rounded,
         'color': const Color(0xFF3B82F6),
-        'onTap': () => Get.toNamed('/create-post'),
+        'onTap': () => Get.toNamed('/upload/community'),
       },
       {
         'title': 'View Analytics',
@@ -3272,7 +3453,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             crossAxisCount: isDesktop ? 4 : (isTablet ? 2 : 2),
             crossAxisSpacing: 16,
             mainAxisSpacing: 16,
-            childAspectRatio: isDesktop ? 1.5 : (isTablet ? 1.8 : 1.5),
+            childAspectRatio: isDesktop ? 1.5 : (isTablet ? 1.6 : 1.3),
           ),
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -3324,32 +3505,36 @@ class _DashboardScreenState extends State<DashboardScreen>
             HapticFeedback.lightImpact();
           },
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: (action['color'] as Color).withValues(alpha: 0.1),
+                    color: (action['color'] as Color).withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     action['icon'] as IconData,
-                    color: action['color'] as Color,
-                    size: 24,
+                    color: Colors.white,
+                    size: 22,
                   ),
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  action['title'] as String,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+                const SizedBox(height: 8),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    action['title'] as String,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: isDarkMode ? AppColors.textPrimary : AppColors.textPrimary,
+                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
                   ),
-                  textAlign: TextAlign.center,
                 ),
               ],
             ),
@@ -3372,7 +3557,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             children: [
               const Icon(
                 Icons.dashboard_rounded,
-                color: Color(0xFF6366F1),
+                color: Colors.white,
                 size: 80,
               ),
               const SizedBox(height: 24),

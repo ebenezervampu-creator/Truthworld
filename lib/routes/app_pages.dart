@@ -10,6 +10,7 @@ import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/about/presentation/views/About/about.dart';
 import 'package:truthworld/features/admin/presentation/views/admin_dashboard_screen.dart' deferred as admin_dashboard;
 import 'package:truthworld/features/admin/presentation/views/admin_login_screen.dart' deferred as admin_login;
+import 'package:truthworld/features/advertiser/presentation/views/advertiser_portal_screen.dart' deferred as advertiser_portal;
 import 'package:truthworld/features/category/presentation/views/category/category_page.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/channel/presentation/views/channel/channel_details_screen.dart' deferred as channel_details;
@@ -59,6 +60,13 @@ class AppPages {
       page: () {
         if (kIsWeb) {
           final host = Uri.base.host.toLowerCase();
+          if (host.startsWith('admin') ||
+              Uri.base.queryParameters.containsKey('admin')) {
+            return DeferredWidget(
+              loader: admin_dashboard.loadLibrary,
+              builder: () => admin_dashboard.AdminDashboardScreen(),
+            );
+          }
           if (host.startsWith('studio') ||
               Uri.base.queryParameters.containsKey('studio')) {
             return DeferredWidget(
@@ -186,6 +194,13 @@ class AppPages {
     ),
     GetPage(
       name: '/upload/community',
+      page: () => const CreateContentScreen(
+        uploadType: UploadType.communityPost,
+      ),
+      middlewares: [AuthGuard()],
+    ),
+    GetPage(
+      name: '/create-post',
       page: () => const CreateContentScreen(
         uploadType: UploadType.communityPost,
       ),
@@ -337,6 +352,34 @@ class AppPages {
       page: () => const ClipsPage(),
     ),
     GetPage(
+      name: '/admin',
+      page: () => DeferredWidget(
+        loader: admin_login.loadLibrary,
+        builder: () => admin_login.AdminLoginScreen(),
+      ),
+    ),
+    GetPage(
+      name: '/admin/login',
+      page: () => DeferredWidget(
+        loader: admin_login.loadLibrary,
+        builder: () => admin_login.AdminLoginScreen(),
+      ),
+    ),
+    GetPage(
+      name: '/admin/dashboard',
+      page: () => DeferredWidget(
+        loader: admin_dashboard.loadLibrary,
+        builder: () => admin_dashboard.AdminDashboardScreen(),
+      ),
+    ),
+    GetPage(
+      name: '/advertiser',
+      page: () => DeferredWidget(
+        loader: advertiser_portal.loadLibrary,
+        builder: () => advertiser_portal.AdvertiserPortalScreen(),
+      ),
+    ),
+    GetPage(
       name: '/:handle',
       page: () {
         final channel = Get.arguments?['channel'];
@@ -352,20 +395,6 @@ class AppPages {
       binding: BindingsBuilder(() {
         Get.lazyPut<ChannelController>(ChannelController.new);
       }),
-    ),
-    GetPage(
-      name: '/admin/login',
-      page: () => DeferredWidget(
-        loader: admin_login.loadLibrary,
-        builder: () => admin_login.AdminLoginScreen(),
-      ),
-    ),
-    GetPage(
-      name: '/admin/dashboard',
-      page: () => DeferredWidget(
-        loader: admin_dashboard.loadLibrary,
-        builder: () => admin_dashboard.AdminDashboardScreen(),
-      ),
     ),
   ];
 }

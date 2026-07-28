@@ -94,6 +94,9 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   final RxBool videoError = false.obs;
   final RxBool showThumbnail = true.obs;
   final RxBool isAutoplay = true.obs;
+  final RxBool isPlayingRx = false.obs;
+  final RxBool navigatedFromPlaylist = false.obs;
+  final RxBool navigatedFromTopic = false.obs;
   RxBool get isAutoplayEnabled => isAutoplay; // Alias for UI consistency
 
   final RxString rxErrorMessage = ''.obs;
@@ -175,27 +178,29 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
   List<String> get recommendationFilters {
     final list = ['All'];
+
+    // 1. Topics tab (ONLY if navigated from Topics page)
+    if (navigatedFromTopic.value) {
+      for (final topic in videoTopicsList) {
+        final name = 'Topic: ${topic.title}';
+        if (!list.contains(name) && !list.contains(topic.title)) {
+          list.add(name);
+        }
+      }
+    }
+
+    // 2. Channel tab
     if (video.channelName.isNotEmpty) {
       list.add('From ${video.channelName}');
     }
+
+    // 3. Tags / Category
     if (video.tags.isNotEmpty) {
-      list.addAll(video.tags.take(3));
-    } else if (video.category.isNotEmpty) {
+      for (final t in video.tags.take(3)) {
+        if (!list.contains(t)) list.add(t);
+      }
+    } else if (video.category.isNotEmpty && !list.contains(video.category)) {
       list.add(video.category);
-    }
-
-    // Add topics
-    for (final topic in videoTopicsList) {
-      if (!list.contains(topic.title)) {
-        list.add(topic.title);
-      }
-    }
-
-    // Add playlists
-    for (final playlist in videoPlaylistsList) {
-      if (!list.contains(playlist.playlistName)) {
-        list.add(playlist.playlistName);
-      }
     }
 
     return list;
@@ -206,20 +211,40 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
     if (filter == 'All') {
       return recommendedVideos;
     }
+
+    // Check if filter is a Playlist tab
+    if (filter.startsWith('Playlist: ')) {
+      final plName = filter.replaceFirst('Playlist: ', '');
+      if (currentPlaylist.value != null && currentPlaylist.value!.playlistName == plName) {
+        if (playlistVideos.isNotEmpty) return playlistVideos;
+      }
+      final matchedPlaylist = videoPlaylistsList.firstWhereOrNull((p) => p.playlistName == plName);
+      if (matchedPlaylist != null) {
+        return playlistVideosCache[matchedPlaylist.id] ?? [];
+      }
+    }
+
+    final matchedPlaylistDirect = videoPlaylistsList.firstWhereOrNull((p) => p.playlistName == filter);
+    if (matchedPlaylistDirect != null) {
+      return playlistVideosCache[matchedPlaylistDirect.id] ?? [];
+    }
+
+    // Check if filter is a Topic tab
+    if (filter.startsWith('Topic: ')) {
+      final topicTitle = filter.replaceFirst('Topic: ', '');
+      final matchedTopic = videoTopicsList.firstWhereOrNull((t) => t.title == topicTitle);
+      if (matchedTopic != null) {
+        return topicVideosCache[matchedTopic.id] ?? [];
+      }
+    }
+
+    final matchedTopicDirect = videoTopicsList.firstWhereOrNull((t) => t.title == filter);
+    if (matchedTopicDirect != null) {
+      return topicVideosCache[matchedTopicDirect.id] ?? [];
+    }
+
     if (filter == 'From ${video.channelName}') {
       return moreFromChannel;
-    }
-
-    // Check if filter is a topic title
-    final matchedTopic = videoTopicsList.firstWhereOrNull((t) => t.title == filter);
-    if (matchedTopic != null) {
-      return topicVideosCache[matchedTopic.id] ?? [];
-    }
-
-    // Check if filter is a playlist name
-    final matchedPlaylist = videoPlaylistsList.firstWhereOrNull((p) => p.playlistName == filter);
-    if (matchedPlaylist != null) {
-      return playlistVideosCache[matchedPlaylist.id] ?? [];
     }
 
     final filterLower = filter.toLowerCase();
@@ -242,7 +267,7 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
   VideoPlayerController? _videoPlayerController;
   ChewieController? _chewieController;
 
-  late final ChannelController channelController;
+  late ChannelController channelController;
   final MainController mainController = Get.find<MainController>();
   final PlaylistController playlistController = Get.find<PlaylistController>();
   late CommentsController commentsController;
@@ -250,6 +275,18 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
   bool get isAuthenticated => AuthService.to.isAuthenticated.value;
   String get userPhotoUrl => AuthService.to.activePhotoUrl;
+
+  int get calculatedPlaylistIndex {
+    if (playlistVideos.isNotEmpty) {
+      final idx = playlistVideos.indexWhere((v) => v.id == video.id);
+      if (idx != -1) return idx;
+    }
+    if (currentPlaylist.value != null && currentPlaylist.value!.videoIds.isNotEmpty) {
+      final idx = currentPlaylist.value!.videoIds.indexOf(video.id);
+      if (idx != -1) return idx;
+    }
+    return currentPlaylistIndex.value;
+  }
 
   @override
   void onInit() {
@@ -281,14 +318,41 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       return;
     }
 
-    // Handle Playlist argument
-    if (Get.arguments['playlist'] != null) {
-      currentPlaylist.value = Get.arguments['playlist'] as PlaylistModel;
+    final args = Get.arguments as Map<String, dynamic>?;
+    final prevRoute = Get.previousRoute.toLowerCase();
+    final currRoute = Get.currentRoute.toLowerCase();
+
+    final isTopicOrigin = (args?['fromTopic'] == true) ||
+        (args?['topic'] != null) ||
+        prevRoute.contains('topic') ||
+        currRoute.contains('topic') ||
+        (args?['heroTag']?.toString().contains('topic') ?? false);
+
+    final isPlaylistOrigin = (args?['fromPlaylist'] == true) ||
+        (args?['playlist'] != null) ||
+        prevRoute.contains('playlist') ||
+        currRoute.contains('playlist');
+
+    if (isTopicOrigin) {
+      navigatedFromTopic.value = true;
+      navigatedFromPlaylist.value = false;
+      currentPlaylist.value = null; // Rule: "dont need playlist when From Topics a video played"
+    } else if (isPlaylistOrigin) {
+      navigatedFromPlaylist.value = true;
+      navigatedFromTopic.value = false;
+      isPlaylistShuffled.value = (args?['isShuffled'] == true);
+      if (args?['playlist'] != null) {
+        currentPlaylist.value = args!['playlist'] as PlaylistModel;
+        fetchPlaylistVideos();
+      }
+    } else {
+      navigatedFromPlaylist.value = false;
+      navigatedFromTopic.value = false;
     }
 
     // Handle Video argument
-    if (Get.arguments['video'] != null) {
-      _video.value = Get.arguments['video'] as Video;
+    if (args?['video'] != null) {
+      _video.value = args!['video'] as Video;
     } else if (currentPlaylist.value != null && currentPlaylist.value!.videoIds.isNotEmpty) {
       _fetchFirstPlaylistVideo(currentPlaylist.value!.videoIds.first);
       return;
@@ -368,12 +432,33 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
         checkUserInteractions();
       }
       fetchRecommendations();
+      fetchPlaylistForVideo();
       _initializeCommentsController();
       _listenToVideoUpdates();
       _listenToLanguageRequests();
     } else if (rxIsOffline.value) {
       rxIsLoading.value = false;
     }
+  }
+
+  /// Automatically find if this video is part of a playlist if specified in arguments or navigated from playlist
+  Future<void> fetchPlaylistForVideo() async {
+    if (!navigatedFromPlaylist.value || video.id.isEmpty) return;
+    try {
+      if (currentPlaylist.value == null) {
+        final snap = await FirebaseFirestore.instance
+            .collection('public_playlists')
+            .where('videoIds', arrayContains: video.id)
+            .limit(1)
+            .get();
+        if (snap.docs.isNotEmpty) {
+          currentPlaylist.value = PlaylistModel.fromDocumentSnapshot(snap.docs.first);
+        }
+      }
+      if (currentPlaylist.value != null && playlistVideos.isEmpty) {
+        await fetchPlaylistVideos();
+      }
+    } catch (_) {}
   }
 
   /// Detect where the user came from to reach this video.
@@ -886,7 +971,8 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
       }
     }
 
-    // Manage thumbnail overlay
+    // Manage thumbnail overlay & playing state
+    isPlayingRx.value = value.isPlaying;
     if (value.isPlaying && showThumbnail.value) {
       showThumbnail.value = false;
     }
@@ -1245,23 +1331,18 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
             .doc(userId)
             .getCacheFirst(),
         FirebaseFirestore.instance
-            .collection('channels')
-            .doc(video.channelId)
+            .collection('subscriptions')
+            .doc('${video.channelId}_$userId')
             .getCacheFirst(),
       ]);
 
       final likeDoc = futures[0];
       final dislikeDoc = futures[1];
-      final channelDoc = futures[2];
+      final subDoc = futures[2];
 
       isLiked.value = likeDoc.exists;
       isDisliked.value = dislikeDoc.exists;
-
-      if (channelDoc.exists) {
-        final data = channelDoc.data();
-        isSubscribed.value =
-            (data?['subscribers'] as List?)?.contains(userId) ?? false;
-      }
+      isSubscribed.value = subDoc.exists;
     } catch (e) {
       if (!e.toString().contains('permission-denied')) {
         debugPrint('Error checking user interactions: $e');
@@ -1480,14 +1561,21 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
             .toList();
 
         if (playlistVideoIds.isNotEmpty) {
-          final playlistVidsQuery = await FirebaseFirestore.instance
-              .collection('videos')
-              .where(FieldPath.documentId, whereIn: playlistVideoIds)
-              .get();
+          final playlistVideos = <Video>[];
+          for (var i = 0; i < playlistVideoIds.length; i += 10) {
+            final chunk = playlistVideoIds.sublist(
+              i,
+              i + 10 > playlistVideoIds.length ? playlistVideoIds.length : i + 10,
+            );
+            final playlistVidsQuery = await FirebaseFirestore.instance
+                .collection('videos')
+                .where(FieldPath.documentId, whereIn: chunk)
+                .get();
 
-          final playlistVideos = playlistVidsQuery.docs
-              .map(Video.fromDocumentSnapshot)
-              .toList();
+            playlistVideos.addAll(
+              playlistVidsQuery.docs.map(Video.fromDocumentSnapshot),
+            );
+          }
 
           // Sort them to match playlist order if possible
           playlistVideos.sort((a, b) {
@@ -1571,14 +1659,21 @@ class VideoController extends BaseController with GetTickerProviderStateMixin {
 
       // --- 1. Topics ---
       if (video.topics.isNotEmpty) {
-        final topicsSnapshot = await FirebaseFirestore.instance
-            .collection('topics')
-            .where('slug', whereIn: video.topics)
-            .get();
+        final foundTopics = <Topic>[];
+        for (var i = 0; i < video.topics.length; i += 10) {
+          final chunk = video.topics.sublist(
+            i,
+            i + 10 > video.topics.length ? video.topics.length : i + 10,
+          );
+          final topicsSnapshot = await FirebaseFirestore.instance
+              .collection('topics')
+              .where('slug', whereIn: chunk)
+              .get();
 
-        final foundTopics = topicsSnapshot.docs
-            .map(Topic.fromDocumentSnapshot)
-            .toList();
+          foundTopics.addAll(
+            topicsSnapshot.docs.map(Topic.fromDocumentSnapshot),
+          );
+        }
 
         videoTopicsList.assignAll(foundTopics);
 

@@ -250,7 +250,7 @@ class CopyrightScreen extends StatelessWidget {
                           : AppColors.bgPage.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: const Icon(Icons.video_library_outlined, size: 20, color: AppColors.brand),
+                    child: const Icon(Icons.video_library_outlined, size: 20, color: Colors.white),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -516,7 +516,7 @@ class _ClaimDetailsBottomSheet extends StatelessWidget {
 
   Widget _buildActionButton(IconData icon, String label, VoidCallback onTap, {bool isDestructive = false}) {
     return ListTile(
-      leading: Icon(icon, color: isDestructive ? AppColors.error : AppColors.brand),
+      leading: Icon(icon, color: isDestructive ? AppColors.error : Colors.white),
       title: Text(
         label,
         style: AppTextStyles.bodyMedium.copyWith(

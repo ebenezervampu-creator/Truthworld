@@ -41,6 +41,10 @@ class CommentsOverlay extends StatelessWidget {
                 ctrl.showCommentsPopup.value = false;
                 ctrl.startHideTimer();
               },
+              onContinue: () {
+                ctrl.showCommentsPopup.value = false;
+                ctrl.startHideTimer();
+              },
             ),
             Expanded(
               child: Obx(() {

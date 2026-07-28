@@ -2029,3 +2029,10 @@ export const resolveCopyrightOwnerAction = onRequest(
 );
 
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADMIN PORTAL
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export * from "./admin/adminSearch";
+export * from "./admin/adminBulkModerate";
+export * from "./admin/userManagement";

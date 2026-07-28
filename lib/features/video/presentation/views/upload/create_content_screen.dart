@@ -4581,7 +4581,7 @@ class _CreateContentScreenState extends State<CreateContentScreen>
                         color: AppColors.brand.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.edit_document, color: AppColors.brandHover, size: 22),
+                      child: const Icon(Icons.edit_document, color: Colors.white, size: 22),
                     )
                   else if (selectedTopic != null)
                     ClipRRect(

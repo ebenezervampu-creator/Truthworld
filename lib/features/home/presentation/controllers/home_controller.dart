@@ -166,6 +166,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
   late AnimationController _fadeAnimationController;
   late AnimationController _slideAnimationController;
   late AnimationController _scaleAnimationController;
+  bool _isDisposed = false;
 
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
@@ -410,6 +411,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
   @override
   void onClose() {
+    _isDisposed = true;
     _cancelLibrarySubscriptions();
     _disposeAnimations();
     tabController.dispose();
@@ -425,6 +427,7 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
   /// Initialize all animation controllers
   void _initializeAnimations() {
+    _isDisposed = false;
     _fadeAnimationController = AnimationController(
       duration: const Duration(milliseconds: 800),
       vsync: this,
@@ -870,24 +873,31 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
         return;
       }
 
-      final channelsSnapshot = await _firestore
-          .collection('channels')
-          .where(FieldPath.documentId, whereIn: channelIds)
-          .get();
+      final List<Map<String, dynamic>> channelsData = [];
+      for (var i = 0; i < channelIds.length; i += 10) {
+        final chunk = channelIds.sublist(
+          i,
+          i + 10 > channelIds.length ? channelIds.length : i + 10,
+        );
+        final channelsSnapshot = await _firestore
+            .collection('channels')
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
 
-      final channelsData = channelsSnapshot.docs.map((doc) {
-        final data = doc.data();
-        var avatarUrl = data['avatarUrl']?.toString() ?? '';
-        if (avatarUrl.isEmpty) {
-          avatarUrl =
-              'https://ui-avatars.com/api/?name=${Uri.encodeComponent(data['channelName'] ?? 'Channel')}&background=random';
+        for (final doc in channelsSnapshot.docs) {
+          final data = doc.data();
+          var avatarUrl = data['avatarUrl']?.toString() ?? '';
+          if (avatarUrl.isEmpty) {
+            avatarUrl =
+                'https://ui-avatars.com/api/?name=${Uri.encodeComponent(data['channelName'] ?? 'Channel')}&background=random';
+          }
+          channelsData.add({
+            'id': doc.id,
+            'name': data['channelName'] ?? 'Unknown',
+            'avatar': avatarUrl,
+          });
         }
-        return {
-          'id': doc.id,
-          'name': data['channelName'] ?? 'Unknown',
-          'avatar': avatarUrl,
-        };
-      }).toList();
+      }
 
       subscribedChannelList.assignAll(channelsData);
     } catch (e) {
@@ -1050,6 +1060,9 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
           Get.offAllNamed<dynamic>('/');
         }
       case 3:
+        if (!isAuthenticated) {
+          await signInWithGoogle();
+        }
         sideNavSelectedIndex.value = indexLibrary;
         if (!isAtHome) {
           Get.offAllNamed<dynamic>('/');
@@ -1249,8 +1262,11 @@ class HomeController extends BaseController with GetTickerProviderStateMixin {
 
   /// Trigger selection animation
   void _triggerSelectionAnimation() {
-    _scaleAnimationController.reset();
-    _scaleAnimationController.forward();
+    if (_isDisposed) return;
+    try {
+      _scaleAnimationController.reset();
+      _scaleAnimationController.forward();
+    } catch (_) {}
   }
 
   // ========================================================================

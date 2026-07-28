@@ -251,14 +251,17 @@ class AdvertiserPortalScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Recent Campaigns',
-                style: AppTextStyles.sectionHeader.copyWith(
-                  fontSize: 18,
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: Text(
+                  'Recent Campaigns',
+                  style: AppTextStyles.sectionHeader.copyWith(
+                    fontSize: 18,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               TextButton.icon(
                 onPressed: () {
                   controller.selectedIndex.value = 1;
@@ -358,14 +361,17 @@ class AdvertiserPortalScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'My Ad Campaigns',
-                style: AppTextStyles.pageTitle.copyWith(
-                  color: AppColors.textPrimary,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: Text(
+                  'My Ad Campaigns',
+                  style: AppTextStyles.pageTitle.copyWith(
+                    color: AppColors.textPrimary,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               ElevatedButton.icon(
                 onPressed: () => _showCreateCampaignWizard(context, controller),
                 icon: const Icon(Icons.add, color: AppColors.bgPage, size: 18),
@@ -422,14 +428,17 @@ class AdvertiserPortalScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Performance Breakdown by Format',
-                style: AppTextStyles.sectionHeader.copyWith(
-                  fontSize: 18,
-                  color: AppColors.textPrimary,
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: Text(
+                  'Performance Breakdown by Format',
+                  style: AppTextStyles.sectionHeader.copyWith(
+                    fontSize: 18,
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
+              const SizedBox(width: 8),
               OutlinedButton.icon(
                 onPressed: _simulateExportReport,
                 icon: const Icon(
@@ -565,63 +574,68 @@ class AdvertiserPortalScreen extends StatelessWidget {
         return isCurrency ? '₹$formatted' : formatted;
       }
 
-      return Container(
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: const Color(0xFF161616),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.bgDivider),
-        ),
-        child: Table(
-          columnWidths: const {
-            0: FlexColumnWidth(2),
-            1: FlexColumnWidth(1.2),
-            2: FlexColumnWidth(1.5),
-            3: FlexColumnWidth(1.2),
-            4: FlexColumnWidth(1.2),
-            5: FlexColumnWidth(1.2),
-          },
-          children: [
-            TableRow(
-              decoration: const BoxDecoration(
-                color: AppColors.bgDivider,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(12),
-                  topRight: Radius.circular(12),
-                ),
-              ),
-              children: [
-                _buildTableHeader('Ad Format'),
-                _buildTableHeader('Spent'),
-                _buildTableHeader('Impressions'),
-                _buildTableHeader('Clicks'),
-                _buildTableHeader('CTR'),
-                _buildTableHeader('Conversions'),
-              ],
+      return SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 650),
+          child: Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFF161616),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.bgDivider),
             ),
-            for (final fmt in formatsList)
-              () {
-                final spent = spentMap[fmt] ?? 0.0;
-                final imps = impMap[fmt] ?? 0;
-                final clicks = clickMap[fmt] ?? 0;
-                final ctr = imps > 0 ? (clicks / imps) * 100 : 0.0;
-                final conv = (clicks * 0.03).round();
-
-                return TableRow(
+            child: Table(
+              columnWidths: const {
+                0: FlexColumnWidth(2),
+                1: FlexColumnWidth(1.2),
+                2: FlexColumnWidth(1.5),
+                3: FlexColumnWidth(1.2),
+                4: FlexColumnWidth(1.2),
+                5: FlexColumnWidth(1.2),
+              },
+              children: [
+                TableRow(
                   decoration: const BoxDecoration(
-                    border: Border(bottom: BorderSide(color: AppColors.bgDivider)),
+                    color: AppColors.bgDivider,
+                    borderRadius: BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12),
+                    ),
                   ),
                   children: [
-                    _buildTableCell(fmt, isBold: true),
-                    _buildTableCell(formatNumber(spent, isCurrency: true)),
-                    _buildTableCell(formatNumber(imps)),
-                    _buildTableCell(formatNumber(clicks)),
-                    _buildTableCell(formatNumber(ctr, isPercentage: true)),
-                    _buildTableCell(formatNumber(conv)),
+                    _buildTableHeader('Ad Format'),
+                    _buildTableHeader('Spent'),
+                    _buildTableHeader('Impressions'),
+                    _buildTableHeader('Clicks'),
+                    _buildTableHeader('CTR'),
+                    _buildTableHeader('Conversions'),
                   ],
-                );
-              }(),
-          ],
+                ),
+                for (final fmt in formatsList)
+                  () {
+                    final spent = spentMap[fmt] ?? 0.0;
+                    final imps = impMap[fmt] ?? 0;
+                    final clicks = clickMap[fmt] ?? 0;
+                    final ctr = imps > 0 ? (clicks / imps) * 100 : 0.0;
+                    final conv = (clicks * 0.03).round();
+
+                    return TableRow(
+                      decoration: const BoxDecoration(
+                        border: Border(bottom: BorderSide(color: AppColors.bgDivider)),
+                      ),
+                      children: [
+                        _buildTableCell(fmt, isBold: true),
+                        _buildTableCell(formatNumber(spent, isCurrency: true)),
+                        _buildTableCell(formatNumber(imps)),
+                        _buildTableCell(formatNumber(clicks)),
+                        _buildTableCell(formatNumber(ctr, isPercentage: true)),
+                        _buildTableCell(formatNumber(conv)),
+                      ],
+                    );
+                  }(),
+              ],
+            ),
+          ),
         ),
       );
     });
@@ -2481,8 +2495,7 @@ class AdvertiserPortalScreen extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 12),
-          Image.asset('assets/logo.png', height: 32, width: 32),
+          const Icon(Icons.campaign_rounded, color: AppColors.textPrimary, size: 28),
           const SizedBox(width: 16),
         ],
       ),

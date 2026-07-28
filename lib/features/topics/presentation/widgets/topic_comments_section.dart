@@ -373,7 +373,7 @@ class _TopicCommentItemWidgetState extends State<TopicCommentItemWidget> {
       margin: const EdgeInsets.all(16),
       borderRadius: 12,
       duration: const Duration(seconds: 2),
-      icon: const Icon(Icons.content_copy_rounded, color: AppColors.brand),
+      icon: const Icon(Icons.content_copy_rounded, color: Colors.white),
     );
   }
 
@@ -947,7 +947,7 @@ class TopicReplyItemWidget extends StatelessWidget {
                     margin: const EdgeInsets.all(16),
                     borderRadius: 12,
                     duration: const Duration(seconds: 2),
-                    icon: const Icon(Icons.content_copy_rounded, color: AppColors.brand),
+                    icon: const Icon(Icons.content_copy_rounded, color: Colors.white),
                   );
                 },
               ),

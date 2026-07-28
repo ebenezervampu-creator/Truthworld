@@ -3,10 +3,13 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 import 'package:truthworld/components/ui/share_bottom_sheet.dart';
+import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/core/ux/app_snackbar.dart';
 import 'package:truthworld/data/models/offline.dart';
+import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/playlist/presentation/views/playlist/show_diaglog.dart';
+import 'package:truthworld/features/search/presentation/controllers/search_controller.dart' as search_ctrl;
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/domain/database_helpers.dart';
 import 'package:truthworld/features/video/presentation/controllers/downloadcontroller.dart';
@@ -184,6 +187,8 @@ class VideoOptionsSheet extends StatelessWidget {
                     title: 'Not interested',
                     onTap: () {
                       Get.back();
+                      UserPreferencesService.to.hideVideo(video.id);
+                      _removeVideoFromControllers(video.id);
                       AppSnackbar.show(
                         'Not interested',
                         "We won't recommend this video anymore.",
@@ -195,6 +200,10 @@ class VideoOptionsSheet extends StatelessWidget {
                         mainButton: TextButton(
                           onPressed: () {
                             if (Get.isSnackbarOpen) Get.back();
+                            UserPreferencesService.to.unhideVideo(video.id);
+                            if (Get.isRegistered<HomeController>()) {
+                              Get.find<HomeController>().fetchInitialVideos();
+                            }
                             AppSnackbar.show(
                               'Restored',
                               'Video recommendation restored.',
@@ -218,6 +227,8 @@ class VideoOptionsSheet extends StatelessWidget {
                     title: "Don't recommend channel",
                     onTap: () {
                       Get.back();
+                      UserPreferencesService.to.blockChannel(video.channelId, channelName: video.channelName);
+                      _removeChannelFromControllers(video.channelId, video.channelName);
                       AppSnackbar.show(
                         "Don't recommend channel",
                         "We won't recommend videos from ${video.channelName} anymore.",
@@ -229,6 +240,10 @@ class VideoOptionsSheet extends StatelessWidget {
                         mainButton: TextButton(
                           onPressed: () {
                             if (Get.isSnackbarOpen) Get.back();
+                            UserPreferencesService.to.unblockChannel(video.channelId, channelName: video.channelName);
+                            if (Get.isRegistered<HomeController>()) {
+                              Get.find<HomeController>().fetchInitialVideos();
+                            }
                             AppSnackbar.show(
                               'Restored',
                               'Channel recommendations restored.',
@@ -398,5 +413,49 @@ class VideoOptionsSheet extends StatelessWidget {
         });
       },
     );
+  }
+
+  static void _removeVideoFromControllers(String videoId) {
+    if (Get.isRegistered<HomeController>()) {
+      final hc = Get.find<HomeController>();
+      hc.videos.removeWhere((v) => v.id == videoId);
+      hc.recommendedVideos.removeWhere((v) => v.id == videoId);
+      hc.trendingVideos.removeWhere((v) => v.id == videoId);
+      hc.musicVideos.removeWhere((v) => v.id == videoId);
+    }
+    if (Get.isRegistered<VideoController>()) {
+      final vc = Get.find<VideoController>();
+      vc.recommendedVideos.removeWhere((v) => v.id == videoId);
+    }
+    if (Get.isRegistered<search_ctrl.SearchController>()) {
+      final sc = Get.find<search_ctrl.SearchController>();
+      sc.searchResults.removeWhere((v) => v.id == videoId);
+    }
+  }
+
+  static void _removeChannelFromControllers(String channelId, String channelName) {
+    bool matches(Video v) {
+      if (channelId.isNotEmpty && v.channelId == channelId) return true;
+      if (channelName.isNotEmpty && v.channelName == channelName) return true;
+      return false;
+    }
+
+    if (Get.isRegistered<HomeController>()) {
+      final hc = Get.find<HomeController>();
+      hc.videos.removeWhere(matches);
+      hc.recommendedVideos.removeWhere(matches);
+      hc.trendingVideos.removeWhere(matches);
+      hc.musicVideos.removeWhere(matches);
+    }
+    if (Get.isRegistered<VideoController>()) {
+      final vc = Get.find<VideoController>();
+      vc.recommendedVideos.removeWhere(matches);
+    }
+    if (Get.isRegistered<search_ctrl.SearchController>()) {
+      final sc = Get.find<search_ctrl.SearchController>();
+      sc.searchResults.removeWhere(
+        (res) => channelName.isNotEmpty && res.channelName == channelName,
+      );
+    }
   }
 }

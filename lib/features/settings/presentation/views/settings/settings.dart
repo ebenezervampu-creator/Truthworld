@@ -410,7 +410,7 @@ class SettingsScreen extends StatelessWidget {
     final auth = AuthService.to;
     final nameCtrl = TextEditingController(text: auth.activeDisplayName);
     final handleCtrl = TextEditingController(text: auth.activeHandle.replaceAll('@', ''));
-    final bioCtrl = TextEditingController(text: 'Truthworld Creator');
+    final bioCtrl = TextEditingController(text: auth.userChannel?.description ?? '');
 
     Get.dialog(
       AlertDialog(
@@ -435,14 +435,28 @@ class SettingsScreen extends StatelessWidget {
               final uid = auth.uid;
               if (uid.isNotEmpty) {
                 try {
+                  final newName = nameCtrl.text.trim();
+                  final newHandle = '@${handleCtrl.text.trim().replaceAll('@', '')}';
+                  final newBio = bioCtrl.text.trim();
+
                   await FirebaseFirestore.instance.collection('users').doc(uid).set({
-                    'displayName': nameCtrl.text.trim(),
-                    'handle': '@${handleCtrl.text.trim()}',
-                    'bio': bioCtrl.text.trim(),
+                    'displayName': newName,
+                    'handle': newHandle,
+                    'bio': newBio,
                   }, SetOptions(merge: true));
+
+                  if (auth.hasChannel.value && auth.userChannel != null) {
+                    await FirebaseFirestore.instance.collection('channels').doc(auth.userChannel!.id).update({
+                      'name': newName,
+                      'handle': newHandle,
+                      'description': newBio,
+                    });
+                  }
+
                   Get.snackbar('Profile Updated', 'Profile details saved.', snackPosition: SnackPosition.BOTTOM, backgroundColor: brandColor, colorText: Colors.white);
                 } catch (e) {
                   debugPrint('Error updating profile: $e');
+                  Get.snackbar('Update Failed', 'Failed to save profile details.', snackPosition: SnackPosition.BOTTOM, backgroundColor: AppColors.error);
                 }
               }
             },
@@ -458,7 +472,7 @@ class SettingsScreen extends StatelessWidget {
     return Obx(() {
       final isPremium = auth.isPremiumUser.value;
       return ListTile(
-        leading: Icon(isPremium ? Icons.workspace_premium : Icons.card_membership, color: isPremium ? Colors.amber : context.colors.brand),
+        leading: Icon(isPremium ? Icons.workspace_premium : Icons.card_membership, color: isPremium ? Colors.amber : AppColors.textPrimary),
         title: Text(isPremium ? 'Premium Membership Active' : 'Free Account Tier', style: const TextStyle(fontSize: 16, color: AppColors.textPrimary)),
         subtitle: Text(isPremium ? 'Ad-free 4K & background playback' : 'Upgrade to Premium for 4K & ad-free streaming', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
         trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
@@ -489,7 +503,21 @@ class SettingsScreen extends StatelessWidget {
               leading: const Icon(Icons.pause_circle_outline, color: AppColors.warning),
               title: const Text('Deactivate Account', style: TextStyle(color: AppColors.textPrimary)),
               subtitle: const Text('Temporarily hide channel & activity.', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-              onTap: () { Get.back(); Get.snackbar('Account Paused', 'Your channel is hidden.', snackPosition: SnackPosition.BOTTOM); },
+              onTap: () async {
+                Get.back();
+                final uid = AuthService.to.uid;
+                if (uid.isNotEmpty) {
+                  try {
+                    await FirebaseFirestore.instance.collection('users').doc(uid).update({
+                      'status': 'deactivated',
+                      'deactivatedAt': FieldValue.serverTimestamp(),
+                    });
+                    Get.snackbar('Account Paused', 'Your channel and account activity are hidden.', snackPosition: SnackPosition.BOTTOM);
+                  } catch (e) {
+                    Get.snackbar('Error', 'Failed to deactivate account.', snackPosition: SnackPosition.BOTTOM, backgroundColor: AppColors.error);
+                  }
+                }
+              },
             ),
             ListTile(
               leading: const Icon(Icons.delete_forever_outlined, color: AppColors.error),
@@ -519,7 +547,7 @@ class SettingsScreen extends StatelessWidget {
       final mins = ctrl.wellbeing.value.breakReminderMinutes;
       final label = mins == 0 ? 'Off' : 'Every $mins minutes';
       return ListTile(
-        leading: Icon(Icons.timer_outlined, color: context.colors.brand),
+        leading: const Icon(Icons.timer_outlined, color: AppColors.textPrimary),
         title: const Text('Remind me to take a break', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
         subtitle: Text(label, style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
         trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
@@ -557,7 +585,7 @@ class SettingsScreen extends StatelessWidget {
     return Obx(() {
       final wb = ctrl.wellbeing.value;
       return SwitchListTile(
-        secondary: Icon(Icons.bedtime_outlined, color: context.colors.brand),
+        secondary: const Icon(Icons.bedtime_outlined, color: AppColors.textPrimary),
         title: const Text('Bedtime Reminder', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
         subtitle: Text(wb.bedtimeEnabled ? '${wb.bedtimeStartTime} – ${wb.bedtimeEndTime} (${wb.bedtimeDaysSchedule})' : 'Off', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
         value: wb.bedtimeEnabled,
@@ -572,23 +600,66 @@ class SettingsScreen extends StatelessWidget {
   void _showBedtimeScheduleDialog(BuildContext context) {
     final ctrl = UserSettingsController.to;
     Get.dialog(
-      AlertDialog(
-        backgroundColor: context.colors.surface,
-        title: const Text('Bedtime Schedule', style: TextStyle(color: AppColors.textPrimary)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: ['Everyday', 'Weekdays', 'Weekends'].map((sched) => Obx(() => RadioListTile<String>(
-            title: Text(sched, style: const TextStyle(color: AppColors.textPrimary)),
-            value: sched,
-            groupValue: ctrl.wellbeing.value.bedtimeDaysSchedule,
-            onChanged: (val) {
-              if (val != null) {
-                ctrl.setBedtimeSchedule(ctrl.wellbeing.value.bedtimeStartTime, ctrl.wellbeing.value.bedtimeEndTime, val);
-                Get.back();
-              }
-            },
-          ))).toList(),
-        ),
+      StatefulBuilder(
+        builder: (context, setState) {
+          final wb = ctrl.wellbeing.value;
+          return AlertDialog(
+            backgroundColor: context.colors.surface,
+            title: const Text('Bedtime Schedule', style: TextStyle(color: AppColors.textPrimary)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('TIME WINDOW', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    TextButton.icon(
+                      icon: const Icon(Icons.access_time, color: AppColors.textPrimary, size: 18),
+                      label: Text('Start: ${wb.bedtimeStartTime}', style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+                      onPressed: () async {
+                        final dlgContext = context;
+                        final picked = await showTimePicker(context: dlgContext, initialTime: const TimeOfDay(hour: 23, minute: 0));
+                        if (picked != null && dlgContext.mounted) {
+                          ctrl.setBedtimeSchedule(picked.format(dlgContext), wb.bedtimeEndTime, wb.bedtimeDaysSchedule);
+                          setState(() {});
+                        }
+                      },
+                    ),
+                    TextButton.icon(
+                      icon: const Icon(Icons.access_time, color: AppColors.textPrimary, size: 18),
+                      label: Text('End: ${wb.bedtimeEndTime}', style: const TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+                      onPressed: () async {
+                        final dlgContext = context;
+                        final picked = await showTimePicker(context: dlgContext, initialTime: const TimeOfDay(hour: 6, minute: 0));
+                        if (picked != null && dlgContext.mounted) {
+                          ctrl.setBedtimeSchedule(wb.bedtimeStartTime, picked.format(dlgContext), wb.bedtimeDaysSchedule);
+                          setState(() {});
+                        }
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const Text('REPEAT DAYS', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
+                ...['Everyday', 'Weekdays', 'Weekends'].map((sched) => Obx(() => RadioListTile<String>(
+                  title: Text(sched, style: const TextStyle(color: AppColors.textPrimary)),
+                  value: sched,
+                  groupValue: ctrl.wellbeing.value.bedtimeDaysSchedule,
+                  onChanged: (val) {
+                    if (val != null) {
+                      ctrl.setBedtimeSchedule(ctrl.wellbeing.value.bedtimeStartTime, ctrl.wellbeing.value.bedtimeEndTime, val);
+                    }
+                  },
+                ))),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: Get.back, child: const Text('Done', style: TextStyle(color: AppColors.textPrimary))),
+            ],
+          );
+        },
       ),
     );
   }
@@ -598,7 +669,7 @@ class SettingsScreen extends StatelessWidget {
     return Obx(() {
       final isEnabled = ctrl.wellbeing.value.parentalPinEnabled;
       return ListTile(
-        leading: Icon(Icons.security, color: isEnabled ? Colors.green : context.colors.brand),
+        leading: Icon(Icons.security, color: isEnabled ? Colors.green : AppColors.textPrimary),
         title: const Text('Parental Controls & PIN Lock', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
         subtitle: Text(isEnabled ? 'Restricted Mode Active (SHA-256 Protected)' : 'Off • Tap to set 4-digit PIN lock', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
         trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
@@ -672,7 +743,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildVideoQualityTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return Obx(() => ListTile(
-      leading: Icon(Icons.high_quality, color: context.colors.brand),
+      leading: const Icon(Icons.high_quality, color: AppColors.textPrimary),
       title: const Text('Video Quality Preferences', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('Wi-Fi: ${ctrl.playback.value.wifiQuality} • Mobile: ${ctrl.playback.value.cellularQuality}', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
@@ -686,18 +757,33 @@ class SettingsScreen extends StatelessWidget {
       AlertDialog(
         backgroundColor: context.colors.surface,
         title: const Text('Video Quality Preferences', style: TextStyle(color: AppColors.textPrimary)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('ON WI-FI', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
-            ...['Auto', '1080p (HD)', '720p (HD)', '480p (SD)'].map((q) => Obx(() => RadioListTile<String>(
-              title: Text(q, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
-              value: q,
-              groupValue: ctrl.playback.value.wifiQuality,
-              onChanged: (val) { if (val != null) ctrl.setWifiQuality(val); },
-            ))),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('ON WI-FI', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
+              ...['Auto', '1080p (HD)', '720p (HD)', '480p (SD)'].map((q) => Obx(() => RadioListTile<String>(
+                title: Text(q, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+                value: q,
+                groupValue: ctrl.playback.value.wifiQuality,
+                onChanged: (val) { if (val != null) ctrl.setWifiQuality(val); },
+              ))),
+              const Divider(color: AppColors.bgDivider),
+              const SizedBox(height: 8),
+              const Text('ON MOBILE NETWORKS', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
+              ...['Auto', 'Data Saver (480p)', 'Low (360p)', 'Higher Image Quality (1080p)'].map((q) => Obx(() => RadioListTile<String>(
+                title: Text(q, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+                value: q,
+                groupValue: ctrl.playback.value.cellularQuality,
+                onChanged: (val) { if (val != null) ctrl.setCellularQuality(val); },
+              ))),
+            ],
+          ),
         ),
+        actions: [
+          TextButton(onPressed: Get.back, child: const Text('Done', style: TextStyle(color: AppColors.textPrimary))),
+        ],
       ),
     );
   }
@@ -705,7 +791,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildVolumeNormalizationTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return Obx(() => ListTile(
-      leading: Icon(Icons.graphic_eq, color: context.colors.brand),
+      leading: const Icon(Icons.graphic_eq, color: AppColors.textPrimary),
       title: const Text('Volume Normalization (Stable Volume)', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('Mode: ${ctrl.playback.value.volumeNormalizationMode}', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
@@ -736,7 +822,7 @@ class SettingsScreen extends StatelessWidget {
     final ctrl = UserSettingsController.to;
     final isSupported = ctrl.isBackgroundPlaybackSupported;
     return Obx(() => ListTile(
-      leading: Icon(Icons.picture_in_picture_alt, color: isSupported ? context.colors.brand : Colors.grey),
+      leading: Icon(Icons.picture_in_picture_alt, color: isSupported ? AppColors.textPrimary : Colors.grey),
       title: const Text('Background Audio Playback', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text(isSupported ? 'Mode: ${ctrl.playback.value.backgroundPlaybackMode}' : 'Unsupported on Web browser', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
@@ -767,7 +853,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildAutoplayNextTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return Obx(() => SwitchListTile(
-      secondary: Icon(Icons.play_circle_fill_outlined, color: context.colors.brand),
+      secondary: const Icon(Icons.play_circle_fill_outlined, color: AppColors.textPrimary),
       title: const Text('Autoplay Next Video', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('Automatically play recommended videos when current video finishes', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       value: ctrl.playback.value.autoplayNext,
@@ -778,7 +864,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildSeekDurationTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return Obx(() => ListTile(
-      leading: Icon(Icons.fast_forward_outlined, color: context.colors.brand),
+      leading: const Icon(Icons.fast_forward_outlined, color: AppColors.textPrimary),
       title: const Text('Double-Tap Seek Duration', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('Seek step: ${ctrl.playback.value.seekDurationSeconds} seconds', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
@@ -808,7 +894,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildStatsForNerdsTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return Obx(() => SwitchListTile(
-      secondary: Icon(Icons.developer_mode, color: context.colors.brand),
+      secondary: const Icon(Icons.developer_mode, color: AppColors.textPrimary),
       title: const Text('Stats for Nerds Overlay', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('Show bitrate, dropped frames, codec & resolution info on player', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       value: ctrl.playback.value.statsForNerdsEnabled,
@@ -821,7 +907,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildSmartDownloadsTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return Obx(() => SwitchListTile(
-      secondary: Icon(Icons.auto_awesome, color: context.colors.brand),
+      secondary: const Icon(Icons.auto_awesome, color: AppColors.textPrimary),
       title: const Text('Smart Downloads', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('Automatically download 5-10 recommended videos on Wi-Fi', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       value: ctrl.downloads.value.smartDownloadsEnabled,
@@ -832,7 +918,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildDownloadWifiOnlyTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return Obx(() => SwitchListTile(
-      secondary: Icon(Icons.wifi_outlined, color: context.colors.brand),
+      secondary: const Icon(Icons.wifi_outlined, color: AppColors.textPrimary),
       title: const Text('Download over Wi-Fi only', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('Prevent video downloads on cellular data connections', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       value: ctrl.downloads.value.wifiOnly,
@@ -843,7 +929,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildStorageLimitTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return Obx(() => ListTile(
-      leading: Icon(Icons.sd_storage_outlined, color: context.colors.brand),
+      leading: const Icon(Icons.sd_storage_outlined, color: AppColors.textPrimary),
       title: const Text('Download Storage Limit', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('Cap: ${ctrl.downloads.value.maxStorageLimit}', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
@@ -873,7 +959,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildDownloadLocationTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return Obx(() => ListTile(
-      leading: Icon(Icons.folder_outlined, color: context.colors.brand),
+      leading: const Icon(Icons.folder_outlined, color: AppColors.textPrimary),
       title: const Text('Download Storage Location', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('Location: ${ctrl.downloads.value.downloadLocation}', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
@@ -903,11 +989,11 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildClearCacheTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return Obx(() => ListTile(
-      leading: Icon(Icons.cleaning_services_outlined, color: context.colors.brand),
+      leading: const Icon(Icons.cleaning_services_outlined, color: AppColors.textPrimary),
       title: const Text('Clear Cached Media Data', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('Current cache: ${ctrl.cacheSizeMB.value.toStringAsFixed(1)} MB', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       trailing: TextButton(
-        onPressed: () { ctrl.clearCache(); Get.snackbar('Cache Cleared', 'Cache wiped successfully.', snackPosition: SnackPosition.BOTTOM); },
+        onPressed: () async { await ctrl.clearCache(); Get.snackbar('Cache Cleared', 'Cache wiped successfully.', snackPosition: SnackPosition.BOTTOM); },
         child: const Text('Clear', style: TextStyle(color: AppColors.error)),
       ),
     ));
@@ -918,7 +1004,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildPushNotificationTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return Obx(() => SwitchListTile(
-      secondary: Icon(Icons.notifications_active_outlined, color: context.colors.brand),
+      secondary: const Icon(Icons.notifications_active_outlined, color: AppColors.textPrimary),
       title: const Text('Push Notifications', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('Master switch for all push alerts', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       value: ctrl.pushNotificationsEnabled.value,
@@ -929,7 +1015,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildChannelAlertsTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return Obx(() => ListTile(
-      leading: Icon(Icons.subscriptions_outlined, color: context.colors.brand),
+      leading: const Icon(Icons.subscriptions_outlined, color: AppColors.textPrimary),
       title: const Text('Subscription & Channel Alerts', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('Level: ${ctrl.channelAlerts.value}', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
@@ -960,7 +1046,7 @@ class SettingsScreen extends StatelessWidget {
 
   Widget _buildWatchHistoryTile(BuildContext context) {
     return ListTile(
-      leading: Icon(Icons.history, color: context.colors.brand),
+      leading: const Icon(Icons.history, color: AppColors.textPrimary),
       title: const Text('Watch History Controls', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('Pause watch history or clear viewing log', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
@@ -971,7 +1057,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildSearchHistoryTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return Obx(() => ListTile(
-      leading: Icon(Icons.search_off_outlined, color: context.colors.brand),
+      leading: const Icon(Icons.search_off_outlined, color: AppColors.textPrimary),
       title: const Text('Search History Controls', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text(ctrl.isSearchHistoryPaused.value ? 'Search history is PAUSED' : 'Manage or clear search queries', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
@@ -1007,7 +1093,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildBlockedMutedTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return Obx(() => ListTile(
-      leading: Icon(Icons.block_outlined, color: context.colors.brand),
+      leading: const Icon(Icons.block_outlined, color: AppColors.textPrimary),
       title: const Text('Blocked & Muted List', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('${ctrl.blockedUsers.length} blocked users • ${ctrl.mutedKeywords.length} muted keywords', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
@@ -1018,6 +1104,7 @@ class SettingsScreen extends StatelessWidget {
   void _showBlockedMutedDialog(BuildContext context) {
     final ctrl = UserSettingsController.to;
     final keywordCtrl = TextEditingController();
+    final blockUserCtrl = TextEditingController();
 
     Get.dialog(
       AlertDialog(
@@ -1032,7 +1119,7 @@ class SettingsScreen extends StatelessWidget {
               Row(
                 children: [
                   Expanded(child: TextField(controller: keywordCtrl, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14), decoration: const InputDecoration(hintText: 'Mute keyword...'))),
-                  IconButton(icon: Icon(Icons.add, color: context.colors.brand), onPressed: () { if (keywordCtrl.text.isNotEmpty) { ctrl.addMutedKeyword(keywordCtrl.text); keywordCtrl.clear(); } }),
+                  IconButton(icon: const Icon(Icons.add, color: AppColors.textPrimary), onPressed: () { if (keywordCtrl.text.isNotEmpty) { ctrl.addMutedKeyword(keywordCtrl.text); keywordCtrl.clear(); } }),
                 ],
               ),
               const SizedBox(height: 8),
@@ -1044,9 +1131,31 @@ class SettingsScreen extends StatelessWidget {
                   onDeleted: () => ctrl.removeMutedKeyword(kw),
                 )).toList(),
               )),
+              const SizedBox(height: 16),
+              const Divider(color: AppColors.bgDivider),
+              const SizedBox(height: 8),
+              const Text('BLOCKED USERS', style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.bold)),
+              Row(
+                children: [
+                  Expanded(child: TextField(controller: blockUserCtrl, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14), decoration: const InputDecoration(hintText: 'Block user handle...'))),
+                  IconButton(icon: const Icon(Icons.person_add_alt_1, color: AppColors.textPrimary), onPressed: () { if (blockUserCtrl.text.isNotEmpty) { ctrl.blockUser(blockUserCtrl.text); blockUserCtrl.clear(); } }),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Obx(() => Wrap(
+                spacing: 8,
+                children: ctrl.blockedUsers.map((user) => Chip(
+                  backgroundColor: context.colors.surfaceContainerHigh,
+                  label: Text(user, style: const TextStyle(color: AppColors.textPrimary, fontSize: 12)),
+                  onDeleted: () => ctrl.unblockUser(user),
+                )).toList(),
+              )),
             ],
           ),
         ),
+        actions: [
+          TextButton(onPressed: Get.back, child: const Text('Close', style: TextStyle(color: AppColors.textPrimary))),
+        ],
       ),
     );
   }
@@ -1056,7 +1165,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildReduceMotionTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return Obx(() => SwitchListTile(
-      secondary: Icon(Icons.animation_outlined, color: context.colors.brand),
+      secondary: const Icon(Icons.animation_outlined, color: AppColors.textPrimary),
       title: const Text('Reduce UI Motion & Animations', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('Minimize background transitions & motion effects', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       value: ctrl.accessibility.value.reduceMotion,
@@ -1067,7 +1176,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildSubtitlesCaptionsTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return Obx(() => ListTile(
-      leading: Icon(Icons.closed_caption_outlined, color: context.colors.brand),
+      leading: const Icon(Icons.closed_caption_outlined, color: AppColors.textPrimary),
       title: const Text('Subtitles & Captions Customization', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('Size: ${ctrl.accessibility.value.captionSize} • High Contrast: ${ctrl.accessibility.value.highContrastSubtitles ? "On" : "Off"}', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
@@ -1104,7 +1213,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildHapticFeedbackTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return Obx(() => SwitchListTile(
-      secondary: Icon(Icons.vibration_outlined, color: context.colors.brand),
+      secondary: const Icon(Icons.vibration_outlined, color: AppColors.textPrimary),
       title: const Text('Haptic Vibration Feedback', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('Tactile vibration on player scrubbing & button taps', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       value: ctrl.accessibility.value.hapticFeedback,
@@ -1115,7 +1224,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildColorBlindTile(BuildContext context) {
     final ctrl = UserSettingsController.to;
     return Obx(() => ListTile(
-      leading: Icon(Icons.color_lens_outlined, color: context.colors.brand),
+      leading: const Icon(Icons.color_lens_outlined, color: AppColors.textPrimary),
       title: const Text('Color Blindness Filter Mode', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('Filter: ${ctrl.accessibility.value.colorBlindSupport}', style: TextStyle(fontSize: 13, color: context.colors.textSecondary)),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
@@ -1194,7 +1303,7 @@ class SettingsScreen extends StatelessWidget {
 
   Widget _buildVersionTile(BuildContext context) {
     return ListTile(
-      leading: Icon(Icons.info, color: context.colors.brand),
+      leading: const Icon(Icons.info, color: AppColors.textPrimary),
       title: const Text('Version', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       subtitle: Text('1.0.0 (Truthworld YouTube-Scale Release)', style: TextStyle(fontSize: 14, color: context.colors.textSecondary)),
     );
@@ -1202,7 +1311,7 @@ class SettingsScreen extends StatelessWidget {
 
   Widget _buildHelpTile(BuildContext context) {
     return ListTile(
-      leading: Icon(Icons.help, color: context.colors.brand),
+      leading: const Icon(Icons.help, color: AppColors.textPrimary),
       title: const Text('Help & Support', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
       onTap: () {
@@ -1217,7 +1326,7 @@ class SettingsScreen extends StatelessWidget {
 
   Widget _buildFeedbackTile(BuildContext context) {
     return ListTile(
-      leading: Icon(Icons.chat_bubble_outline, color: context.colors.brand),
+      leading: const Icon(Icons.chat_bubble_outline, color: AppColors.textPrimary),
       title: const Text('Feedback', style: TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
       onTap: () {
@@ -1232,7 +1341,7 @@ class SettingsScreen extends StatelessWidget {
 
   Widget _buildLegalTile(BuildContext context, {required String title, required IconData icon, required int index, required String route}) {
     return ListTile(
-      leading: Icon(icon, color: context.colors.brand),
+      leading: Icon(icon, color: AppColors.textPrimary),
       title: Text(title, style: const TextStyle(fontSize: 16, color: AppColors.textPrimary)),
       trailing: const Icon(Icons.chevron_right, color: AppColors.textPrimary),
       onTap: () {

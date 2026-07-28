@@ -403,7 +403,7 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.topic_rounded, color: AppColors.brand, size: 36),
+                      const Icon(Icons.topic_rounded, color: Colors.white, size: 36),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
@@ -528,7 +528,7 @@ class _FollowingTopicsPageState extends State<FollowingTopicsPage> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.topic_rounded, color: AppColors.brand, size: 12),
+                          const Icon(Icons.topic_rounded, color: Colors.white, size: 12),
                           const SizedBox(width: 4),
                           Text(
                             topic.title,

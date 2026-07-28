@@ -621,7 +621,7 @@ class FactCheckReportWidget extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: AppColors.brand, size: 24),
+            Icon(icon, color: Colors.white, size: 24),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -695,7 +695,7 @@ class FactCheckReportWidget extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Icon(Icons.verified_user_outlined, color: AppColors.brand, size: 32),
+          const Icon(Icons.verified_user_outlined, color: Colors.white, size: 32),
           const SizedBox(height: 16),
           Text('CONCLUSION', style: AppTextStyles.labelSmall.copyWith(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.brand, letterSpacing: 2)),
           const SizedBox(height: 12),

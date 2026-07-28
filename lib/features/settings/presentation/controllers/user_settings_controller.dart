@@ -1,6 +1,10 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:path_provider/path_provider.dart';
 
+import 'package:truthworld/features/search/presentation/controllers/search_controller.dart' as search_ctrl;
 import 'package:truthworld/features/settings/data/models/accessibility_settings.dart';
 import 'package:truthworld/features/settings/data/models/digital_wellbeing_settings.dart';
 import 'package:truthworld/features/settings/data/models/download_settings.dart';
@@ -31,7 +35,7 @@ class UserSettingsController extends GetxController {
   final RxList<String> mutedKeywords = <String>[].obs;
 
   // --- Dynamic Media Storage State ---
-  final RxDouble cacheSizeMB = 18.4.obs;
+  final RxDouble cacheSizeMB = 0.0.obs;
 
   // --- Platform Feature Capabilities ---
   bool get isBackgroundPlaybackSupported => !kIsWeb;
@@ -41,6 +45,7 @@ class UserSettingsController extends GetxController {
   void onInit() {
     super.onInit();
     loadAllSettings();
+    calculateCacheSize();
   }
 
   void loadAllSettings() {
@@ -182,8 +187,42 @@ class UserSettingsController extends GetxController {
     updateDownloads(downloads.value.copyWith(downloadQuality: quality));
   }
 
-  void clearCache() {
+  Future<void> clearCache() async {
+    try {
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+      if (!kIsWeb) {
+        final tempDir = await getTemporaryDirectory();
+        if (await tempDir.exists()) {
+          await tempDir.delete(recursive: true);
+          await tempDir.create();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error clearing cache: $e');
+    }
     cacheSizeMB.value = 0.0;
+  }
+
+  Future<void> calculateCacheSize() async {
+    if (kIsWeb) {
+      cacheSizeMB.value = 0.0;
+      return;
+    }
+    try {
+      final tempDir = await getTemporaryDirectory();
+      if (await tempDir.exists()) {
+        var totalBytes = 0;
+        await for (final entity in tempDir.list(recursive: true, followLinks: false)) {
+          if (entity is File) {
+            totalBytes += await entity.length();
+          }
+        }
+        cacheSizeMB.value = totalBytes / (1024 * 1024);
+      }
+    } catch (e) {
+      debugPrint('Error calculating cache size: $e');
+    }
   }
 
   // ================= ACCESSIBILITY & COMFORT =================
@@ -217,7 +256,18 @@ class UserSettingsController extends GetxController {
   }
 
   void clearSearchHistory() {
-    _repository.setSearchHistoryPaused(isSearchHistoryPaused.value);
+    _repository.clearSearchHistory();
+    if (Get.isRegistered<search_ctrl.SearchController>()) {
+      Get.find<search_ctrl.SearchController>().clearRecentSearches();
+    }
+  }
+
+  void blockUser(String username) {
+    final trimmed = username.trim();
+    if (trimmed.isNotEmpty && !blockedUsers.contains(trimmed)) {
+      blockedUsers.add(trimmed);
+      _repository.setBlockedUsers(blockedUsers.toList());
+    }
   }
 
   void unblockUser(String username) {

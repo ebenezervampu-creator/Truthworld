@@ -563,7 +563,7 @@ class _SavedCommentCard extends StatelessWidget {
                         height: 36,
                         child: Row(
                           children: [
-                            const Icon(Icons.open_in_new_rounded, size: 16, color: AppColors.brand),
+                            const Icon(Icons.open_in_new_rounded, size: 16, color: Colors.white),
                             const SizedBox(width: 8),
                             Text('View source', style: GoogleFonts.roboto(fontSize: 12, color: AppColors.textPrimary)),
                           ],
@@ -623,7 +623,7 @@ class _SavedCommentCard extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(sourceIcon, size: 12, color: AppColors.brand),
+                    Icon(sourceIcon, size: 12, color: Colors.white),
                     const SizedBox(width: 4),
                     Flexible(
                       child: Text(

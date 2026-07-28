@@ -1,5 +1,6 @@
 import 'dart:io' as io;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -180,6 +181,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
             children: [
               if (images.isNotEmpty)
                 Stack(
+                  clipBehavior: Clip.antiAlias,
                   children: [
                     ClipRRect(
                       borderRadius: context.radius.lg,
@@ -188,23 +190,15 @@ class CommunityPostUploadScreen extends StatelessWidget {
                         child: Container(
                           width: double.infinity,
                           height: 200,
+                          clipBehavior: Clip.antiAlias,
                           decoration: BoxDecoration(
                             borderRadius: context.radius.lg,
                             border: Border.all(
-                              color: context.colors.divider,
+                              color: Colors.white,
+                              width: 2,
                             ),
                           ),
-                          child: kIsWeb || images.first.path != null
-                              ? Image(
-                                  image: kIsWeb
-                                      ? NetworkImage(images.first.xFile.path)
-                                      : FileImage(io.File(images.first.path!))
-                                            as ImageProvider,
-                                  fit: BoxFit.cover,
-                                )
-                              : const Center(
-                                  child: Icon(Icons.broken_image_rounded),
-                                ),
+                          child: _buildPickedImageWidget(images.first),
                         ),
                       ),
                     ),
@@ -716,7 +710,113 @@ class CommunityPostUploadScreen extends StatelessWidget {
     );
   }
 
-  // Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â DETAILS Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
+  Widget _buildPickedImageWidget(PlatformFile file) {
+    try {
+      if (kIsWeb) {
+        return Image.network(
+          file.xFile.path,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => const Center(
+            child: Icon(Icons.broken_image_rounded, color: Colors.white),
+          ),
+        );
+      } else if (file.path != null && file.path!.isNotEmpty) {
+        return Image.file(
+          io.File(file.path!),
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => const Center(
+            child: Icon(Icons.broken_image_rounded, color: Colors.white),
+          ),
+        );
+      } else if (file.bytes != null) {
+        return Image.memory(
+          file.bytes!,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => const Center(
+            child: Icon(Icons.broken_image_rounded, color: Colors.white),
+          ),
+        );
+      }
+    } catch (_) {}
+    return const Center(
+      child: Icon(Icons.broken_image_rounded, color: Colors.white),
+    );
+  }
+
+  void _showSettingsBottomSheet(BuildContext context) {
+    Get.bottomSheet<void>(
+      Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: context.colors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.settings_outlined, color: Colors.white),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Post Interactive Settings',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: context.colors.textPrimary,
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: Get.back,
+                  ),
+                ],
+              ),
+              Divider(color: context.colors.divider),
+              Obx(() => SwitchListTile.adaptive(
+                title: const Text('Dislike Option', style: TextStyle(color: Colors.white, fontSize: 14)),
+                subtitle: const Text('Allow users to dislike this post', style: TextStyle(color: Colors.white, fontSize: 12)),
+                value: _c.isDislikeEnabled.value,
+                onChanged: (v) => _c.isDislikeEnabled.value = v,
+                activeTrackColor: Colors.white,
+                activeColor: Colors.black,
+              )),
+              Obx(() => SwitchListTile.adaptive(
+                title: const Text('Dislike Count', style: TextStyle(color: Colors.white, fontSize: 14)),
+                subtitle: const Text('Show dislike count to users', style: TextStyle(color: Colors.white, fontSize: 12)),
+                value: _c.showDislikeCount.value,
+                onChanged: (v) => _c.showDislikeCount.value = v,
+                activeTrackColor: Colors.white,
+                activeColor: Colors.black,
+              )),
+              Obx(() => SwitchListTile.adaptive(
+                title: const Text('Comments', style: TextStyle(color: Colors.white, fontSize: 14)),
+                subtitle: const Text('Allow users to comment on this post', style: TextStyle(color: Colors.white, fontSize: 12)),
+                value: _c.isCommentsEnabled.value,
+                onChanged: (v) => _c.isCommentsEnabled.value = v,
+                activeTrackColor: Colors.white,
+                activeColor: Colors.black,
+              )),
+              Obx(() => SwitchListTile.adaptive(
+                title: const Text('Like Option', style: TextStyle(color: Colors.white, fontSize: 14)),
+                subtitle: const Text('Allow users to like this post', style: TextStyle(color: Colors.white, fontSize: 12)),
+                value: _c.isLikeEnabled.value,
+                onChanged: (v) => _c.isLikeEnabled.value = v,
+                activeTrackColor: Colors.white,
+                activeColor: Colors.black,
+              )),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── DETAILS ────────────────────────────────────────────────────────────────
 
   Widget _buildDetailsSection(BuildContext context) {
     return _card(
@@ -724,6 +824,11 @@ class CommunityPostUploadScreen extends StatelessWidget {
       icon: Icons.edit_rounded,
       title: 'Post Details',
       accentColor: context.colors.brand,
+      trailingHeader: IconButton(
+        icon: const Icon(Icons.settings_outlined, color: Colors.white),
+        tooltip: 'Post Options Settings',
+        onPressed: () => _showSettingsBottomSheet(context),
+      ),
       children: [
         UploadInputField(
           controller: _titleCtrl,
@@ -754,11 +859,24 @@ class CommunityPostUploadScreen extends StatelessWidget {
           hint: 'Add tags separated by commas',
           maxLength: 200,
         ),
+        const SizedBox(height: 16),
+        Text(
+          'Visibility',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: context.colors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 10),
+        UploadVisibilitySelector(
+          selectedVisibility: _c.selectedVisibility,
+        ),
       ],
     );
   }
 
-  // Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â SETTINGS Ã¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€ÂÃ¢â€Â
+  // ── SETTINGS ───────────────────────────────────────────────────────────────
 
   Widget _buildSettingsSection(BuildContext context) {
     return _card(
@@ -1139,6 +1257,7 @@ class CommunityPostUploadScreen extends StatelessWidget {
     required IconData icon,
     required String title,
     required List<Widget> children, Color? accentColor,
+    Widget? trailingHeader,
   }) {
     final effectiveAccentColor = accentColor ?? context.colors.brand;
     return Container(
@@ -1178,6 +1297,10 @@ class CommunityPostUploadScreen extends StatelessWidget {
                   color: context.colors.textPrimary,
                 ),
               ),
+              if (trailingHeader != null) ...[
+                const Spacer(),
+                trailingHeader,
+              ],
             ],
           ),
 

@@ -194,12 +194,18 @@ class AuthService extends GetxService {
         return await _signInWithGoogleMobile();
       }
     } catch (e, st) {
-      if (kDebugMode) {
-        debugPrint('AuthService: Google Sign-In Error: $e');
-        debugPrint('AuthService: StackTrace: $st');
-      }
       final mapped = GoogleSignInExceptionHandler.from(e);
-      GoogleSignInExceptionHandler.log(mapped, stackTrace: st);
+      if (mapped.code == 'user-cancelled') {
+        if (kDebugMode) {
+          debugPrint('ℹ️ [GoogleSignIn] Sign-in cancelled by user.');
+        }
+      } else {
+        if (kDebugMode) {
+          debugPrint('AuthService: Google Sign-In Error: $e');
+          debugPrint('AuthService: StackTrace: $st');
+        }
+        GoogleSignInExceptionHandler.log(mapped, stackTrace: st);
+      }
       throw mapped;
     }
   }
@@ -214,10 +220,11 @@ class AuthService extends GetxService {
   }
 
   Future<UserCredential> _signInWithGoogleMobile() async {
-    final googleUser = await _googleSignIn.authenticate();
+    try {
+      await _googleSignIn.signOut();
+    } catch (_) {}
 
-    // In v7.x, authenticate() returns a non-nullable GoogleSignInAccount.
-    // If cancelled, it throws a PlatformException or similar.
+    final googleUser = await _googleSignIn.authenticate();
     final googleAuth = googleUser.authentication;
 
     final credential = GoogleAuthProvider.credential(

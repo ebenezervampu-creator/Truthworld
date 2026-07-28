@@ -280,7 +280,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back, color: AppColors.brand,
+                      icon: const Icon(Icons.arrow_back, color: Colors.white,
                       ),
                       onPressed: () => controller.selectVideo(null),
                     ),
@@ -330,7 +330,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
         children: [
           Row(
             children: [
-              const Icon(Icons.bookmarks_rounded, color: AppColors.brand, size: 22),
+              const Icon(Icons.bookmarks_rounded, color: Colors.white, size: 22),
               const SizedBox(width: 8),
               Text(
                 'Video Chapters',
@@ -797,7 +797,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                       onPressed: () => controller.exportToClipboard(),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.psychology, color: AppColors.brand),
+                      icon: const Icon(Icons.psychology, color: Colors.white),
                       tooltip: 'AI Auto-Detect Chapters',
                       onPressed: () => controller.autoDetectChapters(),
                     ),
@@ -1244,7 +1244,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.add_rounded, color: AppColors.brand),
+                        Icon(Icons.add_rounded, color: Colors.white),
                         SizedBox(width: 8),
                         Text(
                           'Add New Milestone Chapter',
@@ -1285,7 +1285,7 @@ class _ChaptersPageState extends State<ChaptersPage> {
         backgroundColor: surfaceColor,
         title: Row(
           children: [
-            const Icon(Icons.download_rounded, color: AppColors.brand),
+            const Icon(Icons.download_rounded, color: Colors.white),
             const SizedBox(width: 12),
             Text(
               'Import YouTube Timestamps',

@@ -390,7 +390,7 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage>
           PopupMenuItem<String?>(
             child: Row(
               children: [
-                const Icon(Icons.video_library_rounded, size: 18, color: AppColors.brand),
+                const Icon(Icons.video_library_rounded, size: 18, color: Colors.white),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -422,7 +422,7 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage>
                             errorWidget: (context, url, err) =>
                                 const Icon(Icons.play_circle_outline, size: 14),
                           )
-                        : const Icon(Icons.ondemand_video_rounded, size: 16, color: AppColors.brand),
+                        : const Icon(Icons.ondemand_video_rounded, size: 16, color: Colors.white),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -458,7 +458,7 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.video_collection_rounded, size: 14, color: AppColors.brand),
+              const Icon(Icons.video_collection_rounded, size: 14, color: Colors.white),
               const SizedBox(width: 6),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 140),
@@ -531,7 +531,7 @@ class _DashboardCommentsPageState extends State<DashboardCommentsPage>
           dense: true,
           selected: controller.selectedVideoId.value == null,
           selectedTileColor: AppColors.brand.withValues(alpha: 0.15),
-          leading: const Icon(Icons.video_library_rounded, color: AppColors.brand, size: 20),
+          leading: const Icon(Icons.video_library_rounded, color: Colors.white, size: 20),
           title: Text(
             'All Videos',
             style: TextStyle(

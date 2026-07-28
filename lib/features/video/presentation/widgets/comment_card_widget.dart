@@ -155,7 +155,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                 margin: const EdgeInsets.all(16),
                 borderRadius: 12,
                 duration: const Duration(seconds: 2),
-                icon: const Icon(Icons.content_copy_rounded, color: AppColors.brand),
+                icon: const Icon(Icons.content_copy_rounded, color: Colors.white),
               );
             } else if (value == 'save') {
               final user = FirebaseAuth.instance.currentUser;
@@ -232,7 +232,7 @@ class _CommentCardWidgetState extends State<CommentCardWidget> {
                 value: 'helpful',
                 child: Row(
                   children: [
-                    Icon(Icons.star_outline_rounded, size: 18, color: AppColors.brand),
+                    Icon(Icons.star_outline_rounded, size: 18, color: Colors.white),
                     SizedBox(width: 12),
                     Text('Mark as Helpful'),
                   ],

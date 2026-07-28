@@ -8,12 +8,6 @@ enum UploadType {
   
   /// Community posts with text, images, and polls
   communityPost,
-  
-  /// Short-form vertical videos (future implementation)
-  short,
-  
-  /// Live streaming (future implementation)
-  live,
 }
 
 /// Extension methods for UploadType to provide UI-related properties
@@ -25,10 +19,6 @@ extension UploadTypeExtension on UploadType {
         return 'Upload Video';
       case UploadType.communityPost:
         return 'Community Post';
-      case UploadType.short:
-        return 'Upload Short';
-      case UploadType.live:
-        return 'Go Live';
     }
   }
 
@@ -39,10 +29,6 @@ extension UploadTypeExtension on UploadType {
         return 'Record or upload long-form videos';
       case UploadType.communityPost:
         return 'Share text, images and polls';
-      case UploadType.short:
-        return 'Upload short-form vertical videos';
-      case UploadType.live:
-        return 'Start a live stream';
     }
   }
 
@@ -53,10 +39,6 @@ extension UploadTypeExtension on UploadType {
         return Icons.video_call_outlined;
       case UploadType.communityPost:
         return Icons.article_outlined;
-      case UploadType.short:
-        return Icons.video_camera_front_outlined;
-      case UploadType.live:
-        return Icons.live_tv_outlined;
     }
   }
 
@@ -67,10 +49,6 @@ extension UploadTypeExtension on UploadType {
         return 'V';
       case UploadType.communityPost:
         return 'C';
-      case UploadType.short:
-        return 'S';
-      case UploadType.live:
-        return 'L';
     }
   }
 
@@ -80,9 +58,6 @@ extension UploadTypeExtension on UploadType {
       case UploadType.video:
       case UploadType.communityPost:
         return true;
-      case UploadType.short:
-      case UploadType.live:
-        return false; // Future features
     }
   }
 
@@ -93,10 +68,6 @@ extension UploadTypeExtension on UploadType {
         return '/upload/video';
       case UploadType.communityPost:
         return '/upload/community';
-      case UploadType.short:
-        return '/upload/short';
-      case UploadType.live:
-        return '/upload/live';
     }
   }
 }

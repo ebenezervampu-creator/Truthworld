@@ -15,6 +15,7 @@ import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/connectivity_service.dart';
 import 'package:truthworld/core/services/logger_service.dart';
 import 'package:truthworld/core/services/push_notification_service.dart';
+import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/core/utils/route_redirect_middleware.dart';
 import 'package:truthworld/core/utils/url_strategy/url_strategy.dart';
 import 'package:truthworld/features/miniplayer/presentation/widgets/miniplayer_overlay_manager.dart';
@@ -84,6 +85,7 @@ void main() {
                   ? AppleProvider.debug 
                   : AppleProvider.deviceCheck,
             );
+            await FirebaseAppCheck.instance.setTokenAutoRefreshEnabled(true);
             logger.info('Firebase App Check initialized successfully', tag: 'Startup');
           } catch (e) {
             logger.error('Firebase App Check initialization error: $e', tag: 'Startup');
@@ -130,6 +132,7 @@ void main() {
         Get.put(AppService(), permanent: true);
         Get.put(ConnectivityService(), permanent: true);
         Get.put(PushNotificationService(), permanent: true);
+        Get.put(UserPreferencesService(), permanent: true);
 
         // Auth MUST complete before app renders auth-dependent UI
         await authService.init();
@@ -228,9 +231,19 @@ void _notifyAppError(String message) {
 
 /// Main application widget
 class Truthworld extends StatelessWidget {
-  const Truthworld({super.key});
+  final String? overrideInitialRoute;
+  final String title;
+
+  const Truthworld({
+    super.key,
+    this.overrideInitialRoute,
+    this.title = 'Truthworld',
+  });
 
   String _getInitialRoute() {
+    if (overrideInitialRoute != null) {
+      return overrideInitialRoute!;
+    }
     if (kIsWeb) {
       final host = Uri.base.host;
       final uriStr = Uri.base.toString().toLowerCase();
@@ -250,7 +263,7 @@ class Truthworld extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
-      title: 'Truthworld',
+      title: title,
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       darkTheme: buildAppTheme(),

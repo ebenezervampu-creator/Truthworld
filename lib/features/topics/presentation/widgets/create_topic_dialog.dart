@@ -779,53 +779,57 @@ class CreateTopicDialog extends StatelessWidget {
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: textColor),
             ),
             const SizedBox(height: 8),
-            Container(
-              constraints: const BoxConstraints(maxHeight: 180),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: borderSideColor),
-              ),
-              child: ListView.separated(
-                shrinkWrap: true,
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                itemCount: channelVideos.length,
-                separatorBuilder: (c, i) => Divider(height: 1, color: borderSideColor),
-                itemBuilder: (context, index) {
-                  final video = channelVideos[index];
-                  final videoId = (video['id'] as String?) ?? '';
-                  final videoTitle = (video['title'] as String?) ?? 'Untitled Video';
-                  final thumbUrl = (video['thumbnailUrl'] as String?) ?? '';
-                  final isSelected = controller.selectedVideoIds.contains(videoId);
+            Obx(() {
+              final _ = controller.selectedVideoIds.length;
+              return Container(
+                constraints: const BoxConstraints(maxHeight: 180),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: borderSideColor),
+                ),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  physics: const ClampingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  itemCount: channelVideos.length,
+                  separatorBuilder: (c, i) => Divider(height: 1, color: borderSideColor),
+                  itemBuilder: (context, index) {
+                    final video = channelVideos[index];
+                    final videoId = (video['id'] as String?) ?? '';
+                    final videoTitle = (video['title'] as String?) ?? 'Untitled Video';
+                    final thumbUrl = (video['thumbnailUrl'] as String?) ?? '';
+                    final isSelected = controller.selectedVideoIds.contains(videoId);
 
-                  return CheckboxListTile(
-                    value: isSelected,
-                    onChanged: (val) {
-                      controller.toggleVideoSelection(videoId, thumbUrl);
-                    },
-                    dense: true,
-                    activeColor: const Color(0xFF6366F1),
-                    title: Text(
-                      videoTitle,
-                      style: TextStyle(fontSize: 13, color: textColor),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    secondary: Container(
-                      width: 44,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(4),
-                        color: Colors.grey.shade800,
+                    return CheckboxListTile(
+                      value: isSelected,
+                      onChanged: (val) {
+                        controller.toggleVideoSelection(videoId, thumbUrl);
+                      },
+                      dense: true,
+                      activeColor: const Color(0xFF6366F1),
+                      title: Text(
+                        videoTitle,
+                        style: TextStyle(fontSize: 13, color: textColor),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      clipBehavior: Clip.antiAlias,
-                      child: thumbUrl.isNotEmpty
-                          ? Image.network(thumbUrl, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.movie, size: 16))
-                          : const Icon(Icons.movie, size: 16),
-                    ),
-                  );
-                },
-              ),
-            ),
+                      secondary: Container(
+                        width: 44,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(4),
+                          color: Colors.grey.shade800,
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        child: thumbUrl.isNotEmpty
+                            ? Image.network(thumbUrl, fit: BoxFit.cover, errorBuilder: (c, e, s) => const Icon(Icons.movie, size: 16))
+                            : const Icon(Icons.movie, size: 16),
+                      ),
+                    );
+                  },
+                ),
+              );
+            }),
           ],
         );
       },

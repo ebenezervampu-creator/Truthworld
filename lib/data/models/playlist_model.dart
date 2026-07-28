@@ -74,7 +74,9 @@ class PlaylistModel {
       videoIds: List<String>.from(data['videoIds'] ?? []),
       visibility: PlaylistVisibility.values.firstWhere(
         (e) => e.name == data['visibility'],
-        orElse: () => PlaylistVisibility.private,
+        orElse: () => data['isPublic'] == true
+            ? PlaylistVisibility.public
+            : PlaylistVisibility.private,
       ),
       createdAt: data['createdAt'] ?? Timestamp.now(),
       updatedAt: data['updatedAt'] ?? Timestamp.now(),
@@ -124,6 +126,7 @@ class PlaylistModel {
       'videoCount': videoCount,
       'videoIds': videoIds,
       'visibility': visibility.name,
+      'isPublic': isPublic,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
       'sortIndex': sortIndex,

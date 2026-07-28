@@ -29,6 +29,10 @@ class CommunityPostModel {
     this.shares = const [],
     this.isKidFriendly = false,
     this.processed = false,
+    this.isLikeEnabled = true,
+    this.isDislikeEnabled = true,
+    this.showDislikeCount = true,
+    this.isCommentsEnabled = true,
   });
 
   factory CommunityPostModel.fromMap(Map<String, dynamic> map) {
@@ -72,6 +76,10 @@ class CommunityPostModel {
       shares: List<String>.from(map['shares'] ?? []),
       isKidFriendly: map['isKidFriendly'] ?? false,
       processed: map['processed'] ?? false,
+      isLikeEnabled: map['isLikeEnabled'] ?? true,
+      isDislikeEnabled: map['isDislikeEnabled'] ?? true,
+      showDislikeCount: map['showDislikeCount'] ?? true,
+      isCommentsEnabled: map['isCommentsEnabled'] ?? true,
     );
   }
   final String id;
@@ -99,6 +107,10 @@ class CommunityPostModel {
   final List<String> shares;
   final bool isKidFriendly;
   final bool processed;
+  final bool isLikeEnabled;
+  final bool isDislikeEnabled;
+  final bool showDislikeCount;
+  final bool isCommentsEnabled;
 
   Map<String, dynamic> toMap() => {
     'id': id,
@@ -129,5 +141,9 @@ class CommunityPostModel {
     'shares': shares,
     'isKidFriendly': isKidFriendly,
     'processed': processed,
+    'isLikeEnabled': isLikeEnabled,
+    'isDislikeEnabled': isDislikeEnabled,
+    'showDislikeCount': showDislikeCount,
+    'isCommentsEnabled': isCommentsEnabled,
   };
 }

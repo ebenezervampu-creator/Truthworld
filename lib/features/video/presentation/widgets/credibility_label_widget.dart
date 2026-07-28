@@ -559,7 +559,7 @@ class CredibilityLabelWidget extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.auto_awesome, size: 14, color: AppColors.brandHover),
+              const Icon(Icons.auto_awesome, size: 14, color: Colors.white),
               const SizedBox(width: 8),
               Text(
                 flag.topic,

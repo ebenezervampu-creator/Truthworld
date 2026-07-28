@@ -11,6 +11,7 @@ import 'package:truthworld/features/video/presentation/views/player/controls/pla
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
 import 'package:truthworld/features/video/presentation/views/player/panels/language_requests.dart';
 import 'package:truthworld/features/video/presentation/widgets/language_preferences_dialog.dart';
+import 'package:truthworld/features/video/presentation/widgets/video_chapters_bottom_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class SettingsPanel extends StatelessWidget {
@@ -184,6 +185,22 @@ class MainSettingsMenu extends StatelessWidget {
               onChanged: (_) => ctrl.showStatsForNerds.toggle(),
             ),
           ),
+          Obx(
+            () => ToggleTile(
+              icon: Icons.view_sidebar_rounded,
+              title: 'Fullscreen Action Bar',
+              value: ctrl.showFullscreenActionsDock.value,
+              onChanged: (_) => ctrl.showFullscreenActionsDock.toggle(),
+            ),
+          ),
+          Obx(
+            () => ToggleTile(
+              icon: Icons.aspect_ratio_rounded,
+              title: 'Zoom to Fill',
+              value: ctrl.isZoomToFill.value,
+              onChanged: (_) => ctrl.toggleZoomToFill(),
+            ),
+          ),
           const SizedBox(height: 8),
         ],
       ),
@@ -198,6 +215,31 @@ class ChaptersPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    VideoController? vc;
+    try {
+      if (ctrl.tag != null && Get.isRegistered<VideoController>(tag: ctrl.tag)) {
+        vc = Get.find<VideoController>(tag: ctrl.tag);
+      } else if (Get.isRegistered<VideoController>()) {
+        vc = Get.find<VideoController>();
+      }
+    } catch (_) {}
+
+    final video = vc?.video ??
+        Video(
+          id: '',
+          title: '',
+          description: '',
+          videoUrl: '',
+          thumbnailUrl: '',
+          duration: 0,
+          ownerId: '',
+          channelId: '',
+          channelName: '',
+          category: '',
+          tags: const [],
+          createdAt: DateTime.now(),
+        );
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -213,16 +255,14 @@ class ChaptersPanel extends StatelessWidget {
             itemCount: ctrl.chapters.length,
             itemBuilder: (_, i) {
               final ch = ctrl.chapters[i];
-              return Obx(
-                () => SelectTile(
-                  label: ch.title,
-                  sublabel: ch.formattedStartTime,
-                  selected: ctrl.currentChapter.value == ch,
-                  onTap: () {
-                    ctrl.seekTo(ch.startTime);
-                    ctrl.closeSettings();
-                  },
-                ),
+              return ChapterTile(
+                chapter: ch,
+                video: video,
+                playerCtrl: ctrl,
+                onTapOverride: () {
+                  ctrl.seekTo(ch.startTime);
+                  ctrl.closeSettings();
+                },
               );
             },
           ),
@@ -776,11 +816,12 @@ class RatingPanel extends StatelessWidget {
 
 class PanelHeader extends StatelessWidget {
   const PanelHeader({
-    required this.title, required this.onBack, required this.onClose, super.key,
+    required this.title, required this.onBack, required this.onClose, this.onContinue, super.key,
   });
   final String title;
   final VoidCallback? onBack;
   final VoidCallback? onClose;
+  final VoidCallback? onContinue;
 
   @override
   Widget build(BuildContext context) {
@@ -793,6 +834,25 @@ class PanelHeader extends StatelessWidget {
           else
             const SizedBox(width: 8),
           Expanded(child: Text(title, style: TS.title)),
+          if (onContinue != null) ...[
+            TextButton(
+              onPressed: onContinue,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'Continue',
+                style: TextStyle(
+                  color: PT.primary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+          ],
           if (onClose != null)
             IconBtn(icon: Icons.close_rounded, onTap: onClose, size: 20),
         ],
@@ -1322,6 +1382,22 @@ class MorePanel extends StatelessWidget {
             title: 'Stats for Nerds',
             value: ctrl.showStatsForNerds.value,
             onChanged: (v) => ctrl.showStatsForNerds.toggle(),
+          ),
+        ),
+        Obx(
+          () => MobileToggleTile(
+            icon: Icons.view_sidebar_rounded,
+            title: 'Fullscreen Action Bar',
+            value: ctrl.showFullscreenActionsDock.value,
+            onChanged: (v) => ctrl.showFullscreenActionsDock.toggle(),
+          ),
+        ),
+        Obx(
+          () => MobileToggleTile(
+            icon: Icons.aspect_ratio_rounded,
+            title: 'Zoom to Fill',
+            value: ctrl.isZoomToFill.value,
+            onChanged: (v) => ctrl.toggleZoomToFill(),
           ),
         ),
         Obx(

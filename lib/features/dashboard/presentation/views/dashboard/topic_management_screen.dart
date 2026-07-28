@@ -190,10 +190,10 @@ class TopicManagementScreen extends StatelessWidget {
                   const SizedBox(height: 20),
 
                   // YouTube Studio Metric Summary Cards
-                  Obx(() {
-                    return LayoutBuilder(
-                      builder: (context, constraints) {
-                        final isMobile = constraints.maxWidth < 600;
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isMobile = constraints.maxWidth < 600;
+                      return Obx(() {
                         return GridView.count(
                           crossAxisCount: isMobile ? 2 : 4,
                           crossAxisSpacing: 12,
@@ -244,9 +244,9 @@ class TopicManagementScreen extends StatelessWidget {
                             ),
                           ],
                         );
-                      },
-                    );
-                  }),
+                      });
+                    },
+                  ),
 
                   const SizedBox(height: 16),
 

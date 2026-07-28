@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:chewie/chewie.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -14,6 +14,7 @@ import 'package:truthworld/core/services/ad_service.dart';
 import 'package:truthworld/core/services/auth_service.dart';
 import 'package:truthworld/core/services/user_languages_service.dart';
 import 'package:truthworld/core/utils/storage_utils.dart';
+import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/video/data/models/credibility_report.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
@@ -167,6 +168,14 @@ class TowerPlayerController extends GetxController {
   final RxBool hasError = false.obs;
   final RxString errorDescription = ''.obs;
   final Rxn<ClaimResult> activeClaim = Rxn<ClaimResult>();
+  final RxBool showFactOverlay = true.obs;
+  final RxBool showFullscreenActionsDock = true.obs;
+  final RxBool isZoomToFill = false.obs;
+
+  void toggleZoomToFill() {
+    isZoomToFill.toggle();
+    showToast(isZoomToFill.value ? 'Zoom to Fill' : 'Original (Fit)');
+  }
 
   // ── UI ────────────────────────────────────────────────────
   final RxBool controlsVisible = true.obs;
@@ -393,9 +402,13 @@ class TowerPlayerController extends GetxController {
     }
     if (!_activePlayers.contains(this)) _activePlayers.add(this);
 
-    // Load saved autoplay preference
+    // Load saved settings & preferences
     try {
-      if (Get.isRegistered<VideoController>(tag: tag)) {
+      if (Get.isRegistered<UserSettingsController>()) {
+        final settings = UserSettingsController.to;
+        showStatsForNerds.value = settings.playback.value.statsForNerdsEnabled;
+        isAutoplay.value = settings.playback.value.autoplayNext;
+      } else if (Get.isRegistered<VideoController>(tag: tag)) {
         isAutoplay.value = Get.find<VideoController>(tag: tag).isAutoplay.value;
       }
     } catch (_) {}
@@ -1491,10 +1504,15 @@ class TowerPlayerController extends GetxController {
     _trackAnalytics(PlayerEvent('audio_lang', data: {'lang': track.langCode}));
   }
 
-  // ─── Double tap seek ─────────────────────────────────────
+  int get _seekStepSeconds {
+    if (Get.isRegistered<UserSettingsController>()) {
+      return UserSettingsController.to.playback.value.seekDurationSeconds;
+    }
+    return 10;
+  }
 
   void doubleTapLeft() {
-    seekRelative(-10);
+    seekRelative(-_seekStepSeconds);
     showDoubleTapLeft.value = true;
     _timers.set(
       'dtLeft',
@@ -1504,7 +1522,7 @@ class TowerPlayerController extends GetxController {
   }
 
   void doubleTapRight() {
-    seekRelative(10);
+    seekRelative(_seekStepSeconds);
     showDoubleTapRight.value = true;
     _timers.set(
       'dtRight',
@@ -1529,13 +1547,16 @@ class TowerPlayerController extends GetxController {
 
   void openSettings([BuildContext? context]) {
     final ctx = context ?? Get.context;
-    final isMobile = ctx != null && (MediaQuery.of(ctx).size.width < 600);
+    final isMobilePlatform = defaultTargetPlatform == TargetPlatform.android ||
+                             defaultTargetPlatform == TargetPlatform.iOS;
+    final isMobileWidth = ctx != null && (MediaQuery.of(ctx).size.width < 600);
+    final isMobile = isMobilePlatform || isMobileWidth;
 
     activePanel.value = '';
     controlsVisible.value = true;
     _timers.cancel('hide');
 
-    if (isMobile && showMobileSettingsCallback != null) {
+    if (ctx != null && isMobile && showMobileSettingsCallback != null) {
       showMobileSettingsCallback!(ctx, this);
     } else {
       settingsOpen.value = true;

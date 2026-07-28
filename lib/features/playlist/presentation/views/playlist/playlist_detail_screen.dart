@@ -598,7 +598,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   Widget _buildFilterTabs() {
     return Obx(() {
-      final filters = ['All', 'Videos', 'Shorts'];
+      final filters = ['All', 'Videos'];
       final selectedFilter = controller.filterValue.value.isEmpty 
           ? 'All' 
           : controller.filterValue.value;
@@ -707,6 +707,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
               context,
               index + 1,
               video,
+              playlist: playlist,
               isDesktop: isDesktop,
               isTablet: isTablet,
             );
@@ -723,6 +724,7 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
     BuildContext context,
     int index,
     Video video, {
+    PlaylistModel? playlist,
     bool isDesktop = false,
     bool isTablet = false,
   }) {
@@ -732,7 +734,11 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
       onTap: () {
         MiniplayerNavigationHelper.navigateToVideoScreen(
           video: video,
-          routeArguments: {'video': video},
+          routeArguments: {
+            'video': video,
+            'playlist': playlist,
+            'fromPlaylist': true,
+          },
         );
       },
       child: Padding(
@@ -949,14 +955,38 @@ class PlaylistDetailScreen extends GetView<PlaylistDetailController> {
   // ==========================================================================
   // ACTIONS
   // ==========================================================================
-  void _playAllVideos(PlaylistModel playlist) {
+  void _playAllVideos(PlaylistModel playlist) async {
     HapticFeedback.lightImpact();
-    // Play all videos logic
+    final videos = await _fetchVideos(playlist);
+    if (videos.isNotEmpty) {
+      MiniplayerNavigationHelper.navigateToVideoScreen(
+        video: videos.first,
+        routeArguments: {
+          'video': videos.first,
+          'playlist': playlist,
+          'fromPlaylist': true,
+          'isShuffled': false,
+        },
+      );
+    }
   }
 
-  void _shuffleVideos(PlaylistModel playlist) {
+  void _shuffleVideos(PlaylistModel playlist) async {
     HapticFeedback.lightImpact();
-    // Shuffle play logic
+    final videos = await _fetchVideos(playlist);
+    if (videos.isNotEmpty) {
+      final randomIndex = DateTime.now().millisecondsSinceEpoch % videos.length;
+      final video = videos[randomIndex];
+      MiniplayerNavigationHelper.navigateToVideoScreen(
+        video: video,
+        routeArguments: {
+          'video': video,
+          'playlist': playlist,
+          'fromPlaylist': true,
+          'isShuffled': true,
+        },
+      );
+    }
   }
 
   void _downloadPlaylist(PlaylistModel playlist) {

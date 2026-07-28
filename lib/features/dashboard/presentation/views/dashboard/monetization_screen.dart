@@ -129,7 +129,7 @@ class MonetizationScreen extends StatelessWidget {
               color: AppColors.brand.withValues(alpha: 0.2),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.bolt_rounded, color: AppColors.brand, size: 20),
+            child: const Icon(Icons.bolt_rounded, color: Colors.white, size: 20),
           ),
           const SizedBox(width: 14),
           const Expanded(
@@ -247,7 +247,7 @@ class MonetizationScreen extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, color: AppColors.brand, size: 20),
+              Icon(icon, color: Colors.white, size: 20),
               const Spacer(),
               const Icon(Icons.check_circle, color: Colors.green, size: 16),
             ],
@@ -536,7 +536,7 @@ class MonetizationScreen extends StatelessWidget {
                 color: AppColors.bgInput,
                 child: video.thumbnailUrl.isNotEmpty
                     ? Image.network(video.thumbnailUrl, fit: BoxFit.cover)
-                    : const Icon(Icons.play_circle_fill_rounded, color: AppColors.brand, size: 24),
+                    : const Icon(Icons.play_circle_fill_rounded, color: Colors.white, size: 24),
               ),
             ),
             const SizedBox(width: 12),
@@ -608,7 +608,7 @@ class MonetizationScreen extends StatelessWidget {
               onTap: () => _showUseForAiFeaturesDialog(context, controller, video),
               child: const Row(
                 children: [
-                  Icon(Icons.auto_awesome_rounded, color: AppColors.brand, size: 14),
+                  Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 14),
                   SizedBox(width: 4),
                   Text(
                     'Use for AI Tools',
@@ -645,7 +645,7 @@ class MonetizationScreen extends StatelessWidget {
                 children: [
                   const Row(
                     children: [
-                      Icon(Icons.auto_awesome_rounded, color: AppColors.brand, size: 24),
+                      Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 24),
                       SizedBox(width: 8),
                       Text(
                         'Spend Revenue on AI Features',
@@ -750,7 +750,7 @@ class MonetizationScreen extends StatelessWidget {
             color: AppColors.brand.withValues(alpha: 0.15),
             shape: BoxShape.circle,
           ),
-          child: Icon(icon, color: AppColors.brand, size: 22),
+          child: Icon(icon, color: Colors.white, size: 22),
         ),
         title: Text(
           title,

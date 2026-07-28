@@ -153,7 +153,7 @@ class AIFeaturesSelector extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.lock_rounded, color: AppColors.brand, size: 18),
+          const Icon(Icons.lock_rounded, color: Colors.white, size: 18),
         ],
       ),
     );

@@ -765,56 +765,94 @@ class LibraryScreenState extends State<LibraryScreen>
 
   void _showCreatePlaylistDialog(BuildContext context) {
     final controller = TextEditingController();
+    var isPublic = false;
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: surfaceColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Create Playlist',
-          style: TextStyle(
-            color: primaryText,
-            fontWeight: FontWeight.bold,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: surfaceColor,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text(
+            'Create Playlist',
+            style: TextStyle(
+              color: primaryText,
+              fontWeight: FontWeight.bold,
+            ),
           ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                style: const TextStyle(color: primaryText),
+                decoration: InputDecoration(
+                  hintText: 'Playlist name',
+                  hintStyle: const TextStyle(color: secondaryText),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: buttonBg),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.textPrimary),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Text(
+                    'Privacy: ',
+                    style: TextStyle(color: secondaryText, fontSize: 14),
+                  ),
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    label: const Text('Private'),
+                    selected: !isPublic,
+                    onSelected: (val) {
+                      if (val) setDialogState(() => isPublic = false);
+                    },
+                    selectedColor: buttonBg,
+                  ),
+                  const SizedBox(width: 8),
+                  ChoiceChip(
+                    label: const Text('Public'),
+                    selected: isPublic,
+                    onSelected: (val) {
+                      if (val) setDialogState(() => isPublic = true);
+                    },
+                    selectedColor: buttonBg,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: secondaryText),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (controller.text.isNotEmpty) {
+                  await _playlistController.createPlayList(
+                    controller.text,
+                    isPublic: isPublic,
+                  );
+                  if (context.mounted) Navigator.pop(context);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryText,
+                foregroundColor: bgColor,
+              ),
+              child: const Text('Create'),
+            ),
+          ],
         ),
-        content: TextField(
-          controller: controller,
-          style: const TextStyle(color: primaryText),
-          decoration: InputDecoration(
-            hintText: 'Playlist name',
-            hintStyle: const TextStyle(color: secondaryText),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: buttonBg),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.textPrimary),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: secondaryText),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (controller.text.isNotEmpty) {
-                await _playlistController.createPlayList(controller.text);
-                if (context.mounted) Navigator.pop(context);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryText,
-              foregroundColor: bgColor,
-            ),
-            child: const Text('Create'),
-          ),
-        ],
       ),
     );
   }

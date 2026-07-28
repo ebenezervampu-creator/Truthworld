@@ -400,7 +400,7 @@ class _MetricCard extends StatelessWidget {
                   color: AppColors.brand.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(icon, color: AppColors.brand, size: 14),
+                child: Icon(icon, color: Colors.white, size: 14),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -561,7 +561,7 @@ class _TrafficSourceCard extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Row(
                     children: [
-                      Icon(_getTrafficSourceIcon(s.sourceKey), color: AppColors.brand, size: 16),
+                      Icon(_getTrafficSourceIcon(s.sourceKey), color: Colors.white, size: 16),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -812,7 +812,7 @@ class _TopCitiesCard extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Row(
                     children: [
-                      const Icon(Icons.location_city_rounded, color: AppColors.brand, size: 14),
+                      const Icon(Icons.location_city_rounded, color: Colors.white, size: 14),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(

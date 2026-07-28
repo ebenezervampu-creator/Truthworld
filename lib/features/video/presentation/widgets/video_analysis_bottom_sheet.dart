@@ -188,7 +188,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
                       duration: const Duration(seconds: 2),
                     );
                   },
-                  icon: const Icon(Icons.copy_rounded, size: 16, color: AppColors.brand),
+                  icon: const Icon(Icons.copy_rounded, size: 16, color: Colors.white),
                   label: Text(
                     'Copy JSON',
                     style: AppTextStyles.labelSmall.copyWith(color: AppColors.brand),
@@ -518,7 +518,7 @@ class _VideoAnalysisBottomSheetState extends State<VideoAnalysisBottomSheet> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: AppColors.brand, size: 24),
+            Icon(icon, color: Colors.white, size: 24),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

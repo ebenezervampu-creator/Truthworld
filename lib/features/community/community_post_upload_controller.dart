@@ -71,6 +71,12 @@ class CommunityPostUploadController extends GetxController
   final isScheduled = false.obs;
   final scheduledDate = DateTime.now().add(const Duration(days: 1)).obs;
 
+  // Post Interactive Settings
+  final isLikeEnabled = true.obs;
+  final isDislikeEnabled = true.obs;
+  final showDislikeCount = true.obs;
+  final isCommentsEnabled = true.obs;
+
   // DRAFT MANAGEMENT
   final currentDraft = Rx<CommunityDraft?>(null);
   final isSavingDraft = false.obs;
@@ -184,6 +190,10 @@ class CommunityPostUploadController extends GetxController
     isScheduled.value = false;
     selectedCategory.value = 'General';
     selectedVisibility.value = 'Public';
+    isLikeEnabled.value = true;
+    isDislikeEnabled.value = true;
+    showDislikeCount.value = true;
+    isCommentsEnabled.value = true;
     hasPoll.value = false;
     pickedImages.clear();
     pollOptions.clear();
@@ -482,6 +492,10 @@ class CommunityPostUploadController extends GetxController
             ? 'Scheduled'
             : selectedVisibility.value,
         'isKidFriendly': isKidFriendly.value,
+        'isLikeEnabled': isLikeEnabled.value,
+        'isDislikeEnabled': isDislikeEnabled.value,
+        'showDislikeCount': showDislikeCount.value,
+        'isCommentsEnabled': isCommentsEnabled.value,
       };
 
       if (isScheduled.value) {

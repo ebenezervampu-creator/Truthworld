@@ -745,7 +745,7 @@ class PlaylistController extends GetxController {
       final batchIds = videoIds.skip(i).take(batchSize).toList();
       final snapshot = await _firestore
           .collection('videos')
-          .where('id', whereIn: batchIds)
+          .where(FieldPath.documentId, whereIn: batchIds)
           .get();
       videos.addAll(snapshot.docs.map(Video.fromDocumentSnapshot));
     }

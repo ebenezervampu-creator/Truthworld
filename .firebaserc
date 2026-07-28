@@ -13,6 +13,9 @@
         ],
         "studio-app": [
           "truthworld-1-studio"
+        ],
+        "advertiser-app": [
+          "truthworld-1-advertiser"
         ]
       }
     }

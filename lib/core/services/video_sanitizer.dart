@@ -1,3 +1,5 @@
+import 'package:get/get.dart';
+import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/core/services/video_visibility_policy.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 
@@ -6,7 +8,7 @@ class VideoSanitizer {
   /// Primary sanitization pipeline:
   /// 1. Remove duplicate video IDs
   /// 2. Remove deleted or pending-deletion videos
-  /// 3. Remove videos matching blocked channel IDs
+  /// 3. Remove hidden videos (Not interested) & blocked channel videos (Don't recommend channel)
   /// 4. Enforce surface-specific policy
   static List<Video> sanitize(
     List<Video> videos, {
@@ -16,18 +18,26 @@ class VideoSanitizer {
     final seenIds = <String>{};
     final sanitized = <Video>[];
 
+    final hasUserPrefs = Get.isRegistered<UserPreferencesService>();
+    final userPrefs = hasUserPrefs ? UserPreferencesService.to : null;
+
     for (final video in videos) {
       if (video.id.isEmpty) continue;
 
       // 1. Deduplicate by video ID
       if (seenIds.contains(video.id)) continue;
 
-      // 2. Filter blocked channels
+      // 2. Filter user preference blocked/hidden videos & channels
+      if (userPrefs != null && userPrefs.isVideoBlocked(video)) {
+        continue;
+      }
+
+      // 3. Filter explicit parameter blocked channels
       if (blockedChannelIds != null && blockedChannelIds.contains(video.channelId)) {
         continue;
       }
 
-      // 3. Apply surface-aware policy check
+      // 4. Apply surface-aware policy check
       if (!policyCheck(video)) continue;
 
       seenIds.add(video.id);

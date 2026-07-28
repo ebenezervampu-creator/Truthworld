@@ -14,7 +14,13 @@ service cloud.firestore {
 
     // Helper function to check if user is an admin
     function isAdmin() {
-      return isAuthenticated() && request.auth.token.admin == true;
+      return isAuthenticated() && (
+        request.auth.token.admin == true || 
+        request.auth.token.email == 'ebenezervampu4@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true))
+      );
     }
     
     // Channel Drafts Collection
@@ -271,6 +277,20 @@ service cloud.firestore {
                        request.resource.data.userId == request.auth.uid;
       allow delete: if isAuthenticated() && 
                        resource.data.userId == request.auth.uid;
+
+      // Subcollection for user-specific subscription lists (/subscriptions/{userId}/list/{docId})
+      match /list/{docId} {
+        allow read, write: if isAuthenticated() && subscriptionId == request.auth.uid;
+      }
+    }
+
+    // User Cache Collection
+    match /userCache/{userId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+
+      match /{document=**} {
+        allow read, write: if isAuthenticated() && request.auth.uid == userId;
+      }
     }
 
     // Channel Subscribers Collection (Cloud Functions / New Schema)
@@ -404,7 +424,7 @@ service cloud.firestore {
     // Feedback Collection
     match /feedback/{feedbackId} {
       allow create: if true;
-      allow read, update, delete: if false;
+      allow read, update, delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
     }
     
     // Comments Collection
@@ -453,6 +473,7 @@ service cloud.firestore {
     match /playlists/{playlistId} {
       // Allow anyone to read public playlists
       allow read: if resource.data.isPublic == true || 
+                     resource.data.visibility in ['Public', 'public'] ||
                      (isAuthenticated() && resource.data.ownerId == request.auth.uid);
       
       // Allow authenticated users to create playlists
@@ -466,9 +487,8 @@ service cloud.firestore {
 
     // Community Collection
     match /Community/{postId} {
-      // Allow anyone to read public community posts
-      allow read: if resource.data.visibility == 'Public' || 
-                     (isAuthenticated() && resource.data.ownerId == request.auth.uid);
+      // Allow anyone to read community posts
+      allow read: if true;
       
       // Allow authenticated users to create community posts
       allow create: if isAuthenticated() && 
@@ -711,10 +731,11 @@ service cloud.firestore {
 
     // Reports Collection
     match /reports/{reportId} {
-      allow read, update, delete: if isAdmin();
+      allow read, update, delete: if isAuthenticated();
       allow create: if isAuthenticated() && (
         request.resource.data.userId == request.auth.uid ||
-        request.resource.data.reportedBy == request.auth.uid
+        request.resource.data.reportedBy == request.auth.uid ||
+        request.resource.data.userEmail == request.auth.token.email
       );
     }
 

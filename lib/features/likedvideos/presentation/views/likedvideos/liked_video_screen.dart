@@ -266,7 +266,7 @@ class _LikedVideoScreenState extends State<LikedVideoScreen> with TickerProvider
   }
 
   Widget _buildCategoryChips() {
-    final categories = ['All', 'Videos', 'Shorts', 'Recent'];
+    final categories = ['All', 'Videos', 'Recent'];
     return SizedBox(
       height: 40,
       child: ListView.builder(

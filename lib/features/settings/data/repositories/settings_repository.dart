@@ -56,6 +56,9 @@ class SettingsRepository {
   Future<void> setSearchHistoryPaused(bool value) async {
     await _dataSource.saveSearchHistoryPaused(value);
   }
+  Future<void> clearSearchHistory() async {
+    await _dataSource.clearSearchHistory();
+  }
 
   List<String> getBlockedUsers() => _dataSource.loadBlockedUsers();
   Future<void> setBlockedUsers(List<String> users) => _dataSource.saveBlockedUsers(users);

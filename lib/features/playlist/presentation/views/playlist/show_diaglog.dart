@@ -1,5 +1,4 @@
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -65,6 +64,8 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
     with TickerProviderStateMixin {
   final TextEditingController newPlaylistCtrl = TextEditingController();
   late PlaylistDialogController _dialogController;
+  bool _isPublicNewPlaylist = false;
+  PlaylistModel? _selectedPlaylist;
 
   late AnimationController _scaleController;
   late AnimationController _listController;
@@ -301,6 +302,37 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
             ],
           ),
           const SizedBox(height: 12),
+          Row(
+            children: [
+              Text(
+                'Privacy: ',
+                style: TextStyle(
+                  fontSize: isTablet ? 14 : 12,
+                  color: colorScheme.onSurface.withValues(alpha: 0.7),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                label: const Text('Private'),
+                selected: !_isPublicNewPlaylist,
+                onSelected: (val) {
+                  if (val) setState(() => _isPublicNewPlaylist = false);
+                },
+                selectedColor: colorScheme.secondaryContainer,
+              ),
+              const SizedBox(width: 8),
+              ChoiceChip(
+                label: const Text('Public'),
+                selected: _isPublicNewPlaylist,
+                onSelected: (val) {
+                  if (val) setState(() => _isPublicNewPlaylist = true);
+                },
+                selectedColor: colorScheme.secondaryContainer,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           TextField(
             controller: newPlaylistCtrl,
             decoration: InputDecoration(
@@ -378,40 +410,38 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
   }
 
   Widget _buildPlaylistsList(ColorScheme colorScheme, bool isTablet) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(FirebaseAuth.instance.currentUser!.uid)
-          .collection('playlists')
-          //.orderBy('createdAt', descending: true)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildLoadingState(colorScheme, isTablet);
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    return Obx(() {
+      final userPrivatePlaylists = playlistController.playlists.toList();
+      final userPublicPlaylists = playlistController.publicPlaylists
+          .where((p) => p.ownerId == uid)
+          .toList();
+
+      final allPlaylists = <PlaylistModel>[];
+      final seenIds = <String>{};
+      for (final p in [...userPrivatePlaylists, ...userPublicPlaylists]) {
+        if (seenIds.add(p.id)) {
+          allPlaylists.add(p);
         }
+      }
 
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return _buildEmptyState(colorScheme, isTablet);
-        }
+      if (allPlaylists.isEmpty) {
+        return _buildEmptyState(colorScheme, isTablet);
+      }
 
-        final playlists = snapshot.data!.docs
-            .map(PlaylistModel.fromDocumentSnapshot)
-            .toList();
-
-        return FadeTransition(
-          opacity: _listAnimation,
-          child: ListView.separated(
-            shrinkWrap: true,
-            itemCount: playlists.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final playlist = playlists[index];
-              return _buildPlaylistItem(playlist, colorScheme, isTablet, index);
-            },
-          ),
-        );
-      },
-    );
+      return FadeTransition(
+        opacity: _listAnimation,
+        child: ListView.separated(
+          shrinkWrap: true,
+          itemCount: allPlaylists.length,
+          separatorBuilder: (context, index) => const SizedBox(height: 8),
+          itemBuilder: (context, index) {
+            final playlist = allPlaylists[index];
+            return _buildPlaylistItem(playlist, colorScheme, isTablet, index);
+          },
+        ),
+      );
+    });
   }
 
   Widget _buildPlaylistItem(
@@ -430,7 +460,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: () => _selectPlaylist(playlist.id),
+            onTap: () => _selectPlaylist(playlist),
             borderRadius: BorderRadius.circular(16),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
@@ -510,7 +540,7 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${playlist.videoIds.length} videos',
+                          '${playlist.videoCount} videos • ${playlist.isPublic ? "Public" : "Private"}',
                           style: TextStyle(
                             fontSize: isTablet ? 12 : 10,
                             color: colorScheme.onSurface.withValues(alpha: 0.6),
@@ -679,8 +709,9 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
     );
   }
 
-  void _selectPlaylist(String playlistId) {
-    _dialogController.setSelectedPlaylist(playlistId);
+  void _selectPlaylist(PlaylistModel playlist) {
+    _dialogController.setSelectedPlaylist(playlist.id);
+    _selectedPlaylist = playlist;
   }
 
   Future<void> _createNewPlaylist() async {
@@ -690,7 +721,10 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
     _dialogController.setCreatingPlaylist(true);
 
     try {
-      await playlistController.createPlayList(name);
+      await playlistController.createPlayList(
+        name,
+        isPublic: _isPublicNewPlaylist,
+      );
 
       newPlaylistCtrl.clear();
 
@@ -736,10 +770,11 @@ class _ModernizedPlaylistDialogState extends State<_ModernizedPlaylistDialog>
     _dialogController.setAddingToPlaylist(true);
 
     try {
+      final isPublic = _selectedPlaylist?.isPublic ?? false;
       await playlistController.addVideoToPlaylist(
         _dialogController.selectedPlaylistId.value,
         widget.videoId,
-        false,
+        isPublic,
       );
 
       if (mounted) {

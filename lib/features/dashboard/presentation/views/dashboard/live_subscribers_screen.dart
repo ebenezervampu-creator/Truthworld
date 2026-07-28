@@ -51,7 +51,7 @@ class LiveSubscribersScreen extends StatelessWidget {
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.sensors_rounded, color: AppColors.brand, size: 16),
+                        Icon(Icons.sensors_rounded, color: Colors.white, size: 16),
                         SizedBox(width: 8),
                         Text(
                           'LIVE COUNT',

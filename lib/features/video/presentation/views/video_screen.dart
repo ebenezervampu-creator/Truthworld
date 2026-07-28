@@ -17,9 +17,12 @@ import 'package:truthworld/core/widgets/shimmer_skeletons.dart';
 import 'package:truthworld/data/models/channel.dart';
 import 'package:truthworld/features/channel/presentation/controllers/channel_controller_unified.dart';
 import 'package:truthworld/features/home/presentation/controllers/home_controller.dart';
+import 'package:truthworld/data/models/playlist_model.dart';
 import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
 import 'package:truthworld/features/miniplayer/presentation/controllers/miniplayer_controller.dart';
 import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
+import 'package:truthworld/features/playlist/presentation/views/playlist/playlist_detail_screen.dart';
+import 'package:truthworld/features/topics/data/models/topic.dart';
 import 'package:truthworld/features/video/data/models/comment.dart';
 import 'package:truthworld/features/video/data/models/reply.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
@@ -31,6 +34,7 @@ import 'package:truthworld/features/video/presentation/views/comments/premium_co
 import 'package:truthworld/features/video/presentation/views/player/tower_custom_player.dart';
 import 'package:truthworld/features/video/presentation/widgets/truth_index_badge.dart';
 import 'package:truthworld/features/video/presentation/widgets/video_analysis_bottom_sheet.dart';
+import 'package:truthworld/features/video/presentation/widgets/video_chapters_bottom_sheet.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 class VideoScreen extends GetView<VideoController> {
@@ -553,6 +557,20 @@ class VideoScreen extends GetView<VideoController> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildVideoTitle(),
+            Obx(() {
+              final banners = <Widget>[];
+              if (ctrl.navigatedFromPlaylist.value && ctrl.currentPlaylist.value != null) {
+                banners.add(_buildPlaylistBanner(context, ctrl.currentPlaylist.value!));
+              }
+              if (ctrl.navigatedFromTopic.value && ctrl.videoTopicsList.isNotEmpty) {
+                banners.add(_buildTopicBanner(context, ctrl.videoTopicsList.first));
+              }
+              if (banners.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: banners,
+              );
+            }),
             const SizedBox(height: 12),
             if (ctrl.video.factCheckUrl.isNotEmpty)
               const SizedBox.shrink(),
@@ -560,6 +578,7 @@ class VideoScreen extends GetView<VideoController> {
             const SizedBox(height: 16),
             _buildDescriptionBox(context),
             if (!isDesktop &&
+                ctrl.navigatedFromPlaylist.value &&
                 ctrl.currentPlaylist.value != null &&
                 ctrl.playlistVideos.isNotEmpty &&
                 ctrl.showPlaylistDrawer.value)
@@ -570,6 +589,279 @@ class VideoScreen extends GetView<VideoController> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildPlaylistBanner(BuildContext context, PlaylistModel playlist) {
+    return Obx(() {
+      final isPlaying = controller.isPlayingRx.value;
+      final currentIndex = controller.calculatedPlaylistIndex;
+      final totalVideos = controller.playlistVideos.isNotEmpty
+          ? controller.playlistVideos.length
+          : (playlist.videoIds.isNotEmpty
+              ? playlist.videoIds.length
+              : (playlist.videoCount > 0 ? playlist.videoCount : 1));
+
+      return Container(
+        margin: const EdgeInsets.only(top: 12, bottom: 4),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.brand.withValues(alpha: 0.25),
+              AppColors.bgSurface,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppColors.brand.withValues(alpha: 0.4),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _navigateToPlaylistDetail(playlist),
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  // Rotating Playlist Avatar
+                  RotatingPlaylistAvatar(
+                    playlist: playlist,
+                    isPlaying: isPlaying,
+                    size: 52,
+                  ),
+                  const SizedBox(width: 14),
+                  // Playlist info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.brand,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'PLAYLIST',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                playlist.playlistName,
+                                style: GoogleFonts.roboto(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            PlayingAudioWaveAnimation(
+                              isPlaying: isPlaying,
+                              height: 12,
+                              barWidth: 2,
+                              color: AppColors.brand,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Playing video ${currentIndex + 1} of $totalVideos',
+                              style: GoogleFonts.roboto(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Tap indicator arrow
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
+  void _navigateToPlaylistDetail(PlaylistModel playlist) {
+    Get.to(() => PlaylistDetailScreen(playlist: playlist));
+  }
+
+  Widget _buildTopicBanner(BuildContext context, Topic topic) {
+    return Obx(() {
+      final isPlaying = controller.isPlayingRx.value;
+
+      return Container(
+        margin: const EdgeInsets.only(top: 12, bottom: 4),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              const Color(0xFF3B82F6).withValues(alpha: 0.25),
+              AppColors.bgSurface,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFF3B82F6).withValues(alpha: 0.4),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _showTopicBottomSheet(context, topic),
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  // Rotating Topic Avatar
+                  RotatingTopicAvatar(
+                    topic: topic,
+                    isPlaying: isPlaying,
+                    size: 52,
+                  ),
+                  const SizedBox(width: 14),
+                  // Topic info
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF3B82F6),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text(
+                                'TOPIC',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                topic.title,
+                                style: GoogleFonts.roboto(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            PlayingAudioWaveAnimation(
+                              isPlaying: isPlaying,
+                              height: 12,
+                              barWidth: 2,
+                              color: const Color(0xFF3B82F6),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${topic.videoCount > 0 ? '${topic.videoCount} videos' : 'Topic Hub'} • Tap to view topic videos',
+                              style: GoogleFonts.roboto(
+                                color: Colors.white70,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Tap indicator arrow
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    });
+  }
+
+  void _showTopicBottomSheet(BuildContext context, Topic topic) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => TopicVideosBottomSheet(topic: topic, videoTag: tag),
     );
   }
 
@@ -590,35 +882,45 @@ class VideoScreen extends GetView<VideoController> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Header
+          // Header with Rotating Playlist Avatar
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                Obx(() => RotatingPlaylistAvatar(
+                      playlist: controller.currentPlaylist.value!,
+                      isPlaying: controller.isPlayingRx.value,
+                      size: 46,
+                      onTap: () => _navigateToPlaylistDetail(controller.currentPlaylist.value!),
+                    )),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        controller.currentPlaylist.value!.playlistName,
-                        style: GoogleFonts.roboto(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                  child: GestureDetector(
+                    onTap: () => _navigateToPlaylistDetail(controller.currentPlaylist.value!),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          controller.currentPlaylist.value!.playlistName,
+                          style: GoogleFonts.roboto(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "${controller.video.channelName.isNotEmpty ? '${controller.video.channelName} - ' : ''}${controller.currentPlaylistIndex.value + 1} / ${controller.playlistVideos.length}",
-                        style: GoogleFonts.roboto(
-                          color: Colors.white.withValues(alpha: 0.7),
-                          fontSize: 13,
+                        const SizedBox(height: 4),
+                        Text(
+                          "${controller.video.channelName.isNotEmpty ? '${controller.video.channelName} - ' : ''}${controller.currentPlaylistIndex.value + 1} / ${controller.playlistVideos.length}",
+                          style: GoogleFonts.roboto(
+                            color: Colors.white.withValues(alpha: 0.7),
+                            fontSize: 13,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 IconButton(
@@ -707,16 +1009,17 @@ class VideoScreen extends GetView<VideoController> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Play Icon or Index
+                        // Playing Audio Wave Animation or Index
                         SizedBox(
                           width: 24,
                           child: Center(
                             child: isActive
-                                ? const Icon(
-                                    Icons.play_arrow,
-                                    color: Colors.white,
-                                    size: 20,
-                                  )
+                                ? Obx(() => PlayingAudioWaveAnimation(
+                                      isPlaying: controller.isPlayingRx.value,
+                                      height: 16,
+                                      barWidth: 2.5,
+                                      color: AppColors.brand,
+                                    ))
                                 : Text(
                                     '${index + 1}',
                                     style: GoogleFonts.roboto(
@@ -2658,6 +2961,12 @@ class VideoScreen extends GetView<VideoController> {
       final chapters = controller.video.chapters;
       if (chapters.isEmpty) return const SizedBox.shrink();
 
+      final playerCtrl = Get.isRegistered<TowerPlayerController>(tag: tag)
+          ? Get.find<TowerPlayerController>(tag: tag)
+          : (Get.isRegistered<TowerPlayerController>()
+              ? Get.find<TowerPlayerController>()
+              : null);
+
       return Container(
         margin: const EdgeInsets.only(bottom: 16),
         decoration: BoxDecoration(
@@ -2666,42 +2975,48 @@ class VideoScreen extends GetView<VideoController> {
           border: Border.all(color: border.withValues(alpha: 0.5)),
         ),
         child: ExpansionTile(
-          title: Row(
-            children: [
-              const Icon(Icons.bookmarks_rounded, color: primary, size: 20),
-              const SizedBox(width: 12),
-              Text(
-                'Chapters',
-                style: GoogleFonts.roboto(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: textPrimary,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  chapters.length.toString(),
-                  style: const TextStyle(
-                    color: primary,
-                    fontSize: 12,
+          iconColor: Colors.white,
+          collapsedIconColor: Colors.white,
+          title: InkWell(
+            onTap: () => VideoChaptersBottomSheet.show(
+              Get.context!,
+              video: controller.video,
+              videoTag: tag,
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.bookmarks_rounded, color: Colors.white, size: 20),
+                const SizedBox(width: 12),
+                Text(
+                  'Chapters',
+                  style: GoogleFonts.roboto(
                     fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: textPrimary,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF162A45),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    chapters.length.toString(),
+                    style: const TextStyle(
+                      color: Color(0xFF3EA6FF),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           subtitle: Obx(() {
-            // Subscribe to VideoController to ensure Obx is never empty
             final _ = controller.video.id;
-            final current = Get.isRegistered<TowerPlayerController>(tag: tag)
-                ? Get.find<TowerPlayerController>(tag: tag).currentChapter.value
-                : null;
+            final current = playerCtrl?.currentChapter.value;
             if (current == null) return const SizedBox.shrink();
             return Text(
               'Current: ${current.title}',
@@ -2719,97 +3034,11 @@ class VideoScreen extends GetView<VideoController> {
               padding: const EdgeInsets.only(bottom: 8),
               itemBuilder: (context, index) {
                 final chapter = chapters[index];
-                return Obx(() {
-                  // Subscribe to VideoController to ensure Obx is never empty
-                  final _ = controller.video.id;
-                  final isCurrent =
-                      Get.isRegistered<TowerPlayerController>(tag: tag) &&
-                      Get.find<TowerPlayerController>(
-                            tag: tag,
-                          ).currentChapter.value ==
-                          chapter;
-
-                  return InkWell(
-                    onTap: () {
-                      if (Get.isRegistered<TowerPlayerController>(tag: tag)) {
-                        Get.find<TowerPlayerController>(
-                          tag: tag,
-                        ).seekTo(chapter.startTime);
-                      }
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      color: isCurrent ? primary.withValues(alpha: 0.05) : null,
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 80,
-                            height: 45,
-                            decoration: BoxDecoration(
-                              color: Colors.black26,
-                              borderRadius: BorderRadius.circular(8),
-                              image: chapter.thumbnailUrl != null
-                                  ? DecorationImage(
-                                      image: CachedNetworkImageProvider(
-                                        chapter.thumbnailUrl!,
-                                      ),
-                                      fit: BoxFit.cover,
-                                      onError: (exception, stackTrace) {},
-                                    )
-                                  : null,
-                            ),
-                            child: Center(
-                              child: Text(
-                                chapter.formattedStartTime,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  chapter.title,
-                                  style: GoogleFonts.roboto(
-                                    fontSize: 14,
-                                    fontWeight: isCurrent
-                                        ? FontWeight.bold
-                                        : FontWeight.w500,
-                                    color: isCurrent ? primary : textPrimary,
-                                  ),
-                                ),
-                                if (isCurrent)
-                                  const Text(
-                                    'Now Playing',
-                                    style: TextStyle(
-                                      color: primary,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          if (isCurrent)
-                            const Icon(
-                              Icons.play_circle_fill,
-                              color: primary,
-                              size: 20,
-                            ),
-                        ],
-                      ),
-                    ),
-                  );
-                });
+                return ChapterTile(
+                  chapter: chapter,
+                  video: controller.video,
+                  playerCtrl: playerCtrl,
+                );
               },
             ),
           ],
@@ -4695,4 +4924,880 @@ class _ResponsiveAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+}
+
+// ==========================================================================
+// ROTATING PLAYLIST AVATAR WIDGET
+// ==========================================================================
+class RotatingPlaylistAvatar extends StatefulWidget {
+  final PlaylistModel playlist;
+  final bool isPlaying;
+  final VoidCallback? onTap;
+  final double size;
+
+  const RotatingPlaylistAvatar({
+    super.key,
+    required this.playlist,
+    this.isPlaying = true,
+    this.onTap,
+    this.size = 52.0,
+  });
+
+  @override
+  State<RotatingPlaylistAvatar> createState() => _RotatingPlaylistAvatarState();
+}
+
+class _RotatingPlaylistAvatarState extends State<RotatingPlaylistAvatar>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _rotationController;
+
+  @override
+  void initState() {
+    super.initState();
+    _rotationController = AnimationController(
+      duration: const Duration(seconds: 10),
+      vsync: this,
+    );
+    if (widget.isPlaying) {
+      _rotationController.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(RotatingPlaylistAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isPlaying != oldWidget.isPlaying) {
+      if (widget.isPlaying) {
+        _rotationController.repeat();
+      } else {
+        _rotationController.stop();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _rotationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final avatar = Stack(
+      clipBehavior: Clip.none,
+      children: [
+          // Rotating vinyl disc / circular avatar
+          RotationTransition(
+            turns: _rotationController,
+            child: Container(
+              width: widget.size,
+              height: widget.size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const SweepGradient(
+                  colors: [
+                    Color(0xFF1F2937),
+                    Color(0xFF111827),
+                    Color(0xFF374151),
+                    Color(0xFF111827),
+                    Color(0xFF1F2937),
+                  ],
+                ),
+                border: Border.all(
+                  color: AppColors.brand.withValues(alpha: 0.8),
+                  width: 2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.brand.withValues(alpha: 0.35),
+                    blurRadius: 8,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(3.0),
+                child: ClipOval(
+                  child: widget.playlist.thumbnailUrl.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: widget.playlist.thumbnailUrl,
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => _buildFallback(),
+                          errorWidget: (_, __, ___) => _buildFallback(),
+                        )
+                      : _buildFallback(),
+                ),
+              ),
+            ),
+          ),
+          // Center spindle dot for vinyl record styling
+          Positioned.fill(
+            child: Center(
+              child: Container(
+                width: widget.size * 0.22,
+                height: widget.size * 0.22,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black.withValues(alpha: 0.85),
+                  border: Border.all(color: Colors.white60, width: 1),
+                ),
+              ),
+            ),
+          ),
+          // Playing equalizer badge at bottom right corner
+          Positioned(
+            bottom: -2,
+            right: -2,
+            child: Container(
+              padding: const EdgeInsets.all(3.5),
+              decoration: const BoxDecoration(
+                color: AppColors.brand,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black45,
+                    blurRadius: 4,
+                  ),
+                ],
+              ),
+              child: PlayingAudioWaveAnimation(
+                isPlaying: widget.isPlaying,
+                height: 10,
+                barWidth: 2,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      );
+
+    if (widget.onTap != null) {
+      return GestureDetector(
+        onTap: widget.onTap,
+        child: avatar,
+      );
+    }
+    return avatar;
+  }
+
+  Widget _buildFallback() {
+    return Container(
+      color: Colors.grey[900],
+      child: const Icon(
+        Icons.playlist_play_rounded,
+        color: Colors.white70,
+        size: 24,
+      ),
+    );
+  }
+}
+
+// ==========================================================================
+// PLAYING AUDIO WAVE ANIMATION WIDGET
+// ==========================================================================
+class PlayingAudioWaveAnimation extends StatefulWidget {
+  final bool isPlaying;
+  final double height;
+  final double barWidth;
+  final Color color;
+
+  const PlayingAudioWaveAnimation({
+    super.key,
+    this.isPlaying = true,
+    this.height = 14,
+    this.barWidth = 2.5,
+    this.color = AppColors.brand,
+  });
+
+  @override
+  State<PlayingAudioWaveAnimation> createState() => _PlayingAudioWaveAnimationState();
+}
+
+class _PlayingAudioWaveAnimationState extends State<PlayingAudioWaveAnimation>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animController;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      duration: const Duration(milliseconds: 600),
+      vsync: this,
+    );
+    if (widget.isPlaying) {
+      _animController.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(PlayingAudioWaveAnimation oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isPlaying != oldWidget.isPlaying) {
+      if (widget.isPlaying) {
+        _animController.repeat(reverse: true);
+      } else {
+        _animController.stop();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animController,
+      builder: (context, _) {
+        final t = _animController.value;
+        final h1 = widget.height * (0.3 + 0.7 * (0.5 + 0.5 * (t * 3.14).abs()));
+        final h2 = widget.height * (0.4 + 0.6 * (0.5 + 0.5 * ((1 - t) * 3.14).abs()));
+        final h3 = widget.height * (0.2 + 0.8 * (0.5 + 0.5 * ((t + 0.5) * 3.14).abs()));
+
+        return SizedBox(
+          height: widget.height,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _buildBar(widget.isPlaying ? h1 : widget.height * 0.4),
+              SizedBox(width: widget.barWidth),
+              _buildBar(widget.isPlaying ? h2 : widget.height * 0.7),
+              SizedBox(width: widget.barWidth),
+              _buildBar(widget.isPlaying ? h3 : widget.height * 0.3),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildBar(double barHeight) {
+    return Container(
+      width: widget.barWidth,
+      height: barHeight.clamp(2.0, widget.height),
+      decoration: BoxDecoration(
+        color: widget.color,
+        borderRadius: BorderRadius.circular(1),
+      ),
+    );
+  }
+}
+
+// ==========================================================================
+// ROTATING TOPIC AVATAR WIDGET
+// ==========================================================================
+class RotatingTopicAvatar extends StatefulWidget {
+  final Topic topic;
+  final bool isPlaying;
+  final VoidCallback? onTap;
+  final double size;
+
+  const RotatingTopicAvatar({
+    super.key,
+    required this.topic,
+    this.isPlaying = true,
+    this.onTap,
+    this.size = 52.0,
+  });
+
+  @override
+  State<RotatingTopicAvatar> createState() => _RotatingTopicAvatarState();
+}
+
+class _RotatingTopicAvatarState extends State<RotatingTopicAvatar>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _rotationController;
+
+  @override
+  void initState() {
+    super.initState();
+    _rotationController = AnimationController(
+      duration: const Duration(seconds: 10),
+      vsync: this,
+    );
+    if (widget.isPlaying) {
+      _rotationController.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(RotatingTopicAvatar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isPlaying != oldWidget.isPlaying) {
+      if (widget.isPlaying) {
+        _rotationController.repeat();
+      } else {
+        _rotationController.stop();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _rotationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = widget.topic.thumbnailUrl ?? widget.topic.coverImage ?? '';
+
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Rotating vinyl disc / circular avatar
+          RotationTransition(
+            turns: _rotationController,
+            child: Container(
+              width: widget.size,
+              height: widget.size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const SweepGradient(
+                  colors: [
+                    Color(0xFF3B82F6),
+                    Color(0xFF1D4ED8),
+                    Color(0xFF8B5CF6),
+                    Color(0xFF1D4ED8),
+                    Color(0xFF3B82F6),
+                  ],
+                ),
+                border: Border.all(
+                  color: const Color(0xFF60A5FA),
+                  width: 2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF3B82F6).withValues(alpha: 0.4),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(3.0),
+                child: ClipOval(
+                  child: imageUrl.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => _buildFallback(),
+                          errorWidget: (_, __, ___) => _buildFallback(),
+                        )
+                      : _buildFallback(),
+                ),
+              ),
+            ),
+          ),
+          // Center spindle dot for vinyl record styling
+          Positioned.fill(
+            child: Center(
+              child: Container(
+                width: widget.size * 0.22,
+                height: widget.size * 0.22,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black.withValues(alpha: 0.85),
+                  border: Border.all(color: Colors.white60, width: 1),
+                ),
+              ),
+            ),
+          ),
+          // Playing equalizer badge at bottom right corner
+          Positioned(
+            bottom: -2,
+            right: -2,
+            child: Container(
+              padding: const EdgeInsets.all(3.5),
+              decoration: const BoxDecoration(
+                color: Color(0xFF3B82F6),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black45,
+                    blurRadius: 4,
+                  ),
+                ],
+              ),
+              child: PlayingAudioWaveAnimation(
+                isPlaying: widget.isPlaying,
+                height: 10,
+                barWidth: 2,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFallback() {
+    return Container(
+      color: Colors.grey[900],
+      child: const Center(
+        child: Text(
+          '#',
+          style: TextStyle(
+            color: Color(0xFF60A5FA),
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ==========================================================================
+// TOPIC VIDEOS BOTTOM SHEET / POPUP
+// ==========================================================================
+class TopicVideosBottomSheet extends StatefulWidget {
+  final Topic topic;
+  final String? videoTag;
+
+  const TopicVideosBottomSheet({
+    required this.topic,
+    super.key,
+    this.videoTag,
+  });
+
+  @override
+  State<TopicVideosBottomSheet> createState() => _TopicVideosBottomSheetState();
+}
+
+class _TopicVideosBottomSheetState extends State<TopicVideosBottomSheet> {
+  String _selectedFilter = 'All';
+  List<Video> _allVideos = [];
+  bool _isLoading = true;
+
+  final List<String> _filters = [
+    'All',
+    'From subscribed channels',
+    'New',
+    'Trending',
+    'Popular',
+    'Fact checked',
+  ];
+
+  VideoController? get _videoController {
+    try {
+      if (widget.videoTag != null && Get.isRegistered<VideoController>(tag: widget.videoTag)) {
+        return Get.find<VideoController>(tag: widget.videoTag);
+      }
+      if (Get.isRegistered<VideoController>()) {
+        return Get.find<VideoController>();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTopicVideos();
+  }
+
+  Future<void> _loadTopicVideos() async {
+    try {
+      final slug = widget.topic.slug;
+      final topicId = widget.topic.id;
+
+      // 1. Query by topic slug
+      var snap = await FirebaseFirestore.instance
+          .collection('videos')
+          .where('topics', arrayContains: slug.isNotEmpty ? slug : topicId)
+          .limit(30)
+          .get();
+
+      var fetched = snap.docs.map(Video.fromDocumentSnapshot).toList();
+
+      // 2. If empty and featuredVideoIds present, fetch by IDs
+      if (fetched.isEmpty && widget.topic.featuredVideoIds.isNotEmpty) {
+        final ids = widget.topic.featuredVideoIds.take(10).toList();
+        final snapIds = await FirebaseFirestore.instance
+            .collection('videos')
+            .where(FieldPath.documentId, whereIn: ids)
+            .get();
+        fetched = snapIds.docs.map(Video.fromDocumentSnapshot).toList();
+      }
+
+      // 3. Fallback: query videos matching topic title
+      if (fetched.isEmpty) {
+        final snapFallback = await FirebaseFirestore.instance
+            .collection('videos')
+            .limit(25)
+            .get();
+        fetched = snapFallback.docs
+            .map(Video.fromDocumentSnapshot)
+            .where((v) =>
+                v.title.toLowerCase().contains(widget.topic.title.toLowerCase()) ||
+                v.tags.any((t) => t.toLowerCase() == widget.topic.title.toLowerCase()) ||
+                v.category.toLowerCase() == widget.topic.title.toLowerCase())
+            .toList();
+        if (fetched.isEmpty && snapFallback.docs.isNotEmpty) {
+          fetched = snapFallback.docs.map(Video.fromDocumentSnapshot).toList();
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _allVideos = fetched;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  List<Video> get _filteredVideos {
+    final videoController = _videoController;
+    final currentVideo = videoController?.video;
+
+    switch (_selectedFilter) {
+      case 'From subscribed channels':
+        if (videoController == null || currentVideo == null) return _allVideos;
+        return _allVideos.where((v) {
+          return videoController.channelController.isSubscribed.value &&
+              v.channelId == currentVideo.channelId;
+        }).toList();
+      case 'New':
+        final list = List<Video>.from(_allVideos);
+        list.sort((a, b) => _getDateTime(b.createdAt).compareTo(_getDateTime(a.createdAt)));
+        return list;
+      case 'Trending':
+        final list = List<Video>.from(_allVideos);
+        list.sort((a, b) => b.views.compareTo(a.views));
+        return list;
+      case 'Popular':
+        final list = List<Video>.from(_allVideos);
+        list.sort((a, b) => b.likes.compareTo(a.likes));
+        return list;
+      case 'Fact checked':
+        final factChecked = _allVideos.where((v) =>
+          v.category.toLowerCase().contains('fact') ||
+          v.tags.any((t) => t.toLowerCase().contains('fact'))
+        ).toList();
+        return factChecked.isNotEmpty ? factChecked : _allVideos;
+      case 'All':
+      default:
+        return _allVideos;
+    }
+  }
+
+  DateTime _getDateTime(dynamic date) {
+    if (date is DateTime) return date;
+    if (date is Timestamp) return date.toDate();
+    return DateTime(2000);
+  }
+
+  String _formatViews(int views) {
+    if (views >= 1000000) return '${(views / 1000000).toStringAsFixed(1)}M';
+    if (views >= 1000) return '${(views / 1000).toStringAsFixed(1)}K';
+    return '$views';
+  }
+
+  String _formatDate(dynamic date) {
+    if (date == null) return '';
+    DateTime? dt;
+    if (date is DateTime) {
+      dt = date;
+    } else if (date is Timestamp) {
+      dt = date.toDate();
+    }
+    if (dt == null) return '';
+    final diff = DateTime.now().difference(dt);
+    if (diff.inDays >= 365) return '${(diff.inDays / 365).floor()} years ago';
+    if (diff.inDays >= 30) return '${(diff.inDays / 30).floor()} months ago';
+    if (diff.inDays >= 7) return '${(diff.inDays / 7).floor()} weeks ago';
+    if (diff.inDays >= 1) return '${diff.inDays} days ago';
+    if (diff.inHours >= 1) return '${diff.inHours} hours ago';
+    if (diff.inMinutes >= 1) return '${diff.inMinutes} mins ago';
+    return 'Just now';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final videoController = _videoController;
+    final currentVideoId = videoController?.video.id ?? '';
+    final isPlaying = videoController?.isPlayingRx.value ?? false;
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.82,
+      decoration: BoxDecoration(
+        color: AppColors.bgSurface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        border: Border.all(
+          color: const Color(0xFF3B82F6).withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        children: [
+          // Drag handle bar
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 10, bottom: 6),
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+
+          // Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                RotatingTopicAvatar(
+                  topic: widget.topic,
+                  isPlaying: isPlaying,
+                  size: 44,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.topic.title,
+                        style: GoogleFonts.roboto(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${_allVideos.length} topic videos',
+                        style: GoogleFonts.roboto(
+                          color: Colors.white60,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+          ),
+
+          const Divider(color: Colors.white10, height: 1),
+
+          // Filter pills bar
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              children: _filters.map((filter) {
+                final isSelected = _selectedFilter == filter;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilterChip(
+                    label: Text(
+                      filter,
+                      style: GoogleFonts.roboto(
+                        color: isSelected ? Colors.white : Colors.white70,
+                        fontSize: 12,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() => _selectedFilter = filter);
+                      }
+                    },
+                    backgroundColor: Colors.white.withValues(alpha: 0.08),
+                    selectedColor: const Color(0xFF3B82F6),
+                    checkmarkColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      side: BorderSide(
+                        color: isSelected
+                            ? const Color(0xFF3B82F6)
+                            : Colors.white.withValues(alpha: 0.15),
+                      ),
+                    ),
+                    showCheckmark: false,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+
+          const Divider(color: Colors.white10, height: 1),
+
+          // Video list
+          Expanded(
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(
+                      color: Color(0xFF3B82F6),
+                    ),
+                  )
+                : _filteredVideos.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No videos found for "$_selectedFilter"',
+                          style: GoogleFonts.roboto(
+                            color: Colors.white54,
+                            fontSize: 14,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _filteredVideos.length,
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        itemBuilder: (context, index) {
+                          final video = _filteredVideos[index];
+                          final isCurrent = video.id == currentVideoId;
+
+                          return Material(
+                            color: isCurrent
+                                ? const Color(0xFF3B82F6).withValues(alpha: 0.15)
+                                : Colors.transparent,
+                            child: InkWell(
+                              onTap: () {
+                                Navigator.of(context).pop();
+                                Get.offNamed('/watch?v=${video.id}', arguments: {
+                                  'video': video,
+                                  'topic': widget.topic,
+                                  'fromTopic': true,
+                                });
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Thumbnail (NO drag handle '=' lines before it!)
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Stack(
+                                        children: [
+                                          Image.network(
+                                            video.thumbnailUrl,
+                                            width: 120,
+                                            height: 68,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => Container(
+                                              width: 120,
+                                              height: 68,
+                                              color: Colors.grey[900],
+                                              child: const Icon(
+                                                Icons.play_circle_fill_rounded,
+                                                color: Colors.white38,
+                                              ),
+                                            ),
+                                          ),
+                                          if (video.duration.isNotEmpty)
+                                            Positioned(
+                                              bottom: 4,
+                                              right: 4,
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 4,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black.withValues(alpha: 0.8),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  video.duration,
+                                                  style: GoogleFonts.roboto(
+                                                    color: Colors.white,
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    // Video details (NO like/dislike buttons!)
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  video.title,
+                                                  style: GoogleFonts.roboto(
+                                                    color: isCurrent
+                                                        ? const Color(0xFF3B82F6)
+                                                        : Colors.white,
+                                                    fontSize: 13,
+                                                    fontWeight: isCurrent
+                                                        ? FontWeight.bold
+                                                        : FontWeight.w500,
+                                                  ),
+                                                  maxLines: 2,
+                                                  overflow: TextOverflow.ellipsis,
+                                                ),
+                                              ),
+                                              if (isCurrent) ...[
+                                                const SizedBox(width: 6),
+                                                PlayingAudioWaveAnimation(
+                                                  isPlaying: isPlaying,
+                                                  height: 12,
+                                                  barWidth: 2,
+                                                  color: const Color(0xFF3B82F6),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            '${video.channelName} • ${_formatViews(video.views)} views • ${_formatDate(video.createdAt)}',
+                                            style: GoogleFonts.roboto(
+                                              color: Colors.white60,
+                                              fontSize: 11,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
 }

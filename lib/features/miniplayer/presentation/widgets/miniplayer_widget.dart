@@ -206,8 +206,9 @@ class _VideoFrame extends StatelessWidget {
 
         // Actual video.
         Obx(() {
+          final isReady = controller.isVideoReady.value;
           final vpc = controller.videoPlayerController;
-          if (vpc == null || !controller.isVideoReady.value) {
+          if (vpc == null || !isReady) {
             return const SizedBox.shrink();
           }
           double w = 16;
@@ -759,8 +760,9 @@ class _ExpandedVideo extends StatelessWidget {
               );
             }),
             Obx(() {
+              final isReady = controller.isVideoReady.value;
               final vpc = controller.videoPlayerController;
-              if (vpc == null || !controller.isVideoReady.value) {
+              if (vpc == null || !isReady) {
                 return const Center(
                   child: CircularProgressIndicator(
                     color: MiniplayerWidget._brand,

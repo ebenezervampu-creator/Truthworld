@@ -36,6 +36,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
+import 'package:truthworld/features/settings/presentation/controllers/user_settings_controller.dart';
 import 'package:truthworld/features/video/data/models/video.dart';
 import 'package:truthworld/features/video/data/models/video_chapter.dart';
 import 'package:truthworld/features/video/presentation/controllers/adaptive_birate_controller.dart';
@@ -886,10 +887,15 @@ class TowerPlayerController extends GetxController {
     _trackAnalytics(PlayerEvent('audio_lang', data: {'lang': track.langCode}));
   }
 
-  // ─── Double Tap Seek ─────────────────────────────────────────────────────
+  int get _seekStepSeconds {
+    if (Get.isRegistered<UserSettingsController>()) {
+      return UserSettingsController.to.playback.value.seekDurationSeconds;
+    }
+    return 10;
+  }
 
   void doubleTapLeft() {
-    seekRelative(-10);
+    seekRelative(-_seekStepSeconds);
     showDoubleTapLeft.value = true;
     _doubleTapTimer?.cancel();
     _doubleTapTimer = Timer(const Duration(milliseconds: 700), () {
@@ -898,7 +904,7 @@ class TowerPlayerController extends GetxController {
   }
 
   void doubleTapRight() {
-    seekRelative(10);
+    seekRelative(_seekStepSeconds);
     showDoubleTapRight.value = true;
     _doubleTapTimer?.cancel();
     _doubleTapTimer = Timer(const Duration(milliseconds: 700), () {

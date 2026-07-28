@@ -343,7 +343,7 @@ class DiscoverChannelsPage extends StatelessWidget {
                           if (channel.isVerified)
                             const Padding(
                               padding: EdgeInsets.only(left: 4),
-                              child: Icon(Icons.verified, color: AppColors.brand, size: 14),
+                              child: Icon(Icons.verified, color: Colors.white, size: 14),
                             ),
                         ],
                       ),

@@ -549,7 +549,7 @@ class CreatorIntelligencePage extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.history_rounded, size: 14, color: AppColors.brand),
+          const Icon(Icons.history_rounded, size: 14, color: Colors.white),
           const SizedBox(width: 6),
           Flexible(
             child: Text(
@@ -636,7 +636,7 @@ class CreatorIntelligencePage extends StatelessWidget {
                   const SizedBox(height: 20),
                   Row(
                     children: [
-                      const Icon(Icons.verified_user_rounded, color: AppColors.brand, size: 28),
+                      const Icon(Icons.verified_user_rounded, color: Colors.white, size: 28),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(

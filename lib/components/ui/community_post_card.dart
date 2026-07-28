@@ -407,56 +407,64 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
               final state = _reactionState.value;
               return Row(
                 children: [
-                  IconButton(
-                    icon: Icon(
-                      state.isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
-                      color: state.isLiked ? Colors.white : AppColors.textPrimary,
-                      size: 20,
+                  if (widget.post.isLikeEnabled) ...[
+                    IconButton(
+                      icon: Icon(
+                        state.isLiked ? Icons.thumb_up : Icons.thumb_up_outlined,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      onPressed: _toggleLike,
                     ),
-                    onPressed: _toggleLike,
-                  ),
-                  Text(
-                    FormatUtils.formatCount(state.likes),
-                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-                  ),
-                  const SizedBox(width: 12),
-                  IconButton(
-                    icon: Icon(
-                      state.isDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
-                      color: state.isDisliked ? AppColors.error : AppColors.textPrimary,
-                      size: 20,
+                    Text(
+                      FormatUtils.formatCount(state.likes),
+                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
                     ),
-                    onPressed: _toggleDislike,
-                  ),
-                  Text(
-                    FormatUtils.formatCount(state.dislikes),
-                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-                  ),
+                    const SizedBox(width: 12),
+                  ],
+                  if (widget.post.isDislikeEnabled) ...[
+                    IconButton(
+                      icon: Icon(
+                        state.isDisliked ? Icons.thumb_down : Icons.thumb_down_outlined,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      onPressed: _toggleDislike,
+                    ),
+                    if (widget.post.showDislikeCount)
+                      Text(
+                        FormatUtils.formatCount(state.dislikes),
+                        style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                      ),
+                    const SizedBox(width: 12),
+                  ],
                   const Spacer(),
                   // Comment Button with Icon and Text
-                  InkWell(
-                    onTap: () => _openCommentsPopup(context),
-                    borderRadius: BorderRadius.circular(20),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.comment_outlined,
-                            color: AppColors.textPrimary,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            FormatUtils.formatCount(_commentCount),
-                            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
-                          ),
-                        ],
+                  if (widget.post.isCommentsEnabled) ...[
+                    InkWell(
+                      onTap: () => _openCommentsPopup(context),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.comment_outlined,
+                              color: AppColors.textPrimary,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              FormatUtils.formatCount(_commentCount),
+                              style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
+                    const SizedBox(width: 12),
+                  ],
                   // Share Button with Icon and Text
                   InkWell(
                     onTap: () {
@@ -1510,7 +1518,7 @@ class _CommunityPostCardState extends State<CommunityPostCard> {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.send_rounded, color: AppColors.brand, size: 20),
+                          icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
                           onPressed: () async {
                             final text = textController.text.trim();
                             if (text.isEmpty) return;
@@ -2074,7 +2082,7 @@ class _CommunityCommentItemWidgetState extends State<_CommunityCommentItemWidget
                         child: const Text('Cancel', style: TextStyle(color: Colors.white54, fontSize: 12)),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.send_rounded, color: AppColors.brand, size: 18),
+                        icon: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
                         onPressed: _submitReply,
                       ),
                     ],

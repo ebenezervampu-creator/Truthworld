@@ -232,11 +232,11 @@ class CreateTopicController extends GetxController with ContentValidationMixin {
     if (selectedVideoIds.contains(videoId)) {
       selectedVideoIds.remove(videoId);
       if (chosenVideoThumbnailUrl.value == videoThumbnailUrl) {
-        chosenVideoThumbnailUrl.value = selectedVideoIds.isNotEmpty ? '' : '';
+        chosenVideoThumbnailUrl.value = '';
       }
     } else {
       selectedVideoIds.add(videoId);
-      if (chosenVideoThumbnailUrl.value.isEmpty) {
+      if (chosenVideoThumbnailUrl.value.isEmpty && videoThumbnailUrl.isNotEmpty) {
         chosenVideoThumbnailUrl.value = videoThumbnailUrl;
       }
     }

@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:truthworld/core/ux/app_snackbar.dart';
-import 'package:truthworld/features/home/presentation/controllers/main_controller.dart';
-import 'package:truthworld/features/playlist/presentation/controllers/playlist_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/tower_player_controller.dart';
 import 'package:truthworld/features/video/presentation/controllers/video_controller.dart';
 import 'package:truthworld/features/video/presentation/views/player/models/player_models.dart';
@@ -19,15 +16,9 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
     }
 
     final vc = Get.find<VideoController>(tag: ctrl.tag);
-    final mainController = Get.isRegistered<MainController>()
-        ? Get.find<MainController>()
-        : Get.put(MainController());
-    final playlistController = Get.isRegistered<PlaylistController>()
-        ? Get.find<PlaylistController>()
-        : Get.put(PlaylistController());
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
       decoration: BoxDecoration(
         color: AppColors.bgPage.withValues(alpha: 0.4),
         borderRadius: BorderRadius.circular(24),
@@ -46,7 +37,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
               isActive: vc.isLiked.value,
             );
           }),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
 
           // Dislike
           Obx(() {
@@ -58,53 +49,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
               isActive: vc.isDisliked.value,
             );
           }),
-          const SizedBox(height: 12),
-
-          // Share
-          _buildVerticalIconBtn(
-            icon: Icons.reply_rounded,
-            onTap: () => mainController.shareVideo(
-              vc.video.id,
-              vc.video.title,
-              thumbnailUrl: vc.video.thumbnailUrl,
-              channelName: vc.video.channelName,
-              durationMs: vc.video.durationValue.inMilliseconds,
-              currentPosition: vc.videoPlayerController?.value.position,
-            ),
-            flipHorizontal: true,
-          ),
-          const SizedBox(height: 12),
-
-          // Watch Later
-          Obx(() {
-            vc.rxVideo.value;
-            final isInWatchLater = playlistController.isInWatchLater(
-              vc.video.id,
-            );
-            return _buildVerticalIconBtn(
-              icon: isInWatchLater
-                  ? Icons.schedule_rounded
-                  : Icons.schedule_outlined,
-              onTap: () => playlistController.toggleWatchLater(vc.video.id),
-              isActive: isInWatchLater,
-            );
-          }),
-          const SizedBox(height: 12),
-
-          // Save
-          _buildVerticalIconBtn(
-            icon: Icons.bookmark_border_rounded,
-            onTap: () {
-              AppSnackbar.show(
-                'Saved',
-                'Video added to your library',
-                snackPosition: SnackPosition.BOTTOM,
-                backgroundColor: AppColors.bgPage,
-                colorText: AppColors.textPrimary,
-              );
-            },
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
 
           // Comments
           Obx(
@@ -118,7 +63,7 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
               isActive: ctrl.showCommentsPopup.value,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
 
           // Transcript
           Obx(
@@ -132,14 +77,29 @@ class FullscreenVerticalActionsBar extends StatelessWidget {
               isActive: ctrl.showTranscriptPopup.value,
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
 
-          // More
-          _buildVerticalIconBtn(
-            icon: Icons.more_vert_rounded,
-            onTap: () {
-              ctrl.settingsOpen.value = true;
-            },
+          // Verified / Facts
+          Obx(
+            () => _buildVerticalIconBtn(
+              icon: ctrl.showFactOverlay.value
+                  ? Icons.verified_rounded
+                  : Icons.verified_outlined,
+              onTap: () {
+                final claims = vc.video.uiReport?.keyClaims;
+                if (claims == null || claims.isEmpty) {
+                  ctrl.showToast('No fact-check data for this video');
+                  return;
+                }
+                ctrl.showFactOverlay.toggle();
+                ctrl.showToast(
+                  ctrl.showFactOverlay.value
+                      ? 'Fact overlay enabled'
+                      : 'Fact overlay disabled',
+                );
+              },
+              isActive: ctrl.showFactOverlay.value,
+            ),
           ),
         ],
       ),

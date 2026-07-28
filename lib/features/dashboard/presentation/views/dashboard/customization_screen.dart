@@ -593,7 +593,7 @@ class _ChannelCustomizationPageState extends State<ChannelCustomizationPage>
         helperText: helperText,
         prefix: prefix,
         prefixIcon: prefixIcon != null
-            ? Icon(prefixIcon, color: AppColors.brand, size: 20)
+            ? Icon(prefixIcon, color: Colors.white, size: 20)
             : null,
         labelStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
         hintStyle: const TextStyle(color: AppColors.textTertiary, fontSize: 13),

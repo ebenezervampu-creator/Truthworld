@@ -1068,7 +1068,7 @@ class ContentScreen extends StatelessWidget {
       activeColor: AppColors.brand,
       dense: true,
       contentPadding: EdgeInsets.zero,
-      secondary: Icon(icon, color: value ? AppColors.brand : AppColors.textTertiary, size: 22),
+      secondary: Icon(icon, color: value ? Colors.white : AppColors.textTertiary, size: 22),
       title: Text(
         title,
         style: AppTextStyles.bodyMedium.copyWith(

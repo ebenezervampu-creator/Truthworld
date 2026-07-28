@@ -911,6 +911,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
       stream: FirebaseFirestore.instance
           .collection('public_playlists')
           .where('channelId', isEqualTo: channel.channelId)
+          .limit(50)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -960,14 +961,11 @@ class ChannelDetailsPage extends GetView<ChannelController> {
     bool isTablet = false,
   }) {
     final currentUser = FirebaseAuth.instance.currentUser;
+    final isSubscribed = controller.isSubscribed.value;
     final isOwner = currentUser != null && currentUser.uid == channel.ownerId;
-    final baseQuery = FirebaseFirestore.instance
+    final query = FirebaseFirestore.instance
         .collection('Community')
         .where('channelId', isEqualTo: channel.channelId);
-
-    final query = isOwner
-        ? baseQuery.where('ownerId', isEqualTo: currentUser.uid)
-        : baseQuery.where('visibility', isEqualTo: 'Public');
 
     return StreamBuilder<QuerySnapshot>(
       stream: query.snapshots(),
@@ -991,6 +989,14 @@ class ChannelDetailsPage extends GetView<ChannelController> {
 
         final posts = snapshot.data!.docs
             .map((doc) => CommunityPostModel.fromMap(doc.data()! as Map<String, dynamic>))
+            .where((post) {
+              if (isOwner) return true;
+              final vis = post.visibility.toLowerCase();
+              if (vis == 'public') return true;
+              if (vis == 'subscribers' && isSubscribed) return true;
+              if (vis == 'members' && (isOwner || isSubscribed)) return true;
+              return false;
+            })
             .toList();
 
         // Sort posts by uploadedAt descending
@@ -1721,9 +1727,9 @@ class ChannelDetailsPage extends GetView<ChannelController> {
               return Column(
                 children: [
                   ListTile(
-                    leading: Icon(
+                    leading: const Icon(
                       Icons.notifications_active_rounded,
-                      color: isAll ? AppColors.brand : ytTextPrimary,
+                      color: Colors.white,
                     ),
                     title: Text(
                       'All',
@@ -1736,16 +1742,16 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                       "You'll get all notifications",
                       style: TextStyle(fontSize: 12, color: ytTextSecondary),
                     ),
-                    trailing: isAll ? const Icon(Icons.check, color: AppColors.brand) : null,
+                    trailing: isAll ? const Icon(Icons.check, color: Colors.white) : null,
                     onTap: () {
                       Navigator.pop(context);
                       controller.updateNotificationPreference(targetChannel.channelId, 'all');
                     },
                   ),
                   ListTile(
-                    leading: Icon(
+                    leading: const Icon(
                       Icons.notifications_outlined,
-                      color: isPersonalized ? AppColors.brand : ytTextPrimary,
+                      color: Colors.white,
                     ),
                     title: Text(
                       'Personalized',
@@ -1758,16 +1764,16 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                       "You'll get personalized notifications",
                       style: TextStyle(fontSize: 12, color: ytTextSecondary),
                     ),
-                    trailing: isPersonalized ? const Icon(Icons.check, color: AppColors.brand) : null,
+                    trailing: isPersonalized ? const Icon(Icons.check, color: Colors.white) : null,
                     onTap: () {
                       Navigator.pop(context);
                       controller.updateNotificationPreference(targetChannel.channelId, 'personalized');
                     },
                   ),
                   ListTile(
-                    leading: Icon(
+                    leading: const Icon(
                       Icons.notifications_off_outlined,
-                      color: isNone ? AppColors.brand : ytTextPrimary,
+                      color: Colors.white,
                     ),
                     title: Text(
                       'None',
@@ -1780,7 +1786,7 @@ class ChannelDetailsPage extends GetView<ChannelController> {
                       'Turn off all notifications',
                       style: TextStyle(fontSize: 12, color: ytTextSecondary),
                     ),
-                    trailing: isNone ? const Icon(Icons.check, color: AppColors.brand) : null,
+                    trailing: isNone ? const Icon(Icons.check, color: Colors.white) : null,
                     onTap: () {
                       Navigator.pop(context);
                       controller.updateNotificationPreference(targetChannel.channelId, 'none');

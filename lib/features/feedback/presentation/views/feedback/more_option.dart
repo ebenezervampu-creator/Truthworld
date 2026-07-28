@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:truthworld/core/services/user_preferences_service.dart';
 import 'package:truthworld/theme/app_theme.dart';
 
 void showMoreOptionsBottomSheet(
@@ -27,7 +28,7 @@ void showMoreOptionsBottomSheet(
             ),
           ),
           ListTile(
-            leading: const Icon(Icons.flag_outlined),
+            leading: const Icon(Icons.flag_outlined, color: AppColors.textPrimary),
             title: const Text('Report'),
             onTap: () {
               Navigator.pop(context);
@@ -35,15 +36,16 @@ void showMoreOptionsBottomSheet(
             },
           ),
           ListTile(
-            leading: const Icon(Icons.visibility_off_outlined),
+            leading: const Icon(Icons.visibility_off_outlined, color: AppColors.textPrimary),
             title: const Text('Not interested'),
             onTap: () {
               Navigator.pop(context);
-              Get.snackbar('Preference Updated', "We'll show less like this.");
+              UserPreferencesService.to.hideVideo(videoId);
+              Get.snackbar('Not interested', "We won't show this video anymore.");
             },
           ),
           ListTile(
-            leading: const Icon(Icons.download_outlined),
+            leading: const Icon(Icons.download_outlined, color: AppColors.textPrimary),
             title: const Text('Save video'),
             onTap: () {
               Navigator.pop(context);
@@ -63,14 +65,14 @@ void showMoreOptionsBottomSheet(
                 Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.rotate_left),
+                      icon: const Icon(Icons.rotate_left, color: AppColors.textPrimary),
                       onPressed: () {
                         rotateCallback(false);
                         Navigator.pop(context);
                       },
                     ),
                     IconButton(
-                      icon: const Icon(Icons.rotate_right),
+                      icon: const Icon(Icons.rotate_right, color: AppColors.textPrimary),
                       onPressed: () {
                         rotateCallback(true);
                         Navigator.pop(context);

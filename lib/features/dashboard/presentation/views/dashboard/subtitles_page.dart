@@ -271,7 +271,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back, color: AppColors.brand),
+                      icon: const Icon(Icons.arrow_back, color: Colors.white),
                       onPressed: () => controller.selectVideo(null),
                     ),
                     const SizedBox(width: 8),
@@ -1147,7 +1147,7 @@ class _SubtitlesPageState extends State<SubtitlesPage> {
               ),
               Row(
                 children: [
-                  const Icon(Icons.timer_outlined, size: 12, color: AppColors.brand),
+                  const Icon(Icons.timer_outlined, size: 12, color: Colors.white),
                   const SizedBox(width: 4),
                   Text(
                     cue.startTime.split('.').first,

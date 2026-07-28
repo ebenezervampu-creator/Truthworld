@@ -1,3 +1,5 @@
+import 'dart:async' show unawaited;
+
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -10,26 +12,8 @@ class AuthGuard extends GetMiddleware {
 
   final AuthService _authService = Get.find<AuthService>();
 
-  @override
-  RouteSettings? redirect(String? route) {
-    if (kIsWeb) {
-      final host = Uri.base.host.toLowerCase();
-      final isStudio = host.startsWith('studio') ||
-          Uri.base.queryParameters.containsKey('studio');
-
-      if (isStudio) {
-        if (route == '/studio' || route == '/studio/auth' || route == '/dashboard' || (route != null && route.contains('studio/auth'))) {
-          return const RouteSettings(name: '/');
-        }
-      }
-    }
-    return null;
-  }
-
   /// List of routes that require authentication
   static const List<String> protectedRoutes = [
-    '/studio',
-    '/dashboard',
     '/upload',
     '/upload/video',
     '/upload/community',
@@ -40,36 +24,67 @@ class AuthGuard extends GetMiddleware {
   ];
 
   @override
-  GetPage? onPageCalled(GetPage? page) {
-    // Check if current route is protected
-    if (page != null && protectedRoutes.contains(page.name)) {
-      // Check if user is authenticated
-      if (!_authService.isAuthenticated.value) {
-        // Show auth required dialog
-        _showAuthRequiredDialog();
-        // Return null to prevent navigation
-        return null;
+  RouteSettings? redirect(String? route) {
+    if (route == '/studio' || route == '/dashboard') {
+      return null;
+    }
+
+    if (kIsWeb) {
+      final host = Uri.base.host.toLowerCase();
+      final isStudio = host.startsWith('studio') ||
+          Uri.base.queryParameters.containsKey('studio');
+
+      if (isStudio) {
+        if (route == '/studio/auth' || (route != null && route.contains('studio/auth'))) {
+          return const RouteSettings(name: '/');
+        }
       }
     }
+
+    final cleanRoute = route?.split('?').first;
+    final isProtected = (cleanRoute != null && protectedRoutes.contains(cleanRoute)) ||
+        (route != null && protectedRoutes.contains(route));
+
+    if (isProtected && !_authService.isAuthenticated.value) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showAuthRequiredDialog();
+      });
+      return const RouteSettings(name: '/');
+    }
+
+    return null;
+  }
+
+  @override
+  GetPage? onPageCalled(GetPage? page) {
+    // Protection redirect handled in redirect() to prevent showing dialog during initial route build
     return page;
   }
 
   /// Show dialog informing user to sign in
   static void _showAuthRequiredDialog() {
-    Get.dialog(
-      AlertDialog(
-        title: const Text('Sign In Required'),
-        content: const Text('You need to sign in to access this page.'),
-        actions: [
-          TextButton(onPressed: Get.back, child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
-              Get.back();
-              Get.offNamed('/');
-            },
-            child: const Text('Sign In'),
-          ),
-        ],
+    if (Get.context == null) return;
+    if (Get.isDialogOpen ?? false) return;
+
+    unawaited(
+      Get.dialog(
+        AlertDialog(
+          title: const Text('Sign In Required'),
+          content: const Text('You need to sign in to access this page.'),
+          actions: [
+            TextButton(
+              onPressed: Get.back,
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Get.back();
+                unawaited(Get.offNamed('/'));
+              },
+              child: const Text('Sign In'),
+            ),
+          ],
+        ),
       ),
     );
   }

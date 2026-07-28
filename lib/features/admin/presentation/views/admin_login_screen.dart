@@ -13,7 +13,8 @@ class AdminLoginScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
-      body: Stack(
+      body: SafeArea(
+        child: Stack(
         children: [
           // Background Gradient Orbs
           Positioned(
@@ -70,8 +71,9 @@ class AdminLoginScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildLoadingCard() {
     return Container(
@@ -170,14 +172,113 @@ class AdminLoginScreen extends StatelessWidget {
           const Text(
             'Admin authentication is required to access data layers, manual queues, and quarantine overrides.',
             style: TextStyle(
-              
               color: AppColors.textTertiary,
               fontSize: 13,
               height: 1.5,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 36),
+          const SizedBox(height: 28),
+
+          // Email Input
+          TextField(
+            controller: controller.emailController,
+            keyboardType: TextInputType.emailAddress,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: InputDecoration(
+              hintText: 'ebenezervampu4@gmail.com',
+              labelText: 'Admin Email',
+              labelStyle: const TextStyle(color: AppColors.textSecondary),
+              filled: true,
+              fillColor: AppColors.bgInput,
+              prefixIcon: const Icon(Icons.email_outlined, color: AppColors.textPrimary),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.bgDivider),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.brand),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Password Input
+          TextField(
+            controller: controller.passwordController,
+            obscureText: true,
+            style: const TextStyle(color: AppColors.textPrimary),
+            decoration: InputDecoration(
+              hintText: '••••••••',
+              labelText: 'Admin Password',
+              labelStyle: const TextStyle(color: AppColors.textSecondary),
+              filled: true,
+              fillColor: AppColors.bgInput,
+              prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppColors.textPrimary),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.bgDivider),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.brand),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Sign In Button
+          ElevatedButton(
+            onPressed: controller.isLoading.value
+                ? null
+                : () => controller.signInWithEmailAndPassword(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.brand,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            child: controller.isLoading.value
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Text(
+                    'Sign In with Email & Password',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+          ),
+
+          const SizedBox(height: 20),
+          const Row(
+            children: [
+              Expanded(child: Divider(color: AppColors.bgDivider)),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  'OR',
+                  style: TextStyle(
+                    color: AppColors.textTertiary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              Expanded(child: Divider(color: AppColors.bgDivider)),
+            ],
+          ),
+          const SizedBox(height: 20),
 
           // Google Sign-In Button
           ElevatedButton(
@@ -214,7 +315,6 @@ class AdminLoginScreen extends StatelessWidget {
                       const Text(
                         'Continue with Google',
                         style: TextStyle(
-                          
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                           letterSpacing: 0.2,
@@ -222,6 +322,25 @@ class AdminLoginScreen extends StatelessWidget {
                       ),
                     ],
                   ),
+          ),
+
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.bgSurfaceHigh,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.bgDivider),
+            ),
+            child: const Text(
+              'Authorized Owner: ebenezervampu4@gmail.com',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+              textAlign: TextAlign.center,
+            ),
           ),
 
           const SizedBox(height: 24),
@@ -234,7 +353,6 @@ class AdminLoginScreen extends StatelessWidget {
               Text(
                 'Secured with Firebase Auth',
                 style: TextStyle(
-                  
                   color: AppColors.textTertiary,
                   fontSize: 12,
                 ),

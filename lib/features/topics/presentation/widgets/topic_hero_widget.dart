@@ -465,7 +465,7 @@ class _TopicHeroWidgetState extends State<TopicHeroWidget> {
         ),
       ),
       trailing: isSelected
-          ? const Icon(Icons.check_circle_rounded, color: AppColors.brand)
+          ? const Icon(Icons.check_circle_rounded, color: Colors.white)
           : null,
       onTap: () {
         Navigator.pop(context);

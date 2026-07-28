@@ -444,6 +444,7 @@ class _CategoryPageState extends State<CategoryPage>
             right: 20,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
                   _getCategoryIcon(),
@@ -453,6 +454,8 @@ class _CategoryPageState extends State<CategoryPage>
                 const SizedBox(height: 12),
                 Text(
                   controller.category,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurface,
                     fontSize: isDesktop ? 36 : (isTablet ? 32 : 28),
@@ -463,6 +466,8 @@ class _CategoryPageState extends State<CategoryPage>
                 const SizedBox(height: 8),
                 Text(
                   'Discover the best ${controller.category.toLowerCase()} content',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: isDesktop ? 18 : (isTablet ? 16 : 14),
@@ -1070,8 +1075,8 @@ class _CategoryPageState extends State<CategoryPage>
     bool isMobile = false,
   }) {
     final crossAxisCount = isDesktop ? 4 : (isTablet ? 3 : 2);
-    // Higher aspect ratio = shorter cards (more compact)
-    final childAspectRatio = isDesktop ? 1.1 : (isTablet ? 1.0 : 0.95);
+    // Adjusted aspect ratio for mobile to prevent card height overflow (0.78 allows 2 lines title + meta without overflow)
+    final childAspectRatio = isDesktop ? 1.1 : (isTablet ? 1.0 : 0.78);
 
     return GridView.builder(
       shrinkWrap: true,
@@ -1127,12 +1132,16 @@ class _CategoryPageState extends State<CategoryPage>
           ),
         ),
         const SizedBox(width: 12),
-        Text(
-          title,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface,
-            fontSize: isDesktop ? 24 : (isTablet ? 22 : 20),
-            fontWeight: FontWeight.bold,
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
+              fontSize: isDesktop ? 24 : (isTablet ? 22 : 20),
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ],
@@ -1146,7 +1155,7 @@ class _CategoryPageState extends State<CategoryPage>
     bool isMobile = false,
   }) {
     final crossAxisCount = isDesktop ? 4 : (isTablet ? 3 : 2);
-    final childAspectRatio = isDesktop ? 1.1 : (isTablet ? 1.0 : 0.95);
+    final childAspectRatio = isDesktop ? 1.1 : (isTablet ? 1.0 : 0.78);
 
     return Shimmer.fromColors(
       baseColor: AppColors.bgSurfaceContainerHighest.withValues(

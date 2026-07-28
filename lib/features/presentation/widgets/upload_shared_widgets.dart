@@ -28,58 +28,9 @@ class UploadChannelSelector extends StatelessWidget {
         return _buildNoChannels(isDark);
       }
 
-      // If only one channel, just show it as info (non-interactive)
-      if (channels.length == 1) {
-        final channel = channels.first;
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.bgPage : AppColors.textPrimary,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isDark ? AppColors.bgPage : AppColors.textSecondary,
-              width: 1.5,
-            ),
-          ),
-          child: Row(
-            children: [
-              UserAvatar(
-                radius: 14,
-                photoUrl: channel.avatarUrl,
-                displayName: channel.channelName,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      channel.channelName,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? AppColors.textPrimary : AppColors.bgPage,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      'Active Channel',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isDark
-                            ? AppColors.textPrimary38
-                            : AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      }
-
+      final channel = selectedChannel.value ?? channels.first;
       return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: isDark ? AppColors.bgPage : AppColors.textPrimary,
           borderRadius: BorderRadius.circular(14),
@@ -88,83 +39,40 @@ class UploadChannelSelector extends StatelessWidget {
             width: 1.5,
           ),
         ),
-        child: DropdownButtonFormField<Channel>(
-          value: selectedChannel.value,
-          decoration: InputDecoration(
-            hintText: 'Select Channel',
-            hintStyle: TextStyle(
-              fontSize: 14,
-              color: isDark
-                  ? AppColors.textPrimary38
-                  : AppColors.textSecondary,
+        child: Row(
+          children: [
+            UserAvatar(
+              radius: 14,
+              photoUrl: channel.avatarUrl,
+              displayName: channel.channelName,
             ),
-            prefixIcon: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Icon(
-                Icons.smart_display_rounded,
-                size: 20,
-                color: isDark
-                    ? AppColors.textSecondary
-                    : AppColors.textSecondary,
-              ),
-            ),
-            filled: false,
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          ),
-          dropdownColor: isDark ? AppColors.bgPage : AppColors.textPrimary,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: isDark ? AppColors.textPrimary : AppColors.bgPage,
-          ),
-          icon: Icon(
-            Icons.keyboard_arrow_down_rounded,
-            color: isDark
-                ? AppColors.textPrimary54
-                : AppColors.textSecondary,
-          ),
-          items: channels.map((channel) {
-            return DropdownMenuItem<Channel>(
-              value: channel,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.textSecondary.withValues(
-                          alpha: 0.3,
-                        ),
-                        width: 2,
-                      ),
+                  Text(
+                    channel.channelName,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? AppColors.textPrimary : AppColors.bgPage,
                     ),
-                    child: UserAvatar(
-                      radius: 14,
-                      photoUrl: channel.avatarUrl,
-                      displayName: channel.channelName,
-                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(width: 12),
-                  Flexible(
-                    child: Text(
-                      channel.channelName,
-                      overflow: TextOverflow.ellipsis,
+                  Text(
+                    'Active Channel',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark
+                          ? AppColors.textPrimary38
+                          : AppColors.textSecondary,
                     ),
                   ),
                 ],
               ),
-            );
-          }).toList(),
-          onChanged: (channel) {
-            if (channel != null) {
-              onChanged(channel);
-              HapticFeedback.selectionClick();
-            }
-          },
+            ),
+          ],
         ),
       );
     });
@@ -221,9 +129,11 @@ class UploadVisibilitySelector extends StatelessWidget {
 
   const UploadVisibilitySelector({
     required this.selectedVisibility, super.key,
+    this.options = const ['Public', 'Members', 'Subscribers'],
     this.onChanged,
   });
   final RxString selectedVisibility;
+  final List<String> options;
   final VoidCallback? onChanged;
 
   @override
@@ -231,7 +141,7 @@ class UploadVisibilitySelector extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Obx(() {
       return Row(
-        children: ['Public', 'Unlisted', 'Private'].map((visibility) {
+        children: options.map((visibility) {
           final isSelected = selectedVisibility.value == visibility;
           return Expanded(
             child: Padding(
@@ -247,14 +157,14 @@ class UploadVisibilitySelector extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? _color(visibility).withValues(alpha: 0.1)
+                        ? Colors.white.withValues(alpha: 0.12)
                         : isDark
                         ? AppColors.bgPage
                         : AppColors.textPrimary,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: isSelected
-                          ? _color(visibility)
+                          ? Colors.white
                           : isDark
                           ? AppColors.bgPage
                           : AppColors.textSecondary,
@@ -266,11 +176,7 @@ class UploadVisibilitySelector extends StatelessWidget {
                       Icon(
                         _icon(visibility),
                         size: 20,
-                        color: isSelected
-                            ? _color(visibility)
-                            : isDark
-                            ? AppColors.textPrimary38
-                            : AppColors.textSecondary,
+                        color: Colors.white,
                       ),
                       const SizedBox(height: 6),
                       Text(
@@ -278,10 +184,10 @@ class UploadVisibilitySelector extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: isSelected
-                              ? FontWeight.w500
+                              ? FontWeight.w600
                               : FontWeight.w500,
                           color: isSelected
-                              ? _color(visibility)
+                              ? Colors.white
                               : isDark
                               ? AppColors.textPrimary60
                               : AppColors.textSecondary,
@@ -298,29 +204,22 @@ class UploadVisibilitySelector extends StatelessWidget {
     });
   }
 
-  static Color _color(String v) {
-    switch (v.toLowerCase()) {
-      case 'public':
-        return AppColors.bgPage;
-      case 'unlisted':
-        return AppColors.textPrimary;
-      case 'private':
-        return AppColors.textSecondary;
-      default:
-        return AppColors.textSecondary;
-    }
-  }
-
   static IconData _icon(String v) {
     switch (v.toLowerCase()) {
       case 'public':
         return Icons.public_rounded;
+      case 'members':
+      case 'members only':
+        return Icons.card_membership_rounded;
+      case 'subscribers':
+      case 'subscribers only':
+        return Icons.subscriptions_rounded;
       case 'unlisted':
         return Icons.link_rounded;
       case 'private':
         return Icons.lock_rounded;
       default:
-        return Icons.help_outline_rounded;
+        return Icons.visibility_rounded;
     }
   }
 }
